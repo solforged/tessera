@@ -28,22 +28,30 @@ jobs:
       - name: Check the tag matches the version
         run: test "$TAG" = "v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Write release notes
-        run: mise run release:body -- "$TAG" > "$RUNNER_TEMP/notes.md"
+        run: scripts/release/body "$TAG" > "$RUNNER_TEMP/notes.md"
 
 
       - name: Build app
+        shell: devenv shell -- bash -e {0}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: |
           test -n "$TAURI_SIGNING_PRIVATE_KEY"
-          TESSERA_BUILD="$(git rev-parse --short HEAD)" mise run desktop:build --bundles app,dmg
+          TESSERA_BUILD="$(git rev-parse --short HEAD)" ts-desktop-build --bundles app,dmg
 
       - name: Package release
         run: |
@@ -84,13 +92,21 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Build release
-        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" mise run cli:build --target "$TARGET"
+        shell: devenv shell -- bash -e {0}
+        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" ts-cli-build --target "$TARGET"
 
       - name: Package binary
         run: tar -czf "tessera-${TAG}-${TARGET}.tar.gz" -C "target/${TARGET}/release" tessera
@@ -113,22 +129,21 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
 
-      # Gradle installs the platform and build tools once the SDK licence is
-      # accepted; sdkmanager --licenses no longer records it. The runner's
-      # Android SDK supplies the NDK.
-      - name: Accept the Android SDK licence
-        run: |
-          mise install android-sdk@23.0
-          sdk=$(mise where android-sdk@23.0)
-          mkdir -p "$sdk/licenses"
-          printf '\n24333f8a63b6825ea9c5514f83c2829b004d1fee' > "$sdk/licenses/android-sdk-license"
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
+      # devenv's android profile supplies the JDK, SDK and NDK.
       - name: Build APK
+        shell: devenv shell -- bash -e {0}
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
           TESSERA_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -136,7 +151,7 @@ jobs:
           test -n "$ANDROID_KEYSTORE"
           export TESSERA_ANDROID_KEYSTORE="$RUNNER_TEMP/tessera-release.jks"
           base64 -d <<<"$ANDROID_KEYSTORE" > "$TESSERA_ANDROID_KEYSTORE"
-          NDK_HOME="$ANDROID_NDK_LATEST_HOME" mise run android:build --target aarch64 --apk
+          ts-android-build --target aarch64 --apk
           cp crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
             "Tessera_${TAG#v}_aarch64.apk"
 
@@ -157,15 +172,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          version: 2026.10.1
-
       - name: Upload checksums
         env:
           GH_TOKEN: ${{ github.token }}
           MACOS: ${{ needs.macos.result }}
           LINUX: ${{ needs.linux.result }}
           ANDROID: ${{ needs.android.result }}
-        run: mise run release:finish -- "${{ github.ref_name }}"
+        run: scripts/release/finish "${{ github.ref_name }}"

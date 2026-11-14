@@ -6,8 +6,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # wasm-bindgen-cli must match the crate version pinned by mise; keep
-    # those two moving together by hand.
+    # wasm-bindgen-cli must match the crate; devenv.nix names the matching
+    # nixpkgs package, so move the two together by hand.
     ignore:
       - dependency-name: "wasm-bindgen"
     commit-message:

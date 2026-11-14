@@ -87,17 +87,19 @@ Build a debug APK for arm64 and install it on a phone with USB debugging
 enabled. Run these commands from the repository root:
 
 ```sh
-mise run android:build
+ts-android-build
 adb install -r crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
-`mise` supplies the JDK and Android SDK. The SDK needs an NDK
-(`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one.
+devenv's `android` profile supplies the JDK and an Android SDK with its NDK and
+`adb`; the Android commands enter it on their own, and the first run downloads
+it. For `adb`, open the profile with `devenv --profile android shell`.
+`NDK_HOME` overrides the NDK.
 
 Extra arguments go to `tauri android build`. For a release APK:
 
 ```sh
-mise run android:build --target aarch64 --apk
+ts-android-build --target aarch64 --apk
 ```
 
 It is signed when `TESSERA_ANDROID_KEYSTORE` names a keystore with a `tessera`
@@ -107,7 +109,7 @@ regenerates it.
 
 ### Tailnet download
 
-`mise run android:publish [commit]` (default `HEAD`) builds the commit in its
+`ts-android-publish [commit]` (default `HEAD`) builds the commit in its
 own worktree, strips the native library's debug info (about 90 MB) and signs it
 again with the release key. It and the GitHub release APKs can update each other
 without losing the workshop.
@@ -145,7 +147,7 @@ Build a debug IPA and install it on an iPhone connected over USB or the local
 network. Run these commands from the repository root:
 
 ```sh
-mise run ios:build
+ts-ios-build
 xcrun devicectl device install app --device <UDID> crates/tessera-mobile/gen/apple/build/arm64/Tessera.ipa
 ```
 
@@ -177,7 +179,7 @@ Extra arguments go to `tauri ios build`. To build and launch in an Apple silicon
 simulator:
 
 ```sh
-mise run ios:build -- --debug --target aarch64-sim
+ts-ios-build --debug --target aarch64-sim
 xcrun simctl boot <SIMULATOR-UDID>
 xcrun simctl bootstatus <SIMULATOR-UDID> -b
 xcrun simctl install <SIMULATOR-UDID> crates/tessera-mobile/gen/apple/build/arm64-sim/Tessera.app
@@ -263,13 +265,12 @@ app, under `~/Applications/Brave Browser Apps.localized/` (Helium:
 
 ## Command line
 
-Build a self-contained binary with [`mise`](https://mise.jdx.dev). It installs the
-pinned Rust, Bun and wasm tools from [`mise.toml`](../mise.toml). From the
-repository root, run:
+Build a self-contained binary in the [devenv](https://devenv.sh) shell, which
+holds the pinned Rust, Bun and wasm tools from [`devenv.nix`](../devenv.nix).
+After `direnv allow` in the checkout, run:
 
 ```sh
-mise install
-mise run cli:install
+ts-cli-install
 tessera install
 ```
 

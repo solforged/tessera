@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# Build a commit (default HEAD) into the Android APK offered for download on the tailnet
+# Usage: ts-android-publish [commit]
+#
+# Builds in a separate worktree, so uncommitted edits never ship. Strips the
+# debug info from the native library (about 90 MB instead of 300 to 700 MB),
+# signs it again with the release key the GitHub release APKs carry, so the
+# two update each other and keep the workshop. The key comes from
+# TESSERA_ANDROID_KEYSTORE and TESSERA_ANDROID_KEYSTORE_PASSWORD, as Gradle
+# takes them; else from ~/.android/tessera-release.jks with its password in the
+# login Keychain (service tessera-android-release-keystore), which needs no
+# prompt; else from the 1Password item "Tessera Android release key". The APK
+# and a page naming its commit replace the previous ones at
+# https://<this Mac>.<tailnet>:8443/, served from 127.0.0.1:18791 by the
+# dev.tessera.downloads launch agent and exposed to the tailnet only by
+# Tailscale Serve. Both are set up on the first run.
+set -euo pipefail
+
+case ${1-} in -*) echo "usage: ts-android-publish [commit]" >&2; exit 2 ;; esac
+[ $# -le 1 ] || { echo "usage: ts-android-publish [commit]" >&2; exit 2; }
+root=$(git rev-parse --show-toplevel)
+commit=$(git -C "$root" rev-parse --verify "${1:-HEAD}^{commit}")
+build=$(git -C "$root" rev-parse --short "$commit")
+subject=$(git -C "$root" log -1 --format=%s "$commit")
+committed=$(git -C "$root" log -1 --format=%cs "$commit")
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/tessera"
+src="$cache/android-publish"
+site="$cache/android-downloads"
+logs="${XDG_STATE_HOME:-$HOME/.local/state}/tessera/logs"
+port=18791
+https=8443
+label=dev.tessera.downloads
+plist="$HOME/Library/LaunchAgents/$label.plist"
+item="op://Private/Tessera Android release key"
+
+# The key first, so a missing one fails before the build.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+keystore=${TESSERA_ANDROID_KEYSTORE:-}
+password=${TESSERA_ANDROID_KEYSTORE_PASSWORD:-}
+if [ -z "$keystore" ] && [ -f "$HOME/.android/tessera-release.jks" ]; then
+  keystore="$HOME/.android/tessera-release.jks"
+  [ -n "$password" ] || password=$(security find-generic-password -s tessera-android-release-keystore -w 2>/dev/null || true)
+fi
+if [ -z "$keystore" ]; then
+  keystore="$work/release.jks"
+  op read --out-file "$keystore" "$item/keystore" >/dev/null
+fi
+[ -n "$password" ] || password=$(op read "$item/password")
+export TESSERA_ANDROID_KEYSTORE_PASSWORD="$password"
+
+echo "publish: building $build"
+if [ -e "$src/.git" ]; then
+  git -C "$src" checkout --quiet --detach --force "$commit"
+  git -C "$src" clean -fdq
+else
+  mkdir -p "$(dirname "$src")"
+  git -C "$root" worktree add --quiet --detach "$src" "$commit"
+fi
+# The commit builds with its own devenv.nix and Android profile. Gradle's
+# configuration cache can still name the main checkout.
+rm -rf "$src/crates/tessera-mobile/gen/android/.gradle/configuration-cache"
+(cd "$src" && CARGO_INCREMENTAL=0 devenv --quiet --profile android shell -- ts-android-build >/dev/null)
+apk="$src/crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+
+source "$root/scripts/android/ndk.sh"
+strip=$(find "$NDK_HOME/toolchains/llvm/prebuilt" -path '*/bin/llvm-strip' | head -n 1)
+tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+(cd "$work" && mkdir lib && unzip -q "$apk" 'lib/*' -d .)
+find "$work/lib" -name '*.so' -exec "$strip" --strip-debug {} +
+cp "$apk" "$work/stripped.apk"
+zip -q -d "$work/stripped.apk" 'META-INF/*'
+(cd "$work" && zip -q -0 stripped.apk lib/*/*.so)
+"$tools/zipalign" -f -P 16 4 "$work/stripped.apk" "$work/aligned.apk"
+"$tools/apksigner" sign --ks "$keystore" --ks-key-alias tessera --ks-pass env:TESSERA_ANDROID_KEYSTORE_PASSWORD --key-pass env:TESSERA_ANDROID_KEYSTORE_PASSWORD --out "$work/signed.apk" "$work/aligned.apk"
+certificate=$("$tools/apksigner" verify --print-certs "$work/signed.apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)
+
+name="tessera-$build.apk"
+size=$(du -m "$work/signed.apk" | cut -f1)
+digest=$(shasum -a 256 "$work/signed.apk" | cut -d' ' -f1)
+html() { local s=${1//&/&amp;}; s=${s//</&lt;}; s=${s//>/&gt;}; printf '%s' "$s"; }
+mkdir -p "$site"
+mv "$work/signed.apk" "$site/$name.part"
+mv "$site/$name.part" "$site/$name"
+ln -sfn "$name" "$site/tessera.apk"
+cat >"$work/index.html" <<EOF
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tessera for Android</title>
+<style>
+  :root { color-scheme: dark; --canvas: #12151c; --text: #e6e1d6; --muted: #9a9486; --line: #2a2f3a; --accent: #d8b25c; }
+  body { margin: 0; background: var(--canvas); color: var(--text); font: 17px/1.55 Georgia, serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 3rem 1.5rem; }
+  h1 { margin: 0 0 .25rem; font-weight: 400; font-size: 2rem; }
+  .meta, dl { color: var(--muted); font: 13px/1.6 ui-monospace, Menlo, monospace; }
+  a.download { display: inline-block; margin: 1.5rem 0; padding: .75rem 1.25rem; border: 1px solid var(--accent); border-radius: 6px; color: var(--accent); text-decoration: none; font: 15px/1 ui-monospace, Menlo, monospace; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+  dt { color: var(--muted); } dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+  p { margin: 0 0 1rem; }
+</style>
+<main>
+  <h1>Tessera for Android</h1>
+  <p class="meta">$build · $(html "$subject")</p>
+  <a class="download" href="$name">Download Tessera · $size MB</a>
+  <p>Open the file and allow this browser to install apps if Android asks. It installs over a Tessera from this page or a GitHub release as an update and keeps its workshop; a new install starts with workshop setup. A Tessera built for development has another signature: Android refuses the update until it is uninstalled, which deletes that phone's workshop.</p>
+  <dl>
+    <dt>Commit</dt><dd>$build, $committed</dd>
+    <dt>Published</dt><dd>$(date '+%Y-%m-%d %H:%M %Z')</dd>
+    <dt>SHA-256</dt><dd>$digest</dd>
+    <dt>Signer</dt><dd>$certificate</dd>
+  </dl>
+</main>
+EOF
+mv "$work/index.html" "$site/index.html"
+find "$site" -name 'tessera-*.apk' ! -name "$name" -delete
+
+# Rewrite the server's paths when migrating an existing launch agent too.
+mkdir -p "$(dirname "$plist")" "$logs"
+cat >"$work/downloads.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$label</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string><string>-m</string><string>http.server</string><string>$port</string>
+    <string>--bind</string><string>127.0.0.1</string><string>--directory</string><string>$site</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>$logs/downloads.log</string>
+</dict>
+</plist>
+EOF
+if ! cmp -s "$work/downloads.plist" "$plist" || ! launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+  if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+    launchctl bootout "gui/$(id -u)/$label"
+  fi
+  cp "$work/downloads.plist" "$plist"
+  launchctl bootstrap "gui/$(id -u)" "$plist"
+fi
+host=$(tailscale status --json | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
+if ! tailscale serve status 2>/dev/null | grep -q "^https://$host:$https "; then
+  tailscale serve --bg --https="$https" "http://127.0.0.1:$port" >/dev/null
+fi
+echo "publish: $build is at https://$host:$https/ ($size MB)"

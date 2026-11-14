@@ -13,7 +13,9 @@ Crossref
 Datalog
 Datascript
 Dependabot
+devenv
 DevTools
+direnv
 Gboard
 Gradle
 Hana

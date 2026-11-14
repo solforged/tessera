@@ -9,14 +9,14 @@ Follow
 [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the workspace and demo run.
 
-Prerequisites: mise's WASM toolchain/LLVM tools and `wasm-opt`, an installed
+Prerequisites: the devenv shell's wasm toolchain, LLVM tools and `wasm-opt`, an installed
 Chromium with OPFS, and network access or supplied EPUB fixtures. Generate the
 WASM package in the owned source.
 
 ## Build
 
 ```sh
-(cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" mise run demo:wasm)  # pinned toolchain, llvm-ar and wasm-opt; serialize shared-target builds
+(cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" ts-demo-wasm)  # pinned toolchain, llvm-ar and wasm-opt; serialize shared-target builds
 (cd "$TASK_SOURCE/web" && bunx tsc --noEmit && bunx tsc --noEmit -p tsconfig.demo.json && task_run bun test src && bun run build:demo)
 cp -R "$TASK_SOURCE/web/dist-demo/." "$TASK_DIST/"
 ```

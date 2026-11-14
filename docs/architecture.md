@@ -442,6 +442,6 @@ crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
 crates/tessera-web       browser demo: core and service routes in a WASM worker
 web/                     Solid editor
-mise-tasks/              development, build and publishing tasks
+scripts/              development, build and publishing tasks
 docs/                    design documents
 ```

@@ -111,7 +111,7 @@ heads vs row cells) and visible strip children
 
 ## Finish
 
-- In the owned integration source, run the requested `mise run lint` and web
+- In the owned integration source, run the requested `ts-lint` and web
   tests through isolated runtime where appropriate: with tool
   `cwd: TASK_SOURCE/web`,
   `task_run env TESSERA_TEST_BINARY="$TASK_BIN" TESSERA_TEST_PORT=<owned-free-test-port> bun run test`.
@@ -121,7 +121,7 @@ heads vs row cells) and visible strip children
 - Commit explicit paths in the owned source with
   `git -C "$TASK_SOURCE" add <paths>` and the applicable ≤72-character commit
   header/body rules. Landing is separate authorization: use
-  `mise run land -- [--issue N] --wait <owned-branch>` with tool
+  `ts-land [--issue N] --wait <owned-branch>` with tool
   `cwd: TASK_SOURCE` only when requested. Never push main or squash/rebase
   merge.
 - Ship only when separately authorized and the SHA has landed; scope the

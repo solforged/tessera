@@ -17,3 +17,8 @@
 # Finder metadata and agent worktrees.
 .DS_Store
 /.claude/worktrees/
+# devenv and direnv.
+/.devenv*
+/.direnv/
+/devenv.local.nix
+/devenv.local.yaml

@@ -10,7 +10,7 @@
 #
 # The guest toolchain follows this repo's lockfiles: Cargo.lock pins
 # wasm-bindgen 0.2.129 and nixpkgs' wasm-bindgen-cli matches. Known drift
-# from mise.toml: binaryen 132 vs 133, vale 3.17.1 vs 3.24.
+# from devenv.nix: binaryen 132 vs 133, vale 3.17.1 vs 3.25.
 #
 # The image carries no secrets and no key material. Git push authenticates
 # through the host ssh agent forwarded by `container run --ssh`, never with
@@ -58,9 +58,9 @@
         {"default":[{"type":"insecureAcceptAnything"}]}
       '';
 
-      # The guest toolchain, mirroring mise.toml [tools]. nixpkgs rustc
+      # The guest toolchain, mirroring the packages in devenv.nix. nixpkgs rustc
       # bundles the wasm32-unknown-unknown std; its sysroot has no llvm-ar,
-      # so LLVM ships alongside for the demo:wasm task's
+      # so LLVM ships alongside for ts-demo-wasm's
       # AR_wasm32_unknown_unknown.
       guestRoot = pkgs.buildEnv {
         name = "dev-tessera-root";

@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
+inputs:
+  nixpkgs:
+    url: github:cachix/devenv-nixpkgs/rolling
+  # The stable Rust toolchain with the wasm, Android and iOS targets.
+  rust-overlay:
+    url: github:oxalica/rust-overlay
+    inputs:
+      nixpkgs:
+        follows: nixpkgs
+    overlays:
+      - default
+# The Android SDK's packages, which only the android profile builds. Each is
+# checked under its package name and its SDK name.
+nixpkgs:
+  permitted_unfree_packages:
+    - android-sdk-build-tools
+    - android-sdk-cmdline-tools
+    - android-sdk-ndk
+    - android-sdk-platform-tools
+    - android-sdk-platforms
+    - build-tools
+    - cmdline-tools
+    - ndk
+    - platform-tools
+    - platforms

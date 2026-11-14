@@ -32,10 +32,10 @@ before runtime HOME changes.
 
 ## Connect and launch
 
-On this Mac, `adb` was found outside PATH at:
+`adb` comes from devenv's android profile:
 
 ```sh
-ADB="$HOME/.local/share/mise/installs/android-sdk/23.0/platform-tools/adb"
+ADB="$(devenv --profile android shell -- sh -c 'echo "$ANDROID_HOME/platform-tools/adb"' 2>/dev/null)"
 "$ADB" devices -l
 ```
 

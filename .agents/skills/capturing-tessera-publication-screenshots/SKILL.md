@@ -117,7 +117,7 @@ Generate IDs as 26-character Crockford ULIDs. Each operation needs the
   coordinate with the site's owner rather than write its shared checkout.
 - README: when an edit/commit is authorized, commit README.md and selected
   docs/images from the owned writer tree; remove only explicitly superseded
-  images. This is docs-only, so do not run `mise run ship`. Check each published
+  images. This is docs-only, so do not run `ts-ship`. Check each published
   image at
   https://raw.githubusercontent.com/solforged/tessera/<sha>/docs/images/<name>.png
   only after publication is authorized/completed.

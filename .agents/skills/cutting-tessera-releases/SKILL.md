@@ -11,7 +11,7 @@ match `Cargo.toml` or a changelog section that is missing or still marked draft.
 
 Follow
 [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
-to prepare/source the release workspace and run. Execute mise/gh commands with
+to prepare/source the release workspace and run. Execute `ts-*`/gh commands with
 tool `cwd: TASK_SOURCE`, and scope Git with `-C "$TASK_SOURCE"`.
 
 Authorize the actual version/tag/publication; Mac shipping, tailnet APK
@@ -33,11 +33,11 @@ protected-main rulesets, required CI checks and landing workflow. See also
    owned release source at the explicit intended `origin/main` commit through
    the shared lifecycle. Do not mutate the dirty shared tree to obtain the
    release base.
-2. `mise run release:prepare -- X.Y.Z`. It bumps the workspace version, rewrites
+2. `ts-release-prepare X.Y.Z`. It bumps the workspace version, rewrites
    `Cargo.lock`, and prepends a changelog draft.
 3. Edit `CHANGELOG.md` as below. Delete the `<!-- draft: ... -->` line.
-4. `mise run release:cut -- X.Y.Z --push` (run async; ~15 min). It lands the
-   version commit with `mise run land -- omp/release-X.Y.Z --wait`, then pushes
+4. `ts-release-cut X.Y.Z --push` (run async; ~15 min). It lands the
+   version commit with `ts-land omp/release-X.Y.Z --wait`, then pushes
    the tag at that same SHA. The action fast-forwards main without rewriting
    commits or signatures, and GitHub deletes the `omp/release-X.Y.Z` branch
    itself (a later `git push --delete` fails harmlessly). A detached worktree is
@@ -45,7 +45,7 @@ protected-main rulesets, required CI checks and landing workflow. See also
 5. If main moves before CI finishes, the workflow comments on the PR instead of
    landing. Fetch/rebase only the owned release branch with
    `git -C "$TASK_SOURCE" fetch origin` and
-   `git -C "$TASK_SOURCE" rebase origin/main`, then rerun `mise run land` there
+   `git -C "$TASK_SOURCE" rebase origin/main`, then rerun `ts-land` there
    with the same branch name. Push the tag only at the landed version SHA,
    following the protected-main procedure if a leased branch update is required.
 6. Watch from `TASK_SOURCE`: `gh run list -w release.yml -L 1`, then
@@ -55,7 +55,7 @@ protected-main rulesets, required CI checks and landing workflow. See also
    version; put retained downloads and verification in `TASK_EVIDENCE`.
 7. Tell peers the landed sha and that new changelog bullets go under empty
    `## Unreleased`. If Mac shipping is authorized, run
-   `mise run ship <landed-sha>` from `TASK_SOURCE` and check `/api/service`
+   `ts-ship <landed-sha>` from `TASK_SOURCE` and check `/api/service`
    reports the version. A GitHub release does not replace
    `/Applications/Tessera.app`. Retain evidence and follow shared teardown;
    peers reconcile their own checkouts.
@@ -75,7 +75,7 @@ mutation.
 
 ## Changelog
 
-`release:prepare` inserts a draft of capitalized commit subjects after
+`ts-release-prepare` inserts a draft of capitalized commit subjects after
 `<!-- releases -->` and leaves the hand-written `## Unreleased` section below
 it. Do not publish that draft. The curated Unreleased section is the release
 notes.
@@ -92,7 +92,7 @@ Add user-visible work committed after the last changelog touch: use
 `feat`/`fix` that did not touch CHANGELOG.md, search Unreleased before writing a
 bullet in its voice. Skip commit-subject wording.
 
-`mise run release:notes -- X.Y.Z --published` must succeed before `release:cut`
+`ts-release-notes X.Y.Z --published` must succeed before `ts-release-cut`
 (it fails with "still a draft" while the draft marker remains).
 
 ## Android signing
@@ -106,7 +106,7 @@ must not be described as requiring an uninstall without checking the phone's
 signer first.
 
 - Local signed build, with tool `cwd: TASK_SOURCE` and normal host HOME:
-  `TESSERA_ANDROID_KEYSTORE=~/.android/tessera-release.jks TESSERA_ANDROID_KEYSTORE_PASSWORD=… CARGO_TARGET_DIR="$TASK_TARGET" mise run android:build --target aarch64 --apk`;
+  `TESSERA_ANDROID_KEYSTORE=~/.android/tessera-release.jks TESSERA_ANDROID_KEYSTORE_PASSWORD=… CARGO_TARGET_DIR="$TASK_TARGET" ts-android-build --target aarch64 --apk`;
   output: `.../apk/universal/release/app-universal-release.apk`. Use the shared
   target/exception procedure; never substitute a debug APK for release
   acceptance.
@@ -116,20 +116,17 @@ signer first.
 
 ## CI gotchas
 
-- Run `cargo fmt --all -- --check` (part of `mise run lint`, the CI "Format and
+- Run `cargo fmt --all -- --check` (part of `ts-lint`, the CI "Format and
   Clippy" step) before landing any Rust change; lane patches often arrive
   unformatted, and a `fmt` failure costs a full land cycle.
-- The `mise` `android-sdk@23.0` `sdkmanager --licenses` no longer records
-  acceptance. The workflow writes `\n24333f8a63b6825ea9c5514f83c2829b004d1fee`
-  to `$(mise where android-sdk@23.0)/licenses/android-sdk-license` after
-  `mise install android-sdk@23.0`; without it, Gradle fails on platform 37 and
-  build-tools 36.
-- `NDK_HOME="$ANDROID_NDK_LATEST_HOME"` on `ubuntu` runners.
+- The Android job builds in devenv's `android` profile. Its Nix SDK holds
+  platform 37, build-tools 37.0.0 and the NDK, with the licenses accepted, so
+  Gradle installs nothing and the runner's own SDK is unused.
 - CI runs only for pull requests (and by hand:
   `gh workflow run ci.yml --ref <branch>`). A bare temp branch push does not run
   CI. To trial a workflow change before tagging, use a pull request with a copy
   of the job (no `needs`, `TAG` hard-coded, `actions/upload-artifact` in place
   of the release upload). Remove the trial-only job before landing through
-  `mise run land`.
+  `ts-land`.
 - macOS `/bin/bash` is 3.2. Release scripts must not use `[[ =~ ]]` with nested
   groups; that is a syntax error before the script runs.

@@ -54,7 +54,7 @@ owned integration checkout with `git -C "$TASK_SOURCE" fetch origin` and
 `git -C "$TASK_SOURCE" rebase origin/main`, preserving main's applicable
 neighboring documentation. Run the requested typecheck, web suite with
 `TESSERA_TEST_BINARY="$TASK_BIN"` under `task_run`, and build once after
-integration. Use `mise run land -- --wait` with tool `cwd: TASK_SOURCE` (give
+integration. Use `ts-land --wait` with tool `cwd: TASK_SOURCE` (give
 `--title "type(scope): summary"` for a batch); issues are optional for durable
 tracking. Never push main or squash/rebase merge, and never move a peer's
 checkout when main advances. Shipping needs separate authorization.

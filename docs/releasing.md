@@ -4,13 +4,13 @@ Tessera has three publishes. They are not interchangeable.
 
 | Publish                       | Who it is for                                      | Command                                                |
 | ----------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
-| GitHub release                | Anyone downloading the app                         | `mise run release:cut -- <version> --push`             |
+| GitHub release                | Anyone downloading the app                         | `ts-release-cut <version> --push`                      |
 | Browser demo                  | Anyone trying it at <https://tessera.solforged.io> | Landing a pull request on `main`, or a manual dispatch |
-| This Mac, and the tailnet APK | The machine you are using                          | `mise run ship` and `mise run android:publish`         |
+| This Mac, and the tailnet APK | The machine you are using                          | `ts-ship` and `ts-android-publish`                     |
 
-`ship` and `android:publish` build one commit into the local app or the tailnet
-download page. They do not create a GitHub release, and a GitHub release does
-not replace the app on this Mac.
+`ts-ship` and `ts-android-publish` build one commit into the local app or the
+tailnet download page. They do not create a GitHub release, and a GitHub release
+does not replace the app on this Mac.
 
 ## Land a change on main
 
@@ -20,8 +20,8 @@ keeps its SHA and signature.
 
 ```sh
 git fetch && git rebase origin/main
-mise run land                       # one commit: its subject is the title
-mise run land -- --title "fix(review): …" --issue 12 --wait
+ts-land  # one commit: its subject is the title
+ts-land --title "fix(review): …" --issue 12 --wait
 ```
 
 `land` pushes `HEAD` to `omp/<short sha>` (or the branch you name) and opens a
@@ -67,7 +67,7 @@ Run this from a clean worktree of `origin/main`, not from a tree that holds
 another session's edits.
 
 ```sh
-mise run release:prepare -- 0.4.0
+ts-release-prepare 0.4.0
 ```
 
 The task:
@@ -82,12 +82,12 @@ Edit `CHANGELOG.md`. Delete the `<!-- draft: ... -->` line. Group or drop
 bullets that are not what the release should say. Then:
 
 ```sh
-mise run release:cut -- 0.4.0
-mise run release:cut -- 0.4.0 --push
+ts-release-cut 0.4.0
+ts-release-cut 0.4.0 --push
 ```
 
 Without `--push`, the tag stays local. With `--push`, the task lands the version
-commit through `mise run land -- omp/release-<version> --wait`, then pushes
+commit through `ts-land omp/release-<version> --wait`, then pushes
 `v0.4.0` at that same commit.
 [`.github/workflows/release.yml`](../.github/workflows/release.yml) creates the
 release. Do not run `gh release create`.
@@ -108,7 +108,7 @@ fails the workflow.
 | `SHA256SUMS`                                         | Checksums of the files above.                                                      |
 | `latest.json`                                        | Updater manifest. It must be on the release before that release is the latest one. |
 
-`mise run release:finish -- v0.4.0` can upload `SHA256SUMS` again if the
+`ts-release-finish v0.4.0` can upload `SHA256SUMS` again if the
 workflow stopped after the assets were published.
 
 ## Browser demo
@@ -133,12 +133,12 @@ the token, the workflow builds and does not deploy.
 
 ## This Mac and the phone
 
-`mise run ship [commit]` builds that commit in
+`ts-ship [commit]` builds that commit in
 `${XDG_CACHE_HOME:-$HOME/.cache}/tessera/ship` and installs it over
 `/Applications/Tessera.app`. Uncommitted edits never ship. If the new build does
 not answer, the previous app and workshop backup are restored.
 
-`mise run android:publish [commit]` builds a signed APK and replaces the page at
+`ts-android-publish [commit]` builds a signed APK and replaces the page at
 `https://<this Mac>.<tailnet>:8443/`. That page is on the tailnet only. It can
 update a phone that installed a GitHub release APK, and the other way around,
 because both use the release key.
@@ -159,8 +159,8 @@ The updater key's password in CI is empty. The Android key's local copies are in
 Do not delete the latest release. Installed Mac apps poll its `latest.json`.
 Deleting it can leave them with no update to fetch.
 
-Publish a newer patch instead. `release:prepare` the next version, say what went
-wrong in the changelog, then `release:cut --push`. The updater offers that
+Publish a newer patch instead. Run `ts-release-prepare` for the next version,
+say what went wrong in the changelog, then `ts-release-cut --push`. The updater offers that
 version on its next check.
 
 To take the browser demo back, dispatch `demo.yml` with the last good commit as

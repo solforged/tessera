@@ -45,7 +45,7 @@ exercised verification and deviations. Keep evidence/provenance under
     Rating/Owned/Recommended by on books; Priority; a Meeting template
     (Attendees, Follow-up, Where); a nested Status choice on Hana Okafor.
   - Seed before each clickaround from the owned `TASK_SOURCE`:
-    `task_run env TESSERA_BIN="$TASK_BIN" bun mise-tasks/seed/clickaround "$TASK_RUN/notebooks/clickaround"`.
+    `task_run env TESSERA_BIN="$TASK_BIN" bun scripts/seed/clickaround "$TASK_RUN/notebooks/clickaround"`.
     Never run default `--replace` against the host's registered workshop.
     Highlights are created at seed time, so Resurfaced on the seed day is empty.
     Preserve a stopped pristine baseline before lanes mutate it.
@@ -284,7 +284,7 @@ cross-lane contract, tokens-only styling and sentence case.
 - Data the row lacks (e.g. logged-work totals) needs a full-stack lane after the
   row lane finishes; don't let a lane fake it.
 - The integration owner runs `cargo fmt --all`, `cargo test -p tessera-core` and
-  `mise run lint` once after crate changes are integrated: CI runs `fmt --check`
+  `ts-lint` once after crate changes are integrated: CI runs `fmt --check`
   and `clippy` -D warnings. Build/install under normal host HOME and isolate test
   runtime HOME/XDG; lanes skip checks mid-flight.
 - When committing is authorized, assemble coherent area commits (`feat(core)`,

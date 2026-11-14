@@ -9,8 +9,8 @@ iOS support is on main since 43a0e6cf (2026-10-24). The pieces:
 
 - The phone crate is `crates/tessera-mobile`, shared by Android and iOS.
 - The pages are the `mobile` build (`web/mobile.html`, `web/src/mobile/`,
-  `web/dist-mobile`), made by `mise run mobile:pages`.
-- `mise run ios:build` builds the app; see `docs/usage.md#ios-app`.
+  `web/dist-mobile`), made by `ts-mobile-pages`.
+- `ts-ios-build` builds the app; see `docs/usage.md#ios-app`.
 - `gen/apple/Sources/tessera-mobile/main.mm` is the native bridge:
   - hides WKWebView's form accessory bar;
   - forwards status-bar taps as `tessera:status-bar-tap`;
@@ -44,10 +44,10 @@ to prepare/source the iOS build workspace and run. Native Xcode/WebKit
 acceptance stays host-side; resolve tools before runtime HOME changes.
 
 1. Install `bun install --cwd "$TASK_SOURCE/web" --frozen-lockfile` under normal
-   host HOME. Execute build/mise commands with tool `cwd: TASK_SOURCE` and scope
+   host HOME. Execute build and `ts-*` commands with tool `cwd: TASK_SOURCE` and scope
    Git to that source.
 2. Build pages with `bun run --cwd "$TASK_SOURCE/web" build:mobile`, then
-   `TESSERA_IOS_SIGNING_IDENTITY="<resolved-development-signing-identity>" CARGO_TARGET_DIR="$TASK_TARGET" mise run ios:build`
+   `TESSERA_IOS_SIGNING_IDENTITY="<resolved-development-signing-identity>" CARGO_TARGET_DIR="$TASK_TARGET" ts-ios-build`
    there. Use shared target/exception handling. The IPA is
    `"$TASK_SOURCE/crates/tessera-mobile/gen/apple/build/arm64/Tessera.ipa"`;
    record its hash/build and retain selected artifacts in `TASK_EVIDENCE`.
@@ -75,15 +75,15 @@ acceptance stays host-side; resolve tools before runtime HOME changes.
    `TASK_EVIDENCE`, then follow shared teardown.
 
 Simulator build, normal host HOME and tool `cwd: TASK_SOURCE`:
-`CARGO_TARGET_DIR="$TASK_TARGET" mise run ios:build -- --debug --target aarch64-sim`
+`CARGO_TARGET_DIR="$TASK_TARGET" ts-ios-build --debug --target aarch64-sim`
 makes `gen/apple/build/arm64-sim/Tessera.app` (~35 s warm, ~6 s for only
 main.mm). Select release instead for timing/profile acceptance; a debug
 simulator is functional QA, not release performance proof.
 
 Build pitfalls:
 
-- **Stale pages.** `ios:build` depends on `mobile:pages`, which `mise` skips when
-  its sources look unchanged, so a fixed build can still embed the old
+- **Stale pages.** `ts-ios-build` depends on `ts-mobile-pages`, which `ts-mobile-pages`
+  skips when its sources look unchanged, so a fixed build can still embed the old
   `web/dist-mobile`. Run `bun run --cwd web build:mobile` yourself first; step 2
   does.
 - **Blank app** with
@@ -170,7 +170,7 @@ Inspector must also be on (Settings › Apps › Safari › Advanced).
 2. **Seed.** Stage a matching built or explicitly selected shipped CLI at
    `TASK_BIN` per the shared procedure (record its build; do not assume the
    installed app matches the source). Run
-   `task_run env TESSERA_BIN="$TASK_BIN" bun "$TASK_SOURCE/mise-tasks/seed/clickaround" "$TASK_RUN/notebooks/ios-seed"`.
+   `task_run env TESSERA_BIN="$TASK_BIN" bun "$TASK_SOURCE/scripts/seed/clickaround" "$TASK_RUN/notebooks/ios-seed"`.
    In only this verified owned seed copy, remove any copied `service.lock` and
    use `/usr/bin/sqlite3` to clear `sync_hub` before launch; never edit a live
    notebook/registry.

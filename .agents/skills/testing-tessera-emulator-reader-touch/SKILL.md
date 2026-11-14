@@ -26,7 +26,7 @@ install on the physical Fold.
    inner, 0 cover). Fold/unfold only with `adb -s "$SERIAL" emu fold` /
    `adb -s "$SERIAL" emu unfold`.
 2. With tool `cwd: TASK_SOURCE`, build
-   `CARGO_TARGET_DIR="$TASK_TARGET" mise run android:build`, then
+   `CARGO_TARGET_DIR="$TASK_TARGET" ts-android-build`, then
    `adb -s "$SERIAL" install -r "$TASK_SOURCE/crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"`.
    Record the intended source changes and APK hash; use shared target/exception
    handling rather than peers' dirty source.

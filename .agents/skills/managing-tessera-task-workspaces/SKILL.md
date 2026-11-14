@@ -101,12 +101,11 @@ For this combined command, retain the installed toolchain/cache locations while
 isolating HOME/XDG; do not substitute `--no-run` and a partial executable list:
 
 ```sh
-HOST_CARGO="$(rustup which cargo)"
-HOST_RUSTC="$(rustup which rustc)"
-HOST_RUSTDOC="$(rustup which rustdoc)"
+HOST_CARGO="$(command -v cargo)"  # the devenv toolchain
+HOST_RUSTC="$(command -v rustc)"
+HOST_RUSTDOC="$(command -v rustdoc)"
 HOST_CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
-HOST_RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
-task_run env PATH="$(dirname "$HOST_CARGO"):$PATH" CARGO_HOME="$HOST_CARGO_HOME" RUSTUP_HOME="$HOST_RUSTUP_HOME" RUSTC="$HOST_RUSTC" RUSTDOC="$HOST_RUSTDOC" CARGO_TARGET_DIR="$TASK_TARGET" "$HOST_CARGO" test --manifest-path "$TASK_SOURCE/Cargo.toml" --workspace --locked
+task_run env PATH="$(dirname "$HOST_CARGO"):$PATH" CARGO_HOME="$HOST_CARGO_HOME" RUSTC="$HOST_RUSTC" RUSTDOC="$HOST_RUSTDOC" CARGO_TARGET_DIR="$TASK_TARGET" "$HOST_CARGO" test --manifest-path "$TASK_SOURCE/Cargo.toml" --workspace --locked
 ```
 
 ## Isolate runtime state
@@ -180,7 +179,7 @@ metadata; source separation is not independent repository authority.
 
 An audit or fix request does not authorize pushing, PR landing, shipping,
 changing signing/account state, installing on a physical device, pairing, or
-live-data writes. Retain the existing protected-main `mise run land` procedure
+live-data writes. Retain the existing protected-main `ts-land` procedure
 only when the user authorizes landing and the integration owner is identified.
 The absence of an integration owner does not grant publish authority.
 

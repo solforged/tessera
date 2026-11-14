@@ -28,7 +28,7 @@ it requires an uninstall, which **deletes that phone's notebook**. Never
 uninstall on the user's behalf.
 
 - **Debug key** `~/.android/debug.keystore`, cert SHA-256 `f160ca64…568399`.
-  Every `mise run android:build` output.
+  Every `ts-android-build` output.
 - **Release key** `~/.android/tessera-release.jks` (PKCS12, alias `tessera`,
   cert `985788…6eff`). Store and key share one password: login Keychain service
   `tessera-android-release-keystore`
@@ -38,7 +38,7 @@ uninstall on the user's behalf.
   `ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_PASSWORD`) and the tailnet page use it.
   The physical Fold runs this signer since 2026-10-12 (confirmed again
   2026-10-22).
-- `dumpsys package` on the Fold still shows `DEBUGGABLE`: `android:publish`
+- `dumpsys package` on the Fold still shows `DEBUGGABLE`: `ts-android-publish`
   strips and re-signs a _debug_ build with the release key. Do not read that
   flag as "debug signer".
 - So: update the Fold ONLY with the release-signed tailnet APK.
@@ -54,10 +54,10 @@ uninstall on the user's behalf.
 ## Fast path: "update the phone app" (worked 2026-10-12 and 2026-10-22, ~2 min)
 
 1. Coordinate over intercom (one session owns Mac+Fold ships). Wait for peers'
-   PRs to land through `mise run land` on `origin/main`; ship only landed shas.
+   PRs to land through `ts-land` on `origin/main`; ship only landed shas.
 2. Check live build (`curl -s 127.0.0.1:4318/api/service`). If authorized Mac
-   shipping and APK publication are needed, run `mise run ship <landed-sha>` and
-   `mise run android:publish <landed-sha>` with tool `cwd: TASK_SOURCE` under
+   shipping and APK publication are needed, run `ts-ship <landed-sha>` and
+   `ts-android-publish <landed-sha>` with tool `cwd: TASK_SOURCE` under
    normal host HOME. Mac and Fold must match schema (~50 s warm for both,
    publish ~20 s).
 3. Download to `"$TASK_RUN/downloads/tessera-<sha>.apk"` from
@@ -111,7 +111,7 @@ against the host's live route for QA.
 
 ## Tailnet download page (browser-based installs)
 
-- Run `mise run android:publish <explicit-landed-commit>` with tool
+- Run `ts-android-publish <explicit-landed-commit>` with tool
   `cwd: TASK_SOURCE` under normal host HOME. It builds in managed persistent
   `~/.cache/tessera/android-publish` (detached worktree, so dirty edits never
   ship), strips debug info (~90 MB), re-signs with the release key, and replaces
@@ -156,8 +156,9 @@ against the host's live route for QA.
 ## Build, strip, sign (debug, for emulators only; the Fold takes the release-signed page APK)
 
 ```sh
-(cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" mise run --force android:build)
-# Resolve SDK, NDK, BT and STRIP to installed absolute paths under normal host HOME first.
+(cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" ts-android-build)
+# Resolve SDK, NDK, BT, STRIP and JDK under normal host HOME first, from the android profile:
+# `devenv --profile android shell -- sh -c 'echo "$ANDROID_HOME $NDK_HOME $JAVA_HOME"'`.
 # STRIP is that NDK's llvm-strip; BT is the selected Android build-tools directory.
 W="$TASK_RUN/downloads/apk"; mkdir -p "$W/x"
 cp "$TASK_SOURCE/crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk" "$W/in.apk"
@@ -166,7 +167,7 @@ for so in "$W"/x/lib/*/*.so; do "$STRIP" --strip-debug "$so"; done
 cp "$W/in.apk" "$W/stripped.apk"
 (cd "$W" && zip -q -d stripped.apk 'META-INF/*' && cd x && zip -q -0 ../stripped.apk lib/*/*.so)
 "$BT/zipalign" -f -P 16 4 "$W/stripped.apk" "$W/aligned.apk"
-JAVA_HOME="$(mise where java@temurin-21)" "$BT/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --ks-key-alias androiddebugkey --out "$TASK_EVIDENCE/tessera-<sha>-debug.apk" "$W/aligned.apk"
+JAVA_HOME="$JDK" "$BT/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-pass pass:android --ks-key-alias androiddebugkey --out "$TASK_EVIDENCE/tessera-<sha>-debug.apk" "$W/aligned.apk"
 ```
 
 Verify freshness in the owned `TASK_SOURCE`: inspect `web/dist-mobile` mtimes
@@ -176,8 +177,8 @@ substitute that target in the build command; never clean the shared target.
 
 ## Install over wireless `adb`
 
-- `adb`: `~/.local/share/mise/installs/android-sdk/23.0/platform-tools/adb`. The
-  Fold is tailnet host `sophus`, 100.96.167.83. Try `adb devices` first.
+- `adb`: `$ANDROID_HOME/platform-tools/adb` from the android profile, or
+  `devenv --profile android shell -- adb`. The Fold is tailnet host `sophus`, 100.96.167.83. Try `adb devices` first.
 - Wireless debugging is off by default after a reboot: if the scan finds only
   one port that connects as `offline` (the pairing port, e.g. 39411), ask the
   user to turn on Developer options › Wireless debugging, then rescan; a second

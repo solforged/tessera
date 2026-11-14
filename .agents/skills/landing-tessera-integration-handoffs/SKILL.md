@@ -19,7 +19,7 @@ to establish the integration owner, prepare/source the intended integration
 workspace and allocate its run.
 
 Create an owned branch with `git -C "$TASK_SOURCE" switch -c "omp/$TASK_ID"`.
-Every Git command below is scoped to this source; run `mise`, Cargo, web and `gh`
+Every Git command below is scoped to this source; run `ts-*`, Cargo, web and `gh`
 commands with tool `cwd: TASK_SOURCE` or `TASK_SOURCE/web` as appropriate.
 Source separation does not grant permission to move shared main or another
 branch's refs.
@@ -65,11 +65,10 @@ changes, then use the shared combined compile/test exception:
 
 ```sh
 HOST_CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
-HOST_RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
-HOST_CARGO="$(rustup which cargo)"  # bypass mise/rustup shims after isolating HOME
-HOST_RUSTC="$(rustup which rustc)"
-HOST_RUSTDOC="$(rustup which rustdoc)"
-(cd "$TASK_SOURCE" && task_run env PATH="$(dirname "$HOST_CARGO"):$PATH" CARGO_HOME="$HOST_CARGO_HOME" RUSTUP_HOME="$HOST_RUSTUP_HOME" RUSTC="$HOST_RUSTC" RUSTDOC="$HOST_RUSTDOC" CARGO_TARGET_DIR="$TASK_TARGET" "$HOST_CARGO" test --workspace --locked)
+HOST_CARGO="$(command -v cargo)"  # the devenv toolchain, resolved before isolating HOME
+HOST_RUSTC="$(command -v rustc)"
+HOST_RUSTDOC="$(command -v rustdoc)"
+(cd "$TASK_SOURCE" && task_run env PATH="$(dirname "$HOST_CARGO"):$PATH" CARGO_HOME="$HOST_CARGO_HOME" RUSTC="$HOST_RUSTC" RUSTDOC="$HOST_RUSTDOC" CARGO_TARGET_DIR="$TASK_TARGET" "$HOST_CARGO" test --workspace --locked)
 ```
 
 Run the full web suite from `TASK_SOURCE/web` through `task_run` with
@@ -101,7 +100,7 @@ by the shared procedure, never live data.
 Follow `shipping-tessera-live-builds`, “Land a change on main”, and `/land` for
 the protected-main PR procedure. An integration assignment alone does not
 authorize publishing. When authorized, run
-`mise run land -- --wait <owned-branch>` with tool `cwd: TASK_SOURCE`. Commit
+`ts-land --wait <owned-branch>` with tool `cwd: TASK_SOURCE`. Commit
 messages use lowercase past-tense summaries and header/body lines ≤72. Keep this
 owned handoff/verification procedure rather than using the original dirty
 checkout as the landing target.
@@ -117,7 +116,7 @@ git -C "$TASK_SOURCE" rebase origin/main
 git -C "$TASK_SOURCE" push --force-with-lease=refs/heads/<owned-branch>:<recorded-old-sha> origin HEAD:refs/heads/<owned-branch>
 ```
 
-Rerun `mise run land -- --wait <owned-branch>` from the same owned source; it
+Rerun `ts-land --wait <owned-branch>` from the same owned source; it
 reuses the PR. Never force-push main. Ship only after the SHA lands on
 `origin/main` and shipping is authorized, following
 `shipping-tessera-live-builds`. For an authorized ship, smoke

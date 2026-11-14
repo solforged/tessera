@@ -52,6 +52,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         if: needs.changes.outputs.rust == 'true'
@@ -59,24 +62,36 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install tools
+      - name: Install Nix
         if: needs.changes.outputs.rust == 'true'
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        if: needs.changes.outputs.rust == 'true'
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        if: needs.changes.outputs.rust == 'true'
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Format and Clippy
         if: needs.changes.outputs.rust == 'true'
-        run: mise run lint
+        run: ts-lint
 
       - name: Test
         if: needs.changes.outputs.rust == 'true'
-        run: mise run test
+        run: ts-test
 
   browser:
     name: browser wasm build
     needs: changes
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         if: needs.changes.outputs.rust == 'true'
@@ -84,26 +99,38 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install tools
+      - name: Install Nix
         if: needs.changes.outputs.rust == 'true'
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        if: needs.changes.outputs.rust == 'true'
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        if: needs.changes.outputs.rust == 'true'
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Clippy for the browser demo
         if: needs.changes.outputs.rust == 'true'
-        run: mise run demo:lint
+        run: ts-demo-lint
 
       - name: Browser tests for the demo engine
         if: needs.changes.outputs.rust == 'true'
         env:
           CHROME_PATH: /usr/bin/google-chrome
-        run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" mise run demo:test
+        run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" ts-demo-test
 
   bench:
     name: backend correctness and scaling
     needs: changes
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         if: needs.changes.outputs.rust == 'true'
@@ -111,42 +138,62 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install tools
+      - name: Install Nix
         if: needs.changes.outputs.rust == 'true'
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        if: needs.changes.outputs.rust == 'true'
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        if: needs.changes.outputs.rust == 'true'
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       # Absolute budgets are for named devices; shared runners report them
       # but gate only on correctness and the no-per-row-work checks.
       - name: Run 50k correctness and scaling
         if: needs.changes.outputs.rust == 'true'
-        run: mise run bench --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on scaling
+        run: ts-bench --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on scaling
 
   web:
     name: web
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Typecheck and build
-        run: mise run web:build
+        run: ts-web-build
 
   # The rules' own tests, the prose in docs, skills and UI copy, and the
-  # messages of the pull request's commits. Only Vale is installed.
+  # messages of the pull request's commits, with the devenv shell's Vale.
   prose:
     name: prose
     runs-on: ubuntu-latest
-    env:
-      MISE_TASK_RUN_AUTO_INSTALL: "false"
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -154,63 +201,89 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Install Vale
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
-          install_args: vale
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Rule tests
-        run: mise run docs:test
+        run: ts-docs-test
 
       - name: Prose
-        run: mise run docs:lint
+        run: ts-docs-lint
 
       - name: Commit messages
         if: github.event_name == 'pull_request'
-        run: mise run commit:lint "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}"
+        run: ts-commit-lint "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}"
 
   android:
     name: android app
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
-        with:
-          version: 2026.10.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
 
-      # Builds the pages first: the app's Tauri context embeds them. The
-      # runner's Android SDK supplies the NDK.
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
+
+      # Builds the pages first: the app's Tauri context embeds them. devenv's
+      # android profile supplies the SDK and NDK.
       - name: Clippy for Android
-        run: mise run android:lint
+        run: ts-android-lint
 
   embedded:
     name: embedded release assets
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: devenv shell -- bash -e {0}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Build web
-        run: mise run web:build
+        run: ts-web-build
 
       - name: Build embedded binary
         run: cargo build --locked -p tessera-cli --features embed-web
 
       - name: Clippy with embedded assets
-        run: mise run cli:lint
+        run: ts-cli-lint
 
       - name: Test embedded assets
-        run: mise run cli:test
+        run: ts-cli-test

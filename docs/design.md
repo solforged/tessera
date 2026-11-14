@@ -83,7 +83,7 @@ chapter, uses `--caps`, Plex 500 at 11 px tracked `--tracking-caps` (.09em). Key
 hints (`⌃⇧F`, `⇧↵`, `Space`) keep the figure size in the sans voice.
 
 Plex has no modifier glyphs, so `web/src/ui/keys.css` adds a face to the Plex
-family with ⌃ ⇧ ⌘ ⌥ ↵ and the four arrows, drawn by `mise run fonts:keys` at
+family with ⌃ ⇧ ⌘ ⌥ ↵ and the four arrows, drawn by `ts-fonts-keys` at
 Plex's cap height and stem. Without it each system's fallback drew them, at
 mismatched sizes on Android.
 

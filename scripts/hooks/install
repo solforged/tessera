@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Enable this clone's versioned Git hooks
+set -euo pipefail
+
+git config core.hooksPath .githooks
+echo "hooks:install: set core.hooksPath to .githooks for this clone"

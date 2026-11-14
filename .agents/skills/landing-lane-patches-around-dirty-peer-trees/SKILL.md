@@ -83,7 +83,7 @@ restart only services owned by this run after a rebuild and recopy.
 
 Only when the user authorizes landing, follow
 `landing-tessera-integration-handoffs` and `shipping-tessera-live-builds`:
-fetch/rebase in the owned integration checkout and use `mise run land -- --wait`
+fetch/rebase in the owned integration checkout and use `ts-land --wait`
 there, with a batch title when needed. Never push main directly, reset a shared
 tree, rewrite its refs, or publish peer ancestors unintentionally. Shipping
 requires its own authorization and the landed SHA.

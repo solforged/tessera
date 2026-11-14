@@ -10,7 +10,7 @@ work is taken, decided on 2026-10-22 after a health check: the engine and tests
 are sound, stages 0 to 5 and 11 are done, and the cost of a lost edit now
 exceeds the cost of a missing feature.
 
-1. Stabilize. Ship each release to the Mac the same day, keep `mise run check`
+1. Stabilize. Ship each release to the Mac the same day, keep `ts-check`
    green under load, publish a current Android build and pair the Fold again,
    and fix the launcher-shortcut restart (issue 40). The restart was fixed on
    2026-10-23.

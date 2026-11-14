@@ -29,7 +29,7 @@ shows `100.96.167.83:<port>`); USB serial was `RFGL718CJYD`. Select the
 currently listed `model:SM_F971U1` device as `SERIAL`, rather than assuming that
 historical address. It is paired with the Mac and runs the **release** signer
 (since 2026-10-12): update it only with the release-signed tailnet APK per
-`distributing-tessera-android-apks`. A debug `android:build` APK fails there
+`distributing-tessera-android-apks`. A debug `ts-android-build` APK fails there
 with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (harmless, nothing lost). Check with
 `adb -s "$SERIAL" shell pm dump dev.tessera.android`; never uninstall or clear
 data, because that deletes the notebook.
@@ -43,7 +43,7 @@ data, because that deletes the notebook.
 ## Build and install (emulators; debug-signed)
 
 ```sh
-(cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" mise run android:build)  # normal host HOME; serialize the build
+(cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" ts-android-build)  # normal host HOME; serialize the build
 APK="$TASK_SOURCE/crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
 adb -s "$SERIAL" install -r "$APK"  # owned emulator only; -r preserves its throwaway notebook
 sleep 2   # launching right after install can lose a race with the package-update close
@@ -103,9 +103,9 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
   and drop its copied `hw.device.hash2`. The cover region may be taller than the
   LCD height. Historical `tessera_fold` (Pixel 10 Pro Fold profile, Android 36
   Google APIs arm64) measured inner 852×883 and cover 444×970 at DPR 2.4375.
-- Resolve the installed SDK under normal HOME; the historical path was
-  `~/.local/share/mise/installs/android-sdk/23.0`. `avdmanager` needs the selected
-  `JAVA_HOME` from `mise`. Keep its image/toolchain prerequisites on the host
+- Resolve the SDK under normal HOME from devenv's android profile
+  (`ANDROID_HOME`; system images and the emulator are not in it). `avdmanager`
+  needs that profile's `JAVA_HOME`. Keep its image/toolchain prerequisites on the host
   rather than assuming isolated HOME provides them.
 - If the selected serial disappears, inspect the recorded emulator service and
   ownership before restarting only that run's emulator. Do not adopt whichever
@@ -240,7 +240,7 @@ folded on the real Fold.
 - With tool `cwd: TASK_SOURCE` under normal host HOME, run
   `CARGO_TARGET_DIR="$TASK_TARGET" cargo clippy -p tessera-mobile --target aarch64-linux-android -- -D warnings`.
   Set CC/AR to the selected NDK's `aarch64-linux-android24-clang` and `llvm-ar`,
-  and run `mise run mobile:pages` there first.
+  and run `ts-mobile-pages` there first.
 - `bun run --cwd "$TASK_SOURCE/web" build`; for reader changes, run
   `task_run bun test src/reader` with tool `cwd: TASK_SOURCE/web`.
 

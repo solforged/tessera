@@ -40,20 +40,29 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
-      - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+
+      - name: Use the devenv binary cache
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
-          version: 2026.10.1
+          name: devenv
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
 
       - name: Build demo
         if: env.VERCEL_TOKEN == ''
-        run: mise run demo:build
+        shell: devenv shell -- bash -e {0}
+        run: ts-demo-build
 
       - name: Build and deploy to Vercel
         if: env.VERCEL_TOKEN != ''
+        shell: devenv shell -- bash -e {0}
         run: |
-          mise run deps
-          mise run demo:wasm
+          ts-deps
+          ts-demo-wasm
           bunx vercel@62.5.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
           bunx vercel@62.5.0 build --prod --token="$VERCEL_TOKEN"
           bunx vercel@62.5.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"

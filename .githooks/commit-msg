@@ -7,7 +7,9 @@ case "$subject" in
   'Merge '*|'Revert '*|'fixup! '*|'squash! '*|'amend! '*) exit 0 ;;
 esac
 
-if command -v mise >/dev/null 2>&1; then
-  exec mise exec -- vale --no-global --path=COMMIT_EDITMSG < "$1"
+# The pinned Vale is in Tessera's devenv shell; a commit from outside it, such
+# as from an editor or another project's shell, enters it for this check.
+if [ ! -d "${DEVENV_ROOT:-/nonexistent}/crates/tessera-core" ] && command -v devenv >/dev/null 2>&1; then
+  exec devenv --quiet shell -- vale --no-global --path=COMMIT_EDITMSG < "$1"
 fi
 exec vale --no-global --path=COMMIT_EDITMSG < "$1"

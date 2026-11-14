@@ -11,7 +11,7 @@ Review the writing, not the author's identity or the tool that drafted it.
 
 ## Prepare
 
-1. Run `mise run docs:lint` from the owned Tessera worktree.
+1. Run `ts-docs-lint` from the owned Tessera worktree.
    Fix every error before editorial review.
    If an error belongs to another owner, report its exact location and wait for
    that owner to fix it.

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Copy the shared Voice prose style from the system checkout into .vale/styles
+# Usage: ts-docs-style [source]
+# The source is the system checkout's Vale directory, ~/src/system/config/vale
+# by default.
+#
+# The Voice style is maintained in the system repository and shared by every
+# project; Tessera commits a copy so that `ts-docs-lint` and CI need
+# nothing outside the checkout. Run this after changing the style there, then
+# `ts-docs-test` and `ts-docs-lint`, and commit the result.
+set -euo pipefail
+
+case ${1-} in -*) echo "usage: ts-docs-style [source]" >&2; exit 2 ;; esac
+[ $# -le 1 ] || { echo "usage: ts-docs-style [source]" >&2; exit 2; }
+src=${1:-$HOME/src/system/config/vale}
+root=$(git rev-parse --show-toplevel)
+if [ ! -d "$src/styles/Voice" ]; then
+  echo "docs:style: no Voice style at $src/styles/Voice" >&2
+  exit 1
+fi
+
+rsync -a --delete "$src/styles/Voice/" "$root/.vale/styles/Voice/"
+# Views shared with the style (Commit) are copied beside Tessera's own.
+mkdir -p "$root/.vale/styles/config/views"
+rsync -a "$src/styles/config/views/" "$root/.vale/styles/config/views/"
+echo "docs:style: copied $src/styles into .vale/styles"

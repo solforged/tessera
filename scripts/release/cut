@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Commit the version bump, tag it, and optionally push the release
+# Usage: ts-release-cut <version> [--push]
+#   version   Version to tag, such as 0.4.0.
+#   --push    Land the commit on main through a pull request, then push the
+#             tag. This starts the GitHub release.
+#
+# Refuses a dirty tree other than the version files, a draft changelog, and a
+# tag that already exists. Without --push, the tag stays local.
+set -euo pipefail
+
+usage() { echo "usage: ts-release-cut <version> [--push]" >&2; exit 2; }
+version= push=false
+while [ $# -gt 0 ]; do
+  case $1 in
+    --push) push=true ;;
+    -*) usage ;;
+    *) [ -z "$version" ] || usage; version=$1 ;;
+  esac
+  shift
+done
+[ -n "$version" ] || usage
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+tag="v$version"
+
+if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "release:cut: version must be MAJOR.MINOR.PATCH" >&2
+  exit 1
+fi
+current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+if [ "$current" != "$version" ]; then
+  echo "release:cut: Cargo.toml is $current, not $version" >&2
+  exit 1
+fi
+scripts/release/notes "$version" --published >/dev/null
+if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+  echo "release:cut: tag $tag already exists" >&2
+  exit 1
+fi
+
+allowed='^(Cargo\.toml|Cargo\.lock|CHANGELOG\.md)$'
+unexpected=$(git status --porcelain | awk '{ print $NF }' | grep -v -E "$allowed" || true)
+if [ -n "$unexpected" ]; then
+  echo "release:cut: refusing to commit with unrelated changes:" >&2
+  printf '%s\n' "$unexpected" >&2
+  exit 1
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+  git add Cargo.toml Cargo.lock CHANGELOG.md
+  git commit -m "$(cat <<EOF
+chore(release): bumped workspace version to $version
+
+- Recorded the changelog section the release notes are taken from.
+EOF
+)"
+fi
+
+tagged=$(sed -n 's/^version = "\(.*\)"$/\1/p' <(git show HEAD:Cargo.toml) | head -n 1)
+if [ "$tagged" != "$version" ]; then
+  echo "release:cut: HEAD is version $tagged, not $version" >&2
+  exit 1
+fi
+
+git tag -a "$tag" -m "$tag"
+echo "release:cut: tagged $tag"
+
+if ! $push; then
+  echo "release:cut: tag is local. ts-release-cut $version --push publishes it."
+  exit 0
+fi
+
+# main moves only by fast-forwarding to a pull request head that passed CI,
+# so the version commit lands through one and keeps its SHA; the tag then
+# names the commit main is at.
+scripts/land "omp/release-$version" --wait
+git push origin "$tag"
+echo "release:cut: pushed $tag. The release workflow publishes the assets."

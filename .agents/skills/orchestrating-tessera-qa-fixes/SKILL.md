@@ -29,7 +29,7 @@ owner.
   `TASK_DIST` through the shared procedure. Debug builds are not timing
   evidence.
 - Baseline notebook: from `TASK_SOURCE`, run
-  `task_run env TESSERA_BIN="$TASK_BIN" bun mise-tasks/seed/clickaround "$TASK_RUN/notebooks/base"`.
+  `task_run env TESSERA_BIN="$TASK_BIN" bun scripts/seed/clickaround "$TASK_RUN/notebooks/base"`.
   Verify the owned destination before removing only a copied/stale
   `service.lock`. Add real sources through a temporary owned service when books
   are part of the pass, using

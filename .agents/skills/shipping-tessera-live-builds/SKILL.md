@@ -34,7 +34,7 @@ effects requiring their own authorization.
 Record the exact SHA and inspect its ancestry/range against fetched
 `origin/main` from the owned checkout, including one-line follow-ups. Shipping
 includes every ancestor and migration. On 2026-10-12 a follow-up
-`mise run ship HEAD` accidentally shipped a peer's three fresh commits (schema
+`ts-ship HEAD` accidentally shipped a peer's three fresh commits (schema
 36), refusing grok-bot (schema 35). Use an explicit full landed SHA and
 coordinate the host ship with peers immediately before invoking it. Complete the
 integration owner's required checks once on that exact integrated commit (`tsc`,
@@ -85,9 +85,9 @@ The ruleset `green` requires signed commits, linear history and seven checks:
    needs tracking, then pass `--issue N`. Web, docs or Markdown-only PRs skip
    the Rust, wasm and bench steps in CI, so they land in about 4 minutes instead
    of 10–15.
-3. For one new commit, `mise run land` uses its subject as the PR title.
+3. For one new commit, `ts-land` uses its subject as the PR title.
    Otherwise, from the owned integration source use
-   `mise run land -- --title "type(scope): summary" [--issue N] [--wait] [branch]`.
+   `ts-land --title "type(scope): summary" [--issue N] [--wait] [branch]`.
    It pushes that tree's HEAD to `omp/<short sha>` or the named branch and opens
    a PR labeled `fast-forward`. CI runs only for pull requests; a bare branch
    push runs nothing (`gh workflow run ci.yml --ref <branch>` runs it by hand).
@@ -109,7 +109,7 @@ The ruleset `green` requires signed commits, linear history and seven checks:
 ## Steps
 
 1. From the selected owned host checkout, run
-   `mise run ship <explicit-full-landed-sha>` under normal host HOME, not
+   `ts-ship <explicit-full-landed-sha>` under normal host HOME, not
    `task_run`. It builds in managed persistent `~/.cache/tessera/ship` (~45 s
    warm), quits Tessera.app if open, replaces it, then runs `tessera install`,
    which backs up the notebook and restarts the agent. This is the explicitly

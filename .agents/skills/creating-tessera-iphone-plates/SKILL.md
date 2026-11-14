@@ -161,7 +161,7 @@ stay unchanged.
      prepared run with its own binary, assets, notebook, profile and origin.
    - Then build the simulator app in `TASK_SOURCE`
      (`bun run --cwd "$TASK_SOURCE/web" build:mobile`, then
-     `mise run ios:build -- --debug --target aarch64-sim` there with the
+     `ts-ios-build --debug --target aarch64-sim` there with the
      selected target), install only on this run's owned walkthrough simulator,
      and check real selected-UDID AXe touches: accessory bar, native edit menu,
      swipes, review gestures and first launch on a fresh owned simulator.
@@ -175,7 +175,7 @@ stay unchanged.
      in the owned integration branch; do not rewrite peers' branches or shared
      main to tidy messages.
    - Only if landing is explicitly authorized, use
-     `mise run land -- --title ... --wait` with tool `cwd: TASK_SOURCE` (about
+     `ts-land --title ... --wait` with tool `cwd: TASK_SOURCE` (about
      14 minutes). Shipping and physical-device installation require their own
      exact authorization; an approved plate build is not permission to publish.
 

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Build the Android app; arguments go to `tauri android build`
+# Without arguments, builds a debug APK for arm64 phones under
+# crates/tessera-mobile/gen/android/app/build/outputs/apk. devenv's android
+# profile provides the JDK, the Android SDK and its NDK; NDK_HOME overrides the NDK.
+# The app takes the workspace version, which also sets its versionCode.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/../.." && pwd)
+cd "$root"
+source scripts/android/ndk.sh
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)
+bun install --cwd crates/tessera-mobile --frozen-lockfile --silent
+if [ $# -eq 0 ]; then
+  set -- --debug --target aarch64 --apk
+fi
+bun run --silent --cwd crates/tessera-mobile tauri android build --ci --config "{\"version\":\"$version\"}" "$@"

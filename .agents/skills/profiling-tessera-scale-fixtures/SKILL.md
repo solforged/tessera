@@ -23,7 +23,7 @@ and source its prepared environment.
   distinct run-local `bin` paths before serving; launch each via `task_run` with
   its own named service and owned HTTP/sync ports, and record actual origins.
   Only release results count as product timing acceptance. If release is slow
-  too, it is the query, not the debug APK (`mise run android:build` makes a
+  too, it is the query, not the debug APK (`ts-android-build` makes a
   debug APK); profiling alone does not authorize building/installing on a
   physical device.
 - `sample <recorded-owned-pid> 8 -file "$TASK_EVIDENCE/native-sample.txt"` while

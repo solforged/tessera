@@ -30,19 +30,21 @@
 
 ## Development
 
-Requires [`mise`](https://mise.jdx.dev). `mise install` installs the toolchain
-pinned in `mise.toml` and `mise.lock`. Run `mise tasks` to list the tasks.
-Definitions live in [`mise.toml`](../mise.toml) and
-[`mise-tasks/`](../mise-tasks), and the CI workflows use them too.
+Requires [devenv](https://devenv.sh) and direnv. `direnv allow` loads the
+toolchain pinned in [`devenv.nix`](../devenv.nix) and `devenv.lock`, with Rust,
+Bun, the wasm tools and Vale, and puts the `ts-*` commands on the path; `devenv
+info` lists them. Longer commands live in [`scripts/`](../scripts), and the CI
+workflows use them too. Without direnv, prefix a command with `direnv exec .`
+or `devenv shell --`. Rust links with the host's compiler, and the apps build
+with the installed Xcode.
 
-Run from the repository root:
+From anywhere in the checkout:
 
 ```sh
-mise install
-mise run serve
+ts-serve
 ```
 
-`serve` builds the editor and serves the workshop in `.tessera/dev` at
+`ts-serve` builds the editor and serves the workshop in `.tessera/dev` at
 <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. See
 [Choosing a workshop](usage.md#choosing-a-workshop) for default paths and
 workshop selection, and [Assets and logs](usage.md#assets-and-logs) for the
@@ -51,11 +53,11 @@ loopback policy and identity output.
 For live reloading, use two terminals:
 
 ```sh
-mise run serve --dev-origin http://127.0.0.1:5173
+ts-serve --dev-origin http://127.0.0.1:5173
 ```
 
 ```sh
-mise run web:dev
+ts-web-dev
 ```
 
 Then open <http://127.0.0.1:5173>.
@@ -76,10 +78,10 @@ non-forced worktree removal; keep unfinished work for an explicit handoff.
 
 ### Seeded clickaround workshop
 
-[`mise-tasks/seed/clickaround`](../mise-tasks/seed/clickaround) defines:
+[`scripts/seed/clickaround`](../scripts/seed/clickaround) defines:
 
 ```sh
-mise run seed:clickaround [dir] [--replace]
+ts-seed-clickaround [dir] [--replace]
 ```
 
 It writes a click-through testing workshop to
@@ -101,18 +103,19 @@ open.
 
 | Command                                                      | Check                                                                                       |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `mise run check`                                             | Formatting, Clippy, Rust and editor tests, the editor build, and the two prose checks below. |
-| `mise run docs:lint`                                         | Vale on `README.md`, `CHANGELOG.md`, `docs/`, `.agents/skills/` and the editor's UI copy.   |
-| `mise run docs:test`                                         | The Vale rules' own test cases, with every rule required to fire in at least one.          |
-| `mise run commit:lint`                                       | Commit messages from `origin/main` to `HEAD` against the commit convention.                 |
-| `mise run fmt`                                               | Formats Rust code.                                                                          |
-| `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                         |
+| `ts-check`                                                   | Formatting, Clippy, Rust and editor tests, the editor build, and the two prose checks below. |
+| `ts-docs-lint`                                               | Vale on `README.md`, `CHANGELOG.md`, `docs/`, `.agents/skills/` and the editor's UI copy.   |
+| `ts-docs-test`                                               | The Vale rules' own test cases, with every rule required to fire in at least one.          |
+| `ts-commit-lint`                                             | Commit messages from `origin/main` to `HEAD` against the commit convention.                 |
+| `ts-fmt`                                                     | Formats Rust code.                                                                          |
+| `ts-bench --root /tmp/tessera-bench --fail-on budgets`       | Backend budgets; see [Performance](performance.md).                                         |
 
-[CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
-macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint`,
-`cli:test`, the prose checks and `commit:lint` over the pull request's commits.
-It does not run `web:test` yet: the document tests time out on its Linux
-runners. `web:test` builds the debug command line first, because those tests
+[CI](../.github/workflows/ci.yml) runs `ts-lint` and `ts-test` on Linux and
+macOS, plus `ts-web-build`, `ts-demo-lint`, `ts-demo-test`, `ts-android-lint`,
+`ts-cli-lint`, `ts-cli-test`, the prose checks and `ts-commit-lint` over the
+pull request's commits.
+It does not run `ts-web-test` yet: the document tests time out on its Linux
+runners. `ts-web-test` builds the debug command line first, because those tests
 save through a real service. Set `TESSERA_TEST_BINARY` to test against another
 build.
 Its backend job runs 50,000-row correctness and scaling checks
@@ -120,7 +123,7 @@ with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
 shared runners report them but gate only on correctness and no-per-row-work
 checks.
 
-`mise run fonts:keys` redraws the key glyphs in
+`ts-fonts-keys` redraws the key glyphs in
 [`web/src/ui/fonts/keys.woff2`](../web/src/ui/fonts/keys.woff2).
 
 ### Browser demo
@@ -138,7 +141,7 @@ can upload their own EPUBs, and Settings › Backups downloads and restores the
 workshop as one file. Web articles, sync and service details are omitted.
 
 ```sh
-mise run demo:build
+ts-demo-build
 ```
 
 The task compiles the engine with the wasm32 target, binds it with `wasm-bindgen`
@@ -161,12 +164,12 @@ installed window: title bar, opened EPUBs, capture links and app shortcuts.
 [Usage](usage.md#browser-app) describes them.
 
 ```sh
-mise run demo:test
+ts-demo-test
 ```
 
 This runs the engine's wasm tests in headless Chrome for Testing, since they
 need the browser's private storage in a real worker. It uses Playwright's Chrome
-for Testing build unless `CHROME_PATH` names another Chrome. `mise` supplies a
+for Testing build unless `CHROME_PATH` names another Chrome. devenv supplies a
 matching `chromedriver`. The storage layer is a patched copy of `sqlite-wasm-vfs`
 in [`vendor/sqlite-wasm-vfs`](../vendor/sqlite-wasm-vfs). The root `Cargo.toml`
 says when it can go.
@@ -174,7 +177,7 @@ says when it can go.
 ## Building the app
 
 ```sh
-mise run desktop:build
+ts-desktop-build
 ```
 
 This builds the editor, command line and
@@ -195,7 +198,7 @@ release by hand.
 
 ## Shipping a build
 
-`mise run ship [commit]` makes a commit (default `HEAD`) the installed app on
+`ts-ship [commit]` makes a commit (default `HEAD`) the installed app on
 this Mac. It builds Tessera.app in a separate worktree under
 `${XDG_CACHE_HOME:-$HOME/.cache}/tessera/ship`, so uncommitted edits never ship.
 
@@ -216,7 +219,7 @@ replaces it through the app's updates.
 Prose follows the shared house style in
 [`.vale/styles/Voice/Brief.md`](../.vale/styles/Voice/Brief.md). The Voice
 style is maintained in the system repository and copied here by
-`mise run docs:style`; Tessera's own rules and word lists are in
+`ts-docs-style`; Tessera's own rules and word lists are in
 `.vale/styles/Tessera` and `.vale/styles/config`. Spelling, the Tessera
 conventions below and the commit convention are errors; the other Voice rules
 are warnings that ask for a second look. The
@@ -235,7 +238,7 @@ what the rules cannot check.
   whose case matters to `.vale/styles/config/vocabularies/Tessera/accept.txt`.
 - Keep a quoted source's spelling: exempt it in place with
   `<!-- vale Tessera.Spelling["colour"] = NO -->` and the matching `= YES`.
-- Run `mise run hooks:install` once per clone to check commit messages as you
+- Run `ts-hooks-install` once per clone to check commit messages as you
   write them.
 - Prefer lists and tables for parallel rules.
 - Update the document in the same commit as the behavior.
