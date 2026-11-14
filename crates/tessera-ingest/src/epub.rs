@@ -105,7 +105,7 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
         if total > TOTAL_LIMIT {
             return Err(malformed("archive exceeds 512 MiB"));
         }
-        if !names.insert(file.name().to_owned()) {
+        if !names.insert(file.name().map_err(malformed)?.into_owned()) {
             return Err(malformed("duplicate archive entry"));
         }
     }
