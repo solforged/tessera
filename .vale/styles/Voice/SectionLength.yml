@@ -1,0 +1,138 @@
+# A section that runs past 500 words of prose before the next heading,
+# including the text above the first heading. Agents maintaining a document
+# add clauses and items to the section they are in rather than splitting it:
+# Umran's README grew sections of 871 and 1,226 words and a 651-word opening
+# before its cleanup. Code blocks, tables and HTML comments are not counted.
+# The rule reads the raw Markdown and reports the section's first line.
+extends: script
+message: "This section runs past 500 words. Split it under headings, or move the detail to a topic guide."
+level: warning
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  limit := 500
+  fence := ""
+  comment := false
+  offset := 0
+  words := 0
+  begin := -1
+  end := -1
+  frontmatter := false
+  first := true
+  close := func() {
+    if words > limit && begin >= 0 {
+      matches = append(matches, {begin: begin, end: end})
+    }
+    words = 0
+    begin = -1
+  }
+  for line in text.split(scope, "\n") {
+    trimmed := text.trim_space(line)
+    if first && trimmed == "---" {
+      frontmatter = true
+    } else if frontmatter {
+      if trimmed == "---" {
+        frontmatter = false
+      }
+    } else {
+      marker := ""
+      if text.has_prefix(trimmed, "```") {
+        marker = "```"
+      } else if text.has_prefix(trimmed, "~~~") {
+        marker = "~~~"
+      }
+      if fence != "" {
+        if marker == fence {
+          fence = ""
+        }
+      } else if marker != "" {
+        fence = marker
+      } else if comment {
+        if text.contains(line, "-->") {
+          comment = false
+        }
+      } else if text.has_prefix(trimmed, "<!--") {
+        comment = !text.contains(line, "-->")
+      } else if text.has_prefix(line, "#") {
+        close()
+        begin = offset
+        end = offset + len(line)
+      } else if trimmed != "" && !text.has_prefix(trimmed, "|") {
+        if begin < 0 {
+          begin = offset
+          end = offset + len(line)
+        }
+        words += len(text.fields(line))
+      }
+    }
+    first = false
+    offset += len(line) + 1
+  }
+  close()
+
+tests:
+  - name: reports a long section at its heading
+    input: |
+      # Sync
+
+      ## Cursors
+
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word
+
+      ## Search
+
+      The index is separate.
+    want: |
+      3:1:Voice.SectionLength:This section runs past 500 words. Split it under headings, or move the detail to a topic guide.
+  - name: leaves short sections and code alone
+    input: |
+      # Sync
+
+      Each device keeps a cursor.
+
+      ```sh
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      ```
+    want: ''

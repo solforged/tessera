@@ -1,0 +1,40 @@
+# Interface parts given a posture, a home or a will in the simple present:
+# "The handle lives in the gutter", "three drafts sit; they wait for you",
+# "Edits land in the panes", "Saving forgets it". A label names the thing and
+# its state ("3 drafts waiting", "Handle"); an instruction says what to do.
+# Runs on the UiCopy view.
+extends: existence
+message: "'%s' narrates the interface as a scene. Name the thing and its state instead."
+level: warning
+scope: ui
+ignorecase: true
+tokens:
+  - '(?:lives|sits|rests|waits|lingers|settles|sleeps|belongs|forgets|remembers)\b'
+  - '(?:live|sit|rest|wait|linger|settle|land|lands) (?:in|on|at|beside|here|there|quietly|still|until)\b'
+  - '(?<=\w )sit\b'
+  - 'waits? for you'
+
+tests:
+  - name: reports narrated parts
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>The handle lives in the gutter. Three drafts sit here; they wait for you. Edits land in the panes.</p>;
+    contains:
+      - "'lives'"
+      - "'sit here'"
+      - "'land in'"
+  - name: reports the drafts that sit and wait
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>three drafts sit; they wait for you.</p>;
+    contains:
+      - "'sit'"
+      - "'wait for you'"
+  - name: leaves labels and questions alone
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p title="What do you want to remember?">3 drafts waiting. Wait for the sync to finish.</p>;
+    want: ''

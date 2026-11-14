@@ -1,0 +1,24 @@
+# A single interface string over 25 words: helper text that explains the
+# mechanism instead of labeling the control. remcard's help strings ran past
+# 40 words. A screen needs the label, the state and, at most, one sentence on
+# what to do; the rest belongs in a guide. Runs on the UiCopy view.
+extends: occurrence
+message: "This interface text runs past 25 words. Keep the label and the one thing to do; move the explanation to a guide."
+level: warning
+scope: ui
+max: 25
+token: \b(\w+)\b
+
+tests:
+  - name: reports long helper text
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>Write directly in blocks. Changes save automatically and a second pane edits the same originals as the first one, so sidebar destinations open in the main pane when you click them.</p>;
+    contains: Voice.UiLength
+  - name: accepts a label and one instruction
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>No tracked questions yet. Select a saved block and choose Track as question.</p>;
+    want: ''

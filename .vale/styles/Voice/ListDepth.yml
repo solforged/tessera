@@ -1,0 +1,75 @@
+# A list nested three levels deep. One level of nesting groups related items;
+# a third level is an outline the reader has to hold in their head. A list is
+# reported once, at its first item at depth three. The rule reads the raw
+# Markdown and skips fenced code.
+extends: script
+message: "This list nests three levels deep. Flatten it, or turn the inner levels into sentences."
+level: warning
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  item := `^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+`
+  fence := ""
+  offset := 0
+  stack := []
+  reported := false
+  for line in text.split(scope, "\n") {
+    trimmed := text.trim_space(line)
+    marker := ""
+    if text.has_prefix(trimmed, "```") {
+      marker = "```"
+    } else if text.has_prefix(trimmed, "~~~") {
+      marker = "~~~"
+    }
+    if fence != "" {
+      if marker == fence {
+        fence = ""
+      }
+    } else if marker != "" {
+      fence = marker
+    } else if text.re_match(item, line) {
+      indent := len(line) - len(text.trim_left(line, " \t"))
+      for len(stack) > 0 && stack[len(stack) - 1] > indent {
+        stack = stack[:len(stack) - 1]
+      }
+      if len(stack) == 0 || stack[len(stack) - 1] < indent {
+        stack = append(stack, indent)
+      }
+      if len(stack) >= 3 && !reported {
+        matches = append(matches, {begin: offset, end: offset + len(line)})
+        reported = true
+      }
+    } else if trimmed != "" && !text.has_prefix(line, " ") && !text.has_prefix(line, "\t") {
+      stack = []
+      reported = false
+    }
+    offset += len(line) + 1
+  }
+
+tests:
+  - name: reports a third level once
+    input: |
+      - Sync
+        - Cursor
+          - Reset on restart
+          - Kept per device
+    want: |
+      3:1:Voice.ListDepth:This list nests three levels deep. Flatten it, or turn the inner levels into sentences.
+  - name: accepts two levels
+    input: |
+      - Sync
+        - Cursor
+      - Search
+        - Index
+    want: ''
+  - name: starts again after a paragraph
+    input: |
+      - Sync
+        - Cursor
+
+      The index is separate.
+
+      - Search
+        - Index
+    want: ''

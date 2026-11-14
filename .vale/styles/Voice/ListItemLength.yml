@@ -1,0 +1,24 @@
+# A list item over 60 words is a paragraph wearing a bullet. Models write
+# them when every point becomes an item: in November 2026 agent replies, 15%
+# of GPT 6 Astra's items and 7% of GPT 6.1 Sol's ran past 60 words, against
+# a median near 20. Umran's README reached 115-word items before its cleanup.
+extends: occurrence
+message: "This list item runs past 60 words. Make it a paragraph, or cut it to the point."
+level: warning
+scope: list
+max: 60
+token: \b(\w+)\b
+
+tests:
+  - name: reports a 61-word item
+    input: |
+      - word word word word word word word word word word word word word word word word word word word word
+        word word word word word word word word word word word word word word word word word word word word
+        word word word word word word word word word word word word word word word word word word word word
+        word
+    contains: Voice.ListItemLength
+  - name: accepts short items
+    input: |
+      - The writer holds the lock.
+      - Readers wait for the writer to finish.
+    want: ''

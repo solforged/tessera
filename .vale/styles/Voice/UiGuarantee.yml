@@ -1,0 +1,48 @@
+# Interface text that narrates what the app preserves or promises, in the
+# simple present: "Changes save automatically", "Earlier reviews stay in
+# history", "Your text is still here", "retry never overwrites", "nothing
+# moves without your say-so". Models copy these invariants from the spec into
+# the screen as reassurance. Where the state matters, show it ("Saved",
+# "Draft kept"); otherwise leave it out. Runs on the UiCopy view.
+extends: existence
+message: "'%s' narrates what the app keeps or promises. Show the state where it matters, or cut the line."
+level: warning
+scope: ui
+ignorecase: true
+tokens:
+  - '(?:is|are) (?:still |always )?kept'
+  - 'keeps? (?:its|their|your|the|existing|saved|pointing|working)'
+  - 'stays?'
+  - 'survives?'
+  - '(?:is|are) still (?:here|there|saved)'
+  - 'still here'
+  - 'never (?:overwrites?|loses?|leaves?|changes?|deletes?|moves?)'
+  - 'nothing (?:moves|leaves|changes|is lost|happens)'
+  - 'no data leaves'
+  - 'without your (?:say-so|permission|approval|consent)'
+  - 'until you (?:say so|approve|decide|choose)'
+
+tests:
+  - name: reports guarantees
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>Couldn’t save this change. Your text is still here. Earlier reviews stay in history.</p>;
+    contains:
+      - "'is still here'"
+      - "'stay'"
+  - name: reports reassurance
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p title="Nothing moves without your say-so">3 drafts</p>;
+    contains:
+      - "'Nothing moves'"
+      - "'without your say-so'"
+  - name: leaves state labels and code alone
+    format: .tsx
+    view: UiCopy
+    input: |
+      const stays = "kept"; // identifiers keep their names
+      export const A = () => <p aria-label="Saved">3 drafts to review</p>;
+    want: ''
