@@ -9,11 +9,13 @@ use tokio::sync::broadcast;
 use crate::error::ApiError;
 use crate::library::{self, Library};
 
-/// Reads one stored file. The native service installs a reader that fetches a
-/// missing file from the replica's hub; the browser reads the local store.
+/// Reads one stored file, on a reader where the host opened them. The native
+/// service installs one that fetches a missing file from the replica's hub;
+/// the browser reads the local store.
 pub type ObjectReader = Arc<
     dyn Fn(
             Arc<Mutex<Workshop>>,
+            Option<crate::Readers>,
             String,
         ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, ApiError>> + Send>>
         + Send
@@ -76,18 +78,22 @@ impl WorkshopState {
     }
 
     pub(crate) async fn read_stored(&self, sha: String) -> Result<Vec<u8>, ApiError> {
-        (self.objects)(self.workshop.clone(), sha).await
+        (self.objects)(self.workshop.clone(), self.readers.clone(), sha).await
     }
 }
 
 fn local_object(
     workshop: Arc<Mutex<Workshop>>,
+    readers: Option<crate::Readers>,
     sha: String,
 ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, ApiError>> + Send>> {
     Box::pin(async move {
         // A missing file is not found. The native service replaces this reader
         // when a replica should fetch the file from its hub instead.
-        match crate::run::read_workshop(&workshop, move |workshop| workshop.read_object(&sha)).await
+        match crate::run::read_snapshot(&workshop, readers.as_ref(), move |workshop| {
+            workshop.read_object(&sha)
+        })
+        .await
         {
             Ok(bytes) => Ok(bytes),
             Err(crate::run::WorkshopError::Workshop(tessera_core::Error::NotFound { .. })) => {

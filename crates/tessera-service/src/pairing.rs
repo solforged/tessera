@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tessera_core::sync_devices::{DeviceInfo, PairedDevice, RetainedPatches};
 
-use crate::{AppState, error::ApiError, run, sharing};
+use crate::{AppState, error::ApiError, read, run, sharing};
 
 const LIFETIME_MS: i64 = 5 * 60 * 1000;
 const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -102,7 +102,7 @@ pub(crate) async fn authenticate(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(unpaired)?
         .to_owned();
-    let device = run(&state, move |workshop| workshop.sync_authenticate(&key))
+    let device = read(&state, move |workshop| workshop.sync_authenticate(&key))
         .await?
         .ok_or_else(unpaired)?;
     request.extensions_mut().insert(device);
@@ -427,12 +427,15 @@ mod tests {
         serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await.unwrap()).unwrap()
     }
 
-    /// A hub's sync listener with code 4F7K-92QD waiting.
+    /// A hub's sync listener with code 4F7K-92QD waiting, reading beside its
+    /// writer as the service does.
     fn hub(dir: &std::path::Path) -> (AppState, Router) {
-        let workshop = Arc::new(Mutex::new(tessera_core::Workshop::open(dir).unwrap()));
+        let workshop = tessera_core::Workshop::open(dir).unwrap();
+        let readers = tessera_api::Readers::open(&workshop).unwrap();
+        let workshop = Arc::new(Mutex::new(workshop));
         let changes = tokio::sync::broadcast::channel(256).0;
         let state = AppState {
-            readers: None,
+            readers: Some(readers),
             library: crate::library::Library::start(
                 workshop.clone(),
                 changes.clone(),
@@ -538,6 +541,72 @@ mod tests {
         assert_eq!(health.attempts.len(), 2);
         assert!(health.attempts[0].ok);
         assert!(!health.attempts[1].ok);
+    }
+
+    #[tokio::test]
+    async fn a_paired_device_reads_from_the_hub_while_a_save_holds_the_writer() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, app) = hub(dir.path());
+        let sha = {
+            let mut workshop = state.workshop.lock();
+            workshop.sync_pair_device("Fold", "paired-key").unwrap();
+            workshop.put_object(b"stored file").unwrap()
+        };
+        let absent = "0".repeat(64);
+        // A save holds the writer on another thread until the reads finish.
+        let (held, saving) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let workshop = state.workshop.clone();
+        let save = std::thread::spawn(move || {
+            let _writer = workshop.lock();
+            held.send(()).unwrap();
+            let _ = released.recv();
+        });
+        saving.recv().unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let missing = request(
+                &app,
+                "/api/sync/objects/missing",
+                Some("paired-key"),
+                serde_json::json!({"ids": [sha, absent]}),
+            )
+            .await;
+            assert_eq!(missing.status(), StatusCode::OK);
+            assert_eq!(value(missing).await["ids"], serde_json::json!([absent]));
+            for (path, body) in [
+                (
+                    "/api/sync/snapshots/missing",
+                    serde_json::json!({"ids": []}),
+                ),
+                (
+                    "/api/sync/snapshots/content",
+                    serde_json::json!({"ids": [], "from": 0}),
+                ),
+            ] {
+                let response = request(&app, path, Some("paired-key"), body).await;
+                assert_eq!(response.status(), StatusCode::OK, "{path}");
+            }
+            let object = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/api/sync/objects/{sha}"))
+                        .header(header::AUTHORIZATION, "Bearer paired-key")
+                        .header(crate::sync::SCHEMA_HEADER, tessera_core::SCHEMA_VERSION)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(object.status(), StatusCode::OK);
+            assert_eq!(
+                &to_bytes(object.into_body(), 1024).await.unwrap()[..],
+                b"stored file"
+            );
+        })
+        .await
+        .expect("a sync read waited for the writer");
+        drop(release);
+        save.join().unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]

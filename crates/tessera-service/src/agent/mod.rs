@@ -350,11 +350,18 @@ async fn run_turn(
 ) -> Result<Stop, String> {
     let mut cancelled = turn.cancel.subscribe();
     let workshop = state.workshop.clone();
-    let system =
-        tokio::task::spawn_blocking(move || tools::context(&workshop.lock(), &request.context))
-            .await
-            .map_err(|_| "Cannot read workshop context.".to_owned())?
-            .map_err(|e| provider.redact(&e.to_string()))?;
+    let readers = state.readers.clone();
+    let context = request.context;
+    let system = tokio::task::spawn_blocking(move || {
+        tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
+            Ok(tools::context(n, &context))
+        })
+        .map_err(anyhow::Error::from)
+        .and_then(std::convert::identity)
+    })
+    .await
+    .map_err(|_| "Cannot read workshop context.".to_owned())?
+    .map_err(|e| provider.redact(&e.to_string()))?;
     let actor = format!("{} · {}", provider.name, provider.model);
     let reason: String = request.prompt.trim().chars().take(200).collect();
     let mut history: Vec<Message> = request
@@ -403,6 +410,26 @@ async fn run_turn(
                 .map_err(|_| "Tool arguments must be valid JSON.".to_owned());
             let result = match args {
                 Err(error) => Err(error),
+                Ok(args) if tools::reads(&call.name) => {
+                    let workshop = state.workshop.clone();
+                    let readers = state.readers.clone();
+                    let running = turn.clone();
+                    let name = call.name.clone();
+                    // A read does not wait for saves or other turns' edits.
+                    tokio::task::spawn_blocking(move || {
+                        if running.cancelled() {
+                            return Err("Turn cancelled.".to_owned());
+                        }
+                        tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
+                            Ok(tools::read(n, &name, &args))
+                        })
+                        .map_err(anyhow::Error::from)
+                        .and_then(std::convert::identity)
+                        .map_err(|e| e.to_string())
+                    })
+                    .await
+                    .map_err(|_| "The workshop tool failed.".to_owned())?
+                }
                 Ok(args) => {
                     let workshop = state.workshop.clone();
                     let changes = state.changes.clone();

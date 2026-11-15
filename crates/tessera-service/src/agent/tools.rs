@@ -124,14 +124,13 @@ fn edit(workshop: &Workshop, name: &str, args: &Value) -> anyhow::Result<AgentEd
     })
 }
 
-pub(super) fn execute(
-    workshop: &mut Workshop,
-    changes: &tokio::sync::broadcast::Sender<i64>,
-    name: &str,
-    args: &Value,
-    actor: &str,
-    reason: &str,
-) -> anyhow::Result<(String, EventKind)> {
+/// Whether the named tool only reads, so it can run beside the writer.
+pub(super) fn reads(name: &str) -> bool {
+    matches!(name, "search" | "read_page")
+}
+
+/// Refuse an unknown tool or an argument its schema does not declare.
+fn declared(name: &str, args: &Value) -> anyhow::Result<()> {
     let tool = TOOLS
         .iter()
         .find(|tool| tool.name == name)
@@ -139,7 +138,16 @@ pub(super) fn execute(
     let declared = tool.input_schema["properties"]
         .as_object()
         .expect("every shared tool declares its properties");
-    undeclared(name, declared, args)?;
+    undeclared(name, declared, args)
+}
+
+/// Run a tool for which [`reads`] holds.
+pub(super) fn read(
+    workshop: &Workshop,
+    name: &str,
+    args: &Value,
+) -> anyhow::Result<(String, EventKind)> {
+    declared(name, args)?;
     match name {
         "search" => {
             let query = required(args, "query")?;
@@ -148,27 +156,42 @@ pub(super) fn execute(
                 hit.block.text = workshop.render_tag_text(&hit.block.text)?.into_owned();
                 hit.page.text = workshop.render_tag_text(&hit.page.text)?.into_owned();
             }
-            let text = serde_json::to_string(&hits)?;
-            return Ok((
-                text,
+            Ok((
+                serde_json::to_string(&hits)?,
                 EventKind::Tool {
                     name: name.into(),
                     summary: format!("Searched “{}”", agent_render::snippet(&query)),
                 },
-            ));
+            ))
         }
         "read_page" => {
             let (title, text) = read_page(workshop, args)?;
-            return Ok((
+            Ok((
                 text,
                 EventKind::Tool {
                     name: name.into(),
                     summary: format!("Read {}", agent_render::snippet(&title)),
                 },
-            ));
+            ))
         }
-        _ => {}
+        _ => bail!("{name} writes, so it runs on the workshop's writer."),
     }
+}
+
+/// Run any tool on the writer. The plan for an edit is read under the same
+/// lock that commits it, so a set_task revision cannot go stale in between.
+pub(super) fn execute(
+    workshop: &mut Workshop,
+    changes: &tokio::sync::broadcast::Sender<i64>,
+    name: &str,
+    args: &Value,
+    actor: &str,
+    reason: &str,
+) -> anyhow::Result<(String, EventKind)> {
+    if reads(name) {
+        return read(workshop, name, args);
+    }
+    declared(name, args)?;
     let edit = edit(workshop, name, args)?;
     let mut receipt = workshop.agent_edit(&AgentRequest {
         actor: Actor::Agent { name: actor.into() },
@@ -191,6 +214,29 @@ pub(super) fn execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Run a reading tool as a turn does, on a query-only reader, so a read
+    /// that writes fails here.
+    fn on_reader(
+        workshop: &Workshop,
+        name: &str,
+        args: Value,
+    ) -> anyhow::Result<(String, EventKind)> {
+        assert!(reads(name));
+        workshop
+            .reader()
+            .unwrap()
+            .read(|reader| Ok(read(reader, name, &args)))
+            .unwrap()
+    }
+
+    fn context_on_reader(workshop: &Workshop, refs: &[ContextRef]) -> anyhow::Result<String> {
+        workshop
+            .reader()
+            .unwrap()
+            .read(|reader| Ok(context(reader, refs)))
+            .unwrap()
+    }
 
     #[test]
     fn tools_read_and_edit_the_same_undoable_outline() {
@@ -225,29 +271,15 @@ mod tests {
         let first = &receipt.blocks[0].id;
         let child = &receipt.blocks[1].id;
         let last = &receipt.blocks[2].id;
-        let (text, event) = execute(
-            &mut workshop,
-            &changes,
-            "read_page",
-            &json!({"id":first,"subtree":true}),
-            actor,
-            "",
-        )
-        .unwrap();
+        let (text, event) =
+            on_reader(&workshop, "read_page", json!({"id":first,"subtree":true})).unwrap();
         assert!(matches!(event, EventKind::Tool { summary, .. } if summary == "Read Asabiyya"));
         assert!(text.contains(&format!(
             "- Group feeling <!-- {first} r1 -->\n  - Shared purpose <!-- {child} r1 -->"
         )));
         assert!(!text.contains("Another thought"));
-        let (text, event) = execute(
-            &mut workshop,
-            &changes,
-            "search",
-            &json!({"query":"group feeling"}),
-            actor,
-            "",
-        )
-        .unwrap();
+        let (text, event) =
+            on_reader(&workshop, "search", json!({"query":"group feeling"})).unwrap();
         assert!(text.contains(first));
         assert!(
             matches!(event, EventKind::Tool { summary, .. } if summary == "Searched “group feeling”")
@@ -375,7 +407,7 @@ mod tests {
         else {
             panic!("expected edit");
         };
-        let rendered = context(
+        let rendered = context_on_reader(
             &workshop,
             &[ContextRef {
                 page_id: id.clone(),
@@ -386,18 +418,10 @@ mod tests {
         assert!(rendered.contains("# Long page <!--"));
         assert!(rendered.contains("(Truncated. Use read_page"));
         assert!(!rendered.contains("Last block"));
-        let (full, _) = execute(
-            &mut workshop,
-            &changes,
-            "read_page",
-            &json!({"title":"Long page"}),
-            "Local · model",
-            "",
-        )
-        .unwrap();
+        let (full, _) = on_reader(&workshop, "read_page", json!({"title":"Long page"})).unwrap();
         assert!(full.contains("Last block"));
         assert!(full.contains(&blocks[1]));
-        let subtree = context(
+        let subtree = context_on_reader(
             &workshop,
             &[ContextRef {
                 page_id: id,
@@ -431,27 +455,13 @@ mod tests {
         };
         let target = add("Fold repro target", "First");
         assert_eq!(add("Fold-repro target", "Second"), target);
-        let (text, event) = execute(
-            &mut workshop,
-            &changes,
-            "read_page",
-            &json!({"title":"fold.repro-target"}),
-            "Local · model",
-            "",
-        )
-        .unwrap();
+        let (text, event) =
+            on_reader(&workshop, "read_page", json!({"title":"fold.repro-target"})).unwrap();
         assert!(
             matches!(event, EventKind::Tool { summary, .. } if summary == "Read Fold repro target")
         );
         assert!(text.contains("- First <!--") && text.contains("- Second <!--"));
-        let Err(missing) = execute(
-            &mut workshop,
-            &changes,
-            "read_page",
-            &json!({"title":"Fold repro"}),
-            "Local · model",
-            "",
-        ) else {
+        let Err(missing) = on_reader(&workshop, "read_page", json!({"title":"Fold repro"})) else {
             panic!("a name no page has read a page");
         };
         assert_eq!(missing.to_string(), "No atom is titled \"Fold repro\".");

@@ -15,6 +15,7 @@ use tessera_core::{Reader, Workshop};
 use crate::error::ApiError;
 use crate::state::WorkshopState;
 
+pub(crate) use imp::read_snapshot;
 pub use imp::read_workshop;
 
 /// How many reads can run at once beside the writer.
@@ -36,12 +37,25 @@ impl Readers {
     }
 
     /// An idle connection, or the first one once it is free.
-    #[cfg_attr(browser, allow(dead_code))]
     fn free(&self) -> MutexGuard<'_, Reader> {
         self.0
             .iter()
             .find_map(Mutex::try_lock)
             .unwrap_or_else(|| self.0[0].lock())
+    }
+}
+
+/// Run a read on the calling thread against one snapshot of the workshop: on
+/// an idle reader where the host opened [`Readers`], else on the writer's
+/// connection. For blocking code that cannot await [`read`].
+pub fn read_blocking<T>(
+    workshop: &Mutex<Workshop>,
+    readers: Option<&Readers>,
+    operation: impl FnOnce(&Workshop) -> tessera_core::Result<T>,
+) -> tessera_core::Result<T> {
+    match readers {
+        Some(readers) => readers.free().read(operation),
+        None => operation(&workshop.lock()),
     }
 }
 
@@ -80,7 +94,7 @@ pub async fn read<T: Send + 'static>(
     state: &WorkshopState,
     operation: impl FnOnce(&Workshop) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
-    imp::read_snapshot(&state.workshop, state.readers.as_ref(), operation)
+    read_snapshot(&state.workshop, state.readers.as_ref(), operation)
         .await
         .map_err(|error| match error {
             WorkshopError::Workshop(error) => ApiError::from(error),

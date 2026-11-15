@@ -300,10 +300,11 @@ back.
   `sort` for `direction`, filter ops are limited to the nine the tool lists, and
   `tessera_revisit` takes no `next_on` for resolve and reopen. Listing `done` or
   `cancelled` tasks defaults `include` to `all`.
-- Served the loopback service's reads from three read-only connections beside
-  the writer, so page reads, queries and search no longer wait behind a save.
-  Reads that write, such as the check and resurfacing, still take the writer.
-  The phone and the browser demo keep one connection.
+- Served the service's reads from three read-only connections beside the
+  writer, so page reads, search, stored files, sync reads and the in-app
+  agent's context and reading tools no longer wait behind a save. Reads that
+  write, such as the check, still take the writer. The phone and the browser
+  demo keep one connection.
 - Gave the in-app agent the MCP server's tool schemas and edits: a tool call
   commits the same change on either surface, the in-app agent refuses arguments
   a tool does not declare, and `add_note` reads the same Markdown outline syntax
