@@ -254,7 +254,7 @@ export function validateSourceValue(field: SourceField, value: SourceFieldValue)
     if (!Array.isArray(value) || value.some(item => typeof item !== 'string'))
       throw new Error('Enter a list of values.');
     const values = (value as string[]).map(item => item.trim()).filter(Boolean);
-    if (field === 'tags' && values.some(item => /[\[\]\r\n]/.test(item)))
+    if (field === 'tags' && values.some(item => /[[\]\r\n]/.test(item)))
       throw new Error('Tag names cannot contain brackets or line breaks.');
     return values.filter(
       (item, index) => values.findIndex(other => other.toLowerCase() === item.toLowerCase()) === index,

@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createRoot, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createRoot, createSignal, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { AgendaItem, TaskRow, TaskState, TaskStatus, WorkSession } from '../api/types';
 import type { Edit, NotebookClient, PageDocument } from '../document/contract';

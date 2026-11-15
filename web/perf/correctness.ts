@@ -1,8 +1,6 @@
 import { ulid } from 'ulid';
 import type { Page } from 'playwright-core';
 import type { Batch, Block, PageView } from '../src/api/types';
-import type { ViewState } from '../src/shell/contract';
-import type { PerfControls } from './fixture';
 
 export interface Outcome {
   scenario: string;

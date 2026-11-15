@@ -85,7 +85,7 @@ export function SettingsPane(props: {
       }
     },
   );
-  const [backups, { refetch: refreshBackups, mutate: updateBackups }] = createResource(
+  const [backups, { mutate: updateBackups }] = createResource(
     () => !EMBEDDED,
     async () => {
       try {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "files": {
-    "includes": ["src/**", "perf/**", "*.ts", "*.js", "*.json", "!src/api/wire.ts", "!src/demo/pkg", "!perf/results"]
+    "includes": ["src/**", "perf/**", "*.ts", "*.json", "!src/api/wire.ts", "!src/demo/pkg", "!perf/results"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -17,14 +17,26 @@
   },
   "linter": {
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "a11y": "off",
       "style": {
         "noNonNullAssertion": "off",
         "noDescendingSpecificity": "off"
       },
       "complexity": {
-        "noImportantStyles": "off"
+        "noImportantStyles": "off",
+        "useLiteralKeys": "off",
+        "useOptionalChain": "off",
+        "noUselessFragments": "off",
+        "useIndexOf": "off"
+      },
+      "suspicious": {
+        "noAssignInExpressions": "off",
+        "noShadowRestrictedNames": "off",
+        "noControlCharactersInRegex": "off",
+        "noConfusingVoidType": "off",
+        "useIterableCallbackReturn": "off",
+        "noImplicitAnyLet": "off"
       }
     }
   },

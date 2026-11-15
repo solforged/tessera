@@ -312,7 +312,7 @@ export function removeFilter(query: Query, index: number): Query {
   return { ...query, filters: query.filters.filter((_, position) => position !== index) };
 }
 export function matchFieldEntry(text: string): { name: string; value: string } | null {
-  const match = /^([^\\`\[\]#:]{1,60}?)::\s?(.*)$/.exec(text);
+  const match = /^([^\\`[\]#:]{1,60}?)::\s?(.*)$/.exec(text);
   if (!match || !match[1]!.trim()) return null;
   const name = match[1]!.trim();
   const prefix = parseCardText(name);

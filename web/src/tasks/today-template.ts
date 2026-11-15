@@ -96,7 +96,7 @@ export function readingRowSource(text: string): string | undefined {
 export function readingRowText(id: string, title: string, position?: string | null): string {
   const clean = (value: string) =>
     value
-      .replace(/[|\[\]\r\n]+/g, ' ')
+      .replace(/[|[\]\r\n]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   const locator = position ? clean(position) : '';

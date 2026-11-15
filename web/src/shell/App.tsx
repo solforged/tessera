@@ -15,7 +15,6 @@ import {
   Switch,
 } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
-import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { Block, IndexKind, NoteKind, NotebookInfo, Shelf, Type, View } from '../api/types';
 import { createNotebookClient, type Notebook } from '../document';
@@ -2550,12 +2549,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     );
     const fields = () => (
       <Button
-        class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`}
+        class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }> | undefined)?.typeId ? 'selected' : ''}`}
         icon="field"
         title="Fields"
         aria-current={
           entry(active())?.target.kind === 'fields' &&
-          !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId
+          !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }> | undefined)?.typeId
             ? 'page'
             : undefined
         }

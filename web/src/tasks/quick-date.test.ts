@@ -166,7 +166,7 @@ describe('date completion tokens', () => {
       expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query, field: 'deadline' });
     }
     for (const query of ['bye', 'bygone', 'b', 'dues', 'du', 'fri', 'by\tfri', 'due\tfri', 'by-date', 'due-date']) {
-      expect(atEnd('@' + query)).toEqual({ from: 0, to: query.length + 1, query, field: 'scheduled' });
+      expect(atEnd(`@${query}`)).toEqual({ from: 0, to: query.length + 1, query, field: 'scheduled' });
     }
     expect(dateTokenAt('Read @due fri next', 9)).toEqual({ from: 5, to: 9, query: '', field: 'deadline' });
     expect(dateTokenAt('Read @by fri next', 8)).toEqual({ from: 5, to: 8, query: '', field: 'deadline' });

@@ -52,7 +52,7 @@ export function makeCloze(text: string, from: number, to = from): CardInsertion 
   }
   // Test the selected span, not just its endpoints: a selection can enclose an entire code/reference token.
   for (let at = from; at <= to; at++) {
-    if (insideProtectedSyntax(text + ' ', at)) return { reason: 'Keep references and code outside the selection.' };
+    if (insideProtectedSyntax(`${text} `, at)) return { reason: 'Keep references and code outside the selection.' };
   }
   if (from === to) return insertCard(text, 'cloze', from);
   const selected = text.slice(from, to);

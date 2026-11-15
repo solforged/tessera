@@ -161,7 +161,7 @@ export function dateSuggestions(query: string, contextDate: string): DateSuggest
   // Empty input exposes every preset; filtered results below are capped at seven.
   if (!trimmed) return presets;
   const suggestions: DateSuggestion[] = [];
-  const parsed = parseTaskDate('@' + trimmed, contextDate);
+  const parsed = parseTaskDate(`@${trimmed}`, contextDate);
   if (parsed.ok && parsed.date) {
     const label = parsedLabel(trimmed, parsed.date) + (parsed.time ? ` ${parsed.time}` : '');
     suggestions.push({ label, date: parsed.date, time: parsed.time });

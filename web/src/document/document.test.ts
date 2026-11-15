@@ -3680,7 +3680,7 @@ describe('real notebook operations and recovery', () => {
   test('a deleted target transfers queued text and its split into durable rejected recovery without reapplying', async () => {
     const session = `rejected-${++serial}`;
     const instance = await client(session);
-    const { doc, first, id } = await page(instance, 'base');
+    const { doc, first } = await page(instance, 'base');
     let offline = true;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (
