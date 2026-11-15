@@ -236,7 +236,7 @@ let
       description = "Run Clippy on the crates the browser demo compiles to wasm";
       run = ''
         ${wasmAr}
-        exec cargo clippy -p tessera-web -p tessera-service -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
+        exec cargo clippy -p tessera-web -p tessera-api -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
       '';
     };
     ts-demo-test = {
