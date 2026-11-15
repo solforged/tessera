@@ -79,6 +79,7 @@ import { copyView, pageIdOf, paneLabel, snapshotView } from './pane-state';
 import type { VimMode } from './pane-state';
 import { GlobalBanner } from './GlobalBanner';
 import { PageLinks } from './PageLinks';
+import { WorkshopContext, type WorkshopShell } from './context';
 import { Pane } from './Pane';
 import { PaneDivider } from './PaneDivider';
 import { ViewLinks } from './ViewLinks';
@@ -2670,575 +2671,596 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </Show>
     );
   };
+  // Getters, not a snapshot: each pane reads these the way it read Solid props.
+  const workshop: WorkshopShell = {
+    get notebook() {
+      return notebook;
+    },
+    get commands() {
+      return commands;
+    },
+    get vim() {
+      return vim();
+    },
+    get split() {
+      return split();
+    },
+    get pagePresentations() {
+      return pagePresentations();
+    },
+    fieldName,
+    get noteKinds() {
+      return index()?.kinds;
+    },
+    get atomCount() {
+      return index()?.notes;
+    },
+    get directoryReady() {
+      return !!index() && !views.loading;
+    },
+    onCreate: openCreate,
+    onPagePresentation(id, value) {
+      setPagePresentations(previous => ({ ...previous, [id]: value }));
+    },
+    onDeleteSources(sources) {
+      return deletePages(sources, sources.length === 1 ? undefined : `${sources.length} sources`);
+    },
+  };
   return (
-    <AgentMarks.Provider value={agentMarks}>
-      <div
-        class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`}
-        style={{
-          '--visual-viewport-height': `${viewport().height}px`,
-          '--visual-viewport-top': `${viewport().top}px`,
-          '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px`,
-        }}
-        onPointerDown={() => {
-          focusEpoch++;
-        }}
-      >
-        <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
-          <div class="rail-start">
-            <Button
-              ref={sidebarToggle}
-              icon="sidebar"
-              label="Toggle sidebar"
-              aria-expanded={sidebarVisible()}
-              onClick={toggleSidebar}
-            />
-            <span class="wordmark" title={info()?.path}>
-              Tessera
-            </span>
-            <SyncMark open={!!syncAnchor()} onOpen={setSyncAnchor} />
-          </div>
-          <div class="rail-finder" role="group" aria-label="Find and commands">
-            <Button
-              ref={searchButton}
-              class="global-search"
-              icon="find"
-              label="Find or create"
-              shortcut="⌃⇧F"
-              aria-haspopup="dialog"
-              aria-expanded={popup()?.kind === 'search'}
-              onClick={() => toggleOpener('search', searchButton, () => showPalette('search'))}
-            >
-              <span>Find or create…</span>
-              <kbd>⌃⇧F</kbd>
-            </Button>
-            <Button
-              class="global-commands"
-              icon="command"
-              label="Commands"
-              shortcut="⌃⇧P"
-              aria-haspopup="dialog"
-              aria-expanded={popup()?.kind === 'commands'}
-              onClick={() => toggleOpener('commands', document.body, () => showPalette('commands'))}
-            />
-          </div>
-          <div class="rail-end">
-            <Show when={!DEMO}>
-              <Button icon="agent" label="Agent" shortcut="⌃⇧A" aria-pressed={dock()} onClick={() => toggleDock()} />
-            </Show>
-            <Button
-              icon="panes"
-              label="Layout"
-              aria-haspopup="menu"
-              aria-expanded={popup()?.kind === 'layout'}
-              onClick={event => {
-                const anchor = event.currentTarget;
-                toggleOpener('layout', anchor, () => setPopup({ kind: 'layout', anchor, pane: active() }));
-              }}
-            />
-          </div>
-        </header>
-        <aside
-          ref={sidebarElement}
-          class="sidebar"
-          aria-label="Workshop navigation"
-          aria-hidden={!sidebarVisible()}
-          inert={!sidebarVisible()}
+    <WorkshopContext.Provider value={workshop}>
+      <AgentMarks.Provider value={agentMarks}>
+        <div
+          class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`}
+          style={{
+            '--visual-viewport-height': `${viewport().height}px`,
+            '--visual-viewport-top': `${viewport().top}px`,
+            '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px`,
+          }}
+          onPointerDown={() => {
+            focusEpoch++;
+          }}
         >
-          {renderNavigation(active)}
-        </aside>
-        {/* The scrim stays mounted below the desktop breakpoint, so it fades out with the sidebar instead of vanishing. */}
-        <Show when={!cover() && narrow()}>
-          <div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} />
-        </Show>
-        <main class="workspace" inert={overlayOpen()}>
-          <Show when={split()}>
-            <div class="pane-tabs">
-              <div class="pane-tab-strip mode-tabs tab-strip" role="tablist" aria-label="Working panes">
-                <For each={order()}>
-                  {(pane, position) => (
-                    <>
-                      <Button
-                        role="tab"
-                        aria-selected={active() === pane}
-                        onClick={() => {
-                          if (active() !== pane) showPane(pane);
-                        }}
-                      >
-                        <span class="pane-tab-number">{position() + 1}</span>
-                        <span class="pane-tab-title">{paneName(pane)}</span>
-                      </Button>
-                      <Button
-                        class="pane-tab-close"
-                        icon="close"
-                        label={`Close ${paneName(pane)}`}
-                        shortcut={active() === pane ? '⌃⇧X' : undefined}
-                        onClick={() => closePane(pane)}
-                      />
-                    </>
-                  )}
-                </For>
-              </div>
-            </div>
-          </Show>
-          <Show when={error()}>
-            <div class="shell-error" role="alert">
-              <Icon name="warning" />
-              <span>{error()}</span>
+          <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
+            <div class="rail-start">
               <Button
-                onClick={() => {
-                  if (offlineUnavailable()) {
-                    location.reload();
-                    return;
-                  }
-                  setError('');
-                  void today();
-                }}
-              >
-                Retry
-              </Button>
+                ref={sidebarToggle}
+                icon="sidebar"
+                label="Toggle sidebar"
+                aria-expanded={sidebarVisible()}
+                onClick={toggleSidebar}
+              />
+              <span class="wordmark" title={info()?.path}>
+                Tessera
+              </span>
+              <SyncMark open={!!syncAnchor()} onOpen={setSyncAnchor} />
             </div>
+            <div class="rail-finder" role="group" aria-label="Find and commands">
+              <Button
+                ref={searchButton}
+                class="global-search"
+                icon="find"
+                label="Find or create"
+                shortcut="⌃⇧F"
+                aria-haspopup="dialog"
+                aria-expanded={popup()?.kind === 'search'}
+                onClick={() => toggleOpener('search', searchButton, () => showPalette('search'))}
+              >
+                <span>Find or create…</span>
+                <kbd>⌃⇧F</kbd>
+              </Button>
+              <Button
+                class="global-commands"
+                icon="command"
+                label="Commands"
+                shortcut="⌃⇧P"
+                aria-haspopup="dialog"
+                aria-expanded={popup()?.kind === 'commands'}
+                onClick={() => toggleOpener('commands', document.body, () => showPalette('commands'))}
+              />
+            </div>
+            <div class="rail-end">
+              <Show when={!DEMO}>
+                <Button icon="agent" label="Agent" shortcut="⌃⇧A" aria-pressed={dock()} onClick={() => toggleDock()} />
+              </Show>
+              <Button
+                icon="panes"
+                label="Layout"
+                aria-haspopup="menu"
+                aria-expanded={popup()?.kind === 'layout'}
+                onClick={event => {
+                  const anchor = event.currentTarget;
+                  toggleOpener('layout', anchor, () => setPopup({ kind: 'layout', anchor, pane: active() }));
+                }}
+              />
+            </div>
+          </header>
+          <aside
+            ref={sidebarElement}
+            class="sidebar"
+            aria-label="Workshop navigation"
+            aria-hidden={!sidebarVisible()}
+            inert={!sidebarVisible()}
+          >
+            {renderNavigation(active)}
+          </aside>
+          {/* The scrim stays mounted below the desktop breakpoint, so it fades out with the sidebar instead of vanishing. */}
+          <Show when={!cover() && narrow()}>
+            <div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} />
           </Show>
-          <GlobalBanner notebook={notebook} onReview={reviewConflict} />
-          <div ref={paneRow} class="panes">
-            <For each={order()}>
-              {(pane, position) => (
-                <>
-                  <Show when={!shown(pane)}>
-                    <button
-                      type="button"
-                      class="pane-spine"
-                      data-spine={pane}
-                      aria-label={`Show pane ${position() + 1}, ${paneName(pane)}`}
-                      title={paneName(pane)}
-                      onClick={() => showPane(pane)}
-                    >
-                      <span class="pane-spine-number">{position() + 1}</span>
-                      <span class="pane-spine-title">{paneName(pane)}</span>
-                    </button>
-                  </Show>
-                  <Show when={!tabbed() && shown(pane) && position() > start()}>
-                    <PaneDivider
-                      left={order()[position() - 1]!}
-                      right={pane}
-                      follows={!!listKinds[entry(order()[position() - 1]!)?.target.kind ?? 'page']}
-                      weights={weights()}
-                      onResize={(left, right) =>
-                        setWeights(values => ({ ...values, [order()[position() - 1]!]: left, [pane]: right }))
-                      }
-                      onReset={() => reflowPanes(() => setWeights({}))}
-                    />
-                  </Show>
-                  <Show when={entry(pane)}>
-                    <Pane
-                      pane={pane}
-                      number={position() + 1}
-                      folded={!shown(pane)}
-                      grow={weights()[pane] ?? 1}
-                      neighbour={position() < order().length - 1}
-                      session={() => sessions()[pane]!}
-                      active={active() === pane}
-                      split={split()}
-                      immersive={immersive() === pane}
-                      onImmersive={on => immerse(pane, on)}
-                      notebook={notebook}
-                      commands={commands}
-                      vim={vim()}
-                      vimMode={vimModes()[pane] ?? null}
-                      onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))}
-                      pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')}
-                      pagePresentations={pagePresentations()}
-                      title={paneTitle(pane)}
-                      fieldName={fieldName}
-                      noteKind={indexKind(pane)}
-                      noteKinds={index()?.kinds}
-                      onCreate={openCreate}
-                      besideReason={besideReason(pane)}
-                      renderDirectory={() => renderNavigation(() => pane, true)}
-                      atomCount={index()?.notes}
-                      directoryReady={!!index() && !views.loading}
-                      onPagePresentation={(id, value) =>
-                        setPagePresentations(previous => ({ ...previous, [id]: value }))
-                      }
-                      onActivate={() => setActive(pane)}
-                      onOpen={(target, beside) => open(target, beside, pane)}
-                      onPageBeside={() => openPageBeside(pane)}
-                      onViewChange={view => changeView(pane, view)}
-                      onTargetChange={target => changeTarget(pane, target)}
-                      onTravel={delta => travel(pane, delta)}
-                      onClose={() => closePane(pane)}
-                      onChooseDate={anchor => toggleOpener('calendar', anchor, () => chooseDate(pane, anchor))}
-                      onShiftDate={delta => shiftDate(delta, pane)}
-                      onPin={() => {
-                        const id = pageIdOf(entry(pane));
-                        if (id) pin(id);
-                      }}
-                      onRename={() => runOutline('rename', pane)}
-                      onDelete={(anchor, source) => setPopup({ kind: 'delete', anchor, pane, source })}
-                      onDeleteSources={sources =>
-                        deletePages(sources, sources.length === 1 ? undefined : `${sources.length} sources`)
-                      }
-                      onArchived={() => {
-                        runOutline('show-archived', pane);
-                        focusPane(pane);
-                      }}
-                      onRestoreView={view => changeView(pane, view, true)}
-                    />
-                  </Show>
-                </>
-              )}
-            </For>
-            <Show when={guide()}>
-              {value => (
+          <main class="workspace" inert={overlayOpen()}>
+            <Show when={split()}>
+              <div class="pane-tabs">
+                <div class="pane-tab-strip mode-tabs tab-strip" role="tablist" aria-label="Working panes">
+                  <For each={order()}>
+                    {(pane, position) => (
+                      <>
+                        <Button
+                          role="tab"
+                          aria-selected={active() === pane}
+                          onClick={() => {
+                            if (active() !== pane) showPane(pane);
+                          }}
+                        >
+                          <span class="pane-tab-number">{position() + 1}</span>
+                          <span class="pane-tab-title">{paneName(pane)}</span>
+                        </Button>
+                        <Button
+                          class="pane-tab-close"
+                          icon="close"
+                          label={`Close ${paneName(pane)}`}
+                          shortcut={active() === pane ? '⌃⇧X' : undefined}
+                          onClick={() => closePane(pane)}
+                        />
+                      </>
+                    )}
+                  </For>
+                </div>
+              </div>
+            </Show>
+            <Show when={error()}>
+              <div class="shell-error" role="alert">
+                <Icon name="warning" />
+                <span>{error()}</span>
+                <Button
+                  onClick={() => {
+                    if (offlineUnavailable()) {
+                      location.reload();
+                      return;
+                    }
+                    setError('');
+                    void today();
+                  }}
+                >
+                  Retry
+                </Button>
+              </div>
+            </Show>
+            <GlobalBanner notebook={notebook} onReview={reviewConflict} />
+            <div ref={paneRow} class="panes">
+              <For each={order()}>
+                {(pane, position) => (
+                  <>
+                    <Show when={!shown(pane)}>
+                      <button
+                        type="button"
+                        class="pane-spine"
+                        data-spine={pane}
+                        aria-label={`Show pane ${position() + 1}, ${paneName(pane)}`}
+                        title={paneName(pane)}
+                        onClick={() => showPane(pane)}
+                      >
+                        <span class="pane-spine-number">{position() + 1}</span>
+                        <span class="pane-spine-title">{paneName(pane)}</span>
+                      </button>
+                    </Show>
+                    <Show when={!tabbed() && shown(pane) && position() > start()}>
+                      <PaneDivider
+                        left={order()[position() - 1]!}
+                        right={pane}
+                        follows={!!listKinds[entry(order()[position() - 1]!)?.target.kind ?? 'page']}
+                        weights={weights()}
+                        onResize={(left, right) =>
+                          setWeights(values => ({ ...values, [order()[position() - 1]!]: left, [pane]: right }))
+                        }
+                        onReset={() => reflowPanes(() => setWeights({}))}
+                      />
+                    </Show>
+                    <Show when={entry(pane)}>
+                      <Pane
+                        pane={pane}
+                        number={position() + 1}
+                        folded={!shown(pane)}
+                        grow={weights()[pane] ?? 1}
+                        neighbour={position() < order().length - 1}
+                        session={() => sessions()[pane]!}
+                        active={active() === pane}
+                        immersive={immersive() === pane}
+                        onImmersive={on => immerse(pane, on)}
+                        vimMode={vimModes()[pane] ?? null}
+                        onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))}
+                        pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')}
+                        title={paneTitle(pane)}
+                        noteKind={indexKind(pane)}
+                        besideReason={besideReason(pane)}
+                        renderDirectory={() => renderNavigation(() => pane, true)}
+                        onActivate={() => setActive(pane)}
+                        onOpen={(target, beside) => open(target, beside, pane)}
+                        onPageBeside={() => openPageBeside(pane)}
+                        onViewChange={view => changeView(pane, view)}
+                        onTargetChange={target => changeTarget(pane, target)}
+                        onTravel={delta => travel(pane, delta)}
+                        onClose={() => closePane(pane)}
+                        onChooseDate={anchor => toggleOpener('calendar', anchor, () => chooseDate(pane, anchor))}
+                        onShiftDate={delta => shiftDate(delta, pane)}
+                        onPin={() => {
+                          const id = pageIdOf(entry(pane));
+                          if (id) pin(id);
+                        }}
+                        onRename={() => runOutline('rename', pane)}
+                        onDelete={(anchor, source) => setPopup({ kind: 'delete', anchor, pane, source })}
+                        onArchived={() => {
+                          runOutline('show-archived', pane);
+                          focusPane(pane);
+                        }}
+                        onRestoreView={view => changeView(pane, view, true)}
+                      />
+                    </Show>
+                  </>
+                )}
+              </For>
+              <Show when={guide()}>
+                {value => (
+                  <div
+                    class="pane-guide"
+                    classList={{ 'pane-guide-new': value().fresh }}
+                    style={{ left: `${value().left}px`, width: `${value().width}px` }}
+                    aria-hidden="true"
+                  >
+                    <span>{value().label}</span>
+                  </div>
+                )}
+              </Show>
+            </div>
+            <Show when={!order().some(pane => entry(pane)) && !error()}>
+              <div class="startup-state">Opening today’s journal…</div>
+            </Show>
+            <Show when={dragChip()}>
+              {chip => (
                 <div
-                  class="pane-guide"
-                  classList={{ 'pane-guide-new': value().fresh }}
-                  style={{ left: `${value().left}px`, width: `${value().width}px` }}
+                  class="pane-drag-chip"
+                  style={{ transform: `translate(${chip().x + 14}px, ${chip().y + 14}px)` }}
                   aria-hidden="true"
                 >
-                  <span>{value().label}</span>
+                  {chip().label}
                 </div>
               )}
             </Show>
-          </div>
-          <Show when={!order().some(pane => entry(pane)) && !error()}>
-            <div class="startup-state">Opening today’s journal…</div>
-          </Show>
-          <Show when={dragChip()}>
-            {chip => (
-              <div
-                class="pane-drag-chip"
-                style={{ transform: `translate(${chip().x + 14}px, ${chip().y + 14}px)` }}
-                aria-hidden="true"
-              >
-                {chip().label}
-              </div>
+          </main>
+          <Show when={dockHeld()}>
+            {held => (
+              <AgentDock
+                leaving={held().leaving}
+                notebook={notebook}
+                session={agentSession}
+                chips={dockChips()}
+                excluded={dockExcluded()}
+                onToggleChip={key =>
+                  setDockExcluded(values => {
+                    const next = new Set(values);
+                    if (!next.delete(key)) next.add(key);
+                    return next;
+                  })
+                }
+                onRemoveChip={key => setDockExtra(values => values.filter(chip => chip.key !== key))}
+                onShow={showAgentEdit}
+                onOpen={(target, beside) => open(target, beside)}
+                onSettings={() => open({ kind: 'settings', section: 'agent' }, true)}
+                onClose={() => toggleDock(false)}
+              />
             )}
           </Show>
-        </main>
-        <Show when={dockHeld()}>
-          {held => (
-            <AgentDock
-              leaving={held().leaving}
-              notebook={notebook}
-              session={agentSession}
-              chips={dockChips()}
-              excluded={dockExcluded()}
-              onToggleChip={key =>
-                setDockExcluded(values => {
-                  const next = new Set(values);
-                  if (!next.delete(key)) next.add(key);
-                  return next;
-                })
-              }
-              onRemoveChip={key => setDockExtra(values => values.filter(chip => chip.key !== key))}
-              onShow={showAgentEdit}
-              onOpen={(target, beside) => open(target, beside)}
-              onSettings={() => open({ kind: 'settings', section: 'agent' }, true)}
-              onClose={() => toggleDock(false)}
-            />
-          )}
-        </Show>
-        <SyncLifecycle
-          notebook={notebook}
-          anchor={syncAnchor()}
-          onClose={() => setSyncAnchor(null)}
-          onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })}
-        />
-        <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
-        <nav class="bottom-nav" aria-label="Workshop">
-          <div class="bottom-tabs glass">
-            <Button
-              icon="today"
-              class={phoneTabFor(sessions()[active()]) === 'today' ? 'selected' : ''}
-              aria-current={phoneTabFor(sessions()[active()]) === 'today' ? 'page' : undefined}
-              onClick={() => {
-                void selectPhoneTab('today').catch(reportError);
-              }}
-            >
-              <span>Today</span>
-            </Button>
-            <Button
-              icon="agenda"
-              class={phoneTabFor(sessions()[active()]) === 'agenda' ? 'selected' : ''}
-              aria-current={phoneTabFor(sessions()[active()]) === 'agenda' ? 'page' : undefined}
-              onClick={() => {
-                void selectPhoneTab('agenda').catch(reportError);
-              }}
-            >
-              <span>Agenda</span>
-              <Show when={counts()?.overdue}>
-                {count => (
-                  <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>
-                    {count()}
-                  </span>
-                )}
-              </Show>
-            </Button>
-            <Button
-              icon="review"
-              class={phoneTabFor(sessions()[active()]) === 'review' ? 'selected' : ''}
-              aria-current={phoneTabFor(sessions()[active()]) === 'review' ? 'page' : undefined}
-              onClick={() => {
-                void selectPhoneTab('review').catch(reportError);
-              }}
-            >
-              <span>Review</span>
-            </Button>
-            {/* Long press lists the types, but Library itself is a destination, so it announces as one. */}
-            <Button
-              icon="library"
-              class={phoneTabFor(sessions()[active()]) === 'library' ? 'selected' : ''}
-              aria-current={phoneTabFor(sessions()[active()]) === 'library' ? 'page' : undefined}
-              onClick={() => {
-                void selectPhoneTab('library').catch(reportError);
-              }}
-              onContextMenu={event => {
-                event.preventDefault();
-                void showTypes(event.currentTarget);
-              }}
-            >
-              <span>Library</span>
-            </Button>
-          </div>
-          <Button
-            icon="search"
-            label="Find"
-            class={`bottom-find glass ${popup()?.kind === 'search' ? 'selected' : ''}`}
-            aria-haspopup="dialog"
-            aria-expanded={popup()?.kind === 'search'}
-            onClick={event => {
-              const anchor = event.currentTarget;
-              toggleOpener('search', anchor, () => setPopup({ kind: 'search', anchor, pane: active() }));
-            }}
+          <SyncLifecycle
+            notebook={notebook}
+            anchor={syncAnchor()}
+            onClose={() => setSyncAnchor(null)}
+            onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })}
           />
-        </nav>
-        <Show when={questionsMenu()}>
-          {anchor => (
-            <Menu
-              anchor={anchor()}
-              label="Questions"
-              onDismiss={() => setQuestionsMenu(undefined)}
-              items={[
-                {
-                  label: 'Open research desk',
-                  icon: 'panes',
-                  action: () => {
-                    setQuestionsMenu(undefined);
-                    open(deskTarget());
-                  },
-                },
-              ]}
+          <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
+          <nav class="bottom-nav" aria-label="Workshop">
+            <div class="bottom-tabs glass">
+              <Button
+                icon="today"
+                class={phoneTabFor(sessions()[active()]) === 'today' ? 'selected' : ''}
+                aria-current={phoneTabFor(sessions()[active()]) === 'today' ? 'page' : undefined}
+                onClick={() => {
+                  void selectPhoneTab('today').catch(reportError);
+                }}
+              >
+                <span>Today</span>
+              </Button>
+              <Button
+                icon="agenda"
+                class={phoneTabFor(sessions()[active()]) === 'agenda' ? 'selected' : ''}
+                aria-current={phoneTabFor(sessions()[active()]) === 'agenda' ? 'page' : undefined}
+                onClick={() => {
+                  void selectPhoneTab('agenda').catch(reportError);
+                }}
+              >
+                <span>Agenda</span>
+                <Show when={counts()?.overdue}>
+                  {count => (
+                    <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>
+                      {count()}
+                    </span>
+                  )}
+                </Show>
+              </Button>
+              <Button
+                icon="review"
+                class={phoneTabFor(sessions()[active()]) === 'review' ? 'selected' : ''}
+                aria-current={phoneTabFor(sessions()[active()]) === 'review' ? 'page' : undefined}
+                onClick={() => {
+                  void selectPhoneTab('review').catch(reportError);
+                }}
+              >
+                <span>Review</span>
+              </Button>
+              {/* Long press lists the types, but Library itself is a destination, so it announces as one. */}
+              <Button
+                icon="library"
+                class={phoneTabFor(sessions()[active()]) === 'library' ? 'selected' : ''}
+                aria-current={phoneTabFor(sessions()[active()]) === 'library' ? 'page' : undefined}
+                onClick={() => {
+                  void selectPhoneTab('library').catch(reportError);
+                }}
+                onContextMenu={event => {
+                  event.preventDefault();
+                  void showTypes(event.currentTarget);
+                }}
+              >
+                <span>Library</span>
+              </Button>
+            </div>
+            <Button
+              icon="search"
+              label="Find"
+              class={`bottom-find glass ${popup()?.kind === 'search' ? 'selected' : ''}`}
+              aria-haspopup="dialog"
+              aria-expanded={popup()?.kind === 'search'}
+              onClick={event => {
+                const anchor = event.currentTarget;
+                toggleOpener('search', anchor, () => setPopup({ kind: 'search', anchor, pane: active() }));
+              }}
             />
-          )}
-        </Show>
-        <Show when={typesMenu()}>
-          {state => (
-            <Menu
-              anchor={state().anchor}
-              label="Tags"
-              onDismiss={() => setTypesMenu(null)}
-              items={[
-                {
-                  label: 'Library',
-                  icon: 'library',
-                  checked: entry(active())?.target.kind === 'library',
-                  action: () => open({ kind: 'library' }),
-                },
-                ...state().types.map(type => ({
-                  section: 'Tags',
-                  label: type.page.text,
-                  icon: 'table' as const,
-                  checked: activeTypeId() === type.page.id,
-                  action: () =>
-                    open({
-                      kind: 'table',
-                      typeId: type.page.id,
-                      viewId: null,
-                      query: { type: type.page.id, text: null, filters: [], sort: [], limit: null },
-                    }),
-                })),
-              ]}
-            />
-          )}
-        </Show>
-        <Show keyed when={popup()}>
-          {state => (
-            <>
-              <Show when={state.kind === 'search' || state.kind === 'commands'}>
-                <Palette
-                  anchor={state.anchor}
-                  pane={state.pane}
-                  mode={state.kind === 'commands' ? 'commands' : 'search'}
-                  commands={commands}
-                  notebook={notebook}
-                  noteKinds={index()?.kinds ?? []}
-                  onDismiss={() => setPopup(null)}
-                  onRestoreFocus={() => {
-                    if (!popup() && active() === state.pane) focusPane(state.pane);
-                  }}
-                  onOpen={(target, beside) => open(target, beside, state.pane)}
-                  onCreate={openCreate}
-                  onNotice={showNotice}
-                />
-              </Show>
-              <Show when={state.kind === 'calendar'}>
-                <Calendar
-                  notebook={notebook}
-                  anchor={state.anchor}
-                  date={state.date ?? journalDate(state.pane)}
-                  today={todayDate()}
-                  onToday={() => {
-                    void today(state.pane);
-                  }}
-                  onDismiss={() => setPopup(null)}
-                  onSelect={value => {
-                    void journal(value, state.pane);
-                  }}
-                />
-              </Show>
-              <Show when={state.kind === 'shortcuts'}>
-                <Shortcuts commands={commands} onDismiss={() => setPopup(null)} />
-              </Show>
-              <Show when={state.kind === 'new-view'}>
-                <Menu
-                  anchor={state.anchor}
-                  label="New view source"
-                  header={<div class="table-popup-heading">Choose a source</div>}
-                  items={querySources.map(source => ({
-                    label: source.name,
+          </nav>
+          <Show when={questionsMenu()}>
+            {anchor => (
+              <Menu
+                anchor={anchor()}
+                label="Questions"
+                onDismiss={() => setQuestionsMenu(undefined)}
+                items={[
+                  {
+                    label: 'Open research desk',
+                    icon: 'panes',
                     action: () => {
+                      setQuestionsMenu(undefined);
+                      open(deskTarget());
+                    },
+                  },
+                ]}
+              />
+            )}
+          </Show>
+          <Show when={typesMenu()}>
+            {state => (
+              <Menu
+                anchor={state().anchor}
+                label="Tags"
+                onDismiss={() => setTypesMenu(null)}
+                items={[
+                  {
+                    label: 'Library',
+                    icon: 'library',
+                    checked: entry(active())?.target.kind === 'library',
+                    action: () => open({ kind: 'library' }),
+                  },
+                  ...state().types.map(type => ({
+                    section: 'Tags',
+                    label: type.page.text,
+                    icon: 'table' as const,
+                    checked: activeTypeId() === type.page.id,
+                    action: () =>
+                      open({
+                        kind: 'table',
+                        typeId: type.page.id,
+                        viewId: null,
+                        query: { type: type.page.id, text: null, filters: [], sort: [], limit: null },
+                      }),
+                  })),
+                ]}
+              />
+            )}
+          </Show>
+          <Show keyed when={popup()}>
+            {state => (
+              <>
+                <Show when={state.kind === 'search' || state.kind === 'commands'}>
+                  <Palette
+                    anchor={state.anchor}
+                    pane={state.pane}
+                    mode={state.kind === 'commands' ? 'commands' : 'search'}
+                    commands={commands}
+                    notebook={notebook}
+                    noteKinds={index()?.kinds ?? []}
+                    onDismiss={() => setPopup(null)}
+                    onRestoreFocus={() => {
+                      if (!popup() && active() === state.pane) focusPane(state.pane);
+                    }}
+                    onOpen={(target, beside) => open(target, beside, state.pane)}
+                    onCreate={openCreate}
+                    onNotice={showNotice}
+                  />
+                </Show>
+                <Show when={state.kind === 'calendar'}>
+                  <Calendar
+                    notebook={notebook}
+                    anchor={state.anchor}
+                    date={state.date ?? journalDate(state.pane)}
+                    today={todayDate()}
+                    onToday={() => {
+                      void today(state.pane);
+                    }}
+                    onDismiss={() => setPopup(null)}
+                    onSelect={value => {
+                      void journal(value, state.pane);
+                    }}
+                  />
+                </Show>
+                <Show when={state.kind === 'shortcuts'}>
+                  <Shortcuts commands={commands} onDismiss={() => setPopup(null)} />
+                </Show>
+                <Show when={state.kind === 'new-view'}>
+                  <Menu
+                    anchor={state.anchor}
+                    label="New view source"
+                    header={<div class="table-popup-heading">Choose a source</div>}
+                    items={querySources.map(source => ({
+                      label: source.name,
+                      action: () => {
+                        setPopup(null);
+                        open(
+                          {
+                            kind: 'table',
+                            typeId: null,
+                            viewId: null,
+                            query: { ...typeQuery(null), source: source.key },
+                          },
+                          false,
+                          state.pane,
+                        );
+                      },
+                    }))}
+                    onDismiss={() => setPopup(null)}
+                  />
+                </Show>
+                <Show when={state.kind === 'restore-pages'}>
+                  <DeletedPages
+                    anchor={state.anchor}
+                    notebook={notebook}
+                    onDismiss={() => setPopup(null)}
+                    onRestored={id => {
                       setPopup(null);
-                      open(
-                        {
-                          kind: 'table',
-                          typeId: null,
-                          viewId: null,
-                          query: { ...typeQuery(null), source: source.key },
-                        },
-                        false,
-                        state.pane,
-                      );
-                    },
-                  }))}
-                  onDismiss={() => setPopup(null)}
-                />
-              </Show>
-              <Show when={state.kind === 'restore-pages'}>
-                <DeletedPages
-                  anchor={state.anchor}
-                  notebook={notebook}
-                  onDismiss={() => setPopup(null)}
-                  onRestored={id => {
-                    setPopup(null);
-                    open({ kind: 'page', pageId: id }, false, state.pane);
-                  }}
-                />
-              </Show>
-              <Show when={state.kind === 'delete'}>
-                <Popup
-                  anchor={state.anchor}
-                  placement={cover() ? 'sheet' : 'anchor'}
-                  label="Delete atom"
-                  title="Delete atom"
-                  onDismiss={() => setPopup(null)}
-                  width={300}
-                  fitContent
-                >
-                  <p>
-                    Delete “
-                    {notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ??
-                      rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}
-                    ” and {state.source ? 'its highlights' : 'all its atoms'}?
-                  </p>
-                  <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
-                  <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
-                  <div class="popup-actions">
-                    <Button onClick={() => setPopup(null)}>Cancel</Button>
-                    <Button
-                      icon="trash"
-                      class="danger bordered"
-                      disabled={!!deleteDisabledReason(state.pane)}
-                      title={deleteDisabledReason(state.pane)}
-                      onClick={() => {
-                        void deletePage(state.pane);
-                      }}
-                    >
-                      Delete atom
-                    </Button>
-                  </div>
-                </Popup>
-              </Show>
-              <Show when={state.kind === 'layout'}>
-                <Menu
-                  anchor={state.anchor}
-                  label="Layout"
-                  onDismiss={() => setPopup(null)}
-                  items={[
-                    {
-                      label: 'Open active view beside',
-                      icon: 'panes',
-                      shortcut: '⌃⇧O',
-                      disabledReason: entry(state.pane) ? besideReason(state.pane) : 'No view is open',
-                      action: () => openPageBeside(state.pane),
-                    },
-                    {
-                      label: 'Next pane',
-                      icon: 'panes',
-                      shortcut: '⌃⇧]',
-                      disabledReason: split() ? undefined : 'Open a second pane first',
-                      action: switchPane,
-                    },
-                    {
-                      label: 'Even pane widths',
-                      icon: 'panes',
-                      disabledReason: !split()
-                        ? 'Open a second pane first'
-                        : Object.keys(weights()).length
-                          ? undefined
-                          : 'Panes are already even',
-                      action: () => reflowPanes(() => setWeights({})),
-                    },
-                    {
-                      label: 'Close active pane',
-                      icon: 'close',
-                      shortcut: '⌃⇧X',
-                      disabledReason: split() ? undefined : 'Only one pane is open',
-                      action: () => closePane(state.pane),
-                    },
-                    {
-                      section: 'Navigation',
-                      label: sidebarVisible() ? 'Hide sidebar' : 'Show sidebar',
-                      icon: 'sidebar',
-                      action: toggleSidebar,
-                    },
-                  ]}
-                />
-              </Show>
-            </>
-          )}
-        </Show>
-        <Show keyed when={creation()}>
-          {state => (
-            <CreateSlip
-              notebook={notebook}
-              request={state.request}
-              anchor={state.anchor}
-              onDismiss={closeCreate}
-              onOpen={(target, beside) => open(target, beside, state.pane)}
-              onNotice={showNotice}
-              onDraft={setCreateDirty}
-            />
-          )}
-        </Show>
-        <ReferencePreviews
-          notebook={notebook}
-          navigationKey={`${active()}:${order()
-            .map(pane => sessions()[pane]?.generation ?? 0)
-            .join(':')}`}
-          onOpen={(target, beside, pane) => open(target, beside, pane ?? active())}
-        />
-        <NotebookOpening />
-      </div>
-    </AgentMarks.Provider>
+                      open({ kind: 'page', pageId: id }, false, state.pane);
+                    }}
+                  />
+                </Show>
+                <Show when={state.kind === 'delete'}>
+                  <Popup
+                    anchor={state.anchor}
+                    placement={cover() ? 'sheet' : 'anchor'}
+                    label="Delete atom"
+                    title="Delete atom"
+                    onDismiss={() => setPopup(null)}
+                    width={300}
+                    fitContent
+                  >
+                    <p>
+                      Delete “
+                      {notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ??
+                        rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}
+                      ” and {state.source ? 'its highlights' : 'all its atoms'}?
+                    </p>
+                    <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
+                    <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
+                    <div class="popup-actions">
+                      <Button onClick={() => setPopup(null)}>Cancel</Button>
+                      <Button
+                        icon="trash"
+                        class="danger bordered"
+                        disabled={!!deleteDisabledReason(state.pane)}
+                        title={deleteDisabledReason(state.pane)}
+                        onClick={() => {
+                          void deletePage(state.pane);
+                        }}
+                      >
+                        Delete atom
+                      </Button>
+                    </div>
+                  </Popup>
+                </Show>
+                <Show when={state.kind === 'layout'}>
+                  <Menu
+                    anchor={state.anchor}
+                    label="Layout"
+                    onDismiss={() => setPopup(null)}
+                    items={[
+                      {
+                        label: 'Open active view beside',
+                        icon: 'panes',
+                        shortcut: '⌃⇧O',
+                        disabledReason: entry(state.pane) ? besideReason(state.pane) : 'No view is open',
+                        action: () => openPageBeside(state.pane),
+                      },
+                      {
+                        label: 'Next pane',
+                        icon: 'panes',
+                        shortcut: '⌃⇧]',
+                        disabledReason: split() ? undefined : 'Open a second pane first',
+                        action: switchPane,
+                      },
+                      {
+                        label: 'Even pane widths',
+                        icon: 'panes',
+                        disabledReason: !split()
+                          ? 'Open a second pane first'
+                          : Object.keys(weights()).length
+                            ? undefined
+                            : 'Panes are already even',
+                        action: () => reflowPanes(() => setWeights({})),
+                      },
+                      {
+                        label: 'Close active pane',
+                        icon: 'close',
+                        shortcut: '⌃⇧X',
+                        disabledReason: split() ? undefined : 'Only one pane is open',
+                        action: () => closePane(state.pane),
+                      },
+                      {
+                        section: 'Navigation',
+                        label: sidebarVisible() ? 'Hide sidebar' : 'Show sidebar',
+                        icon: 'sidebar',
+                        action: toggleSidebar,
+                      },
+                    ]}
+                  />
+                </Show>
+              </>
+            )}
+          </Show>
+          <Show keyed when={creation()}>
+            {state => (
+              <CreateSlip
+                notebook={notebook}
+                request={state.request}
+                anchor={state.anchor}
+                onDismiss={closeCreate}
+                onOpen={(target, beside) => open(target, beside, state.pane)}
+                onNotice={showNotice}
+                onDraft={setCreateDirty}
+              />
+            )}
+          </Show>
+          <ReferencePreviews
+            notebook={notebook}
+            navigationKey={`${active()}:${order()
+              .map(pane => sessions()[pane]?.generation ?? 0)
+              .join(':')}`}
+            onOpen={(target, beside, pane) => open(target, beside, pane ?? active())}
+          />
+          <NotebookOpening />
+        </div>
+      </AgentMarks.Provider>
+    </WorkshopContext.Provider>
   );
 }
