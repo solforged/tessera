@@ -1,0 +1,9 @@
+# Commits that only reformat or rename. GitHub skips them in blame; locally,
+# run `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
+# Wrap the docs at 80 columns
+3b9a7eac4f96de62e31f12adf829580babb5b9bf
+# Format the editor with Biome
+05002ba967bcff51ca67527f68101d2a73a07404
+# Rename notebook to workshop in code and docs
+bb2c636c7743182b22999da86c74df64f7f1d45c
