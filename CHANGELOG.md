@@ -314,6 +314,10 @@ back.
 
 ### Fixed
 
+- Kept a page created offline in the sidebar after a reload while still
+  offline. Every window shares one cached page list, so another window could
+  save it without the new page, which stayed missing until the service answered.
+  The queued page is now added back from the outbox at startup.
 - Resolved the default Chrome for Testing for `ts-demo-test` and the
   `web/perf` scripts from the locked `playwright-core` instead of a
   hard-coded cache path, and pinned the devenv `chromedriver` to the same

@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { openDB } from 'idb';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
@@ -2063,6 +2064,10 @@ describe('real workshop operations and recovery', () => {
       }[];
       expect(serverRoots.some(root => root.id === id)).toBe(false);
       await instance.dispose();
+      // Another window's refresh rewrites the shared roots cache without this session's queued page.
+      const db = await openDB('tessera-document-tests');
+      await db.put('notebooks', { key: workshopId, roots: serverRoots });
+      db.close();
       const recovered = await client(session);
       const reopened = recovered.open(id);
       await eventually(() => reopened.status() === 'ready', 'provisional page did not reopen');

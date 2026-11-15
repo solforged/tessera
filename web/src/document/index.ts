@@ -281,9 +281,12 @@ export class Workshop implements WorkshopClient, DocumentHost {
     for (const command of stored.commands) if (command.rejection) this.rejected.set(command.id, command);
     for (const command of this.queue) this.persisted.add(command.id);
     for (const row of stored.tickets) this.tickets.set(row.key.slice(workshopId.length + 1), row.ticket);
-    this.setRoots(stored.roots);
+    // The roots cache is shared by every window, so another window may have written it without this session's
+    // queued pages; reapply them before the service answers, or offline the sidebar would lose them.
+    const roots = this.withPending(stored.roots);
+    this.setRoots(roots);
     this.order = Math.max(this.order, ...this.queue.map(command => command.order));
-    for (const root of stored.roots) this.publish(root);
+    for (const root of roots) this.publish(root);
     try {
       await this.refreshRoots();
     } catch {
@@ -2537,7 +2540,14 @@ export class Workshop implements WorkshopClient, DocumentHost {
     void this.connect();
   }
   private async refreshRoots() {
-    const roots = await this.api.roots();
+    const roots = this.withPending(await this.api.roots());
+    this.setRoots(roots);
+    for (const root of roots) this.publish(root);
+    void this.outbox?.roots(roots).catch(() => undefined);
+  }
+  /** Returns `base` with this session's queued root inserts, deletes, restores, renames and archives applied. */
+  private withPending(base: readonly Block[]) {
+    const roots = [...base];
     const pending = new Map<string, Block | null>();
     for (const command of this.queue)
       for (const action of command.actions) {
@@ -2566,9 +2576,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         else roots[at] = block;
       } else if (at >= 0) roots.splice(at, 1);
     }
-    this.setRoots(roots);
-    for (const root of roots) this.publish(root);
-    void this.outbox?.roots(roots).catch(() => undefined);
+    return roots;
   }
   private changeHost(): WorkshopChangeHost {
     return {
