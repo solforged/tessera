@@ -2115,6 +2115,38 @@ describe('real workshop operations and recovery', () => {
     }
   });
 
+  test('a lost acknowledgement is retried on its own when the change stream stayed open', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance);
+    await eventually(() => instance.connection() === 'live', 'retry stream did not connect');
+    let lose = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await actualFetch(input, init);
+      if (
+        lose &&
+        String(input) === `${baseUrl}/api/batches` &&
+        init?.method === 'POST' &&
+        String(init.body).includes('"kind":"client"')
+      ) {
+        lose = false;
+        throw new TypeError('Lost acknowledgement with live stream');
+      }
+      return response;
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'text', id: first, text: 'Retried without a click' }));
+      await instance.flush();
+      expect(instance.connection()).toBe('offline');
+      // No Retry and no later edit: the reconnect alone must send the queued command again.
+      await eventually(() => instance.queuedChanges() === 0, 'the queued command was never retried');
+      expect(instance.connection()).toBe('live');
+      expect(instance.saveState()).toBe('saved');
+      expect((await api.block(first)).text).toBe('Retried without a click');
+    } finally {
+      globalThis.fetch = actualFetch;
+    }
+  });
+
   test('Retry reconciles a stale Offline state even when there is no queued work', async () => {
     const instance = await client();
     const { doc, id, first } = await page(instance);

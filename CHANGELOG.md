@@ -313,6 +313,9 @@ back.
 
 ### Fixed
 
+- Resent queued edits once the service answers again after a save failed while
+  the change stream stayed connected. Before, those edits stayed on `Saving…`
+  until the next edit or a click on Retry.
 - Made a phone's first pairing reload the app onto the Mac's workshop: the
   phone's own router now refuses a window bound to the workshop it replaced
   (`notebook_changed`), as the desktop one does, so Today no longer sticks on
