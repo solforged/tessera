@@ -1,0 +1,9 @@
+# Commits that only reformat or rename. GitHub skips them in blame; locally,
+# run `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
+# style: formatted docs
+7164187c1e0e9010ae05b5c427b7afceac8da79a
+# style(web): formatted the editor with Biome
+d9e1369a8d0f135b132b197bed3aba7b916b0434
+# refactor: renamed notebook to workshop in code and docs
+fa2d319006eb22d4dea63f1d884026a1820e8eeb
