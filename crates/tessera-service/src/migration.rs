@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use tessera_core::{DATABASE_FILE, NotebookOwnership};
+use tessera_core::{DATABASE_FILE, WorkshopOwnership};
 
 use crate::notebooks::{Registry, Stored};
 use crate::paths;
@@ -47,11 +47,11 @@ impl Layout {
         let old = old_registry.load_raw()?;
         let mut stored = Stored {
             current: original.current.clone().or(old.current),
-            notebooks: original.notebooks.clone(),
+            workshops: original.workshops.clone(),
         };
-        for path in old.notebooks {
-            if !stored.notebooks.contains(&path) {
-                stored.notebooks.push(path);
+        for path in old.workshops {
+            if !stored.workshops.contains(&path) {
+                stored.workshops.push(path);
             }
         }
         let old_default = &old_registry.default;
@@ -59,8 +59,8 @@ impl Layout {
             if stored.current.is_none() {
                 stored.current = Some(old_default.clone());
             }
-            if !stored.notebooks.contains(old_default) {
-                stored.notebooks.push(old_default.clone());
+            if !stored.workshops.contains(old_default) {
+                stored.workshops.push(old_default.clone());
             }
         }
         if Self::workshop(old_default, &registry.default, &mut stored, &registry)? {
@@ -95,7 +95,7 @@ impl Layout {
         }
         remove_empty(&seeds)?;
 
-        stored.notebooks.retain(|path| {
+        stored.workshops.retain(|path| {
             path == &registry.default
                 || Some(path) == stored.current.as_ref()
                 || path.join(DATABASE_FILE).is_file()
@@ -135,18 +135,18 @@ impl Layout {
             return Ok(false);
         }
         // Release before rename as required on platforms that deny moving open files.
-        drop(NotebookOwnership::acquire(source, 0)?);
+        drop(WorkshopOwnership::acquire(source, 0)?);
         if move_path(source, target)? {
             if stored.current.as_deref() == Some(source) {
                 stored.current = Some(target.to_path_buf());
             }
-            for path in &mut stored.notebooks {
+            for path in &mut stored.workshops {
                 if path == source {
                     *path = target.to_path_buf();
                 }
             }
-            if !stored.notebooks.iter().any(|path| path == target) {
-                stored.notebooks.push(target.to_path_buf());
+            if !stored.workshops.iter().any(|path| path == target) {
+                stored.workshops.push(target.to_path_buf());
             }
             // Persist each move, so a later collision or I/O error cannot lose its path.
             registry.save(stored)?;
@@ -316,7 +316,7 @@ mod tests {
                 layout.legacy.join("notebooks.json"),
                 serde_json::to_vec(&Stored {
                     current: Some(old.clone()),
-                    notebooks: vec![old.clone(), seed.clone(), root.path().join("missing")],
+                    workshops: vec![old.clone(), seed.clone(), root.path().join("missing")],
                 })
                 .unwrap(),
             )
@@ -328,15 +328,15 @@ mod tests {
             registry
                 .save(&Stored {
                     current: None,
-                    notebooks: vec![external.clone()],
+                    workshops: vec![external.clone()],
                 })
                 .unwrap();
             layout.migrate().unwrap();
             let bytes = fs::read(&registry.path).unwrap();
             let stored = registry.load_raw().unwrap();
             assert_eq!(stored.current, Some(registry.default.clone()));
-            assert_eq!(stored.notebooks.len(), 3);
-            assert!(stored.notebooks.contains(&external));
+            assert_eq!(stored.workshops.len(), 3);
+            assert!(stored.workshops.contains(&external));
             assert!(!old.exists());
             assert!(!seed.exists());
             assert_eq!(
@@ -380,7 +380,7 @@ mod tests {
         let layout = layout(root.path(), false);
         let old = layout.legacy.join("notebook");
         database(&old);
-        let _owner = NotebookOwnership::acquire(&old, 12345).unwrap();
+        let _owner = WorkshopOwnership::acquire(&old, 12345).unwrap();
         assert!(layout.migrate().is_err());
         assert!(old.join(DATABASE_FILE).is_file());
         assert!(!layout.data.join("workshops/main").exists());

@@ -9,13 +9,13 @@ use axum::{
     routing::get,
 };
 use parking_lot::Mutex;
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
 use crate::agent;
 use crate::assets;
 use crate::error::ApiError;
-use crate::info::{notebook_size, service_info};
+use crate::info::{service_info, workshop_size};
 use crate::notebooks;
 use crate::pairing;
 use crate::replica;
@@ -27,7 +27,7 @@ use crate::{backups, library};
 use tessera_api::images;
 
 pub fn router(
-    notebook: Notebook,
+    workshop: Workshop,
     port: u16,
     assets: Option<PathBuf>,
     dev_origin: Option<String>,
@@ -37,7 +37,7 @@ pub fn router(
         .checked_add(1)
         .ok_or("the sync port needs an explicit value")?;
     Ok(routers(
-        notebook,
+        workshop,
         port,
         sync_port,
         assets,
@@ -51,7 +51,7 @@ pub fn router(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn routers(
-    notebook: Notebook,
+    workshop: Workshop,
     port: u16,
     sync_port: u16,
     assets: Option<PathBuf>,
@@ -61,13 +61,13 @@ pub(crate) fn routers(
     backup_store: Option<PathBuf>,
 ) -> Result<(Router, Router, AppState), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
-    let readers = tessera_api::Readers::open(&notebook).map_err(|error| error.to_string())?;
-    let notebook = Arc::new(Mutex::new(notebook));
+    let readers = tessera_api::Readers::open(&workshop).map_err(|error| error.to_string())?;
+    let workshop = Arc::new(Mutex::new(workshop));
     let notifications = broadcast::channel(256).0;
     let library =
-        library::Library::start(notebook.clone(), notifications.clone(), library::extract)?;
+        library::Library::start(workshop.clone(), notifications.clone(), library::extract)?;
     let state = AppState {
-        notebook,
+        workshop,
         readers: Some(readers),
         assets: assets.map(Arc::new),
         changes: notifications,
@@ -85,7 +85,7 @@ pub(crate) fn routers(
         agent: Arc::new(agent::Runtime::new(agent_path)?),
     };
     replica::start(
-        state.notebook.clone(),
+        state.workshop.clone(),
         state.changes.clone(),
         &state.replica,
     );
@@ -103,7 +103,7 @@ pub(crate) fn routers(
         .fallback(|| async { ApiError::not_found() })
         .layer(middleware::from_fn(sync::version_headers))
         .with_state(state.clone());
-    let editor = notebook_routes()
+    let editor = workshop_routes()
         .route("/api/service", get(service_info))
         .merge(backups::backup_routes())
         .route("/api/changes/stream", get(change_stream))
@@ -131,16 +131,16 @@ pub(crate) fn routers(
             state.clone(),
             refuse_while_switching,
         ))
-        .layer(middleware::from_fn_with_state(state.clone(), same_notebook))
+        .layer(middleware::from_fn_with_state(state.clone(), same_workshop))
         .layer(middleware::from_fn_with_state(policy, security::protect))
         .with_state(state.clone());
     Ok((editor, sync, state))
 }
 
-/// Refuse a window's request meant for another notebook, named by the `X-Tessera-Notebook`
+/// Refuse a window's request meant for another workshop, named by the `X-Tessera-Notebook`
 /// header or, for the change stream, the `notebook` query parameter. A switch or a replica
-/// reclone changes the notebook behind a port; an old window must not write into the new one.
-pub(crate) async fn same_notebook(
+/// reclone changes the workshop behind a port; an old window must not write into the new one.
+pub(crate) async fn same_workshop(
     State(state): State<AppState>,
     request: axum::extract::Request,
     next: middleware::Next,
@@ -159,7 +159,7 @@ pub(crate) async fn same_notebook(
         })
         .map(str::to_owned);
     if let Some(expected) = expected {
-        match run(&state, |notebook| notebook.info()).await {
+        match run(&state, |workshop| workshop.info()).await {
             Ok(info) if info.id != expected => {
                 return ApiError::new(
                     axum::http::StatusCode::CONFLICT,
@@ -175,9 +175,9 @@ pub(crate) async fn same_notebook(
     next.run(request).await
 }
 
-pub(crate) fn notebook_routes() -> Router<AppState> {
+pub(crate) fn workshop_routes() -> Router<AppState> {
     tessera_api::workshop_routes()
-        .route("/api/notebook/size", get(notebook_size))
+        .route("/api/notebook/size", get(workshop_size))
         .merge(replica::routes())
 }
 
@@ -220,9 +220,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn a_read_answers_while_the_writer_is_busy() {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Notebook::open(dir.path().join("workshop")).unwrap();
+        let workshop = Workshop::open(dir.path().join("workshop")).unwrap();
         let (editor, _sync, state) = routers(
-            notebook,
+            workshop,
             4318,
             4319,
             None,
@@ -233,7 +233,7 @@ mod tests {
         )
         .unwrap();
         // Hold the writer as a long save or sync apply would.
-        let writer = state.notebook.clone();
+        let writer = state.workshop.clone();
         let (held, wait) = std::sync::mpsc::channel();
         let (release, released) = std::sync::mpsc::channel::<()>();
         let holder = std::thread::spawn(move || {

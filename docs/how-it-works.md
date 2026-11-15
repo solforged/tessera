@@ -23,18 +23,18 @@ Code: `crates/tessera-cli/src/main.rs`, `install.rs`;
 `crates/tessera-service/src/assets.rs`.
 
 The service acquires `service.lock`, opens the workshop and binds to loopback.
-`AppState` holds one `Notebook` in `Arc<Mutex<Notebook>>`, the writer, and three
-query-only reader connections for reads that write nothing. The `Notebook` type
+`AppState` holds one `Workshop` in `Arc<Mutex<Workshop>>`, the writer, and three
+query-only reader connections for reads that write nothing. The `Workshop` type
 owns a workshop. Code:
-`crates/tessera-core/src/ownership.rs` (`NotebookOwnership::acquire`);
+`crates/tessera-core/src/ownership.rs` (`WorkshopOwnership::acquire`);
 `crates/tessera-service/src/serve.rs` (`serve`),
 `crates/tessera-service/src/state.rs` (`AppState`, `run`).
 
-`Notebook::open` opens `notebook.db` in the workshop directory, enables WAL,
+`Workshop::open` opens `notebook.db` in the workshop directory, enables WAL,
 `synchronous=FULL` and foreign keys, then runs migrations. The singleton
 `notebook` row's ID namespaces browser recovery data. Code:
-`crates/tessera-core/src/notebook.rs:34` (`Notebook::open`), `106`
-(`Notebook::info`); `crates/tessera-core/migrations/001_notebook.sql`.
+`crates/tessera-core/src/notebook.rs:34` (`Workshop::open`), `106`
+(`Workshop::info`); `crates/tessera-core/migrations/001_notebook.sql`.
 
 Every CLI command initializes `tracing` on stderr with `RUST_LOG`, defaulting to
 `info`. Service events report URL, workshop path, migration versions, ingestion
@@ -104,7 +104,7 @@ The input half lives in `web/src/outline/editor.ts` (`PaneEditor`),
 (`Document.edit`, `apply`). The durable half lives in
 `web/src/document/index.ts` (`enqueue`, `compile`, `drain`),
 `web/src/document/outbox.ts` and `crates/tessera-core/src/operations/mod.rs`
-(`Notebook::apply`).
+(`Workshop::apply`).
 
 A successful batch commits authored rows, derived indexes and its receipt
 together. The service broadcasts the sequence number under the workshop lock.
@@ -119,7 +119,7 @@ pages pruned by derivation. Acknowledgment hydration removes those IDs from
 local caches without requesting their block endpoints.
 
 Same-page panes in one window share a `Document`. Another window has its own
-`Notebook` client and learns changes through HTTP catch-up and WebSocket
+`Workshop` client and learns changes through HTTP catch-up and WebSocket
 streaming. Code: `web/src/document/change-stream.ts:143`
 (`reconcileConnection`), `web/src/document/index.ts:2707` (`change`), `301`
 (`open`); `web/src/shell/Pane.tsx:220`.
@@ -180,10 +180,10 @@ position, so the editor reloads those pages once the command has left its queue.
 Code: `crates/tessera-core/src/operations/mod.rs` (`anchor`, `reanchor`),
 `web/src/document/index.ts` (`reloadReanchored`).
 
-`Notebook::page` fetches live rows once, groups by parent and walks preorder. It
+`Workshop::page` fetches live rows once, groups by parent and walks preorder. It
 returns a root, rows with computed depth (not a database column), manual
 memberships, external reference targets and capability sidecars. Code:
-`crates/tessera-core/src/reads.rs:178` (`Notebook::page`).
+`crates/tessera-core/src/reads.rs:178` (`Workshop::page`).
 
 Each resource has its own revision. Blocks start at 1. Text, heading, archive,
 location or capability changes can bump revisions, while equal-text edits do
@@ -197,7 +197,7 @@ Code: `crates/tessera-core/src/operations/mod.rs:1352` (`create`), `1384`
 batch position. `Engine::checked` reports operation index, ID, expected and
 found revision. Missing/deleted rows have no live revision. Failure rolls back
 the transaction and maps to HTTP 409. Code:
-`crates/tessera-core/src/operations/mod.rs:204` (`Notebook::apply`),
+`crates/tessera-core/src/operations/mod.rs:204` (`Workshop::apply`),
 `crates/tessera-api/src/error.rs:61`.
 
 `Operation` covers text, split, merge, move, delete/restore, fields, types,
@@ -494,7 +494,7 @@ restores derivation.
 Page-document history records criteria and matrix edits. Undo restores the
 previous explicit list or derivation and preserves value identities.
 
-`Notebook::query_sources` gathers type-membership, FTS and field-ownership
+`Workshop::query_sources` gathers type-membership, FTS and field-ownership
 candidates. A joined read fetches source blocks, roots, value text and reference
 targets. Rust filters/sorts readings, counts matches, then limits results. Code:
 `crates/tessera-core/src/query.rs:516`, `605`, `700`;
@@ -607,12 +607,12 @@ Tasks mode uses a synchronous query-line parser:
 
 Code: `web/src/tasks/task-query-line.ts`, `TaskQueryLine.tsx`, `AgendaPane.tsx`.
 
-`Notebook::agenda` implements the [agenda rules](domain-model.md#tasks) for the
+`Workshop::agenda` implements the [agenda rules](domain-model.md#tasks) for the
 displayed civil date. Unfinished rows combine scheduled, deadline, warning,
 overdue or unplanned reasons. Same-day completions use the latest unreversed
 occurrence's planning and a done projection, even after a repeater advances;
 canceled tasks are excluded. Code: `crates/tessera-core/src/task_query.rs:257`,
-`473` (`Notebook::agenda`).
+`473` (`Workshop::agenda`).
 
 ### Work sessions
 
@@ -835,7 +835,7 @@ The review pane holds shown text until acknowledgment. Refresh detects changed
 cards/sessions and refuses stale grades. The current session excludes units
 already graded there. Grade/session/deck commands share page edits' ordered
 durable outbox. Code: `web/src/review/ReviewPane.tsx:569` (`refresh`), `875`
-(`grade`), `web/src/document/index.ts:1917` (`sendNotebook`).
+(`grade`), `web/src/document/index.ts:1917` (`sendWorkshop`).
 
 `GET /api/review/stats?deck=<id>&date=YYYY-MM-DD` projects active visible
 schedules and immutable grade events without writes. Context dates use the
@@ -903,7 +903,7 @@ citing blocks. Code: `crates/tessera-core/src/library.rs:1`,
 `page_capabilities`).
 
 The object store hashes original/resource bytes with SHA-256.
-`Notebook::put_object` writes and syncs a temporary file beside the final path,
+`Workshop::put_object` writes and syncs a temporary file beside the final path,
 publishes without replacing an existing object, then syncs directories.
 `stage_snapshot` transactionally inserts the immutable snapshot,
 UTF-16-positioned passages, FTS entries and resource references. The same hash
@@ -1139,18 +1139,18 @@ choosing one silently.
 ## The client document layer
 
 The client separates intent, optimistic actions, acknowledged state and
-delivery. One `Notebook` owns the window's queue, documents, roots and reference
+delivery. One `Workshop` owns the window's queue, documents, roots and reference
 cache. Each `Document` owns a page's local cells, acknowledged blocks, outline
 indexes and undo/redo history. Code: `web/src/document/index.ts:65`
-(`Notebook`); `web/src/document/page-document.ts:149` (`Document`).
+(`Workshop`); `web/src/document/page-document.ts:149` (`Document`).
 
 | File                                | Responsibility                                                                                    |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `web/src/document/contract.ts`      | Public `Edit`, `PageDocument`, `NotebookClient`, `BlockState` and save-state contract             |
+| `web/src/document/contract.ts`      | Public `Edit`, `PageDocument`, `WorkshopClient`, `BlockState` and save-state contract             |
 | `web/src/document/types.ts`         | Actions, snapshots, inverses, page/workshop command records and history entries                   |
 | `web/src/document/page-document.ts` | Plan/apply page edits, retain base state, reconcile remote state, undo/redo and resolve conflicts |
 | `web/src/document/index.ts`         | Share documents, coalesce/persist/compile/send commands, catch up changes and maintain caches     |
-| `web/src/document/change-stream.ts` | Reconnect, catch up and stream workshop changes into the notebook client                          |
+| `web/src/document/change-stream.ts` | Reconnect, catch up and stream workshop changes into the workshop client                          |
 | `web/src/document/edits/`           | Per-kind edit planners that `Document.edit` dispatches to                                         |
 | `web/src/document/outbox.ts`        | IndexedDB command storage and acknowledged offline page recovery                                  |
 
@@ -1455,7 +1455,7 @@ Start with the layer that owns the symptom.
 | Card syntax creates no unit or progress seems to change on edit                    | Core card derivation and browser parser | `crates/tessera-core/src/card_text.rs` · `parse_card_text`; `card_store.rs` · `derive_sources`; `web/src/core/card-text.ts` · `parseCardText`                           |
 | A shown card cannot be graded or advances before saving                            | Core review checks and review pane      | `crates/tessera-core/src/review_store.rs` · `GradeCard` handling; `web/src/review/ReviewPane.tsx` · `refresh`, `grade`                                                  |
 | Pane back/forward, restored folds or command targeting is wrong                    | Shell navigation and palette            | `web/src/shell/App.tsx` · `open`, `changeView`, `travel`, navigation restore; `web/src/shell/Palette.tsx` · command capture                                             |
-| Service startup fails with existing ownership                                      | Core ownership and service startup      | `crates/tessera-core/src/ownership.rs` · `NotebookOwnership::acquire`; `crates/tessera-service/src/serve.rs` · `serve`                                                  |
+| Service startup fails with existing ownership                                      | Core ownership and service startup      | `crates/tessera-core/src/ownership.rs` · `WorkshopOwnership::acquire`; `crates/tessera-service/src/serve.rs` · `serve`                                                  |
 
 ## Open questions
 

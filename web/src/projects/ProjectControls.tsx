@@ -1,6 +1,6 @@
 import { Show, createEffect, createSignal, on, untrack } from 'solid-js';
 import type { ProjectState } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -8,7 +8,7 @@ import { Menu } from '../ui/Menu';
 import './projects.css';
 
 export interface ProjectControlsProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   project: ProjectState | null;
   contextDate: string;
   disabled?: boolean;
@@ -30,7 +30,7 @@ export function ProjectControls(props: ProjectControlsProps) {
   let field: HTMLTextAreaElement | undefined;
   let focused = false;
 
-  // Refresh the outcome from the notebook unless it holds unsaved or rejected input.
+  // Refresh the outcome from the workshop unless it holds unsaved or rejected input.
   createEffect(
     on(
       () => props.project?.outcome,
@@ -152,11 +152,11 @@ export function ProjectControls(props: ProjectControlsProps) {
         <Show when={deadlineAnchor()}>
           {anchor => (
             <DatePicker
-              notebook={props.notebook}
+              workshop={props.workshop}
               anchor={anchor()}
               label="Deadline"
               value={current().deadline}
-              contextDate={props.notebook.todayDate()}
+              contextDate={props.workshop.todayDate()}
               onDismiss={() => setDeadlineAnchor(null)}
               onSelect={value => save({ ...current(), outcome: outcome().trim(), deadline: value.date })}
             />

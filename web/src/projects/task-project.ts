@@ -1,5 +1,5 @@
 import { createMemo, createResource } from 'solid-js';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { fieldEntryId } from '../core/field-entry';
 
 /** Match the core's first live Project value, then the nearest project ancestor. */
@@ -27,11 +27,11 @@ export function taskProject(
   return null;
 }
 
-export function createTaskProjects(doc: PageDocument, notebook: NotebookClient) {
+export function createTaskProjects(doc: PageDocument, workshop: WorkshopClient) {
   const [metadata] = createResource(
-    () => [notebook.changeSequence(), notebook.connection() === 'live'] as const,
+    () => [workshop.changeSequence(), workshop.connection() === 'live'] as const,
     async () => {
-      const [fields, projects] = await Promise.all([notebook.api.fields(), notebook.api.projects()]);
+      const [fields, projects] = await Promise.all([workshop.api.fields(), workshop.api.projects()]);
       return { fields: fields.fields, projects };
     },
   );

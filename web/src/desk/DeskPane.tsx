@@ -32,7 +32,7 @@ const emptyResult: QueryResult = { fields: [], columns: [], rows: [], total: 0 }
 const selectionKey = ['question', 'position', 'source'] as const;
 
 export function DeskPane(props: TablePaneProps) {
-  const api = props.notebook.api;
+  const api = props.workshop.api;
   const [query, setQuery] = createSignal(copyQuery(props.view.query));
   const [selection, setSelection] = createSignal(initialSelection(query(), props.view.desk));
   const [limits, setLimits] = createSignal([500, 500, 500]);
@@ -46,7 +46,7 @@ export function DeskPane(props: TablePaneProps) {
   const [history, setHistory] = createSignal<{ before?: View; after: View; undone: boolean }>();
   let region!: HTMLDivElement;
   const [fields] = createResource(
-    () => props.notebook.changeSequence(),
+    () => props.workshop.changeSequence(),
     () => api.fields(),
   );
   const [saved, { mutate: setSaved }] = createResource(
@@ -63,7 +63,7 @@ export function DeskPane(props: TablePaneProps) {
       () => !missing().length && (column === 0 || !!selection()[column === 1 ? 'question' : 'position']),
     );
     return createResource(
-      () => enabled() && { signature: signature(), seq: props.notebook.changeSequence() },
+      () => enabled() && { signature: signature(), seq: props.workshop.changeSequence() },
       async ({ signature }) => {
         const value = JSON.parse(signature) as Query;
         const wanted = value.limit ?? 500;
@@ -180,7 +180,7 @@ export function DeskPane(props: TablePaneProps) {
         position && {
           pageId: position.block.page.id,
           positionId: position.block.block.id,
-          seq: props.notebook.changeSequence(),
+          seq: props.workshop.changeSequence(),
         }
       );
     },
@@ -194,16 +194,16 @@ export function DeskPane(props: TablePaneProps) {
   const title = (row: QueryRow, column: DeskColumn) =>
     column === 1 ? attribute(row, '@holder') || row.block.block.text : row.block.block.text;
   const conditionLabel = (column: DeskColumn, condition: Filter) =>
-    deskConditionLabel(condition, pickerFields(column), props.notebook, result(1).rows);
+    deskConditionLabel(condition, pickerFields(column), props.workshop, result(1).rows);
   const label = (column: DeskColumn) => {
     const value = columnQueries[column]!();
     const words = value.filters.map(condition =>
       column === 1 && condition.field === '@question' && condition.op === 'is' && condition.value
-        ? `Perspectives on ${linkedQuestionName(condition.value, props.notebook)}`
+        ? `Perspectives on ${linkedQuestionName(condition.value, props.workshop)}`
         : conditionLabel(column, condition),
     );
     if (value.text) words.unshift(`Text contains ${value.text}`);
-    if (value.type) words.unshift(`Tag is ${props.notebook.lookup(value.type)()?.text ?? 'Unavailable tag'}`);
+    if (value.type) words.unshift(`Tag is ${props.workshop.lookup(value.type)()?.text ?? 'Unavailable tag'}`);
     return words.length
       ? words.join('; ')
       : column === 1
@@ -523,14 +523,14 @@ export function DeskPane(props: TablePaneProps) {
                               attribute(orderedRows(column)[index() - 1]!, columnQueries[column]!().group!.key) !==
                                 attribute(row, columnQueries[column]!().group!.key)) &&
                             targetLabel(attribute(row, columnQueries[column]!().group!.key), id =>
-                              props.notebook.lookup(id),
-                            ) !== targetLabel(title(row, column), id => props.notebook.lookup(id))
+                              props.workshop.lookup(id),
+                            ) !== targetLabel(title(row, column), id => props.workshop.lookup(id))
                           }
                         >
                           <h3 class="desk-group">
                             <BlockText
                               text={attribute(row, columnQueries[column]!().group!.key) || 'None'}
-                              notebook={props.notebook}
+                              workshop={props.workshop}
                               interactive={false}
                             />
                           </h3>
@@ -555,7 +555,7 @@ export function DeskPane(props: TablePaneProps) {
                           onDblClick={event => openRow(row, listOpensBeside(event, !!props.neighbour))}
                         >
                           <div class="desk-row-title">
-                            <BlockText text={title(row, column)} notebook={props.notebook} interactive={false} />
+                            <BlockText text={title(row, column)} workshop={props.workshop} interactive={false} />
                           </div>
                           <Show when={column === 0}>
                             <p class="desk-meta">
@@ -572,7 +572,7 @@ export function DeskPane(props: TablePaneProps) {
                               <p class="desk-gist">
                                 <BlockText
                                   text={fieldValue(row, 'Gist')}
-                                  notebook={props.notebook}
+                                  workshop={props.workshop}
                                   interactive={false}
                                 />
                               </p>
@@ -582,7 +582,7 @@ export function DeskPane(props: TablePaneProps) {
                                 Work ·{' '}
                                 <BlockText
                                   text={fieldValue(row, 'Work')}
-                                  notebook={props.notebook}
+                                  workshop={props.workshop}
                                   interactive={false}
                                 />
                               </p>
@@ -593,7 +593,7 @@ export function DeskPane(props: TablePaneProps) {
                               {attribute(row, '@creator') || 'Creator not recorded'}
                               <Show when={fieldValue(row, 'Published')}>
                                 {' '}
-                                · {plainText(fieldValue(row, 'Published'), id => props.notebook.lookup(id))}
+                                · {plainText(fieldValue(row, 'Published'), id => props.workshop.lookup(id))}
                               </Show>
                             </p>
                             <Show when={positionPage()?.get(row.block.block.id)?.length}>
@@ -645,7 +645,7 @@ export function DeskPane(props: TablePaneProps) {
           <FilterPopup
             anchor={state.anchor}
             fields={pickerFields(state.column)}
-            notebook={props.notebook}
+            workshop={props.workshop}
             initialField=""
             initialFilter={state.index === undefined ? undefined : columnQueries[state.column]!().filters[state.index]}
             sheet={window.matchMedia('(max-width: 599px)').matches}

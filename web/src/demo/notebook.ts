@@ -5,8 +5,8 @@ export interface UpgradeCopy {
 }
 
 /** Filled by the browser entry; shared settings never depend on its worker or transport. */
-export interface BrowserNotebookActions {
-  exportNotebook(): Promise<ArrayBuffer>;
+export interface BrowserWorkshopActions {
+  exportWorkshop(): Promise<ArrayBuffer>;
   upgradeCopy(): Promise<UpgradeCopy | null>;
   exportUpgradeCopy(): Promise<ArrayBuffer>;
   restore(file: File): Promise<void>;
@@ -14,7 +14,7 @@ export interface BrowserNotebookActions {
   reset(): Promise<void>;
 }
 
-export let browserNotebook: BrowserNotebookActions;
-export function setBrowserNotebook(actions: BrowserNotebookActions): void {
-  browserNotebook = actions;
+export let browserWorkshop: BrowserWorkshopActions;
+export function setBrowserWorkshop(actions: BrowserWorkshopActions): void {
+  browserWorkshop = actions;
 }

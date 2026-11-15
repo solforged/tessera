@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
-import { createNotebookClient } from './index';
-import type { Notebook } from './index';
+import { createWorkshopClient } from './index';
+import type { Workshop } from './index';
 import { startService } from '../testing/service';
 import { ensureField } from '../outline/source-fields';
 import type { PageDocument } from './contract';
@@ -23,20 +23,20 @@ async function ready(doc: PageDocument) {
 test('project assignment creates an instance field and adds, replaces, removes, undoes and redoes one field entry', async () => {
   const service = await startService({ name: 'task-project-test' });
   const { baseUrl, api } = service;
-  let notebook: Notebook | undefined;
+  let workshop: Workshop | undefined;
   try {
-    notebook = createNotebookClient({
+    workshop = createWorkshopClient({
       baseUrl,
-      notebookId: service.workshopId,
+      workshopId: service.workshopId,
       sessionId: ulid(),
       databaseName: `projects-${ulid()}`,
     });
-    await notebook.ready;
+    await workshop.ready;
     const first = ulid(),
       second = ulid(),
       journal = ulid(),
       task = ulid();
-    await notebook.commit([
+    await workshop.commit([
       { op: 'create_page', id: first, title: 'Tessera Android' },
       { op: 'create_page', id: second, title: 'Sync' },
       { op: 'set_project', id: first, base_revision: 1, project: { outcome: '', deadline: null, status: 'active' } },
@@ -45,14 +45,14 @@ test('project assignment creates an instance field and adds, replaces, removes, 
       { op: 'insert', id: task, parent_id: journal, after: null, text: 'Check Fold reader TOC', heading: null },
       { op: 'set_task', id: task, base_revision: 1, task: newTask('todo') },
     ]);
-    const fieldsDoc = notebook.open((await api.fields()).page_id);
+    const fieldsDoc = workshop.open((await api.fields()).page_id);
     await ready(fieldsDoc);
-    const field = await ensureField(notebook, 'Project', 'instance');
+    const field = await ensureField(workshop, 'Project', 'instance');
     expect(field.kind).toBe('instance');
     expect((await api.fields()).fields.filter(value => value.name.toLowerCase() === 'project')).toHaveLength(1);
-    expect((await ensureField(notebook, 'Project', 'instance')).id).toBe(field.id);
+    expect((await ensureField(workshop, 'Project', 'instance')).id).toBe(field.id);
     fieldsDoc.release();
-    const doc = notebook.open(journal);
+    const doc = workshop.open(journal);
     try {
       await ready(doc);
       const query = createTaskQuery('2026-10-12');
@@ -90,7 +90,7 @@ test('project assignment creates an instance field and adds, replaces, removes, 
       doc.release();
     }
   } finally {
-    await notebook?.dispose();
+    await workshop?.dispose();
     await service.stop();
   }
 }, 60000);

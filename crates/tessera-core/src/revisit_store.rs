@@ -8,8 +8,8 @@ use crate::calendar::{add_days, days_between, validate_civil_date};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    Actor, BlockCapabilities, BlockInPage, Notebook, Operation, QuestionState, QuestionStatus,
-    Result,
+    Actor, BlockCapabilities, BlockInPage, Operation, QuestionState, QuestionStatus, Result,
+    Workshop,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
@@ -300,7 +300,7 @@ pub(crate) fn hydrate(
     Ok(capabilities)
 }
 
-impl Notebook {
+impl Workshop {
     pub fn revisits(&self, due: &str, now: i64) -> Result<Vec<RevisitRow>> {
         let today = self.today(now)?;
         let due = if due == "today" { today.as_str() } else { due };

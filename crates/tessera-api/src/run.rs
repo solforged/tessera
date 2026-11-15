@@ -10,12 +10,12 @@ mod imp;
 use std::sync::Arc;
 
 use parking_lot::{Mutex, MutexGuard};
-use tessera_core::{Notebook, Reader};
+use tessera_core::{Reader, Workshop};
 
 use crate::error::ApiError;
 use crate::state::WorkshopState;
 
-pub use imp::read_notebook;
+pub use imp::read_workshop;
 
 /// How many reads can run at once beside the writer.
 #[cfg(native)]
@@ -28,9 +28,9 @@ pub struct Readers(Arc<Vec<Mutex<Reader>>>);
 
 impl Readers {
     #[cfg(native)]
-    pub fn open(notebook: &Notebook) -> tessera_core::Result<Self> {
+    pub fn open(workshop: &Workshop) -> tessera_core::Result<Self> {
         let readers = (0..READERS)
-            .map(|_| notebook.reader().map(Mutex::new))
+            .map(|_| workshop.reader().map(Mutex::new))
             .collect::<tessera_core::Result<_>>()?;
         Ok(Self(Arc::new(readers)))
     }
@@ -46,12 +46,12 @@ impl Readers {
 }
 
 /// A workshop read failed, or the blocking task was dropped.
-pub enum NotebookError {
+pub enum WorkshopError {
     Workshop(tessera_core::Error),
     Interrupted(String),
 }
 
-impl std::fmt::Display for NotebookError {
+impl std::fmt::Display for WorkshopError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Workshop(error) => write!(formatter, "{error}"),
@@ -62,14 +62,14 @@ impl std::fmt::Display for NotebookError {
 
 /// Run on a blocking runtime thread natively, or inline in the browser worker.
 pub async fn run<T: Send + 'static>(
-    notebook: &Arc<Mutex<Notebook>>,
-    operation: impl FnOnce(&mut Notebook) -> tessera_core::Result<T> + Send + 'static,
+    workshop: &Arc<Mutex<Workshop>>,
+    operation: impl FnOnce(&mut Workshop) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
-    read_notebook(notebook, operation)
+    read_workshop(workshop, operation)
         .await
         .map_err(|error| match error {
-            NotebookError::Workshop(error) => ApiError::from(error),
-            NotebookError::Interrupted(error) => ApiError::internal(error),
+            WorkshopError::Workshop(error) => ApiError::from(error),
+            WorkshopError::Interrupted(error) => ApiError::internal(error),
         })
 }
 
@@ -78,12 +78,12 @@ pub async fn run<T: Send + 'static>(
 /// on the one connection.
 pub async fn read<T: Send + 'static>(
     state: &WorkshopState,
-    operation: impl FnOnce(&Notebook) -> tessera_core::Result<T> + Send + 'static,
+    operation: impl FnOnce(&Workshop) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
-    imp::read_snapshot(&state.notebook, state.readers.as_ref(), operation)
+    imp::read_snapshot(&state.workshop, state.readers.as_ref(), operation)
         .await
         .map_err(|error| match error {
-            NotebookError::Workshop(error) => ApiError::from(error),
-            NotebookError::Interrupted(error) => ApiError::internal(error),
+            WorkshopError::Workshop(error) => ApiError::from(error),
+            WorkshopError::Interrupted(error) => ApiError::internal(error),
         })
 }

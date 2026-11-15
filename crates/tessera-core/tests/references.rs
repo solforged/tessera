@@ -1,10 +1,10 @@
-use tessera_core::{Actor, Batch, Error, Notebook, Operation, ReferenceCount};
+use tessera_core::{Actor, Batch, Error, Operation, ReferenceCount, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -31,7 +31,7 @@ fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operati
     }
 }
 
-fn archive(nb: &mut Notebook, value: u128, archived: bool) {
+fn archive(nb: &mut Workshop, value: u128, archived: bool) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -43,7 +43,7 @@ fn archive(nb: &mut Notebook, value: u128, archived: bool) {
     );
 }
 
-fn delete(nb: &mut Notebook, value: u128) {
+fn delete(nb: &mut Workshop, value: u128) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -57,7 +57,7 @@ fn delete(nb: &mut Notebook, value: u128) {
 #[test]
 fn canonical_references_inside_inline_code_have_no_links_or_backlinks() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -75,7 +75,7 @@ fn canonical_references_inside_inline_code_have_no_links_or_backlinks() {
 #[test]
 fn page_references_group_child_targets_and_limit_sources_in_outline_preorder() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -138,7 +138,7 @@ fn page_references_group_child_targets_and_limit_sources_in_outline_preorder() {
 #[test]
 fn counts_include_same_page_but_not_self_or_duplicate_occurrences() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -178,7 +178,7 @@ fn counts_include_same_page_but_not_self_or_duplicate_occurrences() {
 #[test]
 fn references_and_counts_filter_archived_ancestors_and_deleted_sources_and_targets() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -215,7 +215,7 @@ fn references_and_counts_filter_archived_ancestors_and_deleted_sources_and_targe
 #[test]
 fn unlinked_mentions_confirm_words_alias_precedence_and_ignore_reference_and_tag_tokens() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -286,7 +286,7 @@ fn unlinked_mentions_confirm_words_alias_precedence_and_ignore_reference_and_tag
 #[test]
 fn unlinked_mentions_exclude_urls_and_code_but_keep_adjacent_prose() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Plato"), page(10, "Notes")]);
     let protected = [
         "https://plato.stanford.edu/entries/linguistics/whorfianism.html",
@@ -332,7 +332,7 @@ fn unlinked_mentions_exclude_urls_and_code_but_keep_adjacent_prose() {
 #[test]
 fn page_read_validation_and_ineligible_mention_pages() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![

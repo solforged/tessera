@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
-import { createNotebookClient } from '../document/index';
-import type { Notebook } from '../document/index';
+import { createWorkshopClient } from '../document/index';
+import type { Workshop } from '../document/index';
 import { startService } from '../testing/service';
 import { addTemplateField } from './commands';
 import { templateOffer } from './template-offer';
@@ -10,28 +10,28 @@ import { templateOffer } from './template-offer';
 test('a field is offered to a tag on its second use, once, and adding it undoes and redoes', async () => {
   const service = await startService({ name: 'template-offer' });
   const { baseUrl, api } = service;
-  const notebooks: Notebook[] = [];
+  const workshops: Workshop[] = [];
   const client = async () => {
-    const info = await api.notebook();
-    const notebook = createNotebookClient({
+    const info = await api.workshop();
+    const workshop = createWorkshopClient({
       baseUrl,
-      notebookId: info.id,
+      workshopId: info.id,
       sessionId: ulid(),
       databaseName: `template-offer-${ulid()}`,
     });
-    notebooks.push(notebook);
-    await notebook.ready;
-    return notebook;
+    workshops.push(workshop);
+    await workshop.ready;
+    return workshop;
   };
   try {
-    const notebook = await client();
+    const workshop = await client();
     const fields = await api.fields();
     const proposition = ulid();
     const book = ulid();
     const strength = ulid();
     const [a, b, entryA, entryB, valueA, valueB] = [ulid(), ulid(), ulid(), ulid(), ulid(), ulid()];
     const owner = (id: string, text: string) => ({ id, text, manual_types: [] });
-    await notebook.commit([
+    await workshop.commit([
       { op: 'create_page', id: proposition, title: 'Proposition' },
       { op: 'create_page', id: book, title: 'Structure' },
       { op: 'insert', id: strength, parent_id: fields.page_id, after: null, text: 'strength', heading: null },
@@ -49,20 +49,20 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
     ]);
     // One use may be a one-off.
     expect(
-      await templateOffer(notebook, owner(a, 'Normal science is puzzle-solving #proposition'), strength),
+      await templateOffer(workshop, owner(a, 'Normal science is puzzle-solving #proposition'), strength),
     ).toBeNull();
-    await notebook.commit([
+    await workshop.commit([
       { op: 'insert', id: entryB, parent_id: b, after: null, text: `[[${strength}]]`, heading: null },
       { op: 'insert', id: valueB, parent_id: entryB, after: null, text: 'low', heading: null },
     ]);
-    const offer = await templateOffer(notebook, owner(b, 'Anomalies accumulate #proposition'), strength);
+    const offer = await templateOffer(workshop, owner(b, 'Anomalies accumulate #proposition'), strength);
     expect(offer?.type.page.id).toBe(proposition);
     // Asked once per window, whatever the answer.
     expect(
-      await templateOffer(notebook, owner(a, 'Normal science is puzzle-solving #proposition'), strength),
+      await templateOffer(workshop, owner(a, 'Normal science is puzzle-solving #proposition'), strength),
     ).toBeNull();
 
-    const change = await addTemplateField(notebook, offer!.type, strength);
+    const change = await addTemplateField(workshop, offer!.type, strength);
     expect((await api.type(proposition)).fields).toEqual([strength]);
     await change.undo();
     expect((await api.type(proposition)).fields).toEqual([]);
@@ -71,7 +71,7 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
     // A field already in the template is never offered, even in a new window.
     expect(await templateOffer(await client(), owner(b, 'Anomalies accumulate #proposition'), strength)).toBeNull();
   } finally {
-    for (const notebook of notebooks) await notebook.dispose();
+    for (const workshop of workshops) await workshop.dispose();
     await service.stop();
   }
 }, 60000);

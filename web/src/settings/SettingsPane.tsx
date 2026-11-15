@@ -1,9 +1,9 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import type { Backups, NotebookInfo } from '../api/types';
+import type { Backups, WorkshopInfo } from '../api/types';
 import { DEMO, EMBEDDED, MOBILE } from '../core/mode';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../core/contract';
 import { besideHint, opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
@@ -17,14 +17,14 @@ import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import {
-  forgetNotebook,
-  knownNotebooks,
-  loadNotebooks,
-  notebookLabel,
-  notebookOpening,
-  notebookPlace,
-  openNotebook,
-  reloadNotebook,
+  forgetWorkshop,
+  knownWorkshops,
+  loadWorkshops,
+  workshopLabel,
+  workshopOpening,
+  workshopPlace,
+  openWorkshop,
+  reloadWorkshop,
   workshopName,
   workshopsHome,
 } from './notebooks';
@@ -49,14 +49,14 @@ export function SettingsPane(props: {
   view: SettingsViewState;
   section?: 'notebooks' | 'devices' | 'agent' | 'today';
   deviceId?: string | null;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: SettingsViewState): void;
 }) {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try {
-      return await api.notebook();
+      return await api.workshop();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       return undefined;
@@ -79,7 +79,7 @@ export function SettingsPane(props: {
     () => phone() && !DEMO,
     async () => {
       try {
-        return (await api.notebookSize()).size;
+        return (await api.workshopSize()).size;
       } catch {
         return undefined;
       }
@@ -110,10 +110,10 @@ export function SettingsPane(props: {
   const otherBytes = createMemo(() => backups()?.others.reduce((total, other) => total + other.size, 0) ?? 0);
   // The newest change's time tells a stale backup from an unchanged workshop.
   const [latestChange] = createResource(
-    () => !EMBEDDED && props.notebook.changeSequence(),
+    () => !EMBEDDED && props.workshop.changeSequence(),
     async () => {
       try {
-        return (await props.notebook.api.history(1))[0]?.created_at;
+        return (await props.workshop.api.history(1))[0]?.created_at;
       } catch {
         return undefined;
       }
@@ -152,16 +152,16 @@ export function SettingsPane(props: {
     setRestoringBackup(true);
     setError('');
     try {
-      const current = await api.notebook();
+      const current = await api.workshop();
       await api.restoreBackup(name);
       setConfirmBackup(null);
-      await reloadNotebook(current.path, 'The restored workshop');
+      await reloadWorkshop(current.path, 'The restored workshop');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       setRestoringBackup(false);
     }
   };
-  const [notebookPath, setNotebookPath] = createSignal('');
+  const [workshopPath, setWorkshopPath] = createSignal('');
   const [forgetting, setForgetting] = createSignal<string | null>(null);
   const report = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
   // A typed name or path goes by its last folder name while it opens.
@@ -171,14 +171,14 @@ export function SettingsPane(props: {
     label = workshopName(path.split('/').filter(Boolean).at(-1) ?? path),
   ) => {
     setError('');
-    void openNotebook(props.notebook, path, create, label).catch(report);
+    void openWorkshop(props.workshop, path, create, label).catch(report);
   };
   const forget = async (path: string) => {
     if (forgetting()) return;
     setForgetting(path);
     setError('');
     try {
-      await forgetNotebook(path);
+      await forgetWorkshop(path);
     } catch (reason) {
       report(reason);
     } finally {
@@ -187,7 +187,7 @@ export function SettingsPane(props: {
   };
   const deviceZone = currentDeviceZone();
   const available = Intl.supportedValuesOf('timeZone').map(value => aliases[value] ?? value);
-  const zone = workshopZone(props.notebook);
+  const zone = workshopZone(props.workshop);
   const [zoneTime, setZoneTime] = createSignal(Date.now());
   const zoneLabel = (value: string) => {
     const offset = new Intl.DateTimeFormat('en', { timeZone: value, timeZoneName: 'shortOffset' })
@@ -224,7 +224,7 @@ export function SettingsPane(props: {
     ...(EMBEDDED
       ? []
       : [
-          { key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 },
+          { key: 'notebooks', label: 'Workshops', count: knownWorkshops()?.notebooks.length ?? 0 },
           { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 },
         ]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
@@ -289,7 +289,7 @@ export function SettingsPane(props: {
       </h2>
     );
   const zoneText = () => zones().find(value => value.id === zone())?.label ?? '';
-  const diagnostics = (value: NotebookInfo) => (
+  const diagnostics = (value: WorkshopInfo) => (
     <dl>
       <dt>Id</dt>
       <dd>{value.id}</dd>
@@ -346,26 +346,26 @@ export function SettingsPane(props: {
   onMount(() => {
     region.scrollTop = props.view.scroll;
     follow();
-    void props.notebook
+    void props.workshop
       .refreshSettings()
       .catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
-    if (!EMBEDDED) void loadNotebooks().catch(report);
+    if (!EMBEDDED) void loadWorkshops().catch(report);
   });
   const change = async (key: 'time_zone' | 'vim' | 'confirm_view_delete', value: string) => {
     setError('');
     try {
-      await props.notebook.setSetting(key, value);
+      await props.workshop.setSetting(key, value);
     } catch {
       /* The document owns the save error and retains acknowledged values. */
     }
     // A rejected checkbox change must show the acknowledged value again.
     const checkbox = region.querySelector<HTMLInputElement>(`#settings-${key}-${props.pane}`);
-    if (checkbox) checkbox.checked = key === 'vim' ? props.notebook.vim() : props.notebook.confirmViewDelete();
+    if (checkbox) checkbox.checked = key === 'vim' ? props.workshop.vim() : props.workshop.confirmViewDelete();
   };
   const settingHistory = async (redo: boolean) => {
     try {
-      if (redo) await props.notebook.redoSetting();
-      else await props.notebook.undoSetting();
+      if (redo) await props.workshop.redoSetting();
+      else await props.workshop.undoSetting();
     } catch {
       /* The document displays the revision conflict or save error. */
     }
@@ -407,13 +407,13 @@ export function SettingsPane(props: {
             </div>
             <Show when={!phone()}>
               <span class="settings-status" role="status">
-                {props.notebook.settingsMessage()}
+                {props.workshop.settingsMessage()}
               </span>
               <Button
                 icon="undo"
                 label="Undo setting"
                 shortcut="⌘Z"
-                disabled={!props.notebook.canUndoSetting()}
+                disabled={!props.workshop.canUndoSetting()}
                 onClick={() => {
                   void settingHistory(false);
                 }}
@@ -422,7 +422,7 @@ export function SettingsPane(props: {
                 icon="redo"
                 label="Redo setting"
                 shortcut="⌘⇧Z"
-                disabled={!props.notebook.canRedoSetting()}
+                disabled={!props.workshop.canRedoSetting()}
                 onClick={() => {
                   void settingHistory(true);
                 }}
@@ -459,7 +459,7 @@ export function SettingsPane(props: {
             </p>
           </Show>
           {/* Settings save at once, so on a phone only a failed save speaks, as a notice under the title. */}
-          <Show when={phone() && props.notebook.settingsError()}>
+          <Show when={phone() && props.workshop.settingsError()}>
             {reason => (
               <p class="error" role="alert">
                 Couldn’t save · {reason()}
@@ -490,8 +490,8 @@ export function SettingsPane(props: {
                   class="settings-switch"
                   type="checkbox"
                   role="switch"
-                  checked={props.notebook.vim()}
-                  disabled={props.notebook.settingsBusy()}
+                  checked={props.workshop.vim()}
+                  disabled={props.workshop.settingsBusy()}
                   onChange={event => {
                     void change('vim', String(event.currentTarget.checked));
                   }}
@@ -510,8 +510,8 @@ export function SettingsPane(props: {
                   class="settings-switch"
                   type="checkbox"
                   role="switch"
-                  checked={props.notebook.confirmViewDelete()}
-                  disabled={props.notebook.settingsBusy()}
+                  checked={props.workshop.confirmViewDelete()}
+                  disabled={props.workshop.settingsBusy()}
                   onChange={event => {
                     void change('confirm_view_delete', String(event.currentTarget.checked));
                   }}
@@ -529,7 +529,7 @@ export function SettingsPane(props: {
                   aria-label="Time zone"
                   aria-haspopup="listbox"
                   aria-expanded={zoneAnchor() !== null}
-                  disabled={props.notebook.settingsBusy()}
+                  disabled={props.workshop.settingsBusy()}
                   title={zone()}
                   onClick={event => {
                     setZoneTime(Date.now());
@@ -597,7 +597,7 @@ export function SettingsPane(props: {
             id={sectionId('today')}
             heading={heading(number('today'), 'today', 'Today')}
             pane={props.pane}
-            notebook={props.notebook}
+            workshop={props.workshop}
           />
           {DEMO && !MOBILE && (
             <BrowserBackups
@@ -611,7 +611,7 @@ export function SettingsPane(props: {
             <section
               id={sectionId('notebooks')}
               aria-labelledby={`${sectionId('notebooks')}-heading`}
-              aria-busy={notebookOpening() !== null}
+              aria-busy={workshopOpening() !== null}
             >
               <Group
                 heading={heading(number('notebooks'), 'notebooks', 'Workshops')}
@@ -625,17 +625,17 @@ export function SettingsPane(props: {
                   ) : undefined
                 }
               >
-                <For each={knownNotebooks()?.notebooks}>
+                <For each={knownWorkshops()?.notebooks}>
                   {entry => (
                     <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>
                       <div class="settings-label">
                         <span class="settings-name">
-                          {notebookLabel(entry)}
+                          {workshopLabel(entry)}
                           <Show when={entry.current}>
                             <span class="settings-scope">Open</span>
                           </Show>
                         </span>
-                        <Show when={!entry.available ? entry.display_path : notebookPlace(entry)}>
+                        <Show when={!entry.available ? entry.display_path : workshopPlace(entry)}>
                           {place => (
                             <p class="settings-mono notebooks-path settings-path" title={entry.path}>
                               {pathText(place())}
@@ -667,8 +667,8 @@ export function SettingsPane(props: {
                           <Show when={entry.available} fallback={<span class="settings-aside">Folder missing</span>}>
                             <Button
                               class="bordered"
-                              disabled={notebookOpening() !== null}
-                              onClick={() => switchTo(entry.path, false, notebookLabel(entry))}
+                              disabled={workshopOpening() !== null}
+                              onClick={() => switchTo(entry.path, false, workshopLabel(entry))}
                             >
                               Open
                             </Button>
@@ -682,7 +682,7 @@ export function SettingsPane(props: {
                   class="settings-row notebooks-add"
                   onSubmit={event => {
                     event.preventDefault();
-                    switchTo(notebookPath().trim(), false);
+                    switchTo(workshopPath().trim(), false);
                   }}
                 >
                   <div class="settings-label">
@@ -702,23 +702,23 @@ export function SettingsPane(props: {
                       autocomplete="off"
                       spellcheck={false}
                       placeholder="reading"
-                      value={notebookPath()}
-                      disabled={notebookOpening() !== null}
-                      onInput={event => setNotebookPath(event.currentTarget.value)}
+                      value={workshopPath()}
+                      disabled={workshopOpening() !== null}
+                      onInput={event => setWorkshopPath(event.currentTarget.value)}
                     />
                   </div>
                   <span class="notebooks-actions">
                     <Button
                       type="submit"
                       class="bordered"
-                      disabled={!notebookPath().trim() || notebookOpening() !== null}
+                      disabled={!workshopPath().trim() || workshopOpening() !== null}
                     >
                       Open
                     </Button>
                     <Button
                       class="bordered"
-                      disabled={!notebookPath().trim() || notebookOpening() !== null}
-                      onClick={() => switchTo(notebookPath().trim(), true)}
+                      disabled={!workshopPath().trim() || workshopOpening() !== null}
+                      onClick={() => switchTo(workshopPath().trim(), true)}
                     >
                       New
                     </Button>
@@ -946,7 +946,7 @@ export function SettingsPane(props: {
                     when={when}
                     onError={setError}
                     onCount={setDeviceCount}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     deviceId={props.deviceId}
                     onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)}
                   />
@@ -956,7 +956,7 @@ export function SettingsPane(props: {
                   heading={heading(number('devices'), 'devices', 'Devices')}
                   when={when}
                   onError={setError}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   deviceId={props.deviceId}
                   onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)}
                 />

@@ -1,7 +1,7 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, createUniqueId, onCleanup, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { TaskRow, TaskState } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle, plainText } from '../outline/names';
 import type { OpenTarget } from '../core/contract';
@@ -33,7 +33,7 @@ import './week-calendar.css';
 export interface WeekCalendarProps {
   date: string;
   showAllHours: boolean;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }
 
@@ -69,7 +69,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
   const instructionsId = createUniqueId();
   const start = createMemo(() => mondayWeekStart(props.date));
   const dates = createMemo(() => calendarWeekDates(props.date));
-  const clock = createClock(props.notebook);
+  const clock = createClock(props.workshop);
   const nowMinute = createMemo(() => timeMinutes(clock()));
   const [fetchedRows, setFetchedRows] = createSignal<TaskRow[]>([]);
   const [optimistic, setOptimistic] = createSignal(new Map<string, ScheduledWeekTask>());
@@ -92,7 +92,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
   let disposed = false;
   // A moved card can leave the grid; the calendar then keeps keyboard ownership of the same task.
   let keyboardTarget: WeekEntry | null = null;
-  const history = new WeekScheduleHistory(props.notebook, (id, value) => {
+  const history = new WeekScheduleHistory(props.workshop, (id, value) => {
     if (disposed) return;
     if (value.committedSequence !== null)
       acknowledgedSequence = Math.max(acknowledgedSequence, value.committedSequence);
@@ -105,7 +105,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
         ? `${spelledDate(task.scheduled, task.scheduled_time)}${task.scheduled_time ? '' : ', all-day'}`
         : 'no date';
       setAnnouncement(
-        `Scheduled ${plainText(value.row.source.block.text, id => props.notebook.lookup(id)) || 'Empty task'} for ${label}.`,
+        `Scheduled ${plainText(value.row.source.block.text, id => props.workshop.lookup(id)) || 'Empty task'} for ${label}.`,
       );
       setRefresh(value => value + 1);
     }
@@ -117,7 +117,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
     return [...byId.values()];
   });
   const entries = createMemo<CalendarEntry[]>(() => {
-    const today = props.notebook.todayDate();
+    const today = props.workshop.todayDate();
     const first = start();
     const overdue =
       dates().includes(today) && first
@@ -192,8 +192,8 @@ export function WeekCalendar(props: WeekCalendarProps) {
     const from = start();
     const visibleDates = dates().filter((date): date is string => date !== null);
     const through = visibleDates.at(-1);
-    const today = props.notebook.todayDate();
-    const sequence = Math.max(props.notebook.changeSequence(), acknowledgedSequence);
+    const today = props.workshop.todayDate();
+    const sequence = Math.max(props.workshop.changeSequence(), acknowledgedSequence);
     refresh();
     let current = true;
     setLoading(true);
@@ -211,9 +211,9 @@ export function WeekCalendar(props: WeekCalendarProps) {
       return;
     }
     void Promise.all([
-      fetchWeekTaskRange(value => props.notebook.api.taskQuery(value), 'scheduled', from, through),
-      fetchWeekTaskRange(value => props.notebook.api.taskQuery(value), 'deadline', from, through),
-      Promise.all(visibleDates.map(date => props.notebook.api.agenda(date))),
+      fetchWeekTaskRange(value => props.workshop.api.taskQuery(value), 'scheduled', from, through),
+      fetchWeekTaskRange(value => props.workshop.api.taskQuery(value), 'deadline', from, through),
+      Promise.all(visibleDates.map(date => props.workshop.api.agenda(date))),
     ])
       .then(([scheduled, deadline, agendas]) => {
         if (!current) return;
@@ -303,7 +303,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
     } catch (reason) {
       if (!disposed) {
         setCommandError(
-          `Could not reschedule ${plainText(row.source.block.text, id => props.notebook.lookup(id)) || 'this task'}: ${reason instanceof Error ? reason.message : String(reason)}.`,
+          `Could not reschedule ${plainText(row.source.block.text, id => props.workshop.lookup(id)) || 'this task'}: ${reason instanceof Error ? reason.message : String(reason)}.`,
         );
         setAnnouncement('');
         focusTask(row.source.block.id, restoreFocus);
@@ -565,10 +565,10 @@ export function WeekCalendar(props: WeekCalendarProps) {
                   <div
                     class="week-calendar-day-header"
                     classList={{
-                      'week-calendar-today': date === props.notebook.todayDate(),
+                      'week-calendar-today': date === props.workshop.todayDate(),
                       'week-calendar-selected': date === props.date,
                     }}
-                    aria-current={date === props.notebook.todayDate() ? 'date' : undefined}
+                    aria-current={date === props.workshop.todayDate() ? 'date' : undefined}
                   >
                     <span>{date ? `${weekdays[index()]} ${Number(date.slice(8, 10))}` : 'Unavailable'}</span>
                   </div>
@@ -601,7 +601,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
                           return (
                             <WeekTaskCard
                               entry={byKey().get(key) ?? initial}
-                              notebook={props.notebook}
+                              workshop={props.workshop}
                               instructionsId={instructionsId}
                               busy={!!optimistic().get(initial.row.source.block.id)?.pending}
                               dragging={draggingId() === initial.row.source.block.id}
@@ -648,7 +648,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
                           <WeekTaskCard
                             entry={byKey().get(key) ?? initial.entry}
                             position={timedByKey().get(key) ?? initial}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             instructionsId={instructionsId}
                             busy={!!optimistic().get(initial.entry.row.source.block.id)?.pending}
                             dragging={draggingId() === initial.entry.row.source.block.id}
@@ -661,7 +661,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
                     </For>
                     <Show
                       when={
-                        date === props.notebook.todayDate() &&
+                        date === props.workshop.todayDate() &&
                         nowMinute() >= hours().start * 60 &&
                         nowMinute() <= hours().end * 60
                       }
@@ -697,7 +697,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
 function WeekTaskCard(props: {
   entry: CalendarEntry;
   position?: TimedWeekEntry;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   instructionsId: string;
   busy: boolean;
   dragging: boolean;
@@ -706,7 +706,7 @@ function WeekTaskCard(props: {
   onKeyDown(event: KeyboardEvent, entry: WeekEntry): void;
 }) {
   const completed = createMemo(() => isFinished(props.entry.row.task));
-  const late = createMemo(() => !completed() && (props.entry.overdue || props.entry.date < props.notebook.todayDate()));
+  const late = createMemo(() => !completed() && (props.entry.overdue || props.entry.date < props.workshop.todayDate()));
   const label = createMemo(() => {
     const entry = props.entry;
     const task = entry.row.task;
@@ -720,7 +720,7 @@ function WeekTaskCard(props: {
           .join(', ')
       : `${entry.kind === 'due' ? 'due' : 'scheduled'} ${spelledDate(entry.date, entry.time)}${entry.time ? '' : ', all-day'}${entry.due && entry.kind !== 'due' ? `, due${task.deadline_time ? ` at ${task.deadline_time}` : ''}` : ''}${late() ? ', overdue' : ''}`;
     const page = entry.row.source.page;
-    return `${plainText(entry.row.source.block.text, id => props.notebook.lookup(id)) || 'Empty task'}${task.status ? `, ${statusLabels[task.status]}` : ''}, ${plan}, source ${page.kind === 'journal' ? journalDayLabel(page.text) : displayTitle(page.text, id => props.notebook.lookup(id))}`;
+    return `${plainText(entry.row.source.block.text, id => props.workshop.lookup(id)) || 'Empty task'}${task.status ? `, ${statusLabels[task.status]}` : ''}, ${plan}, source ${page.kind === 'journal' ? journalDayLabel(page.text) : displayTitle(page.text, id => props.workshop.lookup(id))}`;
   });
   const position = createMemo((): JSX.CSSProperties | undefined => {
     const value = props.position;
@@ -787,7 +787,7 @@ function WeekTaskCard(props: {
       >
         <BlockText
           text={props.entry.row.source.block.text || 'Empty task'}
-          notebook={props.notebook}
+          workshop={props.workshop}
           interactive={false}
         />
       </span>

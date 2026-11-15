@@ -1,11 +1,11 @@
 use tessera_core::library::*;
 use tessera_core::{
-    Actor, Batch, NoteLayout, NoteView, Notebook, Operation, ProjectState, Query, QuestionState,
+    Actor, Batch, NoteLayout, NoteView, Operation, ProjectState, Query, QuestionState, Workshop,
 };
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -23,9 +23,9 @@ fn insert(n: u128, parent: String, text: String) -> Operation {
         heading: None,
     }
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         [
@@ -92,7 +92,7 @@ fn query() -> Query {
         ..Query::default()
     }
 }
-fn members(nb: &Notebook, q: &Query) -> Vec<String> {
+fn members(nb: &Workshop, q: &Query) -> Vec<String> {
     nb.query(q)
         .unwrap()
         .rows

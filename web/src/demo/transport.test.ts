@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { CHANGE_CLOSED, CHANGE_CONNECTING, CHANGE_OPEN } from '../api/client';
-import type { NotebookInfo } from '../api/types';
+import type { WorkshopInfo } from '../api/types';
 import type { FromWorker, ToWorker } from './protocol';
 import { DemoFailure, DemoTransport } from './transport';
 
-const info: NotebookInfo = { id: 'demo', path: '/demo', created_at: 0, schema_version: 1, sqlite_version: 'test' };
+const info: WorkshopInfo = { id: 'demo', path: '/demo', created_at: 0, schema_version: 1, sqlite_version: 'test' };
 class TestWorker extends EventTarget {
   messages: ToWorker[] = [];
   transfers: Transferable[][] = [];
@@ -156,7 +156,7 @@ describe('browser demo transport', () => {
   test('startup failures reject waiting requests with the exact failure code', async () => {
     const { worker, transport } = fixture();
     const pending = transport.fetch('/api/roots', {});
-    worker.receive({ type: 'failed', code: 'locked', message: 'Another tab owns the notebook.' });
+    worker.receive({ type: 'failed', code: 'locked', message: 'Another tab owns the workshop.' });
     await expect(pending).rejects.toBeInstanceOf(DemoFailure);
     await expect(transport.ready).rejects.toMatchObject({ code: 'locked' });
     transport.dispose();
@@ -168,9 +168,9 @@ describe('browser demo transport', () => {
     const socket = transport.stream(0);
     await worker.until(1);
     worker.receive({ id: worker.messages[0]!.id, type: 'done' });
-    const bytes = new TextEncoder().encode('not a notebook').buffer;
+    const bytes = new TextEncoder().encode('not a workshop').buffer;
     const restoring = transport.restore(bytes);
-    const exporting = transport.exportNotebook();
+    const exporting = transport.exportWorkshop();
     await worker.until(3);
     expect(worker.messages[1]).toMatchObject({ type: 'restore', body: bytes });
     expect(worker.transfers[1]).toEqual([bytes]);

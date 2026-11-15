@@ -1,6 +1,6 @@
 import { For, Show, createResource, createSignal, onMount } from 'solid-js';
 import type { HistoryEntry } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../core/contract';
 import { besideHint, opensBeside } from '../core/beside';
 import { hubDevices, sync } from '../sync/state';
@@ -17,23 +17,23 @@ const PAGE = 50;
 export function HistoryPane(props: {
   pane: PaneId;
   view: SettingsViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: SettingsViewState): void;
 }) {
-  const zone = workshopZone(props.notebook);
+  const zone = workshopZone(props.workshop);
   const when = (value: number) => isoMinute(value, zone());
   const [error, setError] = createSignal('');
   const [hasMore, setHasMore] = createSignal(false);
   const [loading, setLoading] = createSignal(false);
   let generation = 0;
   const [history, { refetch, mutate }] = createResource(
-    () => props.notebook.changeSequence(),
+    () => props.workshop.changeSequence(),
     async () => {
       const current = ++generation;
       setError('');
       try {
-        const entries = await props.notebook.api.history();
+        const entries = await props.workshop.api.history();
         if (current === generation) setHasMore(entries.length === PAGE);
         return entries;
       } catch (reason) {
@@ -49,7 +49,7 @@ export function HistoryPane(props: {
     setLoading(true);
     setError('');
     try {
-      const entries = await props.notebook.api.history(PAGE, before);
+      const entries = await props.workshop.api.history(PAGE, before);
       if (current !== generation) return;
       mutate(values => [...(values ?? []), ...entries]);
       setHasMore(entries.length === PAGE);
@@ -65,7 +65,7 @@ export function HistoryPane(props: {
     setUndoing(seq);
     setError('');
     try {
-      await props.notebook.api.undoChange(seq);
+      await props.workshop.api.undoChange(seq);
       await refetch();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));

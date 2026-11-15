@@ -6,7 +6,7 @@ use axum::{
     },
 };
 use serde::Deserialize;
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
@@ -17,14 +17,14 @@ use tessera_core::{Actor, Batch, Committed};
 use tessera_core::{AgentReceipt, AgentRequest, HistoryEntry, UndoReceipt};
 
 pub fn editor_receipt(
-    notebook: &Notebook,
+    workshop: &Workshop,
     changes: &broadcast::Sender<i64>,
     committed: &mut Committed,
 ) -> tessera_core::Result<()> {
-    committed.seq = notebook.editor_change_cursor(committed.seq)?;
+    committed.seq = workshop.editor_change_cursor(committed.seq)?;
     if !committed.replayed {
         // Publish while the writer lock is still held, in arrival order.
-        let _ = changes.send(notebook.editor_cursor()?);
+        let _ = changes.send(workshop.editor_cursor()?);
     }
     Ok(())
 }
@@ -34,9 +34,9 @@ pub(crate) async fn apply(
 ) -> Result<Json<Committed>, ApiError> {
     let Json(batch) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state.notebook, move |notebook| {
-        let mut committed = notebook.apply(&batch)?;
-        editor_receipt(notebook, &changes, &mut committed)?;
+    run(&state.workshop, move |workshop| {
+        let mut committed = workshop.apply(&batch)?;
+        editor_receipt(workshop, &changes, &mut committed)?;
         Ok(committed)
     })
     .await
@@ -64,9 +64,9 @@ pub(crate) async fn agent_edit(
         })
         .transpose()?;
     let changes = state.changes.clone();
-    run(&state.notebook, move |notebook| {
-        let mut receipt = notebook.agent_edit_keyed(&request, key.as_deref())?;
-        editor_receipt(notebook, &changes, &mut receipt.committed)?;
+    run(&state.workshop, move |workshop| {
+        let mut receipt = workshop.agent_edit_keyed(&request, key.as_deref())?;
+        editor_receipt(workshop, &changes, &mut receipt.committed)?;
         Ok(receipt)
     })
     .await
@@ -87,7 +87,7 @@ pub(crate) async fn history(
     query: Result<Query<HistoryQuery>, QueryRejection>,
 ) -> Result<Json<HistoryResponse>, ApiError> {
     let Query(HistoryQuery { limit, before }) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.history(limit, before))
+    read(&state, move |workshop| workshop.history(limit, before))
         .await
         .map(|entries| Json(HistoryResponse { entries }))
 }
@@ -103,9 +103,9 @@ pub(crate) async fn undo_change(
     let Path(seq) = path.map_err(ApiError::from)?;
     let Json(UndoRequest { actor }) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state.notebook, move |notebook| {
-        let mut receipt = notebook.undo_change(seq, &actor)?;
-        editor_receipt(notebook, &changes, &mut receipt.committed)?;
+    run(&state.workshop, move |workshop| {
+        let mut receipt = workshop.undo_change(seq, &actor)?;
+        editor_receipt(workshop, &changes, &mut receipt.committed)?;
         Ok(receipt)
     })
     .await

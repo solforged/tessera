@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Block, PageView, QueryRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { attributeDefinitions } from '../table/attributes';
 import { copyQuery, queriesEqual, queryFieldIds, remapQueryField, removeQueryField } from '../table/query';
 import {
@@ -54,24 +54,24 @@ test('restored cited-in labels resolve reference titles before and after positio
       return () => block;
     },
   };
-  const notebook = cached as unknown as NotebookClient;
+  const workshop = cached as unknown as WorkshopClient;
   const condition = { field: '@cited_in', op: 'is' as const, value: positionId };
   const fields = attributeDefinitions('sources');
-  expect(deskConditionLabel(condition, fields, notebook, [])).toBe('Cited in is Sylvia Scribner');
+  expect(deskConditionLabel(condition, fields, workshop, [])).toBe('Cited in is Sylvia Scribner');
   const row = { block: { block: position }, attributes: {} } as QueryRow;
-  expect(deskConditionLabel(condition, fields, notebook, [row])).toBe('Cited in is Sylvia Scribner');
+  expect(deskConditionLabel(condition, fields, workshop, [row])).toBe('Cited in is Sylvia Scribner');
   holder.text = 'Scribner';
-  expect(deskConditionLabel(condition, fields, notebook, [])).toBe('Cited in is Scribner');
+  expect(deskConditionLabel(condition, fields, workshop, [])).toBe('Cited in is Scribner');
 });
 
 test('a linked question reads as its title without the trailing type tag', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-  const notebook = {
+  const workshop = {
     lookup: (value: string) => () =>
       value === id ? ({ id, kind: 'page', text: 'Are abilities real? #Question' } as Block) : undefined,
-  } as unknown as NotebookClient;
+  } as unknown as WorkshopClient;
   expect(
-    deskConditionLabel({ field: '@question', op: 'is', value: id }, attributeDefinitions('positions'), notebook, []),
+    deskConditionLabel({ field: '@question', op: 'is', value: id }, attributeDefinitions('positions'), workshop, []),
   ).toBe('Question is Are abilities real?');
 });
 

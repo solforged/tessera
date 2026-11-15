@@ -1,4 +1,4 @@
-//! Tessera for macOS: a window onto the notebook service that keeps the
+//! Tessera for macOS: a window onto the workshop service that keeps the
 //! service's launch agent on this app's build and installs signed updates.
 
 #[cfg(target_os = "macos")]

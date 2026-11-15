@@ -145,7 +145,7 @@ export function OutlinePane(props: OutlinePaneProps) {
 }
 
 function Pane(props: OutlinePaneProps) {
-  const doc: PageDocument = props.notebook.open(props.pageId);
+  const doc: PageDocument = props.workshop.open(props.pageId);
   const creatingRoot = createMemo(() => doc.root()?.revision === 0);
   const viewport = createVisualViewport();
   const initial = untrack(() => props.view);
@@ -167,10 +167,10 @@ function Pane(props: OutlinePaneProps) {
   const [positionQuestions] = createResource(
     () =>
       !creatingRoot() && doc.root()?.kind === 'page'
-        ? ([readingSubjects(), props.notebook.changeSequence(), props.notebook.connection() === 'live'] as const)
+        ? ([readingSubjects(), props.workshop.changeSequence(), props.workshop.connection() === 'live'] as const)
         : false,
     async ([subjects]) => {
-      const results = await Promise.all(subjects.split(',').map(subject => props.notebook.api.positions({ subject })));
+      const results = await Promise.all(subjects.split(',').map(subject => props.workshop.api.positions({ subject })));
       const questions = new Map<string, PositionQuestion>();
       for (const result of results)
         for (const question of result.questions) {
@@ -199,7 +199,7 @@ function Pane(props: OutlinePaneProps) {
     return root?.kind === 'journal'
       ? spokenJournalDate(root.text)
       : root?.kind === 'page'
-        ? displayTitle(root.text, id => props.notebook.lookup(id))
+        ? displayTitle(root.text, id => props.workshop.lookup(id))
         : root?.text;
   };
   const titleTags = createMemo(() => {
@@ -327,13 +327,13 @@ function Pane(props: OutlinePaneProps) {
     anchor: HTMLElement;
   }>();
   const [tagRegistry] = createResource(
-    () => [props.notebook.changeSequence(), props.notebook.connection()] as const,
-    () => readTagRegistry(props.notebook),
+    () => [props.workshop.changeSequence(), props.workshop.connection()] as const,
+    () => readTagRegistry(props.workshop),
   );
   const titleCollision = createMemo(() => {
     const value = titleKey(title().trim());
     return renaming() && value
-      ? props.notebook
+      ? props.workshop
           .roots()
           .find(page => page.id !== props.pageId && page.kind === 'page' && titleKey(page.text) === value)
       : undefined;
@@ -380,9 +380,9 @@ function Pane(props: OutlinePaneProps) {
   } | null = null;
   let compositionFrame = 0;
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
-  const live = createMemo(() => props.notebook.connection() === 'live');
+  const live = createMemo(() => props.workshop.connection() === 'live');
   const [fields] = createResource(
-    () => [props.notebook.changeSequence(), live()] as const,
+    () => [props.workshop.changeSequence(), live()] as const,
     () => api.fields(),
   );
   const definitions = createMemo(
@@ -392,7 +392,7 @@ function Pane(props: OutlinePaneProps) {
       );
       for (const field of createdFields()) if (!result.has(field.id)) result.set(field.id, field);
       return [...result.values()].filter(field => {
-        const block = props.notebook.lookup(field.id)();
+        const block = props.workshop.lookup(field.id)();
         return block !== null && !block?.archived;
       });
     },
@@ -428,7 +428,7 @@ function Pane(props: OutlinePaneProps) {
     undefined,
     { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
   );
-  const templates = createTemplateCache(() => (fields.error ? undefined : fields()), props.notebook.lastChange);
+  const templates = createTemplateCache(() => (fields.error ? undefined : fields()), props.workshop.lastChange);
   const glossId = createMemo(() =>
     doc.root()?.kind === 'page' ? glossEntry(doc, id => fieldRole(definitionsById().get(id)) === 'standfirst') : null,
   );
@@ -445,7 +445,7 @@ function Pane(props: OutlinePaneProps) {
   const [type] = createResource(
     () =>
       !creatingRoot() && doc.root()?.kind === 'page'
-        ? ([props.pageId, props.notebook.changeSequence(), live()] as const)
+        ? ([props.pageId, props.workshop.changeSequence(), live()] as const)
         : false,
     ([pageId]) => api.type(pageId),
   );
@@ -461,24 +461,24 @@ function Pane(props: OutlinePaneProps) {
             ),
           ]
         : [];
-      return names.length ? ([names.join('\u0000'), props.notebook.changeSequence()] as const) : false;
+      return names.length ? ([names.join('\u0000'), props.workshop.changeSequence()] as const) : false;
     },
     async ([names]) =>
       new Map(
         await Promise.all(
-          names.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const),
+          names.split('\u0000').map(async name => [foldName(name), await resolveName(props.workshop, name)] as const),
         ),
       ),
   );
   const sourceResets = createSourceFieldResets({
     doc,
-    notebook: props.notebook,
+    workshop: props.workshop,
     definitions: definitionsById,
     caret,
     onError: setMessage,
   });
   const hints = createOutlineHints({
-    notebook: props.notebook,
+    workshop: props.workshop,
     doc,
     editing: () => (editorFocused() ? editing() : null),
     visible: () => ids(),
@@ -488,7 +488,7 @@ function Pane(props: OutlinePaneProps) {
   const [receiptType] = createResource(
     () => {
       const target = tagTemplate();
-      return target ? ([target.id, props.notebook.changeSequence(), live()] as const) : false;
+      return target ? ([target.id, props.workshop.changeSequence(), live()] as const) : false;
     },
     ([id]) => api.type(id),
   );
@@ -540,14 +540,14 @@ function Pane(props: OutlinePaneProps) {
     );
   }
 
-  const contextDate = () => (doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate());
+  const contextDate = () => (doc.root()?.kind === 'journal' ? doc.root()!.text : props.workshop.todayDate());
   const rowAnchor = (id: string) =>
     id === props.pageId ? (heading ?? null) : (hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null);
   const readingAnchor = (id: string) =>
     scroll?.querySelector<HTMLElement>(`[data-reading-id="${CSS.escape(id)}"]`) ?? rowAnchor(id);
   const capabilities = createOutlineCapabilities({
     doc,
-    notebook: props.notebook,
+    workshop: props.workshop,
     contextDate,
     caret,
     anchor: rowAnchor,
@@ -557,13 +557,13 @@ function Pane(props: OutlinePaneProps) {
 
   const fieldConversion = createFieldEntryConversion({
     doc,
-    notebook: props.notebook,
+    workshop: props.workshop,
     disposed: () => disposed,
     composing: composition,
     caret,
     focusEpoch: () => focusEpoch,
     known: name => definitionsByName().get(name.toLowerCase()),
-    targetKind: id => props.notebook.lookup(id)()?.kind,
+    targetKind: id => props.workshop.lookup(id)()?.kind,
     onStart: () => setCompletion(null),
     onField: field =>
       setCreatedFields(previous =>
@@ -610,7 +610,7 @@ function Pane(props: OutlinePaneProps) {
     const ownerId = entryId ? doc.outline.parentOf(entryId) : null;
     const owner = ownerId ? doc.block(ownerId) : undefined;
     if (!fieldId || !owner || !doc.outline.children(entryId!).some(id => doc.block(id)?.text.trim())) return;
-    void templateOffer(props.notebook, owner, fieldId).then(
+    void templateOffer(props.workshop, owner, fieldId).then(
       offer => {
         if (!offer || disposed) return;
         const name = definitionsById().get(fieldId)?.name ?? 'This field';
@@ -626,7 +626,7 @@ function Pane(props: OutlinePaneProps) {
         showNotice(`${name} is on another ${tag} too.`, undefined, {
           label: `Add to ${tag}`,
           run: async () => {
-            const change = await addTemplateField(props.notebook, offer.type, fieldId);
+            const change = await addTemplateField(props.workshop, offer.type, fieldId);
             showNotice(`${name} added to ${tag}.`, change.undo);
           },
         });
@@ -638,12 +638,12 @@ function Pane(props: OutlinePaneProps) {
   function settleFreshField(id: string) {
     const fieldId = fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '');
     const text = doc.block(id)?.text.trim();
-    if (!fieldId || !text || !isFreshField(props.notebook, fieldId)) return;
-    settleField(props.notebook, fieldId);
-    const kind = guessFieldKind(text, target => props.notebook.lookup(target)()?.kind);
+    if (!fieldId || !text || !isFreshField(props.workshop, fieldId)) return;
+    settleField(props.workshop, fieldId);
+    const kind = guessFieldKind(text, target => props.workshop.lookup(target)()?.kind);
     const name = definitionsById().get(fieldId)?.name ?? 'This field';
     if (kind)
-      void setFreshFieldKind(props.notebook, fieldId, kind).then(
+      void setFreshFieldKind(props.workshop, fieldId, kind).then(
         change => showNotice(`${name} is now a ${kindNoun(kind)} field.`, change.undo),
         reason => setMessage(reason instanceof Error ? reason.message : String(reason)),
       );
@@ -657,7 +657,7 @@ function Pane(props: OutlinePaneProps) {
     linking.add(id);
     void (async () => {
       try {
-        const targets = await titleTargets(props.notebook, titles);
+        const targets = await titleTargets(props.workshop, titles);
         const current = doc.block(id)?.text;
         if (disposed || editing() === id || !current) return;
         const next = withLinkedTitles(current, targets);
@@ -995,12 +995,12 @@ function Pane(props: OutlinePaneProps) {
   );
   const [branches] = createResource(
     () =>
-      !creatingRoot() && doc.root()?.question ? ([props.pageId, props.notebook.changeSequence()] as const) : false,
-    ([parent]) => props.notebook.api.questions({ parent }),
+      !creatingRoot() && doc.root()?.question ? ([props.pageId, props.workshop.changeSequence()] as const) : false,
+    ([parent]) => props.workshop.api.questions({ parent }),
   );
   // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
   // the margin. A source page's own highlights need no mark.
-  const referenceSources = createCitationSources(props.notebook, () => {
+  const referenceSources = createCitationSources(props.workshop, () => {
     const texts: string[] = [];
     (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => {
       const text = doc.block(row.id)?.text;
@@ -1026,7 +1026,7 @@ function Pane(props: OutlinePaneProps) {
     undefined,
     { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) },
   );
-  const siglumRecords = createCitedSources(props.notebook, citedSources);
+  const siglumRecords = createCitedSources(props.workshop, citedSources);
   const sigla = createMemo(() => citedSigla(siglumRecords()));
   /** Each distinct source on the page once, for the apparatus key. */
   const siglumSources = createMemo(() => [
@@ -1035,9 +1035,9 @@ function Pane(props: OutlinePaneProps) {
   const [sourceHighlights] = createResource(
     () =>
       !creatingRoot() && doc.root()?.source && !zoom()
-        ? ([props.pageId, props.notebook.changeSequence(), live()] as const)
+        ? ([props.pageId, props.workshop.changeSequence(), live()] as const)
         : false,
-    ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }),
+    ([source_id]) => props.workshop.api.highlights({ source_id, limit: 100000 }),
   );
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
   const sourceApparatusReady = () => sourceHeaderReady() && !!(fields.error || fields.latest);
@@ -1045,7 +1045,7 @@ function Pane(props: OutlinePaneProps) {
   const isNote = () =>
     !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   const [noteKinds] = createResource(
-    () => (!creatingRoot() && isNote() ? ([props.pageId, props.notebook.changeSequence(), live()] as const) : false),
+    () => (!creatingRoot() && isNote() ? ([props.pageId, props.workshop.changeSequence(), live()] as const) : false),
     ([id]) => api.noteKinds(id),
   );
   createEffect(() => {
@@ -1053,7 +1053,7 @@ function Pane(props: OutlinePaneProps) {
   });
   // A behavior tag leads the title as its glyph. Any other title tag follows it as a pill, unless the eyebrow already names that kind.
   const titleGlyphs = createMemo(() =>
-    titleTags().filter(token => isCapabilityTag(tagLabel(token, id => props.notebook.lookup(id)))),
+    titleTags().filter(token => isCapabilityTag(tagLabel(token, id => props.workshop.lookup(id)))),
   );
   const titlePills = createMemo(() =>
     titleTags().filter(
@@ -1071,7 +1071,7 @@ function Pane(props: OutlinePaneProps) {
     pageRevealed() ||
     (doc.status() !== 'loading' &&
       (creatingRoot() ||
-        props.notebook.connection() === 'offline' ||
+        props.workshop.connection() === 'offline' ||
         !!(initial.edit && zoom() && initial.caret && doc.block(initial.caret.id)) ||
         ((!doc.root()?.source ||
           (sourceApparatusReady() && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))) &&
@@ -1263,9 +1263,9 @@ function Pane(props: OutlinePaneProps) {
       while (id && id !== props.pageId) {
         const block = doc.block(id);
         if (block?.position)
-          holder = block.position.holder_id ? props.notebook.lookup(block.position.holder_id)()?.text : 'Unattributed';
+          holder = block.position.holder_id ? props.workshop.lookup(block.position.holder_id)()?.text : 'Unattributed';
         if (block?.heading && doc.outline.parentOf(id) === props.pageId)
-          section = plainText(block.text, target => props.notebook.lookup(target));
+          section = plainText(block.text, target => props.workshop.lookup(target));
         id = block?.parentId ?? undefined;
       }
       setSectionName([section ?? (holder ? 'Perspectives' : 'Opening'), holder].filter(Boolean).join(' · '));
@@ -1973,7 +1973,7 @@ function Pane(props: OutlinePaneProps) {
       try {
         const field =
           definitionsByName().get(GLOSS_FIELD.toLowerCase()) ??
-          (await ensureField(props.notebook, GLOSS_FIELD, 'text', 'standfirst'));
+          (await ensureField(props.workshop, GLOSS_FIELD, 'text', 'standfirst'));
         if (disposed) return;
         setCreatedFields(previous =>
           previous.some(existing => existing.id === field.id) ? previous : [...previous, field],
@@ -1997,7 +1997,7 @@ function Pane(props: OutlinePaneProps) {
   function addAlias() {
     void (async () => {
       try {
-        const field = definitionsByName().get('aliases') ?? (await ensureField(props.notebook, 'aliases'));
+        const field = definitionsByName().get('aliases') ?? (await ensureField(props.workshop, 'aliases'));
         setCreatedFields(previous =>
           previous.some(existing => existing.id === field.id) ? previous : [...previous, field],
         );
@@ -2271,8 +2271,8 @@ function Pane(props: OutlinePaneProps) {
     async holderId => {
       // The recipe offers only defined fields, so Tab from the Gist reaches Work only once work exists.
       const field =
-        definitionsByName().get('gist') ?? (await ensureField(props.notebook, 'gist', 'text', 'standfirst'));
-      const work = definitionsByName().get('work') ?? (await ensureField(props.notebook, 'work', 'instance'));
+        definitionsByName().get('gist') ?? (await ensureField(props.workshop, 'gist', 'text', 'standfirst'));
+      const work = definitionsByName().get('work') ?? (await ensureField(props.workshop, 'work', 'instance'));
       setCreatedFields(previous => [
         ...previous,
         ...[field, work].filter(created => !previous.some(existing => existing.id === created.id)),
@@ -2388,7 +2388,7 @@ function Pane(props: OutlinePaneProps) {
       ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading)
       : undefined,
   );
-  const journalLayout = createJournalLayout(doc, props.notebook, () => !zoom());
+  const journalLayout = createJournalLayout(doc, props.workshop, () => !zoom());
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(
     context,
     fieldSheet,
@@ -2398,7 +2398,7 @@ function Pane(props: OutlinePaneProps) {
     openValueEditor,
     row => (
       <Show when={holderBoundary() === row.id}>
-        <HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+        <HeldReadings rows={related()?.heldReadings ?? []} workshop={props.workshop} onOpen={props.onOpen} />
       </Show>
     ),
     DiscoveryHints,
@@ -2428,7 +2428,7 @@ function Pane(props: OutlinePaneProps) {
   const { CapabilityPopups } = createCapabilityPopups(context);
   const projectSummary = createProjectSummary({
     doc,
-    notebook: props.notebook,
+    workshop: props.workshop,
     date: contextDate,
     onOpen: props.onOpen,
     onEdit: anchor => capabilities.open(props.pageId, 'project', anchor),
@@ -2522,12 +2522,12 @@ function Pane(props: OutlinePaneProps) {
       key: editorKey,
       input: referenceInput,
       label: id => {
-        const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)() : undefined;
-        return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined;
+        const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.workshop.lookup(id)() : undefined;
+        return target ? plainText(target.text, reference => props.workshop.lookup(reference)) : undefined;
       },
       isSource: id => !!referenceSources()?.has(id),
       tag: (title, id) => {
-        const target = id ? props.notebook.lookup(id)() : undefined;
+        const target = id ? props.workshop.lookup(id)() : undefined;
         const name = target?.text || title || id || '';
         const kind = tagRegistry.error
           ? undefined
@@ -2548,25 +2548,25 @@ function Pane(props: OutlinePaneProps) {
                 “{token.id}” names {matches.length} atoms
               </div>
             ),
-            items: nameMenuItems(props.notebook, editor.id, token, matches, setMessage),
+            items: nameMenuItems(props.workshop, editor.id, token, matches, setMessage),
           });
       },
       openReference: (token, beside) => {
         void (async () => {
           if (isViewReference(token)) {
-            const view = (await props.notebook.api.views()).find(view => view.id === token.id);
+            const view = (await props.workshop.api.views()).find(view => view.id === token.id);
             if (view && !disposed)
               props.onOpen({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, beside);
             return;
           }
           if (token.kind === 'tag') {
-            const id = token.id ?? (await props.notebook.pageByTitle(token.value, false));
+            const id = token.id ?? (await props.workshop.pageByTitle(token.value, false));
             if (id && !disposed) props.onOpen({ kind: 'page', pageId: id }, beside);
             return;
           }
-          const matches = isStableReference(token) ? null : await resolveName(props.notebook, token.id!);
+          const matches = isStableReference(token) ? null : await resolveName(props.workshop, token.id!);
           const block = isStableReference(token)
-            ? (props.notebook.lookup(token.id!)() ?? (await props.notebook.api.block(token.id!)))
+            ? (props.workshop.lookup(token.id!)() ?? (await props.workshop.api.block(token.id!)))
             : matches?.length === 1
               ? matches[0]!.page
               : undefined;
@@ -2834,7 +2834,7 @@ function Pane(props: OutlinePaneProps) {
     referenceSources();
     if (!tagRegistry.error) tagRegistry();
     for (const token of textTokens(text))
-      if (isStableReference(token) || (token.kind === 'tag' && token.id)) props.notebook.lookup(token.id!)();
+      if (isStableReference(token) || (token.kind === 'tag' && token.id)) props.workshop.lookup(token.id!)();
     queueMicrotask(() => {
       if (!disposed && editor?.id === id) editor.refreshLabels();
     });
@@ -2986,8 +2986,8 @@ function Pane(props: OutlinePaneProps) {
                     },
                     ...sections.map(id => ({
                       label: doc.block(id)?.position
-                        ? `Perspectives · ${doc.block(id)?.position?.holder_id ? (props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…') : 'Unattributed'}`
-                        : plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)),
+                        ? `Perspectives · ${doc.block(id)?.position?.holder_id ? (props.workshop.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…') : 'Unattributed'}`
+                        : plainText(doc.block(id)?.text ?? '', target => props.workshop.lookup(target)),
                       action: () => {
                         revealRow(id);
                         if (!reading() && indices().has(id))
@@ -3022,7 +3022,7 @@ function Pane(props: OutlinePaneProps) {
         </Show>
         <Show when={apparatus()}>
           <Apparatus
-            notebook={props.notebook}
+            workshop={props.workshop}
             holders={holders()}
             linked={linkedPages()}
             relations={holderRelations()}
@@ -3032,7 +3032,7 @@ function Pane(props: OutlinePaneProps) {
         </Show>
         <Show when={sourceDetailsOpen() && doc.root()?.source}>
           <SourceDetails
-            notebook={props.notebook}
+            workshop={props.workshop}
             pageId={props.pageId}
             onOpen={props.onOpen}
             opener={sourceDetailsOpener}
@@ -3056,7 +3056,7 @@ function Pane(props: OutlinePaneProps) {
                     <button type="button" onClick={() => zoomTo(id)}>
                       {readableText(
                         doc.block(id)?.text ?? '',
-                        reference => props.notebook.lookup(reference),
+                        reference => props.workshop.lookup(reference),
                         doc.block(id)?.position?.deleted_holder,
                       ) || 'Empty atom'}
                     </button>
@@ -3080,7 +3080,7 @@ function Pane(props: OutlinePaneProps) {
                       <BlockText
                         text={`[[${holder()}]]`}
                         deletedHolder={doc.block(id())?.position?.deleted_holder}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         onOpen={props.onOpen}
                       />
                     )}
@@ -3094,7 +3094,7 @@ function Pane(props: OutlinePaneProps) {
                     {gist => (
                       <>
                         {' '}
-                        · <BlockText text={gist()} notebook={props.notebook} onOpen={props.onOpen} />
+                        · <BlockText text={gist()} workshop={props.workshop} onOpen={props.onOpen} />
                       </>
                     )}
                   </Show>
@@ -3102,7 +3102,7 @@ function Pane(props: OutlinePaneProps) {
                 <Show when={dossierFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>
                   {work => (
                     <div class="dossier-work">
-                      <BlockText text={work()} notebook={props.notebook} onOpen={props.onOpen} />
+                      <BlockText text={work()} workshop={props.workshop} onOpen={props.onOpen} />
                     </div>
                   )}
                 </Show>
@@ -3112,7 +3112,7 @@ function Pane(props: OutlinePaneProps) {
                       on{' '}
                       <Button
                         onClick={event => {
-                          const block = props.notebook.lookup(subject())();
+                          const block = props.workshop.lookup(subject())();
                           if (block)
                             props.onOpen(
                               {
@@ -3126,8 +3126,8 @@ function Pane(props: OutlinePaneProps) {
                       >
                         <span>
                           <BlockText
-                            text={props.notebook.lookup(subject())()?.text ?? 'Loading subject…'}
-                            notebook={props.notebook}
+                            text={props.workshop.lookup(subject())()?.text ?? 'Loading subject…'}
+                            workshop={props.workshop}
                             interactive={false}
                           />
                         </span>
@@ -3155,7 +3155,7 @@ function Pane(props: OutlinePaneProps) {
                         <TypePill
                           id={token.id}
                           title={token.alias || token.value}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           onOpen={props.onOpen}
                           onRestoreFocus={restoreFocus}
                         />
@@ -3204,7 +3204,7 @@ function Pane(props: OutlinePaneProps) {
                         });
                       }}
                     >
-                      Merge into “{displayTitle(page().text, id => props.notebook.lookup(id))}”
+                      Merge into “{displayTitle(page().text, id => props.workshop.lookup(id))}”
                     </Button>
                   )}
                 </Show>
@@ -3254,9 +3254,9 @@ function Pane(props: OutlinePaneProps) {
                 if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
               }}
             />
-            <NoteLine pageId={props.pageId} notebook={props.notebook}>
+            <NoteLine pageId={props.pageId} workshop={props.workshop}>
               <Show when={doc.status() === 'ready' && !doc.root()?.question}>
-                <NoteRevisit id={props.pageId} notebook={props.notebook} />
+                <NoteRevisit id={props.pageId} workshop={props.workshop} />
               </Show>
             </NoteLine>
           </Show>
@@ -3289,18 +3289,18 @@ function Pane(props: OutlinePaneProps) {
                 <TemplateEditor
                   type={value()}
                   fields={definitions()}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   onError={setMessage}
                   onOpen={props.onOpen}
                 />
-                <RecipeSection typeId={value().page.id} notebook={props.notebook} onOpen={props.onOpen} />
+                <RecipeSection typeId={value().page.id} workshop={props.workshop} onOpen={props.onOpen} />
               </Show>
             )}
           </Show>
           <Show when={doc.root()?.source && !positionZoom()}>
             <SourceHeader
               doc={doc}
-              notebook={props.notebook}
+              workshop={props.workshop}
               resetItems={sourceResets}
               onOpen={props.onOpen}
               onError={setMessage}
@@ -3330,7 +3330,7 @@ function Pane(props: OutlinePaneProps) {
               blockId={props.pageId}
               cards={[]}
               templateCount={doc.root()?.templateCards ?? 0}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
             />
           </Show>
@@ -3360,7 +3360,7 @@ function Pane(props: OutlinePaneProps) {
                   <CitationChip
                     citation={citation}
                     pageId={props.pageId}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     onOpen={props.onOpen}
                   />
                 )}
@@ -3370,7 +3370,7 @@ function Pane(props: OutlinePaneProps) {
           <Show when={!zoom()}>
             <QuestionParent
               info={doc.root()?.question}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
               disabled={capabilities.busy(props.pageId)}
               onChange={anchor => capabilities.open(props.pageId, 'question-parent', anchor)}
@@ -3430,17 +3430,17 @@ function Pane(props: OutlinePaneProps) {
             <JournalHeader
               date={doc.root()!.text}
               journalPeriod={journalPeriod}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
             />
           </Show>
           <fieldSheet.FieldSlots id={props.pageId} />
           <Show when={!zoom() && doc.root()?.spread}>
-            <SpreadPane doc={doc} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} />
+            <SpreadPane doc={doc} workshop={props.workshop} onActivate={props.onActivate} onOpen={props.onOpen} />
           </Show>
         </div>
         <Show when={!zoom() && !ids().length && related()?.heldReadings.length}>
-          <HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+          <HeldReadings rows={related()?.heldReadings ?? []} workshop={props.workshop} onOpen={props.onOpen} />
         </Show>
         <Show when={!zoom() && doc.root()?.question}>
           <Show when={branches.error}>
@@ -3449,15 +3449,15 @@ function Pane(props: OutlinePaneProps) {
             </p>
           </Show>
           <Show when={!branches.error}>
-            <QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+            <QuestionBranches rows={branches() ?? []} workshop={props.workshop} onOpen={props.onOpen} />
           </Show>
           <AssessmentJournal
             questionId={props.pageId}
             doc={doc}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
             onWrite={() =>
-              apply({ kind: 'writeAssessment', parentId: props.pageId, assessedOn: props.notebook.todayDate() }, true)
+              apply({ kind: 'writeAssessment', parentId: props.pageId, assessedOn: props.workshop.todayDate() }, true)
             }
           />
         </Show>
@@ -3546,7 +3546,7 @@ function Pane(props: OutlinePaneProps) {
             <ReadRegister
               register={readView()}
               doc={doc}
-              notebook={props.notebook}
+              workshop={props.workshop}
               disclosures={readDisclosures()}
               onDisclosure={key => {
                 setReadDisclosures(previous => {
@@ -3561,7 +3561,7 @@ function Pane(props: OutlinePaneProps) {
               onCompare={() => props.onProjection?.('compare')}
               onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}
               onWriteAssessment={id =>
-                apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true)
+                apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.workshop.todayDate() }, true)
               }
               onOpenReading={(id, beside) =>
                 beside ? props.onOpen({ kind: 'page', pageId: props.pageId, blockId: id }, true) : zoomTo(id)
@@ -3574,7 +3574,7 @@ function Pane(props: OutlinePaneProps) {
           </Show>
         </div>
         <Show when={!zoom() && ids().length && !holderBoundary() && related()?.heldReadings.length}>
-          <HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+          <HeldReadings rows={related()?.heldReadings ?? []} workshop={props.workshop} onOpen={props.onOpen} />
         </Show>
         <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}>
           <section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
@@ -3592,7 +3592,7 @@ function Pane(props: OutlinePaneProps) {
                     )
                   }
                 >
-                  <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+                  <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} />
                   <span class="library-highlight-meta">
                     ¶{row.citation.ordinal + 1} · {row.block.page.text}
                   </span>
@@ -3627,23 +3627,23 @@ function Pane(props: OutlinePaneProps) {
         {/* Generated sections follow the outline on Today alone, as the workshop's template switches them. */}
         <Show when={journalLayout()?.missing.end.length}>
           <div class="journal-missing-end">
-            <MissingSections notebook={props.notebook} sections={journalLayout()!.missing.end} />
+            <MissingSections workshop={props.workshop} sections={journalLayout()!.missing.end} />
           </div>
         </Show>
-        <Show when={!zoom() && doc.root()?.kind === 'journal' && doc.root()!.text === props.notebook.todayDate()}>
+        <Show when={!zoom() && doc.root()?.kind === 'journal' && doc.root()!.text === props.workshop.todayDate()}>
           <div class="related-sections journal-highlights">
-            <Show when={section(props.notebook.todayTemplate(), 'research')?.on}>
+            <Show when={section(props.workshop.todayTemplate(), 'research')?.on}>
               <ResearchToRevisit
-                name={section(props.notebook.todayTemplate(), 'research')!.name}
-                notebook={props.notebook}
+                name={section(props.workshop.todayTemplate(), 'research')!.name}
+                workshop={props.workshop}
                 onOpen={props.onOpen}
               />
             </Show>
-            <Show when={section(props.notebook.todayTemplate(), 'highlights')?.on}>
+            <Show when={section(props.workshop.todayTemplate(), 'highlights')?.on}>
               <JournalResurface
-                name={section(props.notebook.todayTemplate(), 'highlights')!.name}
+                name={section(props.workshop.todayTemplate(), 'highlights')!.name}
                 date={doc.root()!.text}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 onOpen={props.onOpen}
               />
             </Show>
@@ -3662,7 +3662,7 @@ function Pane(props: OutlinePaneProps) {
             (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))
           }
         >
-          <Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onAdded={restoreFocus} />
+          <Arrivals doc={doc} workshop={props.workshop} onOpen={props.onOpen} onAdded={restoreFocus} />
         </Show>
         <Show
           when={
@@ -3732,7 +3732,7 @@ function Pane(props: OutlinePaneProps) {
           {target => (
             <PageMergeConfirmation
               anchor={target.anchor}
-              notebook={props.notebook}
+              workshop={props.workshop}
               from={target.from}
               into={target.page}
               onDismiss={() => setMergeTarget(undefined)}
@@ -3764,7 +3764,7 @@ function Pane(props: OutlinePaneProps) {
                   <TemplateEditor
                     type={value()}
                     fields={definitions()}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     onError={setMessage}
                     onOpen={props.onOpen}
                     register={{ fields: fields()?.fields ?? [], pageId: value().page.id }}
@@ -3787,7 +3787,7 @@ function Pane(props: OutlinePaneProps) {
           <ComparePane
             subjectId={props.pageId}
             view={props.view.compare ?? { scroll: 0 }}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onActivate={props.onActivate}
             onOpen={props.onOpen}
             onViewChange={compare => props.onViewChange({ ...props.view, compare })}

@@ -3,7 +3,7 @@ import { CHANGE_CLOSED, CHANGE_CLOSING, CHANGE_CONNECTING, CHANGE_OPEN } from '.
 import type { ChangeSocket, Transport } from '../api/client';
 
 /** `crates/tessera-mobile`'s `NotebookRequest`. */
-interface NotebookRequest {
+interface WorkshopRequest {
   method: string;
   path: string;
   headers: [string, string][];
@@ -20,7 +20,7 @@ function base64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** Settle with `promise`, or reject when `signal` aborts. The notebook may still complete the request. */
+/** Settle with `promise`, or reject when `signal` aborts. The workshop may still complete the request. */
 function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(signal.reason);
   return new Promise<T>((resolve, reject) => {
@@ -30,13 +30,13 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-/** Send a request to the notebook in the app's process. Its reply is the status (u16),
+/** Send a request to the workshop in the app's process. Its reply is the status (u16),
  * the content type's length (u16), the content type, then the body. */
-export const notebookFetch: Transport = async (url, init) => {
+export const workshopFetch: Transport = async (url, init) => {
   const parsed = new URL(url, location.href);
   const request = new Request(parsed, init);
   const bytes = request.body ? new Uint8Array(await request.arrayBuffer()) : null;
-  const message: NotebookRequest = {
+  const message: WorkshopRequest = {
     method: request.method,
     path: `${parsed.pathname}${parsed.search}`,
     headers: [...request.headers],
@@ -64,7 +64,7 @@ let nextStream = 0;
 
 /** Committed changes over a Tauri channel. The `stream_changes` command runs until
  * the stream closes, then settles: an error rejects it. */
-class NotebookChangeSocket implements ChangeSocket {
+class WorkshopChangeSocket implements ChangeSocket {
   readyState = CHANGE_CONNECTING;
   onopen: ChangeSocket['onopen'] = null;
   onmessage: ChangeSocket['onmessage'] = null;
@@ -110,4 +110,4 @@ class NotebookChangeSocket implements ChangeSocket {
   }
 }
 
-export const notebookStream = (after: number): ChangeSocket => new NotebookChangeSocket(after);
+export const workshopStream = (after: number): ChangeSocket => new WorkshopChangeSocket(after);

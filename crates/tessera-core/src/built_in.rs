@@ -9,13 +9,13 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::FieldKind::{self, Choice, Date, Identifier, Instance, Number, Span, Text, Url};
 use crate::fields::SOURCE_TARGET;
 use crate::library_ingest::Planner;
-use crate::{Actor, Batch, CountsAs, FieldOption, FieldRole, Notebook, Operation, Result};
+use crate::{Actor, Batch, CountsAs, FieldOption, FieldRole, Operation, Result, Workshop};
 
 pub(crate) struct BuiltInField {
     pub name: &'static str,
     pub kind: FieldKind,
     /// Titles of the types a relation links to, filed only where those type pages exist, or
-    /// [`SOURCE_TARGET`] for sources, which every notebook can link to.
+    /// [`SOURCE_TARGET`] for sources, which every workshop can link to.
     pub targets: &'static [&'static str],
     /// What its values count as; fixed, like its name.
     pub counts_as: Option<CountsAs>,
@@ -353,7 +353,7 @@ pub(crate) fn removal_problem(
     Ok(Some(format!("{plural} require {name}.")))
 }
 
-impl Notebook {
+impl Workshop {
     /// Brings built-in fields to their current shape as one synced change: lowercase names, Links to types
     /// where those type pages exist, and required fields in their types' templates. It never changes a
     /// field's kind, which stays a reviewed interpretation, and does nothing once everything is in place.

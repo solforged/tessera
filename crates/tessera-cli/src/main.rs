@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 
 /// Tessera: a local-first outline workstation.
 #[derive(Parser)]
@@ -23,7 +23,7 @@ struct Cli {
         global = true,
         env = "TESSERA_WORKSHOP"
     )]
-    notebook: Option<PathBuf>,
+    workshop: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
 }
@@ -115,12 +115,12 @@ fn main() -> anyhow::Result<()> {
         .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
         .init();
     let cli = Cli::parse();
-    let explicit_notebook = cli.notebook.is_some();
-    if !explicit_notebook && matches!(cli.command, Command::Serve { .. }) {
+    let explicit_workshop = cli.workshop.is_some();
+    if !explicit_workshop && matches!(cli.command, Command::Serve { .. }) {
         tessera_service::migration::migrate_layout()?;
     }
     let registry = tessera_service::notebooks::Registry::platform();
-    let notebook = match cli.notebook {
+    let workshop = match cli.workshop {
         Some(path) => path,
         None => registry
             .as_ref()
@@ -129,11 +129,11 @@ fn main() -> anyhow::Result<()> {
     };
     match cli.command {
         Command::Info => {
-            let info = Notebook::open(&notebook)?.info()?;
+            let info = Workshop::open(&workshop)?.info()?;
             println!("{}", serde_json::to_string_pretty(&info)?);
         }
         Command::Add { inputs, wait } => {
-            tokio::runtime::Runtime::new()?.block_on(add(&notebook, inputs, wait))?;
+            tokio::runtime::Runtime::new()?.block_on(add(&workshop, inputs, wait))?;
         }
         Command::Export {
             format,
@@ -141,14 +141,14 @@ fn main() -> anyhow::Result<()> {
             view,
         } => {
             tokio::runtime::Runtime::new()?.block_on(export(
-                &notebook,
+                &workshop,
                 &format,
                 &source_ids,
                 view.as_deref(),
             ))?;
         }
         Command::Mcp => {
-            tokio::runtime::Runtime::new()?.block_on(mcp::serve(&notebook))?;
+            tokio::runtime::Runtime::new()?.block_on(mcp::serve(&workshop))?;
         }
         Command::Serve {
             port,
@@ -158,18 +158,18 @@ fn main() -> anyhow::Result<()> {
         } => {
             let runtime = tokio::runtime::Runtime::new()?;
             let restart = runtime.block_on(tessera_service::serve(tessera_service::Config {
-                notebook,
+                workshop,
                 port,
                 sync_port,
                 assets: assets.clone(),
                 dev_origin: dev_origin.clone(),
                 registry,
-                follows_registry: !explicit_notebook,
+                follows_registry: !explicit_workshop,
                 agent_path: None,
                 backup_store: tessera_service::paths::backups_dir(),
             }))?;
             if let Some(restart) = restart {
-                return reopen(restart, explicit_notebook, assets, dev_origin);
+                return reopen(restart, explicit_workshop, assets, dev_origin);
             }
         }
         Command::Install {
@@ -178,8 +178,8 @@ fn main() -> anyhow::Result<()> {
             rollback,
         } => {
             install::install(
-                &notebook,
-                explicit_notebook,
+                &workshop,
+                explicit_workshop,
                 port,
                 allow_debug,
                 rollback.as_deref(),
@@ -187,25 +187,25 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Uninstall => install::uninstall()?,
         Command::Backup { dest } => {
-            let manifest = tessera_core::backup(&notebook, dest)?;
+            let manifest = tessera_core::backup(&workshop, dest)?;
             println!("{}", serde_json::to_string_pretty(&manifest)?);
         }
         Command::Restore { src, force } => {
-            let info = tessera_core::restore(src, &notebook, force)?;
+            let info = tessera_core::restore(src, &workshop, force)?;
             println!("{}", serde_json::to_string_pretty(&info)?);
         }
-        Command::Sync { command } => sync::run(&notebook, command)?,
-        Command::Check { repair } => check::run(&notebook, repair)?,
+        Command::Sync { command } => sync::run(&workshop, command)?,
+        Command::Check { repair } => check::run(&workshop, repair)?,
     }
     Ok(())
 }
 
-/// Start this executable again on the switched-to notebook, at the ports the old one had.
+/// Start this executable again on the switched-to workshop, at the ports the old one had.
 /// A service following the registry starts without `--workshop`, because the registry now
-/// names the new notebook; on Unix the process image is replaced, keeping the PID launchd watches.
+/// names the new workshop; on Unix the process image is replaced, keeping the PID launchd watches.
 fn reopen(
     restart: tessera_service::Restart,
-    explicit_notebook: bool,
+    explicit_workshop: bool,
     assets: Option<PathBuf>,
     dev_origin: Option<String>,
 ) -> anyhow::Result<()> {
@@ -213,8 +213,8 @@ fn reopen(
         std::env::current_exe().context("cannot find this executable to reopen")?,
     );
     command.env_remove("TESSERA_WORKSHOP");
-    if explicit_notebook {
-        command.arg("--workshop").arg(&restart.notebook);
+    if explicit_workshop {
+        command.arg("--workshop").arg(&restart.workshop);
     }
     command
         .arg("serve")
@@ -244,14 +244,14 @@ fn reopen(
 
 /// Requests name the workshop they are meant for in this header, so a service
 /// that has since switched to another workshop refuses them with 409.
-const NOTEBOOK_HEADER: &str = "x-tessera-notebook";
+const WORKSHOP_HEADER: &str = "x-tessera-notebook";
 
 /// The running service that owns one workshop, reached over loopback.
 #[derive(Clone)]
 struct Service {
     client: reqwest::Client,
     base: Arc<str>,
-    /// The workshop's notebook ID, as `/api/notebook` gave it.
+    /// The workshop's workshop ID, as `/api/notebook` gave it.
     id: Arc<str>,
     /// `id` as the header every request carries.
     header: reqwest::header::HeaderValue,
@@ -262,7 +262,7 @@ impl Service {
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         self.client
             .request(method, format!("{}{path}", self.base))
-            .header(NOTEBOOK_HEADER, self.header.clone())
+            .header(WORKSHOP_HEADER, self.header.clone())
     }
 
     /// Live page and journal titles by ID, fetched a few at a time. A block
@@ -314,10 +314,10 @@ impl Service {
 /// serve this very workshop: a stopped service leaves its lock behind, a copied
 /// workshop carries the original's lock, and a switch moves the port to another
 /// workshop.
-async fn service(notebook: &Path) -> anyhow::Result<Service> {
-    let dir = notebook.display();
+async fn service(workshop: &Path) -> anyhow::Result<Service> {
+    let dir = workshop.display();
     let start = format!("Start it with tessera --workshop {dir} serve.");
-    let lock = match tokio::fs::read(notebook.join("service.lock")).await {
+    let lock = match tokio::fs::read(workshop.join("service.lock")).await {
         Ok(lock) => lock,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             anyhow::bail!("No service is running for {dir}. {start}")
@@ -360,9 +360,9 @@ async fn service(notebook: &Path) -> anyhow::Result<Service> {
         path: PathBuf,
     }
     let served: Served = response.json().await.map_err(|_| silent())?;
-    let wanted = tokio::fs::canonicalize(notebook)
+    let wanted = tokio::fs::canonicalize(workshop)
         .await
-        .unwrap_or_else(|_| notebook.to_path_buf());
+        .unwrap_or_else(|_| workshop.to_path_buf());
     anyhow::ensure!(
         served.path == wanted,
         "The service on port {port} has {} open, not {}. Open {} in that service, or serve it on another port with tessera --workshop {} serve --port <port>.",
@@ -388,10 +388,10 @@ async fn checked(response: reqwest::Response) -> anyhow::Result<reqwest::Respons
     anyhow::bail!("Service returned {status}: {text}")
 }
 
-async fn add(notebook: &Path, inputs: Vec<String>, wait: bool) -> anyhow::Result<()> {
+async fn add(workshop: &Path, inputs: Vec<String>, wait: bool) -> anyhow::Result<()> {
     use reqwest::Method;
     use tessera_core::library::{IngestJob, IngestJobState, SourceView};
-    let service = service(notebook).await?;
+    let service = service(workshop).await?;
     let mut jobs = Vec::with_capacity(inputs.len());
     for input in inputs {
         let response = if input.starts_with("http://") || input.starts_with("https://") {
@@ -492,13 +492,13 @@ async fn add(notebook: &Path, inputs: Vec<String>, wait: bool) -> anyhow::Result
 }
 
 async fn export(
-    notebook: &std::path::Path,
+    workshop: &std::path::Path,
     format: &str,
     ids: &[String],
     view: Option<&str>,
 ) -> anyhow::Result<()> {
     use reqwest::Method;
-    let service = service(notebook).await?;
+    let service = service(workshop).await?;
     let request = if let Some(name) = view {
         let views: Vec<tessera_core::library::LibraryView> = checked(
             service

@@ -3,14 +3,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Method, Request, StatusCode},
 };
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tower::ServiceExt;
 
 const PORT: u16 = 4397;
 
 fn app(root: &std::path::Path, assets: Option<std::path::PathBuf>) -> Router {
     tessera_service::router(
-        Notebook::open(root.join("notebook")).unwrap(),
+        Workshop::open(root.join("notebook")).unwrap(),
         PORT,
         assets,
         None,

@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { FieldDetail, Reading } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { Interpretation, InterpretationMap } from './commands';
 import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
@@ -18,7 +18,7 @@ export function readingLabel(reading: Reading): string {
 export function ChoiceConversion(props: {
   detail: FieldDetail;
   mappings: InterpretationMap;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   disabled?: boolean;
   onChange(mappings: InterpretationMap): void;
 }) {
@@ -26,11 +26,11 @@ export function ChoiceConversion(props: {
   const [query, setQuery] = createSignal('');
   const [pages] = createResource(
     () => props.detail.kind === 'instance' && props.detail.field.targets,
-    targets => instancePages(props.notebook, targets),
+    targets => instancePages(props.workshop, targets),
   );
   const [matches] = createResource(
     () => picker() && pages() && { query: query(), pages: pages()! },
-    state => completeNames(props.notebook, state.query, state.pages),
+    state => completeNames(props.workshop, state.query, state.pages),
   );
   const group = (text: string, reading: Reading) => {
     const mapping = props.mappings[text];
@@ -69,7 +69,7 @@ export function ChoiceConversion(props: {
                       const mapping = () => props.mappings[row.text] ?? { mode: 'keep' as const };
                       return (
                         <tr>
-                          <td>{plainText(row.text, id => props.notebook.lookup(id))}</td>
+                          <td>{plainText(row.text, id => props.workshop.lookup(id))}</td>
                           <td class="field-apparatus">{row.values.length}</td>
                           <td>
                             <Show
@@ -89,7 +89,7 @@ export function ChoiceConversion(props: {
                                     {(() => {
                                       const value = mapping();
                                       return value.mode === 'page'
-                                        ? (props.notebook.lookup(value.value)()?.text ?? value.value)
+                                        ? (props.workshop.lookup(value.value)()?.text ?? value.value)
                                         : value.mode === 'create'
                                           ? `Create atom: ${value.value}`
                                           : row.reading.ok

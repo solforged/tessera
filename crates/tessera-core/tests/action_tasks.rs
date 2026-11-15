@@ -1,7 +1,7 @@
 use tessera_core::calendar::{RepeatMode, RepeatUnit, Repeater};
 use tessera_core::{
-    Actor, Batch, Committed, Error, Notebook, Operation, ProjectState, ProjectStatus, TaskPriority,
-    TaskState, TaskStatus,
+    Actor, Batch, Committed, Error, Operation, ProjectState, ProjectStatus, TaskPriority,
+    TaskState, TaskStatus, Workshop,
 };
 
 fn todo() -> TaskState {
@@ -24,7 +24,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -79,13 +79,13 @@ fn archive(value: u128, revision: i64, archived: bool) -> Operation {
     }
 }
 
-fn state(nb: &Notebook, value: u128) -> TaskState {
+fn state(nb: &Workshop, value: u128) -> TaskState {
     nb.capabilities(&id(value)).unwrap().task.unwrap()
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -100,7 +100,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     (dir, nb)
 }
 
-fn reject(nb: &mut Notebook, operations: Vec<Operation>) {
+fn reject(nb: &mut Workshop, operations: Vec<Operation>) {
     assert!(matches!(
         nb.apply(&batch(operations)),
         Err(Error::Validation { .. })
@@ -760,7 +760,7 @@ fn running_clock_refuses_completion_removal_and_cancellation_until_atomic_stop()
 fn owning_revisions_conflict_even_for_noops_and_roll_back_earlier_mutations() {
     let (dir, mut nb) = fixture();
     apply(&mut nb, vec![set_task(10, 1, Some(todo()))]);
-    let mut other = Notebook::open(dir.path()).unwrap();
+    let mut other = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![complete(10, 2, 100, "2024-02-29")]);
     let committed_history = nb.task_occurrences(&id(10)).unwrap();
     for operation in [

@@ -727,7 +727,7 @@ li.agenda-now-end {
 .journal-trail-today {
   color: var(--accent);
 }
-/* A figure in the trail (`Week 44`) is a count: mono, like every other number the notebook reports. */
+/* A figure in the trail (`Week 44`) is a count: mono, like every other number the workshop reports. */
 .journal-fig {
   font-family: var(--font-mono);
   font-size: var(--text-apparatus);

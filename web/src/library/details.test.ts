@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, FieldDefinition } from '../api/types';
-import type { NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
+import type { WorkshopClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import {
   derivedSourceSiglum,
   saveSourceField,
@@ -113,17 +113,17 @@ describe('source field validation', () => {
       outline: { children: (id: string) => children[id] ?? [] },
       block: (id: string) => ({ text: text[id], archived: id === 'archived' }),
     } as unknown as PageDocument;
-    const notebook = { lookup: () => () => ({ text: 'Linked person' }) } as unknown as NotebookClient;
-    expect(sourceFieldValue(doc, notebook, definitions, 'identifiers')).toEqual([
+    const workshop = { lookup: () => () => ({ text: 'Linked person' }) } as unknown as WorkshopClient;
+    expect(sourceFieldValue(doc, workshop, definitions, 'identifiers')).toEqual([
       'isbn:9780262033848',
       'doi:10.1000/example',
     ]);
-    expect(sourceFieldValue(doc, notebook, definitions, 'creators')).toEqual([
+    expect(sourceFieldValue(doc, workshop, definitions, 'creators')).toEqual([
       { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', name: 'Linked person', role: 'author' },
       { id: null, name: 'Unlinked author', role: 'author' },
       { id: null, name: 'Arnold J. Toynbee', role: 'author', create_page: true },
     ]);
-    expect(sourceMetadata(doc, notebook, definitions).creators).toEqual([
+    expect(sourceMetadata(doc, workshop, definitions).creators).toEqual([
       { name: 'Linked person', role: 'author', create_page: true },
       { name: 'Unlinked author', role: 'author', create_page: false },
       { name: 'Arnold J. Toynbee', role: 'author', create_page: true },
@@ -141,7 +141,7 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
     outline: { children: () => [] },
   } as unknown as PageDocument;
   let written: SourceDetailsEdit | undefined;
-  const notebook = {
+  const workshop = {
     changeSequence: () => 0,
     flush: async () => {},
     api: {
@@ -159,8 +159,8 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
       written = edits[0]!.edit;
       return { undo: async () => {}, redo: async () => {} };
     },
-  } as unknown as NotebookClient;
-  await saveSourceField([doc], notebook, 'creators', [{ id: null, name: '[[Arnold J. Toynbee]]', role: 'author' }]);
+  } as unknown as WorkshopClient;
+  await saveSourceField([doc], workshop, 'creators', [{ id: null, name: '[[Arnold J. Toynbee]]', role: 'author' }]);
   expect(written?.fields[0]?.values).toEqual([`[[${person.id}]]`]);
 });
 
@@ -175,7 +175,7 @@ test('the catalog Title reads the tagless title, and a new title keeps the store
     outline: { children: () => [] },
   } as unknown as PageDocument;
   const written: (string | undefined)[] = [];
-  const notebook = {
+  const workshop = {
     changeSequence: () => 0,
     flush: async () => {},
     lookup: () => () => page('Source'),
@@ -184,16 +184,16 @@ test('the catalog Title reads the tagless title, and a new title keeps the store
       written.push(edits[0]!.edit.title);
       return { undo: async () => {}, redo: async () => {} };
     },
-  } as unknown as NotebookClient;
-  expect(sourceFieldValue(doc, notebook, [], 'title')).toBe('Attention Is All You Need');
-  expect(sourceMetadata(doc, notebook, []).title).toBe('Attention Is All You Need');
-  await saveSourceField([doc], notebook, 'title', 'Attention is all you need');
-  await saveSourceField([doc], notebook, 'title', 'Attention Is All You Need');
+  } as unknown as WorkshopClient;
+  expect(sourceFieldValue(doc, workshop, [], 'title')).toBe('Attention Is All You Need');
+  expect(sourceMetadata(doc, workshop, []).title).toBe('Attention Is All You Need');
+  await saveSourceField([doc], workshop, 'title', 'Attention is all you need');
+  await saveSourceField([doc], workshop, 'title', 'Attention Is All You Need');
   text = `Lab #[[${tag}|project]] notes`;
-  await saveSourceField([doc], notebook, 'title', 'Lab notes');
+  await saveSourceField([doc], workshop, 'title', 'Lab notes');
   text = `#[[${tag}|source]]`;
-  expect(sourceFieldValue(doc, notebook, [], 'title')).toBe('#Source');
-  await saveSourceField([doc], notebook, 'title', 'Named');
+  expect(sourceFieldValue(doc, workshop, [], 'title')).toBe('#Source');
+  await saveSourceField([doc], workshop, 'title', 'Named');
   expect(written).toEqual([
     `Attention is all you need #[[${tag}|source]]`,
     `Attention Is All You Need #[[${tag}|source]]`,
@@ -228,7 +228,7 @@ test('role changes resolve a title-form creator while preserving the same bare p
     block: (id: string) => ({ text: texts[id], archived: false }),
   } as unknown as PageDocument;
   const resolved: string[] = [];
-  const notebook = {
+  const workshop = {
     changeSequence: () => 0,
     flush: async () => {},
     lookup: () => () => person,
@@ -251,19 +251,19 @@ test('role changes resolve a title-form creator while preserving the same bare p
       }
       return { undo: async () => {}, redo: async () => {} };
     },
-  } as unknown as NotebookClient;
-  const creators = sourceFieldValue(doc, notebook, fields, 'creators') as SourceCreator[];
+  } as unknown as WorkshopClient;
+  const creators = sourceFieldValue(doc, workshop, fields, 'creators') as SourceCreator[];
   await saveSourceField(
     [doc],
-    notebook,
+    workshop,
     'creators',
     creators.map(creator => ({ ...creator, role: 'editor' as const })),
   );
   expect(children.editors!.map(id => texts[id])).toEqual([`[[${person.id}]]`, 'Arnold J. Toynbee']);
-  const edited = sourceFieldValue(doc, notebook, fields, 'creators') as SourceCreator[];
+  const edited = sourceFieldValue(doc, workshop, fields, 'creators') as SourceCreator[];
   await saveSourceField(
     [doc],
-    notebook,
+    workshop,
     'creators',
     edited.map(creator => ({ ...creator, role: 'author' as const })),
   );

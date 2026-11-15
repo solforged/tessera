@@ -10,7 +10,7 @@ use crate::notebook::derived_id;
 use crate::operations::{ConflictRow, Extras, operations_hash};
 use crate::storage::validation;
 use crate::sync::{PushOutcome, PushedChange, json};
-use crate::{Batch, Committed, Error, Notebook, Operation, Result};
+use crate::{Batch, Committed, Error, Operation, Result, Workshop};
 
 /// Field pairs naming a resource and the revision an operation expects of it.
 const REVISIONS: &[(&str, &str)] = &[
@@ -24,7 +24,7 @@ const REVISIONS: &[(&str, &str)] = &[
 ];
 
 /// Errors that mean the change cannot apply, as opposed to failures of the
-/// notebook itself.
+/// workshop itself.
 pub(crate) fn rejectable(error: &Error) -> bool {
     match error {
         Error::Conflict { .. } | Error::NotFound { .. } | Error::Validation { .. } => true,
@@ -42,7 +42,7 @@ struct Rewrite {
     conflicts: Vec<ConflictRow>,
 }
 
-impl Notebook {
+impl Workshop {
     /// Apply a change made on another device, or replay this replica's own.
     /// Revision checks rebase: structure and capabilities take the later
     /// change. Text another device also changed is kept beside the block.
@@ -216,7 +216,7 @@ impl Notebook {
         self.merge_duplicate_sources(&mut operations, &mut aliases)?;
         self.merge_duplicate_fields(&mut operations, &mut aliases)?;
 
-        // A page title or journal day this notebook already has resolves to
+        // A page title or journal day this workshop already has resolves to
         // the existing root; the change's children follow its children.
         let mut kept = Vec::with_capacity(operations.len());
         let mut merged_pages = BTreeSet::new();
@@ -432,7 +432,7 @@ impl Notebook {
     }
 
     /// A journal day another device started offline arrives with the blank first row the editor
-    /// opens a new day with. When this notebook's copy of the day already has a blank row, the
+    /// opens a new day with. When this workshop's copy of the day already has a blank row, the
     /// two are one row: the arriving row resolves to it, and its later edits follow. Without
     /// this each phone paired, and each day made on two devices, would add another blank line.
     fn merge_starter_rows(
@@ -471,7 +471,7 @@ impl Notebook {
         Ok(())
     }
 
-    /// A book this notebook already has as a source, imported again on
+    /// A book this workshop already has as a source, imported again on
     /// another device: the change's new source page resolves to the existing
     /// source, and what the import put under that page is dropped. A
     /// snapshot the existing source lacks is attached to it.
@@ -573,7 +573,7 @@ impl Notebook {
         Ok(())
     }
 
-    /// A field another device created with the name of a field this notebook
+    /// A field another device created with the name of a field this workshop
     /// already has: the new field resolves to the existing one, which keeps
     /// its kind, and the operations creating it are dropped.
     fn merge_duplicate_fields(

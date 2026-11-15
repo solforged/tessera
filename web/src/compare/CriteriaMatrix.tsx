@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { FieldDefinition, PositionQuestion, PositionRow, QuoteState } from '../api/types';
-import type { NotebookClient, PageDocument, PendingTextCommit, RelationPickIntent } from '../document/contract';
+import type { WorkshopClient, PageDocument, PendingTextCommit, RelationPickIntent } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { besideHint, opensBeside } from '../core/beside';
 import { BlockText } from '../outline/BlockText';
@@ -34,7 +34,7 @@ export function CriteriaMatrix(props: {
   allRows: PositionRow[];
   criteria: string[];
   questions: PositionQuestion[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   docs: Map<string, PageDocument>;
   field(id: string): FieldDefinition | undefined;
   focusedCriterion: string | null;
@@ -55,7 +55,7 @@ export function CriteriaMatrix(props: {
   const fieldName = (id: string) => props.field(id)?.name;
   const rowIds = createMemo(() => [...rowById().keys()]);
   const quoteStatuses = createMemo(
-    () => new Map([...props.docs].map(([id, doc]) => [id, createQuoteStatus(doc, props.notebook)])),
+    () => new Map([...props.docs].map(([id, doc]) => [id, createQuoteStatus(doc, props.workshop)])),
   );
   const cells = createMemo(
     () =>
@@ -180,7 +180,7 @@ export function CriteriaMatrix(props: {
         if (current.durable.result.ok) current.value = current.durable.result.caret?.id ?? current.value;
         props.onEdited(doc);
       }
-      const text = option ? '' : await linkedCriteriaDraft(props.notebook, textDraft, () => current.text);
+      const text = option ? '' : await linkedCriteriaDraft(props.workshop, textDraft, () => current.text);
       if (current.cancelled) return;
       if (quote && quoteTarget(text) !== quote.target_id) quote = undefined;
       if (!option && current.value && doc.block(current.value)?.text === text && !quote) {
@@ -189,7 +189,7 @@ export function CriteriaMatrix(props: {
       }
       if (option)
         await createOptionValue(
-          props.notebook,
+          props.workshop,
           doc,
           { field, ownerId: current.position, valueId: current.value ?? undefined },
           option,
@@ -268,7 +268,7 @@ export function CriteriaMatrix(props: {
             when={valueProps.editable}
             fallback={
               <div class="criteria-value">
-                <BlockText text={valueProps.value.text} notebook={props.notebook} interactive={false} />
+                <BlockText text={valueProps.value.text} workshop={props.workshop} interactive={false} />
               </div>
             }
           >
@@ -292,7 +292,7 @@ export function CriteriaMatrix(props: {
             >
               <Show
                 when={props.field(valueProps.field)?.kind === 'checkbox'}
-                fallback={<BlockText text={valueProps.value.text} notebook={props.notebook} interactive={false} />}
+                fallback={<BlockText text={valueProps.value.text} workshop={props.workshop} interactive={false} />}
               >
                 {checkboxValue(valueProps.value.text) ? '☑' : '☐'}
               </Show>
@@ -319,7 +319,7 @@ export function CriteriaMatrix(props: {
             id={valueProps.value.id}
             target={target()!}
             doc={doc()!}
-            notebook={props.notebook}
+            workshop={props.workshop}
             status={quoteStatuses().get(row().block.page.id)?.().get(valueProps.value.id)}
             onOpen={props.onOpen}
             onEdited={doc => {
@@ -363,7 +363,7 @@ export function CriteriaMatrix(props: {
         <div class="compare-work">
           <BlockText
             text={props.work(rowById().get(headerProps.id)!)}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
           />
         </div>
@@ -443,13 +443,13 @@ export function CriteriaMatrix(props: {
                       Saving…
                     </span>
                   </Match>
-                  <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}>
+                  <Match when={hasValueEditor(field(), edit().text, props.workshop.todayDate())}>
                     <ValueEditor
                       anchor={cell}
                       field={field()!}
                       text={edit().text}
-                      notebook={props.notebook}
-                      contextDate={props.notebook.todayDate()}
+                      workshop={props.workshop}
+                      contextDate={props.workshop.todayDate()}
                       onWrite={(text, relationPick) =>
                         commit(text, cell, undefined, undefined, undefined, relationPick)
                       }
@@ -467,7 +467,7 @@ export function CriteriaMatrix(props: {
                       id={edit().value ?? edit().position}
                       text={edit().text}
                       label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       onChange={text => {
                         const current = edit();
                         current.text = text;
@@ -567,7 +567,7 @@ export function CriteriaMatrix(props: {
                                       >
                                         <BlockText
                                           text={question().block.block.text}
-                                          notebook={props.notebook}
+                                          workshop={props.workshop}
                                           interactive={false}
                                         />
                                       </Button>
@@ -577,7 +577,7 @@ export function CriteriaMatrix(props: {
                                           ? `${question()
                                               .holders.map(id => {
                                                 const row = props.allRows.find(row => row.holder_id === id);
-                                                return row ? cite(row) : (props.notebook.lookup(id)()?.text ?? id);
+                                                return row ? cite(row) : (props.workshop.lookup(id)()?.text ?? id);
                                               })
                                               .join(' ↔ ')} only`
                                           : `all ${props.allRows.length}`}
@@ -637,7 +637,7 @@ export function CriteriaMatrix(props: {
             {repeat => (
               <p>
                 ≡ {repeat.number}　Identical authored value: "
-                <BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" ·{' '}
+                <BlockText text={repeat.text} workshop={props.workshop} interactive={false} />" ·{' '}
                 {repeat.positions.map(id => cite(props.rows.find(row => row.block.block.id === id)!)).join(', ')}
               </p>
             )}

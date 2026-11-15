@@ -13,7 +13,7 @@ import {
   type Accessor,
 } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import type { NotebookClient, CaptureReceipt } from '../document/contract';
+import type { WorkshopClient, CaptureReceipt } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { noteIndex, noteKindIcon } from '../notes/kinds';
 import { completeNames, displayTitle } from '../outline/names';
@@ -45,7 +45,7 @@ export interface CreateNotice {
   actions?: { label: string; run(): void | Promise<void> }[];
 }
 export interface CreateSlipProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   request: CreateRequest;
   anchor?: PopupAnchor;
   onDismiss(): void;
@@ -146,7 +146,7 @@ export function CreateSlipBody(
   const [kind, setKind] = createSignal<CreateKind>(props.request.kind);
   const [text, setText] = createSignal(props.request.text);
   const [gist, setGist] = createSignal('');
-  const template = () => props.notebook.todayTemplate();
+  const template = () => props.workshop.todayTemplate();
   // A journal destination resolves to the capture section, Inbox unless Settings › Today changes it.
   const resolve = (value: CreateInto): CreateInto =>
     value.kind === 'journal' && !value.section ? { kind: 'journal', section: captureSection(template()).id } : value;
@@ -183,8 +183,8 @@ export function CreateSlipBody(
   const [picker, setPicker] = createSignal<HTMLElement>();
   const [query, setQuery] = createSignal('');
   const [added, setAdded] = createSignal(0);
-  const index = noteIndex(props.notebook);
-  const clock = createClock(props.notebook);
+  const index = noteIndex(props.workshop);
+  const clock = createClock(props.workshop);
   const noteKind = createMemo(() =>
     index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())),
   );
@@ -203,7 +203,7 @@ export function CreateSlipBody(
   const [cardDirty, setCardDirty] = createSignal(false);
   const [recipes] = createResource(
     () => (kind().startsWith('type:') && noteKind()?.type_id) || false,
-    async id => (await props.notebook.api.cardTemplates(id)).filter(recipe => recipe.applied),
+    async id => (await props.workshop.api.cardTemplates(id)).filter(recipe => recipe.applied),
   );
   const [loaders, setLoaders] = createSignal<Accessor<boolean>[]>([]);
   const track = (loading: Accessor<boolean>) => {
@@ -256,10 +256,10 @@ export function CreateSlipBody(
   const destinationTitle = () =>
     atom()
       ? displayTitle(
-          props.notebook.lookup(atom()!)()?.text ??
-            props.notebook.roots().find(page => page.id === atom())?.text ??
+          props.workshop.lookup(atom()!)()?.text ??
+            props.workshop.roots().find(page => page.id === atom())?.text ??
             'Atom',
-          props.notebook.lookup,
+          props.workshop.lookup,
         )
       : '';
   const pageDraft = () =>
@@ -299,8 +299,8 @@ export function CreateSlipBody(
             : `→ Today › ${sectionName() ?? 'Notes'}${reading() ? ` › ${shortTitle(reading()!.title)}` : ''}`;
   const status = () => (added() ? `${added()} added` : '');
   const [pages] = createResource(
-    () => (picker() ? ([query(), props.notebook.roots()] as const) : false),
-    ([value, roots]) => completeNames(props.notebook, value, roots),
+    () => (picker() ? ([query(), props.workshop.roots()] as const) : false),
+    ([value, roots]) => completeNames(props.workshop, value, roots),
   );
   let body!: HTMLDivElement;
   function changeKind(next: CreateKind, explicit: boolean) {
@@ -386,10 +386,10 @@ export function CreateSlipBody(
       // The line is linked to its source once the import finishes; the text it was saved with tells an edit apart.
       const title = linkTitle(),
         saved = titledLink(url, title);
-      void Promise.all([props.notebook.api.queueUrl(url), receipt.delivered])
+      void Promise.all([props.workshop.api.queueUrl(url), receipt.delivered])
         .then(([job, result]) => {
           if (result)
-            linkWhenImported(props.notebook, {
+            linkWhenImported(props.workshop, {
               job: job.id,
               pageId: result.pageId,
               blockId: result.blockId,
@@ -405,7 +405,7 @@ export function CreateSlipBody(
     if (!again) props.onDismiss();
   }
   async function saveCard(value: string) {
-    const receipt = await props.notebook.appendCapture(value, null, [], {
+    const receipt = await props.workshop.appendCapture(value, null, [], {
       targetPageId: atom(),
       section: atom() ? undefined : target(),
     });
@@ -465,7 +465,7 @@ export function CreateSlipBody(
         </Show>
       </div>
       <Show when={sectionId() === 'reading' && kind() !== 'card'}>
-        <ReadingUnder notebook={props.notebook} value={under()} onChange={setUnder} />
+        <ReadingUnder workshop={props.workshop} value={under()} onChange={setUnder} />
       </Show>
     </Show>
   );
@@ -523,7 +523,7 @@ export function CreateSlipBody(
             row={value => (
               <>
                 <Icon name="page" />
-                <span class="picker-text">{displayTitle(value.page.text, props.notebook.lookup)}</span>
+                <span class="picker-text">{displayTitle(value.page.text, props.workshop.lookup)}</span>
               </>
             )}
             empty="No matching atoms."
@@ -552,7 +552,7 @@ export function CreateSlipBody(
               <span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span>
             </span>
             <span class="capture-where">
-              {relativeDate(props.notebook.todayDate(), props.notebook.todayDate())} ·{' '}
+              {relativeDate(props.workshop.todayDate(), props.workshop.todayDate())} ·{' '}
               <span class="capture-clock">{clock()}</span>
             </span>
           </header>
@@ -566,7 +566,7 @@ export function CreateSlipBody(
         <Switch>
           <Match when={pageDraft()}>
             <PageDraft
-              notebook={props.notebook}
+              workshop={props.workshop}
               kind={kind()}
               noteKind={noteKind()}
               text={text()}
@@ -609,7 +609,7 @@ export function CreateSlipBody(
           </Match>
           <Match when={kind() === 'source'}>
             <AddSourceBody
-              notebook={props.notebook}
+              workshop={props.workshop}
               initialText={text()}
               onTextChange={changeText}
               onDismiss={again => {
@@ -626,7 +626,7 @@ export function CreateSlipBody(
                     {
                       label: 'Open',
                       run: async () => {
-                        const current = (await props.notebook.api.ingestJobs()).find(value => value.id === job.id);
+                        const current = (await props.workshop.api.ingestJobs()).find(value => value.id === job.id);
                         props.onOpen(
                           current?.source_id
                             ? { kind: 'page', pageId: current.source_id }
@@ -653,8 +653,8 @@ export function CreateSlipBody(
           </Match>
           <Match when={lineBody()}>
             <CaptureField
-              notebook={props.notebook}
-              contextDate={() => props.request.scheduledDate ?? props.notebook.todayDate()}
+              workshop={props.workshop}
+              contextDate={() => props.request.scheduledDate ?? props.workshop.todayDate()}
               schedule={kind() === 'task' && !!props.request.scheduledDate}
               initialText={text()}
               fixedKind
@@ -682,7 +682,7 @@ export function CreateSlipBody(
                   <Show when={kind() === 'link' && webAddress(text())}>
                     {url => (
                       <LinkPreview
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         url={url()}
                         library={linkLibrary()}
                         onLibrary={setLinkLibrary}
@@ -693,7 +693,7 @@ export function CreateSlipBody(
                   <Show when={!phoneControls()}>{destination()}</Show>
                   <Show when={!atom() && !props.sheet}>
                     <CapturedToday
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       refresh={added()}
                       onOpen={(pageId, blockId) => props.onOpen({ kind: 'page', pageId, blockId }, false)}
                     />
@@ -769,7 +769,7 @@ export function CreateSlipBody(
                 onChange={chooseSegment}
               />
               <Show when={sectionId() === 'reading' && kind() !== 'card'}>
-                <ReadingUnder notebook={props.notebook} value={under()} onChange={setUnder} />
+                <ReadingUnder workshop={props.workshop} value={under()} onChange={setUnder} />
               </Show>
             </Show>
           </div>

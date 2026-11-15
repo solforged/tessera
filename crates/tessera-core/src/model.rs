@@ -1,6 +1,6 @@
 //! Types shared by every client: the blocks they read and the operations they
 //! submit. Every write is a [`Batch`] of [`Operation`]s committed in one
-//! transaction; nothing else changes a notebook.
+//! transaction; nothing else changes a workshop.
 
 use serde::{Deserialize, Serialize};
 
@@ -559,7 +559,7 @@ pub struct PrunedPage {
 /// The result of a committed batch.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Committed {
-    /// Position in the notebook's change sequence.
+    /// Position in the workshop's change sequence.
     pub seq: i64,
     /// The resulting revision of every block the batch changed, in first-
     /// touched order.

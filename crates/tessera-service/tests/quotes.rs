@@ -4,7 +4,7 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use serde_json::{Value, json};
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tower::ServiceExt;
 
 async fn request(app: &Router, method: Method, path: &str, body: Value) -> (StatusCode, Value) {
@@ -30,7 +30,7 @@ async fn request(app: &Router, method: Method, path: &str, body: Value) -> (Stat
 async fn native_and_embedded_quote_routes_freeze_rows_and_report_changes() {
     for embedded in [false, true] {
         let dir = tempfile::tempdir().unwrap();
-        let nb = Notebook::open(dir.path()).unwrap();
+        let nb = Workshop::open(dir.path()).unwrap();
         let app = if embedded {
             tessera_service::embedded_router(nb).unwrap().0
         } else {

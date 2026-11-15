@@ -1,12 +1,12 @@
-//! The loopback HTTP and WebSocket service that owns one notebook. Browser windows, the CLI and
-//! agents reach the notebook only through its operation API.
+//! The loopback HTTP and WebSocket service that owns one workshop. Browser windows, the CLI and
+//! agents reach the workshop only through its operation API.
 //! `GET /api/service` reports local runtime details. `POST /api/backups` takes a
 //! portable snapshot, and `GET /api/backups` lists completed snapshots newest first.
 //! `DELETE /api/backups/{name}` removes an earlier snapshot. Retention is automatic.
 //! `DELETE /api/backups/others/{workshop_id}` removes another workshop's backups.
-//! `GET /api/check` verifies the notebook and `POST /api/check/repair` rebuilds its derived tables.
+//! `GET /api/check` verifies the workshop and `POST /api/check/repair` rebuilds its derived tables.
 //! `GET /api/notebook/size` reports the bytes the open workshop's folder holds: its database and every stored object.
-//! `/api/notebooks` lists known notebooks and switches the service to another one.
+//! `/api/notebooks` lists known workshops and switches the service to another one.
 
 mod agent;
 pub mod agent_outline;

@@ -1,7 +1,7 @@
 use tessera_core::scheduler::Grade;
 use tessera_core::{
     Actor, Batch, CardQuery, CardQueryResult, CardSelection, Committed, Direction, Error,
-    FieldKind, Filter, FilterOp, Notebook, Operation, Query, ReviewEventKind, SortBy, SortKey,
+    FieldKind, Filter, FilterOp, Operation, Query, ReviewEventKind, SortBy, SortKey, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -17,7 +17,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -42,7 +42,7 @@ fn insert(value: u128, parent: u128, text: &str) -> Operation {
     child(value, &id(parent), text)
 }
 
-fn edit(nb: &mut Notebook, value: u128, text: &str) {
+fn edit(nb: &mut Workshop, value: u128, text: &str) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -54,7 +54,7 @@ fn edit(nb: &mut Notebook, value: u128, text: &str) {
     );
 }
 
-fn archive(nb: &mut Notebook, value: u128, archived: bool) {
+fn archive(nb: &mut Workshop, value: u128, archived: bool) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -66,7 +66,7 @@ fn archive(nb: &mut Notebook, value: u128, archived: bool) {
     );
 }
 
-fn delete(nb: &mut Notebook, value: u128) -> Operation {
+fn delete(nb: &mut Workshop, value: u128) -> Operation {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     let receipt = apply(
         nb,
@@ -87,7 +87,7 @@ fn delete(nb: &mut Notebook, value: u128) -> Operation {
     }
 }
 
-fn grade(nb: &mut Notebook, card_id: &str, event: u128, grade: Grade, reviewed_at: i64) {
+fn grade(nb: &mut Workshop, card_id: &str, event: u128, grade: Grade, reviewed_at: i64) {
     let card = nb.card(card_id).unwrap();
     apply(
         nb,
@@ -106,7 +106,7 @@ fn grade(nb: &mut Notebook, card_id: &str, event: u128, grade: Grade, reviewed_a
     );
 }
 
-fn reset(nb: &mut Notebook, card_id: &str, event: u128, reviewed_at: i64) {
+fn reset(nb: &mut Workshop, card_id: &str, event: u128, reviewed_at: i64) {
     let card = nb.card(card_id).unwrap();
     apply(
         nb,
@@ -147,7 +147,7 @@ fn card_ids(result: CardQueryResult) -> Vec<String> {
 #[test]
 fn each_unit_has_the_current_canonical_source_after_a_subtree_move() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -210,7 +210,7 @@ fn each_unit_has_the_current_canonical_source_after_a_subtree_move() {
 fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
     const DAY: i64 = 86_400_000;
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -288,7 +288,7 @@ fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
 #[test]
 fn equal_due_times_use_card_id_order() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![page(1, "Cards"), insert(10, 1, "front <> back")],
@@ -309,7 +309,7 @@ fn equal_due_times_use_card_id_order() {
 #[test]
 fn hidden_ancestry_and_deleted_pages_restore_the_same_scheduled_units() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -368,7 +368,7 @@ fn hidden_ancestry_and_deleted_pages_restore_the_same_scheduled_units() {
 #[test]
 fn latest_shown_grade_ignores_resets_and_breaks_timestamp_ties_by_insertion() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -431,7 +431,7 @@ fn latest_shown_grade_ignores_resets_and_breaks_timestamp_ties_by_insertion() {
 #[test]
 fn source_limits_do_not_preempt_card_selection_or_outer_totals() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -486,7 +486,7 @@ fn source_limits_do_not_preempt_card_selection_or_outer_totals() {
 #[test]
 fn saved_decks_round_trip_full_source_filters_revisions_and_executable_selection() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -579,7 +579,7 @@ fn saved_decks_round_trip_full_source_filters_revisions_and_executable_selection
     assert_eq!(saved.created_at, original.created_at);
     drop(nb);
 
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     let loaded = nb.deck(&id(100)).unwrap();
     assert_eq!(loaded, saved);
     assert_eq!(loaded.query, updated);
@@ -602,7 +602,7 @@ fn saved_decks_round_trip_full_source_filters_revisions_and_executable_selection
 #[test]
 fn invalid_limits_and_source_inputs_are_rejected_on_reads_and_saves() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![page(1, "Archived type"), insert(10, 1, "not a type")],

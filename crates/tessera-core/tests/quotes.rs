@@ -1,6 +1,6 @@
 mod common;
 
-use tessera_core::{Actor, Batch, Committed, Error, Notebook, Operation, QuoteState, QuotedRow};
+use tessera_core::{Actor, Batch, Committed, Error, Operation, QuoteState, QuotedRow, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -13,7 +13,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operation {
@@ -25,7 +25,7 @@ fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operati
         heading: None,
     }
 }
-fn edit(nb: &mut Notebook, value: u128, text: &str) -> Committed {
+fn edit(nb: &mut Workshop, value: u128, text: &str) -> Committed {
     let op = Operation::EditText {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,
@@ -33,9 +33,9 @@ fn edit(nb: &mut Notebook, value: u128, text: &str) -> Committed {
     };
     apply(nb, vec![op])
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -55,14 +55,14 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     );
     (dir, nb)
 }
-fn set(nb: &Notebook, value: u128, quote: Option<QuoteState>) -> Operation {
+fn set(nb: &Workshop, value: u128, quote: Option<QuoteState>) -> Operation {
     Operation::SetQuote {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,
         quote,
     }
 }
-fn quoted(nb: &mut Notebook) -> QuoteState {
+fn quoted(nb: &mut Workshop) -> QuoteState {
     let quote = nb.quote_snapshot(&id(10), 123).unwrap();
     let receipt = apply(
         nb,
@@ -437,7 +437,7 @@ fn migration_indexes_existing_quote_markers() {
     )
     .unwrap();
     drop(conn);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.backlinks(&id(10), 100).unwrap().len(), 1);
     assert!(matches!(
         nb.quote_status(&id(999)),

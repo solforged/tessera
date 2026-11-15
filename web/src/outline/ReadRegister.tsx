@@ -1,7 +1,7 @@
 import { opensBeside, besideHint } from '../core/beside';
 import { For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { BlockState, PageDocument, NotebookClient } from '../document/contract';
+import type { BlockState, PageDocument, WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import type { ReadingRegister as Register } from './read-register';
@@ -12,7 +12,7 @@ import { assessmentStatus, earlierKey, verdictAssessments } from './assessments'
 export function ReadRegister(props: {
   register: Register;
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   disclosures: ReadonlySet<string>;
   onDisclosure(key: string): void;
   row(id: string): JSX.Element;
@@ -29,7 +29,7 @@ export function ReadRegister(props: {
   const slipIds = createMemo(() => [...slips().keys()]);
   const holderName = (positionId: string) => {
     const holder = slips().get(positionId)?.holderId;
-    return holder ? (props.notebook.lookup(holder)()?.text ?? '') : 'Unattributed';
+    return holder ? (props.workshop.lookup(holder)()?.text ?? '') : 'Unattributed';
   };
   /**
    * Your answer follows theirs: the current assessment, or else the newest one as a draft, editable in place, with
@@ -58,7 +58,7 @@ export function ReadRegister(props: {
                 </span>
                 <Show when={verdict.named}>
                   <span class="reading-verdict-question">
-                    <BlockText text={question()} notebook={props.notebook} interactive={false} />
+                    <BlockText text={question()} workshop={props.workshop} interactive={false} />
                   </span>
                 </Show>
               </p>
@@ -218,7 +218,7 @@ export function ReadRegister(props: {
               <div
                 class="reading-criterion"
                 role="group"
-                aria-label={props.notebook.lookup(group.criterion)()?.text ?? 'Criterion'}
+                aria-label={props.workshop.lookup(group.criterion)()?.text ?? 'Criterion'}
               >
                 <For each={group.questions}>
                   {question => <div class="reading-disagreement">{props.row(question.id)}</div>}

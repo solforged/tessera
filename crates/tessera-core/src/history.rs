@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::storage::{not_found, not_found_as, stored, validation};
 use crate::{
-    Actor, Batch, Block, BlockKind, CardQuery, Committed, Error, Notebook, Operation, RelationKind,
-    Result, Revision, TaskState,
+    Actor, Batch, Block, BlockKind, CardQuery, Committed, Error, Operation, RelationKind, Result,
+    Revision, TaskState, Workshop,
 };
 
 /// One committed change, newest first in history listings.
@@ -199,7 +199,7 @@ const SUMMARY: &str = "COALESCE(h.summary,
             ELSE ' ' || json_array_length(c.operations) || ' atoms' END
     END)";
 
-impl Notebook {
+impl Workshop {
     /// All committed changes, newest first, before an optional exclusive sequence.
     pub fn history(&self, limit: usize, before: Option<i64>) -> Result<Vec<HistoryEntry>> {
         let rows = self

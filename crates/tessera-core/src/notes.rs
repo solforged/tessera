@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::aliases::fold;
 use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_id, validation};
-use crate::{Notebook, Result};
+use crate::{Result, Workshop};
 
 /// Built-in kinds read from type pages, by their Unicode-lowercase title: key, singular, plural, icon.
 const TYPE_KINDS: [(&str, &str, &str, &str); 4] = [
@@ -196,7 +196,7 @@ struct Filing {
     tagged_block_counts: Vec<usize>,
 }
 
-impl Notebook {
+impl Workshop {
     pub(crate) fn query_kind_titles(&self) -> Result<HashMap<String, String>> {
         Ok(self
             .filing()?
@@ -663,7 +663,7 @@ impl Notebook {
             };
             tagged_block_counts[kind] += count;
         }
-        // Read overrides together; defaults are derived, so old notebooks need no backfill.
+        // Read overrides together; defaults are derived, so old workshops need no backfill.
         let presentation: HashMap<String, (Option<String>, Option<String>)> = self
             .conn
             .prepare_cached("SELECT type_id, plural, icon FROM type_presentation")?

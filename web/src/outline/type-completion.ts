@@ -1,5 +1,5 @@
 import type { Block } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { completeNames, foldName } from './names';
 import { cardMarks, parseCardText } from '../core/card-text';
 import { matchFieldEntry } from '../table/query';
@@ -47,13 +47,13 @@ export type TypeMatch = Block & { alias: string | null; icon: string | null };
  * A bare hash puts the four behavior tags first. Every row carries its registry icon and, when present, page ID.
  */
 export async function completeTypes(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   query: string,
 ): Promise<{ rows: TypeMatch[]; canCreate: boolean }> {
-  const [types, index] = await Promise.all([notebook.api.types(), notebook.api.noteIndex()]);
+  const [types, index] = await Promise.all([workshop.api.types(), workshop.api.noteIndex()]);
   const icons = new Map(index.kinds.filter(kind => kind.type_id).map(kind => [kind.type_id!, kind.icon]));
   const result = await completeNames(
-    notebook,
+    workshop,
     query,
     types.map(type => type.page),
   );

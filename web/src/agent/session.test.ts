@@ -41,11 +41,11 @@ afterAll(() => {
   else Reflect.deleteProperty(globalThis, 'localStorage');
 });
 
-function session(notebook = 'notebook') {
+function session(workshop = 'notebook') {
   return createRoot(dispose => {
     disposers.push(dispose);
-    const [id, setId] = createSignal<string | undefined>(notebook);
-    return { dock: createAgentSession(id, createApi('', `tessera-web:${notebook}`)), setId, dispose };
+    const [id, setId] = createSignal<string | undefined>(workshop);
+    return { dock: createAgentSession(id, createApi('', `tessera-web:${workshop}`)), setId, dispose };
   });
 }
 async function until(ready: () => boolean) {
@@ -267,16 +267,16 @@ test('turn history excludes the current prompt and keeps earlier assistant text 
   });
 });
 
-test('notebook switching and cleanup cancel polling without mixing notebook threads', async () => {
+test('workshop switching and cleanup cancel polling without mixing workshop threads', async () => {
   const server = service();
   const { dock, setId, dispose } = session('one');
-  dock.send('First notebook', 'provider', []);
+  dock.send('First workshop', 'provider', []);
   await until(() => server.polls.length === 1);
   setId('two');
   expect(dock.messages()).toEqual([]);
   expect(server.cancelled).toEqual(['turn-1']);
   expect(JSON.parse(localStorage.getItem('tessera.agent.one')!).at(-1).status).toBe('cancelled');
-  dock.send('Second notebook', 'provider', []);
+  dock.send('Second workshop', 'provider', []);
   await until(() => server.polls.length === 2);
   dispose();
   expect(server.polls[1]!.signal?.aborted).toBe(true);

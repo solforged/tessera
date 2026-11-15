@@ -151,7 +151,7 @@ export function createFieldSheet(
   const [membershipVersion, setMembershipVersion] = createSignal(0);
   // Inspect only committed changed blocks for tag changes; ordinary value typing never invalidates the owner scan.
   createEffect(
-    on(props.notebook.lastChange, change => {
+    on(props.workshop.lastChange, change => {
       let changed = false;
       for (const block of change?.blocks ?? []) {
         const previous = memberships.get(block.id);
@@ -240,8 +240,8 @@ export function createFieldSheet(
   );
   const criteria = createSubjectCriteria(
     subjects,
-    props.notebook.lastChange,
-    async subject => (await props.notebook.api.positions({ subject, limit: 0 })).criteria,
+    props.workshop.lastChange,
+    async subject => (await props.workshop.api.positions({ subject, limit: 0 })).criteria,
   );
   const owners = mapArray(candidates, owner =>
     createMemo(() => {
@@ -456,7 +456,7 @@ export function createFieldSheet(
     const pending = ['text', 'number', 'span', 'url', 'identifier'].includes(kind)
       ? pendingCaretInput.prepare({
           onText: text => {
-            write = props.notebook.queueCreatedValueText(createdValue, doc.pageId, text);
+            write = props.workshop.queueCreatedValueText(createdValue, doc.pageId, text);
             void write.catch(error => setMessage(error instanceof Error ? error.message : String(error)));
           },
           onLeave: () => {
@@ -467,7 +467,7 @@ export function createFieldSheet(
     cancelCreationInput = pending;
     try {
       const { field, value, change } = await createFieldEntry(
-        props.notebook,
+        props.workshop,
         doc,
         register,
         owner,
@@ -489,7 +489,7 @@ export function createFieldSheet(
           await doc.flush();
           const block = doc.block(value);
           if (!block || block.text !== expected) throw new Error('The field value changed. Nothing was overwritten.');
-          await props.notebook.commit(
+          await props.workshop.commit(
             [{ op: 'edit_text', id: value, base_revision: block.revision, text }],
             'Edit new field value',
             [doc.pageId],
@@ -537,12 +537,12 @@ export function createFieldSheet(
             data-field-owner={area.state.owner}
           >
             <TaskFieldBed
-              notebook={props.notebook}
+              workshop={props.workshop}
               doc={doc}
               id={area.state.owner}
               fields={definitions()}
               template={area.state.template}
-              contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate()}
+              contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.workshop.todayDate()}
               sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}
               initialField={taskRequest()?.owner === area.state.owner ? taskRequest()?.field : undefined}
               opener={taskRequest()?.owner === area.state.owner ? taskRequest()?.opener : undefined}
@@ -693,7 +693,7 @@ export function createFieldSheet(
             <RelationPicker
               anchor={value().anchor}
               field={value().field}
-              notebook={props.notebook}
+              workshop={props.workshop}
               owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }}
               onDismiss={() => setInstance(null)}
               onError={setMessage}

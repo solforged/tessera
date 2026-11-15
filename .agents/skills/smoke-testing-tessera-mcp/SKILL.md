@@ -1,6 +1,6 @@
 ---
 name: smoke-testing-tessera-mcp
-description: "Smoke-tests Tessera's MCP standard-I/O server (18 tools incl. tasks, cards, decks, query, library, cite, sync) or POST /api/agent-changes against a throwaway notebook when checking agent integrations."
+description: "Smoke-tests Tessera's MCP standard-I/O server (18 tools incl. tasks, cards, decks, query, library, cite, sync) or POST /api/agent-changes against a throwaway workshop when checking agent integrations."
 ---
 
 # Smoke-testing Tessera's MCP server
@@ -53,9 +53,9 @@ lane uses its own prepared run.
    problem); `tessera_save_deck` with filters on a `Deck::` child field, rename,
    delete, undo each; `tessera_cards` view decks; `tessera_sync` with and without
    `now`; tasks, query, library, cite and hold as before.
-7. Agent change numbers (`receipt.seq`) differ from notebook change sequences on
+7. Agent change numbers (`receipt.seq`) differ from workshop change sequences on
    replicas; undo takes the agent number.
-8. Retain request/reply transcripts, agent receipts and notebook provenance in
+8. Retain request/reply transcripts, agent receipts and workshop provenance in
    `TASK_EVIDENCE`, then terminate the recorded MCP process and follow shared
    teardown.
 

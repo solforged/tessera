@@ -1,5 +1,5 @@
 use tessera_core::{
-    Actor, Batch, Committed, Error, FieldKind, Notebook, Operation,
+    Actor, Batch, Committed, Error, FieldKind, Operation, Workshop,
     library::{CreatorRole, ExtractedCreator, ExtractedMetadata},
 };
 
@@ -7,7 +7,7 @@ fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -34,7 +34,7 @@ fn insert(value: u128, parent: &str, after: Option<String>, text: &str) -> Opera
     }
 }
 
-fn tag(nb: &mut Notebook, value: u128, title: &str) {
+fn tag(nb: &mut Workshop, value: u128, title: &str) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -46,7 +46,7 @@ fn tag(nb: &mut Notebook, value: u128, title: &str) {
     );
 }
 
-fn alias(nb: &mut Notebook, value: u128, name: &str) {
+fn alias(nb: &mut Workshop, value: u128, name: &str) {
     assert!(
         nb.add_alias(&id(value), name, Actor::Person)
             .unwrap()
@@ -54,7 +54,7 @@ fn alias(nb: &mut Notebook, value: u128, name: &str) {
     );
 }
 
-fn field_id(nb: &Notebook, name: &str) -> String {
+fn field_id(nb: &Workshop, name: &str) -> String {
     nb.fields()
         .unwrap()
         .fields
@@ -65,7 +65,7 @@ fn field_id(nb: &Notebook, name: &str) -> String {
         .id
 }
 
-fn sequence(nb: &Notebook) -> i64 {
+fn sequence(nb: &Workshop) -> i64 {
     nb.changes_since(0, usize::MAX)
         .unwrap()
         .last()
@@ -75,7 +75,7 @@ fn sequence(nb: &Notebook) -> i64 {
 #[test]
 fn resolves_whole_names_with_case_diacritics_whitespace_and_punctuation_folding() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -107,7 +107,7 @@ fn resolves_whole_names_with_case_diacritics_whitespace_and_punctuation_folding(
 #[test]
 fn shared_names_return_each_page_once_with_title_matches_first() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -134,7 +134,7 @@ fn shared_names_return_each_page_once_with_title_matches_first() {
 #[test]
 fn aliases_ignore_hidden_pages_entries_values_and_nested_fields() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![page(1, "Visible"), page(2, "Archived"), page(3, "Deleted")],
@@ -204,7 +204,7 @@ fn aliases_ignore_hidden_pages_entries_values_and_nested_fields() {
 #[test]
 fn completion_orders_titles_aliases_then_fts_and_carries_the_stored_alias() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -255,7 +255,7 @@ fn completion_orders_titles_aliases_then_fts_and_carries_the_stored_alias() {
 #[test]
 fn kind_index_merges_alias_targets_filters_redundancy_and_sorts_by_sort_as() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -348,7 +348,7 @@ fn kind_index_merges_alias_targets_filters_redundancy_and_sorts_by_sort_as() {
 #[test]
 fn add_alias_is_one_attributed_batch_and_idempotent() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![page(1, "Cicero"), insert(10, &id(1), None, "Body")],
@@ -413,7 +413,7 @@ fn add_alias_is_one_attributed_batch_and_idempotent() {
 #[test]
 fn add_alias_follows_gloss_reuses_case_insensitive_field_and_empty_entry() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Cicero"), page(2, "Plato")]);
     let fields = nb.fields().unwrap().page_id;
     apply(
@@ -442,7 +442,7 @@ fn add_alias_follows_gloss_reuses_case_insensitive_field_and_empty_entry() {
 #[test]
 fn starting_templates_use_existing_fields_and_preserve_authored_templates() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -542,7 +542,7 @@ fn starting_templates_use_existing_fields_and_preserve_authored_templates() {
 #[test]
 fn ingest_resolves_aliases_preserves_ambiguity_and_turns_creator_names_around() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -609,7 +609,7 @@ fn ingest_resolves_aliases_preserves_ambiguity_and_turns_creator_names_around() 
 #[test]
 fn every_top_level_aliases_entry_counts_for_lookup_completion_and_search() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Kullback-Leibler divergence")]);
     alias(&mut nb, 1, "KL divergence");
     let field = field_id(&nb, "aliases");

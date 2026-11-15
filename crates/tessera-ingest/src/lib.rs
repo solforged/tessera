@@ -1,5 +1,5 @@
 //! Extractors for books and articles. Each takes bytes and returns an
-//! [`ExtractedDocument`]; none touches a notebook or the network, so every
+//! [`ExtractedDocument`]; none touches a workshop or the network, so every
 //! format is tested on files alone.
 //!
 //! EPUB extraction follows package spine order, resolves navigation and inline

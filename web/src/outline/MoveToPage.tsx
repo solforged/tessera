@@ -22,10 +22,10 @@ export function createMoveToPage(
           const [busy, setBusy] = createSignal(false);
           const [error, setError] = createSignal('');
           const [names] = createResource(
-            () => [query(), context.props.notebook.roots()] as const,
+            () => [query(), context.props.workshop.roots()] as const,
             ([text, roots]) =>
               completeNames(
-                context.props.notebook,
+                context.props.workshop,
                 text,
                 roots.filter(page => page.kind === 'page' && page.id !== context.props.pageId),
               ),
@@ -41,7 +41,7 @@ export function createMoveToPage(
             setBusy(true);
             setError('');
             try {
-              const pending = context.props.notebook.moveBlocks(current.ids, pageId);
+              const pending = context.props.workshop.moveBlocks(current.ids, pageId);
               let applied = true;
               const history = context.doc.rememberChange(
                 pending.then(change => ({

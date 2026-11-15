@@ -1,7 +1,7 @@
 import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../core/contract';
 import { Icon } from '../ui/Icon';
@@ -29,7 +29,7 @@ import type { InlineToken } from '../document/text-tokens';
 
 interface Props {
   text: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   blockId?: string;
   onError?(message: string): void;
   field?: Pick<FieldDefinition, 'id' | 'name'>;
@@ -86,7 +86,7 @@ function TokenText(props: Props) {
   const [menu, setMenu] = createSignal<{ token: DisplayToken; anchor: HTMLElement }>();
   const [error, setError] = createSignal('');
   const citationSources = createCitationSources(
-    props.notebook,
+    props.workshop,
     () => [props.text],
     () => !!props.citationApparatus,
   );
@@ -100,17 +100,17 @@ function TokenText(props: Props) {
     ),
   ]);
   const [matches] = createResource(
-    () => (names().length ? ([names().join('\u0000'), props.notebook.changeSequence()] as const) : false),
+    () => (names().length ? ([names().join('\u0000'), props.workshop.changeSequence()] as const) : false),
     async ([value]) =>
       new Map(
         await Promise.all(
-          value.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const),
+          value.split('\u0000').map(async name => [foldName(name), await resolveName(props.workshop, name)] as const),
         ),
       ),
   );
   const [views] = createResource(
-    () => (textTokens(props.text).some(isViewReference) ? props.notebook.changeSequence() : false),
-    () => props.notebook.api.views(),
+    () => (textTokens(props.text).some(isViewReference) ? props.workshop.changeSequence() : false),
+    () => props.workshop.api.views(),
   );
   // Card syntax reads the same everywhere text is shown; mapped literals keep caret positions exact around it.
   const marks = createMemo(() => cardMarks(props.text));
@@ -155,7 +155,7 @@ function TokenText(props: Props) {
             (token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !ambiguous));
         const target =
           isStableReference(token) || (token.kind === 'tag' && token.id)
-            ? props.notebook.lookup(token.id!)()
+            ? props.workshop.lookup(token.id!)()
             : undefined;
         const field = props.field?.id === token.id ? props.field : undefined;
         const baseLabel = isViewReference(token)
@@ -167,13 +167,13 @@ function TokenText(props: Props) {
               : group.mark?.kind === 'operator' || literal
                 ? token.value
                 : token.kind === 'tag'
-                  ? `${isPhone() ? '' : '#'}${tagLabel(token, id => props.notebook.lookup(id))}`
+                  ? `${isPhone() ? '' : '#'}${tagLabel(token, id => props.workshop.lookup(id))}`
                   : field
                     ? token.alias || field.name
                     : referenceLabel(
                         token,
                         target,
-                        id => props.notebook.lookup(id),
+                        id => props.workshop.lookup(id),
                         undefined,
                         props.deletedHolder && props.deletedHolder.id === token.id
                           ? deletedHolderLabel(props.deletedHolder)
@@ -424,7 +424,7 @@ function TokenText(props: Props) {
                 <TypePill
                   id={token.id}
                   title={token.alias || token.value}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   onOpen={props.onOpen}
                   interactive={props.interactive}
                   start={token.start}
@@ -477,7 +477,7 @@ function TokenText(props: Props) {
                 “{state().token.id}” names {state().token.matches!.length} atoms
               </div>
             }
-            items={nameMenuItems(props.notebook, props.blockId!, state().token, state().token.matches!, message =>
+            items={nameMenuItems(props.workshop, props.blockId!, state().token, state().token.matches!, message =>
               props.onError ? props.onError(message) : setError(message),
             )}
             onDismiss={() => setMenu(undefined)}
@@ -494,8 +494,8 @@ function TokenText(props: Props) {
 }
 
 /** The source location of a block, as `blockTrail` names it. */
-export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient; omitParent?: boolean }) {
-  const path = createMemo(() => blockTrail(props.block, id => props.notebook.lookup(id), props.omitParent));
+export function BlockBreadcrumb(props: { block: Block; workshop: WorkshopClient; omitParent?: boolean }) {
+  const path = createMemo(() => blockTrail(props.block, id => props.workshop.lookup(id), props.omitParent));
   return <>{path()}</>;
 }
 

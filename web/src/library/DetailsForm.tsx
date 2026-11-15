@@ -1,7 +1,7 @@
 import { For, Index, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Block, ExtractedCreator, ExtractedMetadata } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { similarPages } from './details';
 import { createInstance, instancePages } from '../fields/instances';
@@ -26,10 +26,10 @@ const detailFields = [
 ] as const;
 
 /** A catalogue card: one labelled row per detail, creators as name and role pairs. A creator whose name resembles an
- * existing page offers that page, so a variant spelling links to the person already in the notebook. */
+ * existing page offers that page, so a variant spelling links to the person already in the workshop. */
 export function DetailsForm(props: {
   metadata: ExtractedMetadata;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   collections?: JSX.Element;
   submitLabel: string;
   autofocus?: boolean;
@@ -55,13 +55,13 @@ export function DetailsForm(props: {
   const patchCreator = (index: number, change: Partial<ExtractedCreator>) =>
     setCreators(previous => previous.map((row, at) => (at === index ? { ...row, ...change } : row)));
   const [definitions] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.fields(),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.fields(),
   );
   const [people] = createResource(
-    () => ({ definitions: definitions(), sequence: props.notebook.changeSequence() }),
+    () => ({ definitions: definitions(), sequence: props.workshop.changeSequence() }),
     async ({ definitions }) => {
-      const index = await props.notebook.api.noteIndex();
+      const index = await props.workshop.api.noteIndex();
       const defaults = index.kinds
         .filter(kind => kind.key === 'person' || kind.key === 'group')
         .flatMap(kind => (kind.type_id ? [kind.type_id] : []));
@@ -72,7 +72,7 @@ export function DetailsForm(props: {
           const targets = selected?.length ? selected : defaults;
           const key = targets.join(',');
           if (!loaded.has(key))
-            loaded.set(key, targets.length ? instancePages(props.notebook, targets) : Promise.resolve([]));
+            loaded.set(key, targets.length ? instancePages(props.workshop, targets) : Promise.resolve([]));
           return [role, await loaded.get(key)!] as const;
         }),
       );
@@ -84,7 +84,7 @@ export function DetailsForm(props: {
     setBusy(true);
     setError('');
     try {
-      const page = await createInstance(props.notebook, creators()[index]!.name, type);
+      const page = await createInstance(props.workshop, creators()[index]!.name, type);
       patchCreator(index, { name: page.text });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -167,7 +167,7 @@ export function DetailsForm(props: {
                 return ['Person', 'Group'].filter(
                   title =>
                     !targets.length ||
-                    targets.some(id => props.notebook.lookup(id)()?.text.toLowerCase() === title.toLowerCase()),
+                    targets.some(id => props.workshop.lookup(id)()?.text.toLowerCase() === title.toLowerCase()),
                 );
               });
               return (

@@ -477,7 +477,7 @@ export interface EditorHooks {
   mode(mode: 'insert' | 'normal' | 'visual'): void;
 }
 
-/** Notebook undo owns plain u only when Vim has no operator, prefix or count to finish. */
+/** Workshop undo owns plain u only when Vim has no operator, prefix or count to finish. */
 export function vimUndoKey(
   event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
   state:

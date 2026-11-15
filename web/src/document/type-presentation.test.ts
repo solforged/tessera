@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
-import { createNotebookClient, type Notebook } from './index';
+import { createWorkshopClient, type Workshop } from './index';
 import { startService } from '../testing/service';
 import { autoPlural } from '../fields/presentation';
 import { noteKindIcon } from '../notes/kinds';
@@ -36,13 +36,13 @@ test('automatic plurals and unknown glyph fallback', () => {
 
 test('type presentation persists through document undo, redo and reset', async () => {
   const service = await startService({ name: 'presentation-test' });
-  const { baseUrl, api, workshopId: notebookId } = service;
-  let client: Notebook | undefined;
+  const { baseUrl, api, workshopId } = service;
+  let client: Workshop | undefined;
   try {
-    client = createNotebookClient({
+    client = createWorkshopClient({
       baseUrl,
       sessionId: 'presentation-test',
-      notebookId,
+      workshopId,
       databaseName: 'tessera-presentation-test',
     });
     await client.ready;

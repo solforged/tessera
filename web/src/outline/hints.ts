@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
-import type { DerivedType, NotebookClient, PageDocument } from '../document/contract';
+import type { DerivedType, WorkshopClient, PageDocument } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { typeKeys } from '../fields/templates';
 import { parseCardText } from '../core/card-text';
@@ -17,11 +17,11 @@ interface Seen {
 interface HintHistory {
   claim(kind: Hint['kind'], typeId?: string): boolean;
 }
-const dismissals = new WeakMap<NotebookClient, Set<() => void>>();
+const dismissals = new WeakMap<WorkshopClient, Set<() => void>>();
 
 /** Claim when shown, not when detected: two panes and later visits share the same workshop's receipts. */
-export function createHintHistory(notebookId: string, storage: Pick<Storage, 'getItem' | 'setItem'>): HintHistory {
-  const key = `tessera.discovery.${notebookId}`;
+export function createHintHistory(workshopId: string, storage: Pick<Storage, 'getItem' | 'setItem'>): HintHistory {
+  const key = `tessera.discovery.${workshopId}`;
   let seen: Seen = { types: [], card: false, field: false };
   return {
     claim(kind: Hint['kind'], typeId?: string): boolean {
@@ -52,23 +52,23 @@ export function createHintHistory(notebookId: string, storage: Pick<Storage, 'ge
 }
 
 export function createOutlineHints(options: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   doc: PageDocument;
   editing(): string | null;
   visible(): readonly string[];
   fieldKnown(id: string): boolean;
 }) {
-  const { notebook, doc } = options;
-  const [identity] = createResource(() => notebook.api.notebook());
+  const { workshop, doc } = options;
+  const [identity] = createResource(() => workshop.api.workshop());
   const [pending, setPending] = createSignal<Hint[]>([]);
   const [shown, setShown] = createSignal<Hint[]>([]);
-  const listeners = dismissals.get(notebook) ?? new Set<() => void>();
-  dismissals.set(notebook, listeners);
+  const listeners = dismissals.get(workshop) ?? new Set<() => void>();
+  dismissals.set(workshop, listeners);
   const dismiss = () => setShown([]);
   listeners.add(dismiss);
   onCleanup(() => listeners.delete(dismiss));
   const detectedTypes = new Set<string>();
-  const initialSequence = notebook.changeSequence();
+  const initialSequence = workshop.changeSequence();
   const history = createMemo(() => {
     const id = identity.error ? undefined : identity()?.id;
     return id
@@ -97,7 +97,7 @@ export function createOutlineHints(options: {
     queue({ kind: 'field', blockId, entryId });
   }
   createEffect(
-    on([notebook.derivedTypes, () => doc.status()], ([types, status]) => {
+    on([workshop.derivedTypes, () => doc.status()], ([types, status]) => {
       if (status !== 'ready') return;
       for (const type of types) {
         if (detectedTypes.has(type.id)) continue;
@@ -120,7 +120,7 @@ export function createOutlineHints(options: {
   );
   createEffect(
     on(
-      notebook.lastChange,
+      workshop.lastChange,
       change => {
         if (!change || change.seq <= initialSequence) return;
         for (const block of change.blocks) {

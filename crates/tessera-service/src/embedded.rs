@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use axum::{Router, extract::DefaultBodyLimit, middleware};
 use parking_lot::Mutex;
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
 use crate::agent;
@@ -11,48 +11,48 @@ use crate::daily_backup;
 use crate::error::ApiError;
 use crate::pairing;
 use crate::replica;
-use crate::router::{notebook_routes, same_notebook};
+use crate::router::{same_workshop, workshop_routes};
 use crate::state::{AppState, hub_objects};
 use crate::{backups, library};
 use tessera_api::images;
 
 pub struct EmbeddedHandles {
-    pub notebook: Arc<Mutex<Notebook>>,
+    pub workshop: Arc<Mutex<Workshop>>,
     pub changes: broadcast::Sender<i64>,
     pub replica: Arc<replica::ReplicaRuntime>,
     _daily_backup: Option<daily_backup::Task>,
 }
 
-/// Build the notebook and library API for a host that runs the notebook in its own process,
+/// Build the workshop and library API for a host that runs the workshop in its own process,
 /// such as the browser worker or the Android app. It has no socket, so it omits the host and
 /// origin policy, static assets, service details and the WebSocket change stream;
 /// hosts deliver changes from [`EmbeddedHandles`]. Backups require an explicit store.
 /// The browser worker ingests queued uploads before this returns.
-pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), String> {
-    embedded_router_inner(notebook, None, None)
+pub fn embedded_router(workshop: Workshop) -> Result<(Router, EmbeddedHandles), String> {
+    embedded_router_inner(workshop, None, None)
 }
 
 /// Build a native embedded router with explicit provider settings and backup storage.
 pub fn embedded_router_with_paths(
-    notebook: Notebook,
+    workshop: Workshop,
     agent_path: PathBuf,
     backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
-    embedded_router_inner(notebook, Some(agent_path), backup_store)
+    embedded_router_inner(workshop, Some(agent_path), backup_store)
 }
 
 fn embedded_router_inner(
-    notebook: Notebook,
+    workshop: Workshop,
     agent_path: Option<PathBuf>,
     backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
-    let notebook = Arc::new(Mutex::new(notebook));
+    let workshop = Arc::new(Mutex::new(workshop));
     let changes = broadcast::channel(256).0;
-    let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
+    let library = library::Library::start(workshop.clone(), changes.clone(), library::extract)?;
     let replica = Arc::default();
     let state = AppState {
         readers: None,
-        notebook,
+        workshop,
         assets: None,
         changes,
         library,
@@ -69,22 +69,22 @@ fn embedded_router_inner(
         agent: Arc::new(agent::Runtime::new(agent_path)?),
     };
     let handles = EmbeddedHandles {
-        notebook: state.notebook.clone(),
+        workshop: state.workshop.clone(),
         changes: state.changes.clone(),
         replica: state.replica.clone(),
         _daily_backup: daily_backup::start(&state),
     };
-    let router = notebook_routes()
+    let router = workshop_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(|| async { ApiError::not_found() })
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .merge(library::routes())
         .merge(images::routes());
-    // A first pairing swaps the notebook in place; a window bound to the old one reloads on the 409.
+    // A first pairing swaps the workshop in place; a window bound to the old one reloads on the 409.
     let router = router
         .merge(agent::routes())
         .merge(backups::backup_routes())
-        .layer(middleware::from_fn_with_state(state.clone(), same_notebook));
+        .layer(middleware::from_fn_with_state(state.clone(), same_workshop));
     let router = router.with_state(state);
     Ok((router, handles))
 }
@@ -97,20 +97,20 @@ mod tests {
         body::{Body, to_bytes},
         http::{Request, StatusCode},
     };
-    use tessera_core::{Actor, Batch, Notebook};
+    use tessera_core::{Actor, Batch, Workshop};
     use tokio::sync::broadcast;
     use tower::ServiceExt;
 
     #[tokio::test]
-    async fn the_embedded_router_refuses_a_window_bound_to_another_notebook() {
+    async fn the_embedded_router_refuses_a_window_bound_to_another_workshop() {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Notebook::open(dir.path()).unwrap();
-        let id = notebook.info().unwrap().id;
-        let (app, _handles) = embedded_router(notebook).unwrap();
-        let get = |notebook: Option<&str>| {
+        let workshop = Workshop::open(dir.path()).unwrap();
+        let id = workshop.info().unwrap().id;
+        let (app, _handles) = embedded_router(workshop).unwrap();
+        let get = |workshop: Option<&str>| {
             let mut request = Request::get("/api/roots");
-            if let Some(notebook) = notebook {
-                request = request.header("X-Tessera-Notebook", notebook);
+            if let Some(workshop) = workshop {
+                request = request.header("X-Tessera-Notebook", workshop);
             }
             app.clone().oneshot(request.body(Body::empty()).unwrap())
         };
@@ -127,13 +127,13 @@ mod tests {
     async fn embedded_page_reference_reads_include_children_counts_and_mentions() {
         use tessera_core::Operation;
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let page = "00000000000000000000000001";
         let child = "00000000000000000000000002";
         let other = "00000000000000000000000003";
         let source = "00000000000000000000000004";
         let mention = "00000000000000000000000005";
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -171,7 +171,7 @@ mod tests {
                 ],
             })
             .unwrap();
-        let (app, _handles) = embedded_router(notebook).unwrap();
+        let (app, _handles) = embedded_router(workshop).unwrap();
         for (route, expected) in [
             ("references?limit=1", serde_json::json!({"total": 1})),
             (
@@ -212,8 +212,8 @@ mod tests {
     #[tokio::test]
     async fn change_head_reads_the_local_editor_journal() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
-        notebook
+        let mut workshop = Workshop::open(dir.path()).unwrap();
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -224,8 +224,8 @@ mod tests {
                 }],
             })
             .unwrap();
-        let expected = notebook.editor_cursor().unwrap();
-        let (app, handles) = embedded_router(notebook).unwrap();
+        let expected = workshop.editor_cursor().unwrap();
+        let (app, handles) = embedded_router(workshop).unwrap();
         for head in [expected, 900, 0] {
             if head == 900 {
                 // Deliberately diverge from changes.seq without building event payloads.
@@ -254,7 +254,7 @@ mod tests {
             assert_eq!(response.status(), StatusCode::OK);
             let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
             assert_eq!(serde_json::from_slice::<i64>(&bytes).unwrap(), head);
-            assert_eq!(handles.notebook.lock().editor_cursor().unwrap(), head);
+            assert_eq!(handles.workshop.lock().editor_cursor().unwrap(), head);
         }
     }
 
@@ -284,11 +284,11 @@ mod tests {
         }
 
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
         let kind = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
         let lab = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -314,7 +314,7 @@ mod tests {
                 ],
             })
             .unwrap();
-        let (app, handles) = embedded_router(notebook).unwrap();
+        let (app, handles) = embedded_router(workshop).unwrap();
         let mut notifications = handles.changes.subscribe();
         let aliases = format!("/api/pages/{page}/aliases");
         let committed = request(
@@ -327,7 +327,7 @@ mod tests {
         let seq = committed["seq"].as_i64().unwrap();
         assert_eq!(notifications.try_recv().unwrap(), seq);
         let event = handles
-            .notebook
+            .workshop
             .lock()
             .changes_since(seq - 1, 1)
             .unwrap()
@@ -393,7 +393,7 @@ mod tests {
         let seq = committed["seq"].as_i64().unwrap();
         assert_eq!(notifications.try_recv().unwrap(), seq);
         let event = handles
-            .notebook
+            .workshop
             .lock()
             .changes_since(seq - 1, 1)
             .unwrap()
@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(event.actor, Actor::Person);
         assert_eq!(
             handles
-                .notebook
+                .workshop
                 .lock()
                 .type_info(kind)
                 .unwrap()
@@ -434,11 +434,11 @@ mod tests {
         }
 
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let spaced = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
         let hyphened = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
         let cicero = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -456,8 +456,8 @@ mod tests {
                 .collect(),
             })
             .unwrap();
-        notebook.add_alias(cicero, "Tully", Actor::Person).unwrap();
-        let (app, _) = embedded_router(notebook).unwrap();
+        workshop.add_alias(cicero, "Tully", Actor::Person).unwrap();
+        let (app, _) = embedded_router(workshop).unwrap();
 
         // The exact title wins, so titles that differ only in punctuation
         // each reach their own page; another spelling or an alias reaches

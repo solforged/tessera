@@ -19,11 +19,11 @@ impl Library {
         self.0.notify.notify_one();
     }
     pub fn start(
-        notebook: Arc<Mutex<Notebook>>,
+        workshop: Arc<Mutex<Workshop>>,
         changes: broadcast::Sender<i64>,
         extractor: Extractor,
     ) -> Result<Self, String> {
-        notebook.lock().resume_ingest().map_err(|e| e.to_string())?;
+        workshop.lock().resume_ingest().map_err(|e| e.to_string())?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .redirect(reqwest::redirect::Policy::limited(5))
@@ -32,7 +32,7 @@ impl Library {
             .map_err(|e| e.to_string())?;
         let notify = Arc::new(Notify::new());
         let worker = Worker {
-            notebook,
+            workshop,
             changes,
             notify: notify.clone(),
             client,
@@ -47,7 +47,7 @@ impl Library {
 }
 #[cfg(native)]
 struct Worker {
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     changes: broadcast::Sender<i64>,
     notify: Arc<Notify>,
     client: reqwest::Client,
@@ -71,11 +71,11 @@ impl From<String> for Failure {
 impl Worker {
     async fn access<T: Send + 'static>(
         &self,
-        f: impl FnOnce(&mut Notebook) -> tessera_core::Result<T> + Send + 'static,
+        f: impl FnOnce(&mut Workshop) -> tessera_core::Result<T> + Send + 'static,
     ) -> Result<T, String> {
-        let notebook = self.notebook.clone();
+        let workshop = self.workshop.clone();
         tokio::task::spawn_blocking(move || {
-            let mut n = notebook.lock();
+            let mut n = workshop.lock();
             f(&mut n).map_err(|e| e.to_string())
         })
         .await
@@ -202,9 +202,9 @@ impl Worker {
         let extractor = self.extractor;
         let name = job.name.clone();
         let url = (job.input_kind == IngestInput::Url).then(|| job.input.clone());
-        let notebook = self.notebook.clone();
+        let workshop = self.workshop.clone();
         let (doc, sha) = tokio::task::spawn_blocking(move || {
-            let sha = notebook
+            let sha = workshop
                 .lock()
                 .put_object(&bytes)
                 .map_err(|e| e.to_string())?;

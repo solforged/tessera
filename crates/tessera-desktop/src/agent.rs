@@ -20,7 +20,7 @@ pub fn identity(version: &str, build: Option<&str>) -> String {
 #[derive(Debug, Default, PartialEq)]
 pub struct Agent {
     pub program: Option<PathBuf>,
-    pub notebook: Option<PathBuf>,
+    pub workshop: Option<PathBuf>,
     pub port: Option<u16>,
 }
 
@@ -56,7 +56,7 @@ impl Agent {
         let mut rest = arguments.iter().skip(1);
         while let Some(argument) = rest.next() {
             match argument.as_str() {
-                "--workshop" => agent.notebook = rest.next().map(PathBuf::from),
+                "--workshop" => agent.workshop = rest.next().map(PathBuf::from),
                 "--port" => agent.port = rest.next().and_then(|port| port.parse().ok()),
                 _ => (),
             }
@@ -89,14 +89,14 @@ pub async fn probe(client: &reqwest::Client, port: u16) -> Option<String> {
 }
 
 /// Run the bundled `tessera install`, which stops the old service, backs up
-/// the notebook, starts this build and rolls back to `rollback` if it fails.
-/// Keeps the agent's notebook and port. Returns the command's report on error.
+/// the workshop, starts this build and rolls back to `rollback` if it fails.
+/// Keeps the agent's workshop and port. Returns the command's report on error.
 pub fn activate(bundled: &Path, agent: &Agent, rollback: Option<&Path>) -> Result<(), String> {
     let mut command = Command::new(bundled);
-    // The agent's own arguments decide the notebook, not this process's environment.
+    // The agent's own arguments decide the workshop, not this process's environment.
     command.env_remove("TESSERA_WORKSHOP");
-    if let Some(notebook) = &agent.notebook {
-        command.arg("--workshop").arg(notebook);
+    if let Some(workshop) = &agent.workshop {
+        command.arg("--workshop").arg(workshop);
     }
     command
         .arg("install")
@@ -131,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn keeps_the_agents_notebook_and_port() {
+    fn keeps_the_agents_workshop_and_port() {
         let agent = Agent::parse(&arguments(&[
             "/Users/a/.local/bin/tessera",
             "--workshop",
@@ -144,7 +144,7 @@ mod tests {
             agent,
             Agent {
                 program: Some("/Users/a/.local/bin/tessera".into()),
-                notebook: Some("/notes/work".into()),
+                workshop: Some("/notes/work".into()),
                 port: Some(4397),
             }
         );

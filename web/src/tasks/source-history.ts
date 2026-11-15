@@ -1,5 +1,5 @@
 import type { TaskRow, AgendaItem } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { documentReady } from '../outline/source-fields';
 
 export type TaskSourceEdit = (doc: PageDocument) => Promise<boolean | void>;
@@ -19,13 +19,13 @@ export class TaskSourceHistory {
   }
   private queue = Promise.resolve();
 
-  constructor(private notebook: Pick<NotebookClient, 'open'>) {}
+  constructor(private workshop: Pick<WorkshopClient, 'open'>) {}
 
   edit(row: TaskRow | AgendaItem, apply: TaskSourceEdit): Promise<boolean> {
     const pageId = row.source.page.id;
     let doc = this.documents.get(pageId);
     if (!doc) {
-      doc = this.notebook.open(pageId);
+      doc = this.workshop.open(pageId);
       this.documents.set(pageId, doc);
     }
     const entry: Entry = { doc, changed: false };

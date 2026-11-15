@@ -35,10 +35,10 @@ interface RunningTurn {
   turn?: string;
 }
 
-function load(notebook: string | undefined): DockMessage[] {
-  if (!notebook) return [];
+function load(workshop: string | undefined): DockMessage[] {
+  if (!workshop) return [];
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(`tessera.agent.${notebook}`) ?? '[]');
+    const stored: unknown = JSON.parse(localStorage.getItem(`tessera.agent.${workshop}`) ?? '[]');
     if (!Array.isArray(stored)) return [];
     return (stored as DockMessage[])
       .slice(-40)
@@ -50,17 +50,17 @@ function load(notebook: string | undefined): DockMessage[] {
   }
 }
 
-export function createAgentSession(notebookId: Accessor<string | undefined>, client: ApiClient = api): AgentSession {
+export function createAgentSession(workshopId: Accessor<string | undefined>, client: ApiClient = api): AgentSession {
   const [messages, setMessages] = createSignal<DockMessage[]>([]);
-  let notebook: string | undefined;
+  let workshop: string | undefined;
   let active: RunningTurn | undefined;
   let disposed = false;
 
   const update = (change: (messages: DockMessage[]) => DockMessage[]) => {
     const next = setMessages(change);
-    if (notebook) {
+    if (workshop) {
       try {
-        localStorage.setItem(`tessera.agent.${notebook}`, JSON.stringify(next.slice(-40)));
+        localStorage.setItem(`tessera.agent.${workshop}`, JSON.stringify(next.slice(-40)));
       } catch {
         /* The thread still works when browser storage is unavailable or full. */
       }
@@ -83,12 +83,12 @@ export function createAgentSession(notebookId: Accessor<string | undefined>, cli
   };
 
   createComputed(() => {
-    const next = notebookId();
+    const next = workshopId();
     untrack(() => {
-      if (next === notebook) return;
+      if (next === workshop) return;
       stop();
-      notebook = next;
-      update(() => load(notebook));
+      workshop = next;
+      update(() => load(workshop));
     });
   });
   onCleanup(() => {
@@ -199,7 +199,7 @@ export function createAgentSession(notebookId: Accessor<string | undefined>, cli
     marks,
     stop,
     send(prompt, provider, context) {
-      if (disposed || active || !notebook || !prompt.trim()) return;
+      if (disposed || active || !workshop || !prompt.trim()) return;
       const history: ThreadMessage[] = messages().map(message => ({
         role: message.role,
         text:
@@ -224,10 +224,10 @@ export function createAgentSession(notebookId: Accessor<string | undefined>, cli
       if (!active) update(() => []);
     },
     async undo(seq) {
-      const sourceNotebook = notebook;
+      const sourceWorkshop = workshop;
       try {
         await client.undoChange(seq);
-        if (notebook !== sourceNotebook || disposed) return null;
+        if (workshop !== sourceWorkshop || disposed) return null;
         update(thread =>
           thread.map(message =>
             message.role !== 'assistant'

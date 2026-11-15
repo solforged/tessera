@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::library::{CreatorRole, LibraryPerson, SourceFormat};
 use crate::library_store::{json, source_at, source_columns, source_siglum};
 use crate::reads::hidden_blocks;
-use crate::{NoteEntry, Notebook, Result, SeeTarget};
+use crate::{NoteEntry, Result, SeeTarget, Workshop};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SummaryField {
@@ -43,7 +43,7 @@ pub struct NoteSummary {
     pub source: Option<SourceSummary>,
 }
 
-impl Notebook {
+impl Workshop {
     /// One set-based read per kind of apparatus, never a page or backlink read per row.
     pub(crate) fn index_summaries(
         &self,

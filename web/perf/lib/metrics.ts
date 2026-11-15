@@ -25,7 +25,7 @@ export interface Tracker {
   errors: string[];
 }
 export interface OutboxCounts {
-  notebooks: number;
+  workshops: number;
   pages: number;
   commands: number;
   tickets: number;

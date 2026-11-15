@@ -20,14 +20,14 @@ export function createSlowFlag(waiting: () => boolean): () => boolean {
  * A counter that ticks once committed changes pause for `slowLoadDelay`. Views that refetch summaries after edits
  * read it instead of `changeSequence`, so typing costs one refresh per pause rather than one per saved keystroke.
  */
-export function createSettledChanges(notebook: {
+export function createSettledChanges(workshop: {
   changeSequence(): number;
   lastChange(): ChangeEvent | null;
 }): () => number {
   const [settled, setSettled] = createSignal(0);
   createEffect(
     on(
-      () => [notebook.changeSequence(), notebook.lastChange()],
+      () => [workshop.changeSequence(), workshop.lastChange()],
       () => {
         const timer = setTimeout(() => setSettled(value => value + 1), slowLoadDelay);
         onCleanup(() => clearTimeout(timer));

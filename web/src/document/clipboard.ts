@@ -135,7 +135,7 @@ export function clipboardPlainText(data: Pick<DataTransfer, 'types' | 'getData'>
   return Array.from(data.types).includes('text/plain') ? data.getData('text/plain') : null;
 }
 
-/** External links use the notebook's labeled-link spelling, never clipboard HTML. */
+/** External links use the workshop's labeled-link spelling, never clipboard HTML. */
 export function externalLink(url: string, caption: string): string {
   const target = url.replace(/\|/g, '%7C').replace(/\]/g, '%5D');
   const label = caption
@@ -188,7 +188,7 @@ export function markdownPasteRows(text: string): PasteRow[] {
     });
 }
 
-/** Parse in an inert document and translate supported semantics; no HTML enters the notebook. */
+/** Parse in an inert document and translate supported semantics; no HTML enters the workshop. */
 export function htmlPasteRows(html: string): PasteRow[] {
   const body = new DOMParser().parseFromString(html, 'text/html').body;
   const rows: PasteRow[] = [];

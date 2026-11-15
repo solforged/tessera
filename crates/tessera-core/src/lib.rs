@@ -108,12 +108,12 @@ pub use model::{
     QuotedRow, Reading, ReadingValue, RequiredField, Revision, Row, Setting, SettingRevision,
     SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View, YearSpan,
 };
-pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, Reader, now_ms};
+pub use notebook::{DATABASE_FILE, Reader, Workshop, WorkshopInfo, now_ms};
 pub use notes::{
     CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget, Shelf,
 };
 pub use notes_summary::{NoteSummary, SourceSummary, SummaryField};
-pub use ownership::NotebookOwnership;
+pub use ownership::WorkshopOwnership;
 pub use position_store::{NO_HOLDER, NOT_ENTITY};
 pub use reads::DeletedPage;
 pub use references::{

@@ -1,7 +1,7 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { FieldImpact } from './commands';
 import type { FieldDefinition } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { displayTitle, plainText } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -31,7 +31,7 @@ function Names(props: { label: string; names: string[]; none: string }) {
 export function FieldImpactPreview(props: {
   impact: FieldImpact;
   fields: readonly FieldDefinition[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   busy: boolean;
   onTarget(id: string): void;
   onApply(action: 'archive' | 'merge' | 'detach' | 'delete'): void;
@@ -39,7 +39,7 @@ export function FieldImpactPreview(props: {
 }) {
   const [picker, setPicker] = createSignal<HTMLElement>();
   const [confirmed, setConfirmed] = createSignal(false);
-  const lookup: NotebookClient['lookup'] = id => props.notebook.lookup(id);
+  const lookup: WorkshopClient['lookup'] = id => props.workshop.lookup(id);
   const owners = () => new Set(props.impact.conflicts.map(entry => entry.parent_id)).size;
   return (
     <section class="field-impact" aria-label="Field impact">

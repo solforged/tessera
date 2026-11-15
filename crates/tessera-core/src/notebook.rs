@@ -6,20 +6,20 @@ use serde::Serialize;
 use crate::error::Result;
 use crate::migrate::{SCHEMA_VERSION, migrate};
 
-/// File name of the database inside a notebook directory.
+/// File name of the database inside a workshop directory.
 pub const DATABASE_FILE: &str = "notebook.db";
 
-/// A notebook directory and its open SQLite connection.
+/// A workshop directory and its open SQLite connection.
 ///
 /// All reads and writes go through methods on this type, so every client
 /// gets the same rules.
-pub struct Notebook {
+pub struct Workshop {
     pub(crate) dir: PathBuf,
     pub(crate) conn: Connection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ts_rs::TS)]
-pub struct NotebookInfo {
+pub struct WorkshopInfo {
     pub id: String,
     pub path: PathBuf,
     pub created_at: i64,
@@ -27,9 +27,9 @@ pub struct NotebookInfo {
     pub sqlite_version: String,
 }
 
-impl Notebook {
-    /// Open the notebook in `dir`, creating the directory and an empty
-    /// notebook if none exists. An existing notebook is migrated forward,
+impl Workshop {
+    /// Open the workshop in `dir`, creating the directory and an empty
+    /// workshop if none exists. An existing workshop is migrated forward,
     /// never overwritten.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self> {
         let dir = dir.as_ref();
@@ -72,11 +72,11 @@ impl Notebook {
              ON CONFLICT (singleton) DO NOTHING",
             [new_ulid().to_string()],
         )?;
-        let mut notebook = Self { dir, conn };
-        notebook.backfill_library_creators()?;
-        notebook.backfill_citation_keys()?;
-        notebook.ensure_built_in_fields()?;
-        Ok(notebook)
+        let mut workshop = Self { dir, conn };
+        workshop.backfill_library_creators()?;
+        workshop.backfill_citation_keys()?;
+        workshop.ensure_built_in_fields()?;
+        Ok(workshop)
     }
 
     /// A second, read-only connection to this workshop. A write through it is
@@ -103,13 +103,13 @@ impl Notebook {
         )?)
     }
 
-    pub fn info(&self) -> Result<NotebookInfo> {
+    pub fn info(&self) -> Result<WorkshopInfo> {
         let (id, created_at) = self.conn.query_row(
             "SELECT id, created_at FROM notebook WHERE singleton = 1",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
-        Ok(NotebookInfo {
+        Ok(WorkshopInfo {
             id,
             path: self.dir.clone(),
             created_at,
@@ -121,12 +121,12 @@ impl Notebook {
 
 /// A read-only connection beside a workshop's writer, from
 /// [`Notebook::reader`].
-pub struct Reader(Notebook);
+pub struct Reader(Workshop);
 
 impl Reader {
     /// Run `operation` against one snapshot of the workshop: a commit that
     /// lands while it runs is not seen halfway through.
-    pub fn read<T>(&self, operation: impl FnOnce(&Notebook) -> Result<T>) -> Result<T> {
+    pub fn read<T>(&self, operation: impl FnOnce(&Workshop) -> Result<T>) -> Result<T> {
         let snapshot = self.0.conn.unchecked_transaction()?;
         let result = operation(&self.0);
         // Nothing was written, so ending the snapshot cannot lose anything.

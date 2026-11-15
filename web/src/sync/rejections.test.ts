@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { ApiError } from '../api/client';
 import type { Block, Committed, Operation, PageView, RejectedChange } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { settleRejection } from './rejections';
 
 const change: RejectedChange = {
@@ -28,7 +28,7 @@ const block = (id: string, parent: string | null): Block => ({
   created_at: 0,
   updated_at: 0,
 });
-function notebook(page: PageView | null) {
+function workshop(page: PageView | null) {
   const calls: Operation[][] = [];
   const client = {
     roots: () => [],
@@ -52,12 +52,12 @@ function notebook(page: PageView | null) {
         text_rewrites: [],
       };
     },
-  } as unknown as NotebookClient;
+  } as unknown as WorkshopClient;
   return { client, calls };
 }
 
 test('recovering appends words after the last top-level block and settles in the same undoable batch', async () => {
-  const { client, calls } = notebook({
+  const { client, calls } = workshop({
     root: block('page', null),
     rows: [
       { block: block('last', 'page'), depth: 0, manual_types: [] },
@@ -79,7 +79,7 @@ test('recovering appends words after the last top-level block and settles in the
 });
 
 test('words without a surviving page create today in the same batch, and undo never deletes the journal day', async () => {
-  const { client, calls } = notebook(null);
+  const { client, calls } = workshop(null);
   const receipt = await settleRejection(client, { ...change, page_id: null }, true);
   expect(calls).toHaveLength(1);
   const day = calls[0]![0] as Extract<Operation, { op: 'create_journal' }>;
@@ -90,7 +90,7 @@ test('words without a surviving page create today in the same batch, and undo ne
 });
 
 test('dismiss and undo settle only the rejection, without changing the page', async () => {
-  const { client, calls } = notebook(null);
+  const { client, calls } = workshop(null);
   const receipt = await settleRejection(client, change, false);
   expect(calls[0]).toEqual([{ op: 'settle_sync_rejection', id: change.id, settled: true }]);
   await receipt.undo();

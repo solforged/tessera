@@ -1,7 +1,7 @@
 import { autoPlural } from '../fields/presentation';
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { IndexKind, NoteIndex, NoteKind, Shelf } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { Token } from '../document/text-tokens';
 import { foldName } from '../outline/names';
 import { paths, type IconName } from '../ui/glyphs';
@@ -92,21 +92,21 @@ export const shelves: readonly (readonly [Shelf, string])[] = [
   ['loose', 'Loose'],
 ];
 
-/** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale, except while the notebook is offline, when the last one stays. */
-export function noteIndex(notebook: NotebookClient): Accessor<NoteIndex | undefined> {
+/** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale, except while the workshop is offline, when the last one stays. */
+export function noteIndex(workshop: WorkshopClient): Accessor<NoteIndex | undefined> {
   const [index, setIndex] = createSignal<NoteIndex>();
   createEffect(() => {
-    notebook.changeSequence();
-    notebook.lastChange();
-    notebook.connection();
+    workshop.changeSequence();
+    workshop.lastChange();
+    workshop.connection();
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      notebook.api.noteIndex(controller.signal).then(
+      workshop.api.noteIndex(controller.signal).then(
         value => {
           if (!controller.signal.aborted) setIndex(value);
         },
         () => {
-          if (!controller.signal.aborted && notebook.connection() !== 'offline') setIndex(undefined);
+          if (!controller.signal.aborted && workshop.connection() !== 'offline') setIndex(undefined);
         },
       );
     }, 0);

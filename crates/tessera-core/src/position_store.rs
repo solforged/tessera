@@ -5,8 +5,8 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::reads::{entity_pages, hidden_blocks};
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    BlockCapabilities, BlockInPage, FieldOption, Notebook, PositionField, PositionInfo,
-    PositionQuery, PositionQueryResult, PositionQuestion, PositionRow, Result, SubjectCriteria,
+    BlockCapabilities, BlockInPage, FieldOption, PositionField, PositionInfo, PositionQuery,
+    PositionQueryResult, PositionQuestion, PositionRow, Result, SubjectCriteria, Workshop,
 };
 
 pub(crate) fn validate_source(conn: &Connection, id: &str) -> Result<()> {
@@ -166,7 +166,7 @@ pub(crate) fn hydrate(
     Ok(values)
 }
 
-impl Notebook {
+impl Workshop {
     /// Every page that can hold a perspective, in one read for the holder pickers.
     pub fn entities(&self) -> Result<Vec<String>> {
         Ok(self

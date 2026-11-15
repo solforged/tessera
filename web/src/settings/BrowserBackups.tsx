@@ -1,6 +1,6 @@
 import { Show, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { browserNotebook } from '../demo/notebook';
+import { browserWorkshop } from '../demo/notebook';
 import { localToday } from '../demo/seed';
 import { size } from '../sync/state';
 import { Button } from '../ui/Button';
@@ -50,7 +50,7 @@ export function BrowserBackups(props: {
   };
   const [copy] = createResource(async () => {
     try {
-      return await browserNotebook.upgradeCopy();
+      return await browserWorkshop.upgradeCopy();
     } catch (reason) {
       props.onError(reason instanceof Error ? reason.message : String(reason));
       return null;
@@ -64,7 +64,7 @@ export function BrowserBackups(props: {
     setConfirm(null);
     props.onError('');
     try {
-      const bytes = await (upgrade ? browserNotebook.exportUpgradeCopy() : browserNotebook.exportNotebook());
+      const bytes = await (upgrade ? browserWorkshop.exportUpgradeCopy() : browserWorkshop.exportWorkshop());
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.sqlite3' }));
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -93,9 +93,9 @@ export function BrowserBackups(props: {
     setWorking('replace');
     props.onError('');
     try {
-      if (action.kind === 'file') await browserNotebook.restore(action.file);
-      else if (action.kind === 'upgrade') await browserNotebook.restoreUpgradeCopy();
-      else await browserNotebook.reset();
+      if (action.kind === 'file') await browserWorkshop.restore(action.file);
+      else if (action.kind === 'upgrade') await browserWorkshop.restoreUpgradeCopy();
+      else await browserWorkshop.reset();
     } catch (reason) {
       props.onError(reason instanceof Error ? reason.message : String(reason));
     } finally {

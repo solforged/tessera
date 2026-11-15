@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createRoot, createSignal, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { AgendaItem, TaskRow, TaskState, TaskStatus, WorkSession } from '../api/types';
-import type { Edit, NotebookClient, PageDocument } from '../document/contract';
+import type { Edit, WorkshopClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle, plainText } from '../outline/names';
 import type { OpenTarget } from '../core/contract';
@@ -60,7 +60,7 @@ export function TaskSourceRows(props: {
   date: string;
   /** Omit the source page label for rows from this page. */
   pageId?: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   disabled?: boolean;
   history?: TaskSourceHistory;
   /** Day view sorts by the clock and puts it in a fixed gutter. */
@@ -73,9 +73,9 @@ export function TaskSourceRows(props: {
   plannedDate?: string;
   /** Offers Today, Tomorrow and a date on unfinished rows, with the same keys. */
   plan?: boolean;
-  /** The notebook clock while the displayed day is today: past timed rows fade under a now rule. */
+  /** The workshop clock while the displayed day is today: past timed rows fade under a now rule. */
   now?: string;
-  /** Week labels today's rule with the notebook clock. */
+  /** Week labels today's rule with the workshop clock. */
   showNow?: boolean;
   /** Week's gutter names an untimed deadline and uses only this day's exact plan clock. */
   deadlineLabel?: boolean;
@@ -165,7 +165,7 @@ export function TaskSourceRows(props: {
               <Show when={section()}>
                 {text => (
                   <li class="agenda-row-section">
-                    <SectionSubhead name={<BlockText text={text()} notebook={props.notebook} interactive={false} />} />
+                    <SectionSubhead name={<BlockText text={text()} workshop={props.workshop} interactive={false} />} />
                   </li>
                 )}
               </Show>
@@ -174,7 +174,7 @@ export function TaskSourceRows(props: {
                 enter={arrives}
                 date={props.date}
                 pageId={props.pageId}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 disabled={props.disabled}
                 history={props.history}
                 timetable={props.timetable}
@@ -211,7 +211,7 @@ export function provenanceLabel(
   row: TaskRow | AgendaItem,
   today: string,
   section: string | null,
-  lookup: NotebookClient['lookup'],
+  lookup: WorkshopClient['lookup'],
 ): string {
   const page = row.source.page;
   if (page.kind !== 'journal') return displayTitle(page.text, lookup);
@@ -231,7 +231,7 @@ function TaskSourceRow(props: {
   row: TaskRow | AgendaItem;
   date: string;
   pageId?: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   disabled?: boolean;
   history?: TaskSourceHistory;
   timetable?: boolean;
@@ -240,7 +240,7 @@ function TaskSourceRow(props: {
   plan?: boolean;
   deadlineLabel?: boolean;
   showNow?: boolean;
-  /** The notebook clock while the displayed day is today. */
+  /** The workshop clock while the displayed day is today. */
   now?: string;
   /** Draws the now rule above this row. */
   nowBefore?: boolean;
@@ -337,7 +337,7 @@ function TaskSourceRow(props: {
     if (!phone || historical() || !unfinished()) return null;
     const { scheduled, deadline } = props.row.task,
       shown = props.plannedDate ?? props.date,
-      current = props.notebook.todayDate();
+      current = props.workshop.todayDate();
     if (scheduled && scheduled < shown && scheduled < current) return { field: 'schedule', date: scheduled } as const;
     if (deadline && deadline < shown && deadline < current) return { field: 'deadline', date: deadline } as const;
     return null;
@@ -349,27 +349,27 @@ function TaskSourceRow(props: {
       ? journalSectionName(
           block,
           page,
-          props.notebook.todayTemplate(),
-          id => props.notebook.lookup(id)(),
-          props.notebook.todayDate(),
+          props.workshop.todayTemplate(),
+          id => props.workshop.lookup(id)(),
+          props.workshop.todayDate(),
         )
       : null;
   });
   const provenance = createMemo(() =>
     props.row.source.page.id === props.pageId || section() === undefined
       ? null
-      : provenanceLabel(props.row, props.notebook.todayDate(), section() ?? null, id => props.notebook.lookup(id)),
+      : provenanceLabel(props.row, props.workshop.todayDate(), section() ?? null, id => props.workshop.lookup(id)),
   );
   /** The full page title stays in the provenance tooltip and accessible name (tasks-agenda.md, Rows): a journal day's is its stored date. */
   const sourceName = () => {
     const page = props.row.source.page;
-    return page.kind === 'journal' ? page.text : displayTitle(page.text, id => props.notebook.lookup(id));
+    return page.kind === 'journal' ? page.text : displayTitle(page.text, id => props.workshop.lookup(id));
   };
   const facts = createMemo(() => {
     if (historical()) return [];
     const all = taskFacts(props.row.task, {
       date: props.plannedDate ?? props.date,
-      today: props.notebook.todayDate(),
+      today: props.workshop.todayDate(),
       listed: props.timetable || 'reasons' in props.row,
       timeShown: !!time(),
     });
@@ -377,7 +377,7 @@ function TaskSourceRow(props: {
     const shown = late ? all.filter(fact => !(fact.late && fact.field === late.field)) : all;
     // A task planned for the day its journal names already reads `Inbox · today`; its plan does not say that day twice.
     const scheduled = props.row.task.scheduled,
-      word = scheduled ? relativeDate(scheduled, props.notebook.todayDate()) : '';
+      word = scheduled ? relativeDate(scheduled, props.workshop.todayDate()) : '';
     if (!scheduled || !provenance()?.endsWith(` · ${word}`)) return shown;
     return shown.flatMap(fact => {
       if (fact.field !== 'schedule' || fact.late || !fact.text.startsWith(word)) return [fact];
@@ -386,7 +386,7 @@ function TaskSourceRow(props: {
     });
   });
   const runningWork = createMemo(() => {
-    const work = props.notebook.runningWork();
+    const work = props.workshop.runningWork();
     return !historical() && work?.block_id === props.row.source.block.id ? work : undefined;
   });
   const loggedWork = () =>
@@ -397,7 +397,7 @@ function TaskSourceRow(props: {
         : '';
   /** Opens the source page, applies one work edit and saves it. */
   const saveWork = async (intent: Edit) => {
-    const doc = props.notebook.open(props.row.source.page.id);
+    const doc = props.workshop.open(props.row.source.page.id);
     try {
       await documentReady(doc);
       const result = doc.edit(intent);
@@ -423,7 +423,7 @@ function TaskSourceRow(props: {
       leaveRow(leave);
       if (next) handOffFocus(item, next.ids, next.owner);
     }
-    const doc = props.history ? null : props.notebook.open(row.source.page.id);
+    const doc = props.history ? null : props.workshop.open(row.source.page.id);
     let saved = false;
     try {
       if (props.history) {
@@ -449,9 +449,9 @@ function TaskSourceRow(props: {
       row,
       async doc => {
         let active: WorkSession | null | undefined;
-        if (props.notebook.connection() !== 'offline') {
+        if (props.workshop.connection() !== 'offline') {
           try {
-            active = await props.notebook.api.activeWorkSession();
+            active = await props.workshop.api.activeWorkSession();
           } catch (reason) {
             if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
           }
@@ -529,7 +529,7 @@ function TaskSourceRow(props: {
       if (!result.ok) throw new Error(result.reason);
     });
   };
-  const today = () => props.notebook.todayDate();
+  const today = () => props.workshop.todayDate();
   const tomorrow = () => shiftCalendarDate(today(), 1)!;
   const past = () =>
     !!props.now && unfinished() && props.row.task.status !== 'doing' && !!time() && time()! < props.now;
@@ -561,7 +561,7 @@ function TaskSourceRow(props: {
       leaveRow('out');
     }
     if (next) handOffFocus(item, next.ids, next.owner);
-    void rescheduleTasks(props.notebook, [props.row], date, `Reschedule task to ${relativeDate(date, today())}`, time)
+    void rescheduleTasks(props.workshop, [props.row], date, `Reschedule task to ${relativeDate(date, today())}`, time)
       .then(
         result => {
           setPicking(null);
@@ -784,7 +784,7 @@ function TaskSourceRow(props: {
             <Button
               class="agenda-status task-status-button"
               data-status={leaving() ?? status()}
-              label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[status()]}): ${plainText(props.row.source.block.text, id => props.notebook.lookup(id)) || 'Empty task'}`}
+              label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[status()]}): ${plainText(props.row.source.block.text, id => props.workshop.lookup(id)) || 'Empty task'}`}
               title={`${unfinished() ? `Complete on ${spelledDate(props.date, null)}` : 'Reopen task'} · right-click for status`}
               disabled={busy() || props.disabled}
               aria-expanded={menu()?.kind === 'status' ? true : undefined}
@@ -817,7 +817,7 @@ function TaskSourceRow(props: {
           <span class="agenda-source-text" classList={{ 'agenda-source-empty': !props.row.source.block.text }}>
             <BlockText
               text={props.row.source.block.text || 'Empty task'}
-              notebook={props.notebook}
+              workshop={props.workshop}
               interactive={false}
             />
           </span>
@@ -882,8 +882,8 @@ function TaskSourceRow(props: {
             {id => (
               <span>
                 <BlockText
-                  text={props.notebook.lookup(id())()?.text ?? ''}
-                  notebook={props.notebook}
+                  text={props.workshop.lookup(id())()?.text ?? ''}
+                  workshop={props.workshop}
                   interactive={false}
                 />
               </span>
@@ -985,12 +985,12 @@ function TaskSourceRow(props: {
       <Show when={picking()}>
         {anchor => (
           <DatePicker
-            notebook={props.notebook}
+            workshop={props.workshop}
             anchor={anchor()}
             label="Reschedule"
             value={props.row.task.scheduled}
             time={props.row.task.scheduled_time}
-            contextDate={props.notebook.todayDate()}
+            contextDate={props.workshop.todayDate()}
             onDismiss={() => setPicking(null)}
             onSelect={value => reschedule(value.date, value.time)}
           />
@@ -999,7 +999,7 @@ function TaskSourceRow(props: {
       <Show when={moving()}>
         <MoveToSheet
           anchor={item}
-          title={plainText(props.row.source.block.text, id => props.notebook.lookup(id))}
+          title={plainText(props.row.source.block.text, id => props.workshop.lookup(id))}
           current={props.row.task.scheduled}
           time={props.row.task.scheduled_time}
           today={today()}
@@ -1039,8 +1039,8 @@ function TaskSourceRow(props: {
       <Show when={slow()}>
         <p class="agenda-message" role="status">
           Saving…{' '}
-          <Show when={props.notebook.saveState() !== 'saved'}>
-            {props.notebook.saveMessage() || props.notebook.saveState()}
+          <Show when={props.workshop.saveState() !== 'saved'}>
+            {props.workshop.saveMessage() || props.workshop.saveState()}
           </Show>
         </p>
       </Show>
@@ -1085,7 +1085,7 @@ function TaskSourceRow(props: {
       <Show keyed when={working()}>
         {anchor => (
           <AgendaWork
-            notebook={props.notebook}
+            workshop={props.workshop}
             id={props.row.source.block.id}
             text={props.row.source.block.text}
             anchor={anchor}

@@ -1,14 +1,14 @@
 use serde_json::{Value, json};
 use tessera_core::library::*;
 use tessera_core::{
-    Actor, AssessmentState, Batch, FieldKind, Notebook, Operation, Query, QuestionState,
-    RelationKind, RevisitAction, TaskState, TaskStatus,
+    Actor, AssessmentState, Batch, FieldKind, Operation, Query, QuestionState, RelationKind,
+    RevisitAction, TaskState, TaskStatus, Workshop,
 };
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -26,19 +26,19 @@ fn insert(n: u128, parent: String, text: String) -> Operation {
         heading: None,
     }
 }
-fn run(nb: &Notebook, query: Value) -> tessera_core::QueryResult {
+fn run(nb: &Workshop, query: Value) -> tessera_core::QueryResult {
     nb.query(&serde_json::from_value(query).unwrap()).unwrap()
 }
-fn ids(nb: &Notebook, query: Value) -> Vec<String> {
+fn ids(nb: &Workshop, query: Value) -> Vec<String> {
     run(nb, query)
         .rows
         .into_iter()
         .map(|row| row.block.block.id)
         .collect()
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         [
@@ -327,7 +327,7 @@ fn grouping_deduplicates_values_and_recipe_survives_empty_search_and_reopen() {
     };
     assert_eq!(nb.query(&searched).unwrap().columns, columns);
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.view(&id(900)).unwrap().query, query);
     assert_eq!(serde_json::to_value(&query).unwrap()["layout"], "register");
     let old: Query = serde_json::from_value(json!({"type":null,"text":null,"limit":null})).unwrap();
@@ -607,6 +607,6 @@ fn saved_desk_keeps_linked_queries_after_reopen() {
         }],
     );
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.view(&id(901)).unwrap().query, query);
 }

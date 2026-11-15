@@ -32,7 +32,7 @@ pub(crate) async fn serve(
         Path::new(uri.path().trim_start_matches('/'))
     };
     // Vite's emitted asset names need no URL decoding. Reject dotfiles and
-    // traversal rather than accidentally exposing a notebook or source tree.
+    // traversal rather than accidentally exposing a workshop or source tree.
     if relative.components().any(|component| match component {
         Component::Normal(name) => name.to_string_lossy().starts_with('.'),
         _ => true,

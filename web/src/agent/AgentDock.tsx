@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { ContextRef, ProviderView } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle, resolveName } from '../outline/names';
 import type { OpenTarget } from '../core/contract';
@@ -25,11 +25,11 @@ const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 /** Models often cite pages by title; a title that names exactly one page becomes its link, as an id reference would. */
 function AgentText(props: {
   text: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [resolved] = createResource(
-    () => [props.text, props.notebook.changeSequence()] as const,
+    () => [props.text, props.workshop.changeSequence()] as const,
     async ([text]) => {
       const names = [
         ...new Set(
@@ -40,7 +40,7 @@ function AgentText(props: {
       const ids = new Map(
         await Promise.all(
           names.map(async name => {
-            const matches = await resolveName(props.notebook, name).catch(() => []);
+            const matches = await resolveName(props.workshop, name).catch(() => []);
             return [name, matches.length === 1 ? matches[0]!.page.id : null] as const;
           }),
         ),
@@ -51,7 +51,7 @@ function AgentText(props: {
       });
     },
   );
-  return <BlockText text={resolved.latest ?? props.text} notebook={props.notebook} onOpen={props.onOpen} />;
+  return <BlockText text={resolved.latest ?? props.text} workshop={props.workshop} onOpen={props.onOpen} />;
 }
 
 /**
@@ -59,7 +59,7 @@ function AgentText(props: {
  * talks to the model the user connected in Settings, and lists each change it makes with Show and Undo.
  */
 export function AgentDock(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   session: AgentSession;
   chips: ContextChip[];
   excluded: ReadonlySet<string>;
@@ -72,7 +72,7 @@ export function AgentDock(props: {
   /** The dock is on its way out: it plays its exit and takes no input. */
   leaving?: boolean;
 }) {
-  const [providers, { refetch }] = createResource(() => props.notebook.api.agentProviders());
+  const [providers, { refetch }] = createResource(() => props.workshop.api.agentProviders());
   const [chosen, setChosen] = createSignal(localStorage.getItem(PROVIDER_KEY));
   const provider = (): ProviderView | undefined => {
     const list = providers()?.providers ?? [];
@@ -142,8 +142,8 @@ export function AgentDock(props: {
     });
   };
   const pageTitle = (id: string | null) => {
-    const text = id && props.notebook.lookup(id)()?.text;
-    return text ? displayTitle(text, target => props.notebook.lookup(target)) : 'Workshop';
+    const text = id && props.workshop.lookup(id)()?.text;
+    return text ? displayTitle(text, target => props.workshop.lookup(target)) : 'Workshop';
   };
 
   const Part = (part: AssistantPart) => (
@@ -157,7 +157,7 @@ export function AgentDock(props: {
           >
             {paragraph => (
               <p class="agent-text">
-                <AgentText text={paragraph.trim()} notebook={props.notebook} onOpen={props.onOpen} />
+                <AgentText text={paragraph.trim()} workshop={props.workshop} onOpen={props.onOpen} />
               </p>
             )}
           </For>

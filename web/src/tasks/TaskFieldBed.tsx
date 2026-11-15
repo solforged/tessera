@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, on } from 'solid-js';
 import type { FieldDefinition, FieldKind } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { createFieldEntry, createOptionValue } from '../fields/commands';
 import { FieldPicker } from '../fields/FieldPicker';
 import { checkboxValue } from '../fields/kinds';
@@ -18,7 +18,7 @@ import { taskFieldLabel, taskFieldName, taskFieldPlaceholder, taskFieldText, typ
 
 /** Task values and ordinary entries share one bed, without copying task state into child atoms. */
 export function TaskFieldBed(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   doc: PageDocument;
   id: string;
   fields: readonly FieldDefinition[];
@@ -42,7 +42,7 @@ export function TaskFieldBed(props: {
   const [error, setError] = createSignal('');
   const [draft, setDraft] = createSignal('');
   const [busy, setBusy] = createSignal(false);
-  const projects = createTaskProjects(props.doc, props.notebook);
+  const projects = createTaskProjects(props.doc, props.workshop);
   let bed!: HTMLDivElement;
   const task = () => props.doc.block(props.id)?.task;
   const entries = createMemo(() => {
@@ -158,8 +158,8 @@ export function TaskFieldBed(props: {
     setBusy(true);
     setError('');
     try {
-      const register = await props.notebook.api.fields();
-      const result = await createFieldEntry(props.notebook, props.doc, register, props.id, name, kind);
+      const register = await props.workshop.api.fields();
+      const result = await createFieldEntry(props.workshop, props.doc, register, props.id, name, kind);
       setPicker(undefined);
       open(result.field, anchor, result.value);
     } catch (reason) {
@@ -198,7 +198,7 @@ export function TaskFieldBed(props: {
                 anchor={state.anchor}
                 field={state.field}
                 text={state.value ? (props.doc.block(state.value)?.text ?? '') : ''}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 contextDate={props.contextDate}
                 owner={{ id: props.id, page: props.doc.pageId }}
                 onWrite={write}
@@ -206,7 +206,7 @@ export function TaskFieldBed(props: {
                 onError={setError}
                 onCreateOption={async text => {
                   await createOptionValue(
-                    props.notebook,
+                    props.workshop,
                     props.doc,
                     { field: state.field, ownerId: props.id, valueId: state.value },
                     text,
@@ -218,7 +218,7 @@ export function TaskFieldBed(props: {
         >
           {name => (
             <TaskFieldEditor
-              notebook={props.notebook}
+              workshop={props.workshop}
               doc={props.doc}
               id={props.id}
               field={name()}
@@ -278,7 +278,7 @@ export function TaskFieldBed(props: {
         <header class="task-field-heading">
           <p class="task-planning-kicker">{task()?.status ? 'Task fields' : 'Fields'}</p>
           <h2>
-            <BlockText text={props.doc.block(props.id)?.text ?? ''} notebook={props.notebook} interactive={false} />
+            <BlockText text={props.doc.block(props.id)?.text ?? ''} workshop={props.workshop} interactive={false} />
           </h2>
         </header>
       </Show>
@@ -308,7 +308,7 @@ export function TaskFieldBed(props: {
             const text = () =>
               name === 'project'
                 ? project()
-                  ? plainText(props.notebook.lookup(project()!)()?.text ?? 'Project', id => props.notebook.lookup(id))
+                  ? plainText(props.workshop.lookup(project()!)()?.text ?? 'Project', id => props.workshop.lookup(id))
                   : ''
                 : name
                   ? taskFieldText(task(), name)
@@ -350,7 +350,7 @@ export function TaskFieldBed(props: {
                         >
                           <BlockText
                             text={props.doc.block(id)?.text ?? ''}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             interactive={false}
                           />
                         </Button>

@@ -6,8 +6,8 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 
 let requested = false;
 
-/** Called after a notebook opens, including the first-run empty/restore choices. */
-export function persistOwnNotebook(): void {
+/** Called after a workshop opens, including the first-run empty/restore choices. */
+export function persistOwnWorkshop(): void {
   if (requested || localStorage.getItem('tessera.browser.notebook') !== 'own') return;
   requested = true;
   const storage = navigator.storage;

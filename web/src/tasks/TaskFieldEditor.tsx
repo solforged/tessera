@@ -1,6 +1,6 @@
 import { Match, Show, Switch } from 'solid-js';
 import type { TaskState, TaskStatus } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { createOutlineCapabilities } from '../outline/capabilities';
 import { TaskProjectPicker } from '../projects/TaskProjectControl';
 import { Button } from '../ui/Button';
@@ -14,7 +14,7 @@ import { taskFieldLabel, type TaskFieldName } from './task-fields';
 
 /** One editor for task-backed bed rows and table cells, using the document's undoable commands. */
 export function TaskFieldEditor(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   doc: PageDocument;
   id: string;
   field: TaskFieldName;
@@ -25,7 +25,7 @@ export function TaskFieldEditor(props: {
 }) {
   const capabilities = createOutlineCapabilities({
     doc: props.doc,
-    notebook: props.notebook,
+    workshop: props.workshop,
     contextDate: () => props.contextDate,
     caret: () => null,
     anchor: () => props.anchor,
@@ -82,7 +82,7 @@ export function TaskFieldEditor(props: {
             <Match when={props.field === 'scheduled' || props.field === 'deadline'}>
               <DatePicker
                 anchor={props.anchor}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 label={taskFieldLabel(props.field)}
                 value={props.field === 'scheduled' ? task().scheduled : task().deadline}
                 time={props.field === 'scheduled' ? task().scheduled_time : task().deadline_time}
@@ -130,7 +130,7 @@ export function TaskFieldEditor(props: {
             </Match>
             <Match when={props.field === 'project'}>
               <TaskProjectPicker
-                notebook={props.notebook}
+                workshop={props.workshop}
                 doc={props.doc}
                 id={props.id}
                 anchor={props.anchor}

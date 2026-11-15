@@ -9,7 +9,7 @@ import type {
   TaskRow,
   TaskView,
 } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { plainText } from '../outline/names';
 import { Calendar } from '../shell/Calendar';
 import type { AgendaViewState, OpenTarget, PaneId } from '../core/contract';
@@ -56,7 +56,7 @@ import '../table/table.css';
 export interface AgendaPaneProps {
   pane: PaneId;
   view: AgendaViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   active: boolean;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -81,7 +81,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const [view, setView] = createSignal<AgendaViewState>({ ...props.view, query: copyTaskQuery(props.view.query) });
   // Tasks has no date of its own: an unsaved query counts from civil today and a saved view from the date it was saved with, while Day and Week count from the date they show.
   const contextFor = (state: AgendaViewState) =>
-    state.viewId ? state.query.context_date : state.mode === 'tasks' ? props.notebook.todayDate() : state.date;
+    state.viewId ? state.query.context_date : state.mode === 'tasks' ? props.workshop.todayDate() : state.date;
   const query = createMemo(
     () => {
       const state = view(),
@@ -172,7 +172,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const typeTitles = createMemo(
     () =>
       new Map(
-        props.notebook
+        props.workshop
           .roots()
           .filter(block => block.kind === 'page' && !block.archived)
           .map(block => [block.id, block.text]),
@@ -184,7 +184,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       new Map(
         projects().map(project => [
           project.block_id,
-          plainText(props.notebook.lookup(project.block_id)()?.text ?? '', id => props.notebook.lookup(id)) ||
+          plainText(props.workshop.lookup(project.block_id)()?.text ?? '', id => props.workshop.lookup(id)) ||
             project.state.outcome ||
             project.block_id,
         ]),
@@ -326,7 +326,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const currentMode = mode();
     const currentDate = date();
     const value = copyTaskQuery(query());
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     refresh();
     let current = true;
     setError('');
@@ -349,7 +349,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const timer = setTimeout(
       () => {
         const load =
-          currentMode === 'agenda' ? props.notebook.api.agenda(currentDate) : props.notebook.api.taskQuery(value);
+          currentMode === 'agenda' ? props.workshop.api.agenda(currentDate) : props.workshop.api.taskQuery(value);
         void load
           .then(result => {
             if (!current) return;
@@ -391,7 +391,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const through =
       lookaheadThrough && (!stripThrough || lookaheadThrough > stripThrough) ? lookaheadThrough : stripThrough;
     const appointments = mode() === 'week' && narrowWeek();
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     refresh();
     const controller = new AbortController();
     setWeekError('');
@@ -405,13 +405,13 @@ export function AgendaPane(props: AgendaPaneProps) {
       return;
     }
     void Promise.all([
-      fetchWeekTaskRange(value => props.notebook.api.taskQuery(value, controller.signal), 'scheduled', from, through),
-      fetchWeekTaskRange(value => props.notebook.api.taskQuery(value, controller.signal), 'deadline', from, through),
+      fetchWeekTaskRange(value => props.workshop.api.taskQuery(value, controller.signal), 'scheduled', from, through),
+      fetchWeekTaskRange(value => props.workshop.api.taskQuery(value, controller.signal), 'deadline', from, through),
       appointments
         ? Promise.all(
             stripDates()
               .filter((date): date is string => !!date)
-              .map(date => props.notebook.api.agenda(date, controller.signal)),
+              .map(date => props.workshop.api.agenda(date, controller.signal)),
           )
         : [],
     ])
@@ -428,7 +428,7 @@ export function AgendaPane(props: AgendaPaneProps) {
           agenda.items.filter(item => item.task.status === null).map(agendaRow),
         );
         // The phone ledger lists today's missed work under today, as the desktop grid's all-day lane does.
-        const today = props.notebook.todayDate();
+        const today = props.workshop.todayDate();
         const todayAgenda =
           agendas[
             stripDates()
@@ -450,12 +450,12 @@ export function AgendaPane(props: AgendaPaneProps) {
     onCleanup(() => controller.abort());
   });
   createEffect(() => {
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     refresh();
     let current = true;
     setMetadataLoading(true);
     setMetadataError('');
-    void Promise.all([props.notebook.api.fields(), props.notebook.api.projects()])
+    void Promise.all([props.workshop.api.fields(), props.workshop.api.projects()])
       .then(([definitions, records]) => {
         if (current) {
           setFields(definitions.fields);
@@ -474,13 +474,13 @@ export function AgendaPane(props: AgendaPaneProps) {
     });
   });
   createEffect(() => {
-    props.notebook.changeSequence();
-    props.notebook.lastChange();
+    props.workshop.changeSequence();
+    props.workshop.lastChange();
     refresh();
     let current = true;
     setViewsLoading(true);
     setViewsError('');
-    void props.notebook.api
+    void props.workshop.api
       .taskViews()
       .then(result => {
         if (current) {
@@ -500,8 +500,8 @@ export function AgendaPane(props: AgendaPaneProps) {
   });
   createEffect(() => {
     const id = viewId();
-    props.notebook.changeSequence();
-    props.notebook.lastChange();
+    props.workshop.changeSequence();
+    props.workshop.lastChange();
     refresh();
     let current = true;
     setSavedError('');
@@ -512,7 +512,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       return;
     }
     setSavedLoading(true);
-    void props.notebook.api
+    void props.workshop.api
       .taskView(id)
       .then(next => {
         if (!current) return;
@@ -568,7 +568,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     setCommandError('');
     const value = copyTaskQuery(rename ? previous!.query : query());
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'save_task_view', id, base_revision: previous?.revision ?? null, name: name.trim(), query: value }],
         rename ? 'Rename task view' : 'Save task view',
       );
@@ -591,7 +591,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     setBusy(true);
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'delete_task_view', id: value.id, base_revision: value.revision }],
         'Delete task view',
       );
@@ -617,7 +617,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     setBusy(true);
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'save_task_view', id: value.id, base_revision: null, name: value.name, query: value.query }],
         'Restore task view',
       );
@@ -661,11 +661,11 @@ export function AgendaPane(props: AgendaPaneProps) {
               action: discard,
             },
             {
-              label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view',
+              label: props.workshop.confirmViewDelete() ? 'Delete view…' : 'Delete view',
               icon: 'trash' as const,
               danger: true,
               action: () => {
-                if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value });
+                if (props.workshop.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value });
                 else void deleteView(value);
               },
             },
@@ -683,7 +683,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         ),
   );
   const total = createMemo(() => (mode() === 'agenda' ? (agenda()?.items.length ?? 0) : (tasks()?.total ?? 0)));
-  const today = () => props.notebook.todayDate();
+  const today = () => props.workshop.todayDate();
   // A phone's Tasks groups by due day or by status; Outline-sorted queries keep their sections instead.
   const [grouping, setGrouping] = createSignal<TaskGrouping>('due');
   const taskGroups = createMemo(() =>
@@ -739,11 +739,11 @@ export function AgendaPane(props: AgendaPaneProps) {
   const weekTitle = createMemo(() => {
     const first = mondayWeekStart(date());
     if (!first) return spokenJournalDate(date());
-    return weekRangeTitle(first, shiftCalendarDate(first, 6) ?? '9999-12-31', props.notebook.todayDate());
+    return weekRangeTitle(first, shiftCalendarDate(first, 6) ?? '9999-12-31', props.workshop.todayDate());
   });
   /** The displayed day, or Week's displayed week, holds civil today. */
   const showsToday = createMemo(() => {
-    const today = props.notebook.todayDate();
+    const today = props.workshop.todayDate();
     if (mode() !== 'week') return mode() === 'agenda' && date() === today;
     const first = mondayWeekStart(date());
     return !!first && today >= first && daysBetween(first, today) < 7;
@@ -763,13 +763,13 @@ export function AgendaPane(props: AgendaPaneProps) {
     );
   });
   const addPlaceholder = createMemo(() => {
-    const away = Math.abs(daysBetween(props.notebook.todayDate(), date()));
+    const away = Math.abs(daysBetween(props.workshop.todayDate(), date()));
     const day = new Date(`${date()}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
     return `Add a task for ${away < 7 ? day : spokenJournalDate(date())}`;
   });
   /** Add a task files into today's capture section, Inbox by default. */
   const captureTarget = () => {
-    const template = props.notebook.todayTemplate();
+    const template = props.workshop.todayTemplate();
     return sectionTarget(template, captureSection(template).id);
   };
   const changeDay = (input: string) => {
@@ -779,11 +779,11 @@ export function AgendaPane(props: AgendaPaneProps) {
       update({ date: parsed.date, scroll: 0 });
     } else if (!parsed.ok) setError(parsed.error);
   };
-  const clock = createClock(props.notebook);
-  const now = () => (date() === props.notebook.todayDate() ? clock() : undefined);
+  const clock = createClock(props.workshop);
+  const now = () => (date() === props.workshop.todayDate() ? clock() : undefined);
   /** Overdue work moves as one command, keeping each task's time and deadline, with Undo until the next move. */
-  const overdueMove = createBulkMove(props.notebook, () => setRefresh(value => value + 1));
-  const taskHistory = new TaskSourceHistory(props.notebook);
+  const overdueMove = createBulkMove(props.workshop, () => setRefresh(value => value + 1));
+  const taskHistory = new TaskSourceHistory(props.workshop);
   const [addedTask, setAddedTask] = createSignal<string>();
   let revealedTask: HTMLElement | undefined;
   let revealTimer: number | undefined;
@@ -891,7 +891,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                     class="agenda-date-today"
                     classList={{ 'agenda-date-current': showsToday() }}
                     disabled={busy()}
-                    onClick={() => changeDay(props.notebook.todayDate())}
+                    onClick={() => changeDay(props.workshop.todayDate())}
                   >
                     Today
                   </Button>
@@ -1090,9 +1090,9 @@ export function AgendaPane(props: AgendaPaneProps) {
             <AgendaWeekStrip
               dates={stripDates()}
               date={date()}
-              today={props.notebook.todayDate()}
+              today={props.workshop.todayDate()}
               rows={weekRows()}
-              overdueToday={date() === props.notebook.todayDate() ? dayGroups().overdue.length : 0}
+              overdueToday={date() === props.workshop.todayDate() ? dayGroups().overdue.length : 0}
               loading={weekLoading()}
               disabled={busy()}
               onSelect={date => update({ date, scroll: 0 })}
@@ -1101,7 +1101,7 @@ export function AgendaPane(props: AgendaPaneProps) {
           <Show when={mode() === 'agenda'}>
             <div class="agenda-add">
               <CaptureField
-                notebook={props.notebook}
+                workshop={props.workshop}
                 contextDate={date}
                 schedule
                 taskOnly
@@ -1157,7 +1157,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                   }}
                 />
                 <TaskConditions
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   query={query()}
                   date={query().context_date}
                   fields={fields()}
@@ -1238,9 +1238,9 @@ export function AgendaPane(props: AgendaPaneProps) {
               </div>
             </Show>
           </Show>
-          <Show when={busy() || props.notebook.commandState() !== 'saved'}>
+          <Show when={busy() || props.workshop.commandState() !== 'saved'}>
             <p class="agenda-message" role="status">
-              {props.notebook.commandMessage() || (busy() ? 'Saving task view…' : props.notebook.commandState())}
+              {props.workshop.commandMessage() || (busy() ? 'Saving task view…' : props.workshop.commandState())}
             </p>
           </Show>
           <Show when={commandError()}>
@@ -1268,7 +1268,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                 <WeekCalendar
                   date={date()}
                   showAllHours={showAllHours()}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   onOpen={props.onOpen}
                 />
               }
@@ -1282,7 +1282,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                 date={date()}
                 rows={weekRows()}
                 overdue={weekOverdue()}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 history={taskHistory}
                 loading={weekLoading()}
                 disabled={busy() || weekLoading() || !!weekError()}
@@ -1324,7 +1324,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                         rows={rows()}
                         date={today()}
                         sections={query().filter.sort === 'outline'}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         history={taskHistory}
                         disabled={busy() || loading() || !!error()}
                         onOpen={props.onOpen}
@@ -1345,7 +1345,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                             rows={group().rows}
                             date={today()}
                             plannedDate={group().date}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             history={taskHistory}
                             timetable={!group().overdue}
                             plan={group().key !== 'done' && group().key !== 'cancelled'}
@@ -1362,13 +1362,13 @@ export function AgendaPane(props: AgendaPaneProps) {
                 <overdueMove.Notice />
                 <HeldSection
                   class="agenda-day-section"
-                  aria-label={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'}
+                  aria-label={date() > props.workshop.todayDate() ? 'Before this day' : 'Overdue'}
                   rows={dayGroups().overdue}
                 >
                   <SectionHead
-                    name={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'}
+                    name={date() > props.workshop.todayDate() ? 'Before this day' : 'Overdue'}
                     count={dayGroups().overdue.length}
-                    tone={date() <= props.notebook.todayDate() ? 'danger' : undefined}
+                    tone={date() <= props.workshop.todayDate() ? 'danger' : undefined}
                   >
                     <Button
                       class="bordered agenda-group-move"
@@ -1385,7 +1385,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                     rows={dayGroups().overdue}
                     enterRows={arrived()}
                     date={date()}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     history={taskHistory}
                     timetable
                     gutter={dayGutter()}
@@ -1397,10 +1397,10 @@ export function AgendaPane(props: AgendaPaneProps) {
                 </HeldSection>
                 <section
                   class="agenda-day-section"
-                  aria-label={date() === props.notebook.todayDate() ? 'Today' : 'Planned'}
+                  aria-label={date() === props.workshop.todayDate() ? 'Today' : 'Planned'}
                 >
                   <SectionHead
-                    name={date() === props.notebook.todayDate() ? 'Today' : 'Planned'}
+                    name={date() === props.workshop.todayDate() ? 'Today' : 'Planned'}
                     count={`${dayGroups().planned.length}${dayGroups().done.length ? ` · ${dayGroups().done.length} done` : ''}`}
                   />
                   <Show when={!loading() && !error() && !dayGroups().planned.length}>
@@ -1410,7 +1410,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                     rows={dayGroups().planned}
                     enterRows={arrived()}
                     date={date()}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     history={taskHistory}
                     timetable
                     gutter={dayGutter()}
@@ -1437,13 +1437,13 @@ export function AgendaPane(props: AgendaPaneProps) {
                   <For each={upcomingDates()}>
                     {day => (
                       <HeldSection tag="div" class="agenda-lookahead-day" rows={upcomingRows(day)}>
-                        <SectionSubhead {...upcomingDayLabel(day, props.notebook.todayDate())} />
+                        <SectionSubhead {...upcomingDayLabel(day, props.workshop.todayDate())} />
                         <TaskSourceRows
                           rows={upcomingRows(day)}
                           enterRows={arrived()}
                           date={date()}
                           plannedDate={day}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           history={taskHistory}
                           timetable
                           gutter={dayGutter()}
@@ -1468,7 +1468,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                       rows={dayGroups().unplanned}
                       enterRows={arrived()}
                       date={date()}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       history={taskHistory}
                       timetable
                       gutter={dayGutter()}
@@ -1481,11 +1481,11 @@ export function AgendaPane(props: AgendaPaneProps) {
                 </HeldSection>
                 <HeldSection
                   class="agenda-day-section"
-                  aria-label={date() === props.notebook.todayDate() ? 'Done today' : 'Done'}
+                  aria-label={date() === props.workshop.todayDate() ? 'Done today' : 'Done'}
                   rows={dayGroups().done}
                 >
                   <SectionHead
-                    name={date() === props.notebook.todayDate() ? 'Done today' : 'Done'}
+                    name={date() === props.workshop.todayDate() ? 'Done today' : 'Done'}
                     count={dayGroups().done.length}
                     open={showDone()}
                     onToggle={() => setShowDone(value => !value)}
@@ -1495,7 +1495,7 @@ export function AgendaPane(props: AgendaPaneProps) {
                       rows={dayGroups().done}
                       enterRows={arrived()}
                       date={date()}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       history={taskHistory}
                       timetable
                       gutter={dayGutter()}
@@ -1520,12 +1520,12 @@ export function AgendaPane(props: AgendaPaneProps) {
             if (state.kind === 'date')
               return (
                 <Calendar
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   anchor={state.anchor}
                   label="Choose date"
                   date={date()}
-                  today={props.notebook.todayDate()}
-                  onToday={() => changeDay(props.notebook.todayDate())}
+                  today={props.workshop.todayDate()}
+                  onToday={() => changeDay(props.workshop.todayDate())}
                   onDismiss={dismiss}
                   onSelect={changeDay}
                 />
@@ -1606,7 +1606,7 @@ export function AgendaPane(props: AgendaPaneProps) {
             if (state.kind === 'move-date')
               return (
                 <DatePicker
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   anchor={state.anchor}
                   label="Move tasks to"
                   value={null}

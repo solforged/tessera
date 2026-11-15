@@ -1,7 +1,7 @@
 import { Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Menu } from '../ui/Menu';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import type { NoteIndex } from '../api/types';
 import { noteKindIcon } from '../notes/kinds';
@@ -10,20 +10,20 @@ import { isPhone } from '../ui/phone';
 import { typeHue } from './pill-hue';
 
 // Rows in one change frame share the registry read, including the editor's widgets.
-const registryReads = new WeakMap<NotebookClient, { sequence: number; promise: Promise<NoteIndex> }>();
-export function readTagRegistry(notebook: NotebookClient): Promise<NoteIndex> {
-  const sequence = notebook.changeSequence();
-  const cached = registryReads.get(notebook);
+const registryReads = new WeakMap<WorkshopClient, { sequence: number; promise: Promise<NoteIndex> }>();
+export function readTagRegistry(workshop: WorkshopClient): Promise<NoteIndex> {
+  const sequence = workshop.changeSequence();
+  const cached = registryReads.get(workshop);
   if (cached?.sequence === sequence) return cached.promise;
-  const promise = notebook.api.noteIndex();
-  registryReads.set(notebook, { sequence, promise });
+  const promise = workshop.api.noteIndex();
+  registryReads.set(workshop, { sequence, promise });
   return promise;
 }
 
 export function TypePill(props: {
   title: string;
   id?: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen?(target: OpenTarget, beside: boolean): void;
   onRemove?(): void;
   onRestoreFocus?(): void;
@@ -34,10 +34,10 @@ export function TypePill(props: {
 }) {
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
   const [registry] = createResource(
-    () => [props.notebook.changeSequence(), props.notebook.connection()] as const,
-    () => readTagRegistry(props.notebook),
+    () => [props.workshop.changeSequence(), props.workshop.connection()] as const,
+    () => readTagRegistry(props.workshop),
   );
-  const target = () => (props.id ? props.notebook.lookup(props.id)() : undefined);
+  const target = () => (props.id ? props.workshop.lookup(props.id)() : undefined);
   const title = () => target()?.text || props.title || props.id || '';
   const unresolved = () => !!props.id && target() === null;
   const kind = createMemo(() =>
@@ -60,7 +60,7 @@ export function TypePill(props: {
     </>
   );
   const open = async (kind: 'table' | 'page') => {
-    const id = props.id ?? (await props.notebook.pageByTitle(props.title, false));
+    const id = props.id ?? (await props.workshop.pageByTitle(props.title, false));
     if (id && !unresolved())
       props.onOpen?.(
         kind === 'page'

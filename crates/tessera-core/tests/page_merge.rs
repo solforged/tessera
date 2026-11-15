@@ -3,8 +3,8 @@ use tessera_core::library::{
     PassageKind, PassagePoint, SourceFormat,
 };
 use tessera_core::{
-    Actor, Batch, BlockKind, Committed, Error, Filter, FilterOp, Notebook, Operation, Query,
-    QueryResult, Reading, ReadingValue, TaskState,
+    Actor, Batch, BlockKind, Committed, Error, Filter, FilterOp, Operation, Query, QueryResult,
+    Reading, ReadingValue, TaskState, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -20,7 +20,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -41,7 +41,7 @@ fn insert(value: u128, parent: &str, after: Option<u128>, text: &str) -> Operati
     }
 }
 
-fn edit(nb: &Notebook, value: &str, text: &str) -> Operation {
+fn edit(nb: &Workshop, value: &str, text: &str) -> Operation {
     Operation::EditText {
         id: value.into(),
         base_revision: nb.block(value).unwrap().revision,
@@ -49,7 +49,7 @@ fn edit(nb: &Notebook, value: &str, text: &str) -> Operation {
     }
 }
 
-fn merge(nb: &Notebook, source: &str, destination: &str) -> Operation {
+fn merge(nb: &Workshop, source: &str, destination: &str) -> Operation {
     Operation::MergePage {
         source_id: source.into(),
         source_revision: nb.block(source).unwrap().revision,
@@ -58,9 +58,9 @@ fn merge(nb: &Notebook, source: &str, destination: &str) -> Operation {
     }
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -73,7 +73,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     (dir, nb)
 }
 
-fn field_query(nb: &Notebook, field: &str) -> QueryResult {
+fn field_query(nb: &Workshop, field: &str) -> QueryResult {
     nb.query(&Query {
         r#type: None,
         text: None,
@@ -93,7 +93,7 @@ fn field_query(nb: &Notebook, field: &str) -> QueryResult {
 
 // Capture public domain reads, including derived indexes and immutable source
 // history, so failed batches and replay cannot silently leave partial changes.
-fn state(nb: &Notebook) -> serde_json::Value {
+fn state(nb: &Workshop) -> serde_json::Value {
     let roots = nb.roots().unwrap();
     let mut pages = Vec::new();
     let mut backlinks = Vec::new();
@@ -135,7 +135,7 @@ fn state(nb: &Notebook) -> serde_json::Value {
     })
 }
 
-fn reject_atomically(nb: &mut Notebook, operation: Operation) -> Error {
+fn reject_atomically(nb: &mut Workshop, operation: Operation) -> Error {
     let before = state(nb);
     let sentinel = edit(nb, &id(90), "rollbacktoken");
     let error = nb.apply(&batch(vec![sentinel, operation])).unwrap_err();
@@ -143,7 +143,7 @@ fn reject_atomically(nb: &mut Notebook, operation: Operation) -> Error {
     error
 }
 
-fn assert_replay(nb: &mut Notebook, request: &Batch, first: &Committed) {
+fn assert_replay(nb: &mut Workshop, request: &Batch, first: &Committed) {
     let before = state(nb);
     let replay = nb.apply(request).unwrap();
     assert!(replay.replayed);
@@ -152,7 +152,7 @@ fn assert_replay(nb: &mut Notebook, request: &Batch, first: &Committed) {
     assert_eq!(state(nb), before);
 }
 
-fn backlink_ids(nb: &Notebook, target: &str) -> Vec<String> {
+fn backlink_ids(nb: &Workshop, target: &str) -> Vec<String> {
     let mut ids: Vec<_> = nb
         .backlinks(target, 1000)
         .unwrap()
@@ -221,7 +221,7 @@ fn merge_commits_the_title_alias_with_its_blocks_and_replays_once() {
             .any(|revision| revision.id == row.block.id)
     }));
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.page_aliases(&id(2)).unwrap(), vec!["Draft"]);
     assert_replay(&mut nb, &request, &committed);
 }
@@ -238,7 +238,7 @@ fn retained_page_deletions_survive_reopen_but_permanent_merges_are_not_recoverab
         }],
     );
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let deleted = nb.deleted_pages().unwrap();
     let page = deleted.iter().find(|page| page.block.id == id(1)).unwrap();
     assert_eq!(page.block.text, "Draft");
@@ -354,7 +354,7 @@ fn merge_rewrites_mixed_links_aliases_tags_and_manual_memberships_and_replays() 
     assert!(notes.targets.iter().any(|target| target.id == id(2)));
     assert_eq!(nb.members(&id(4), 100).unwrap()[0].block.id, id(10));
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_replay(&mut nb, &request, &first);
 }
 
@@ -578,7 +578,7 @@ fn field_rows_with_archive_heading_or_capability_state_are_not_discarded() {
     }
 }
 
-fn record(nb: &mut Notebook, title: &str, author: &str) -> String {
+fn record(nb: &mut Workshop, title: &str, author: &str) -> String {
     let metadata = ExtractedMetadata {
         title: Some(title.into()),
         creators: vec![ExtractedCreator::new(author.into(), CreatorRole::Author)],

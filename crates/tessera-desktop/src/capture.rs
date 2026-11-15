@@ -1,4 +1,4 @@
-//! Cmd+Shift+E opens the notebook's sheet when it is focused, or a reusable
+//! Cmd+Shift+E opens the workshop's sheet when it is focused, or a reusable
 //! floating capture page otherwise. The page completes through a cancelled
 //! navigation, so the loopback service needs no privileged remote IPC access.
 
@@ -59,12 +59,12 @@ pub fn register(app: &AppHandle) {
             }
         })
     {
-        // A shortcut claimed by another app must not prevent the notebook opening.
+        // A shortcut claimed by another app must not prevent the workshop opening.
         app::log(&format!("cannot register Cmd+Shift+E: {error}"));
     }
 }
 
-/// File > Add to Today always uses the notebook, including from a hidden window.
+/// File > Add to Today always uses the workshop, including from a hidden window.
 pub fn in_main(app: &AppHandle) {
     dismiss(app, false);
     app::command(app, "shell.capture");
@@ -80,13 +80,13 @@ fn show(app: &AppHandle) -> tauri::Result<()> {
     show_panel(app)
 }
 
-/// Services always use the floating panel, even while the notebook is focused.
+/// Services always use the floating panel, even while the workshop is focused.
 pub fn from_service(app: &AppHandle, text: String) -> tauri::Result<()> {
     *app.state::<Capture>().pending_text.lock() = Some(text);
     show_panel(app)
 }
 
-/// A service can launch Tessera before its notebook service has become ready.
+/// A service can launch Tessera before its workshop service has become ready.
 pub fn ready(app: &AppHandle) {
     let handle = app.clone();
     if let Err(error) = app.run_on_main_thread(move || {
@@ -139,7 +139,7 @@ fn dismiss(app: &AppHandle, restore: bool) {
         let _ = window.hide();
     }
     if restore && let Some(pid) = return_to {
-        // Reactivate the app the shortcut came from so the notebook window stays
+        // Reactivate the app the shortcut came from so the workshop window stays
         // where it was; hiding Tessera is the fallback if that app has gone.
         #[allow(deprecated)]
         let activated = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)

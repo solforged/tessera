@@ -10,7 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use tessera_core::{Notebook, image_type, library::*};
+use tessera_core::{Workshop, image_type, library::*};
 
 #[derive(Deserialize)]
 pub(super) struct LookupRequest {
@@ -89,7 +89,7 @@ pub(super) async fn lookup(
     State(state): State<WorkshopState>,
     Json(body): Json<LookupRequest>,
 ) -> Result<Json<Preview>, ApiError> {
-    let id = Notebook::normalize_identifier(&body.query)
+    let id = Workshop::normalize_identifier(&body.query)
         .ok_or_else(|| invalid("Enter a valid ISBN, DOI or arXiv ID."))?;
     #[cfg(fetch_urls)]
     let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
@@ -267,7 +267,7 @@ mod mapping {
             .as_array()
             .into_iter()
             .flatten()
-            .filter_map(|v| Notebook::normalize_identifier(v.as_str()?))
+            .filter_map(|v| Workshop::normalize_identifier(v.as_str()?))
             .collect();
         if identifiers.is_empty() {
             identifiers.push(format!("isbn:{isbn}"));
@@ -371,7 +371,7 @@ mod mapping {
                 language: text(&work["language"]),
                 identifiers: work["DOI"]
                     .as_str()
-                    .and_then(Notebook::normalize_identifier)
+                    .and_then(Workshop::normalize_identifier)
                     .into_iter()
                     .collect(),
                 url: text(&work["URL"]),
@@ -399,7 +399,7 @@ mod mapping {
                 .map(|s| s.split_whitespace().collect::<Vec<_>>().join(" "))
         };
         let id = value("id")
-            .and_then(|s| Notebook::normalize_identifier(&s))
+            .and_then(|s| Workshop::normalize_identifier(&s))
             .ok_or_else(not_found)?;
         Ok(Preview {
             metadata: ExtractedMetadata {
@@ -450,7 +450,7 @@ pub(super) async fn record_plan(
             download_cover(&state, &url).await?
         });
     }
-    run(&state.notebook, move |n| {
+    run(&state.workshop, move |n| {
         n.plan_source_record(&body.metadata)
     })
     .await
@@ -474,12 +474,12 @@ fn normalize(metadata: &mut ExtractedMetadata) -> Result<(), ApiError> {
         .identifiers
         .iter()
         .map(|id| {
-            Notebook::normalize_identifier(id)
+            Workshop::normalize_identifier(id)
                 .ok_or_else(|| invalid("Enter a valid ISBN, DOI or arXiv ID."))
         })
         .collect::<Result<_, _>>()?;
     if let Some(date) = metadata.published.as_deref().filter(|s| !s.is_empty())
-        && !Notebook::valid_publication_date(date)
+        && !Workshop::valid_publication_date(date)
     {
         return Err(invalid("Use YYYY, YYYY-MM or YYYY-MM-DD."));
     }
@@ -495,7 +495,7 @@ async fn store_cover(state: &WorkshopState, body: Bytes) -> Result<String, ApiEr
     if image_type(&body).is_none() {
         return Err(invalid("Choose a PNG, JPEG or WebP image."));
     }
-    run(&state.notebook, move |n| n.put_object(&body))
+    run(&state.workshop, move |n| n.put_object(&body))
         .await
         .map(|sha| format!("/api/library/covers/{sha}"))
 }
@@ -552,16 +552,16 @@ mod tests {
     fn detect_identifiers() {
         for value in ["9780141439518", "978-0-14-143951-8", "0-14-143951-3"] {
             assert_eq!(
-                Notebook::normalize_identifier(value).as_deref(),
+                Workshop::normalize_identifier(value).as_deref(),
                 Some("isbn:9780141439518")
             );
         }
         for value in ["9780141439519", "0-14-143951-4", "https://example.com"] {
-            assert!(Notebook::normalize_identifier(value).is_none());
+            assert!(Workshop::normalize_identifier(value).is_none());
         }
         for value in ["10.1038/nature14539", "https://doi.org/10.1038/NATURE14539"] {
             assert_eq!(
-                Notebook::normalize_identifier(value).as_deref(),
+                Workshop::normalize_identifier(value).as_deref(),
                 Some("doi:10.1038/nature14539")
             );
         }
@@ -572,7 +572,7 @@ mod tests {
             "https://arxiv.org/pdf/1706.03762.pdf",
         ] {
             assert_eq!(
-                Notebook::normalize_identifier(value).as_deref(),
+                Workshop::normalize_identifier(value).as_deref(),
                 Some("arxiv:1706.03762")
             );
         }

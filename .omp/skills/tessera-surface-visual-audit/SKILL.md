@@ -7,7 +7,7 @@ description: "Use when the user asks for a visual or UX audit of one Tessera web
 
 Audit surfaces one at a time, with evidence, before features. Design and wording stay with the main session; never delegate the judgement.
 
-Follow [managing-tessera-task-workspaces](../../../.agents/skills/managing-tessera-task-workspaces/SKILL.md) to prepare/source the audit workspace, matching CLI/assets and run. The RemCard reference checkout is an external prerequisite, not a QA notebook to modify.
+Follow [managing-tessera-task-workspaces](../../../.agents/skills/managing-tessera-task-workspaces/SKILL.md) to prepare/source the audit workspace, matching CLI/assets and run. The RemCard reference checkout is an external prerequisite, not a QA workshop to modify.
 
 ## Capture
 1. Serve a fresh synthetic seed or permitted detached copy from `TASK_RUN/notebooks/surface`: `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/surface" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"` as a unique named service. Use `/usr/bin/sqlite3` for Mac online backups, strip a copied lock only in the verified owned copy and clear its current-schema `sync_hub` attachment before serving. Verify readiness, actual listeners and `/api/service` build. Never use `.tessera/dev`, :4318, the live registry, or ownership-free PID killing.

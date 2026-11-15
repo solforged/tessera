@@ -27,13 +27,13 @@ export function createFieldMenu(
   const { doc, props, fields, definitionsById, setMenu, setMessage, apply } = context;
   const [definitionDocument, setDefinitionDocument] = createSignal<PageDocument>();
   const [types] = createResource(
-    () => [props.notebook.changeSequence(), props.notebook.connection() === 'live'] as const,
-    () => props.notebook.api.types(),
+    () => [props.workshop.changeSequence(), props.workshop.connection() === 'live'] as const,
+    () => props.workshop.api.types(),
   );
   createEffect(() => {
     const id = fields.error ? undefined : fields()?.page_id;
     if (!id) return;
-    const document = props.notebook.open(id);
+    const document = props.workshop.open(id);
     setDefinitionDocument(document);
     onCleanup(() => {
       setDefinitionDocument(undefined);
@@ -51,7 +51,7 @@ export function createFieldMenu(
   async function saveHide(field: FieldDefinition, value: FieldHide) {
     const document = definitionDocument();
     if (!document) throw new Error('Field definitions are loading.');
-    const current = (await props.notebook.api.fields()).fields.find(item => item.id === field.id);
+    const current = (await props.workshop.api.fields()).fields.find(item => item.id === field.id);
     if (!current) throw new Error('Field no longer exists.');
     const result = document.edit({ kind: 'fieldHide', definition: current, value });
     if (!result.ok) throw new Error(result.reason);
@@ -111,8 +111,8 @@ export function createFieldMenu(
   async function changeTemplate(type: Type, field: FieldDefinition, remove: boolean) {
     try {
       await doc.flush();
-      const current = await props.notebook.api.type(type.page.id);
-      await props.notebook.commit(
+      const current = await props.workshop.api.type(type.page.id);
+      await props.workshop.commit(
         [
           {
             op: 'set_type_fields',
@@ -126,8 +126,8 @@ export function createFieldMenu(
       context.showNotice(
         `${fieldLabel(field)} ${remove ? 'removed from' : 'added to'} ${type.page.text} template.`,
         async () => {
-          const fresh = await props.notebook.api.type(type.page.id);
-          await props.notebook.commit(
+          const fresh = await props.workshop.api.type(type.page.id);
+          await props.workshop.commit(
             [
               {
                 op: 'set_type_fields',
@@ -169,7 +169,7 @@ export function createFieldMenu(
       anchor,
       label: name,
       title: name,
-      context: (block && plainText(block.text, target => props.notebook.lookup(target))) || name,
+      context: (block && plainText(block.text, target => props.workshop.lookup(target))) || name,
       items: [
         { label: 'Open field definition', action: event => open(opensBeside(event)) },
         {

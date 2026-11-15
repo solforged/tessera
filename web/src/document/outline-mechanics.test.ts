@@ -2,8 +2,8 @@ import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
-import { createNotebookClient } from './index';
-import type { Notebook } from './index';
+import { createWorkshopClient } from './index';
+import type { Workshop } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
 import {
@@ -20,9 +20,9 @@ import { markdownPasteRows } from './clipboard';
 const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
-const clients: Notebook[] = [];
+const clients: Workshop[] = [];
 let service: WorkshopService | undefined;
-let notebookId: string;
+let workshopId: string;
 let serial = 0;
 // Real service startup and document hydration cross process/stream boundaries;
 // bounded condition polling is not a debounce or timer-behavior assertion.
@@ -39,16 +39,16 @@ async function eventually(predicate: () => boolean) {
 }
 beforeAll(async () => {
   service = await startService({ name: 'outline-mechanics', port });
-  notebookId = service.workshopId;
+  workshopId = service.workshopId;
 }, 60000);
 afterAll(async () => {
   for (const client of clients) await client.dispose();
   await service?.stop();
 });
 async function fixture(text = 'Alpha') {
-  const client = createNotebookClient({
+  const client = createWorkshopClient({
     baseUrl,
-    notebookId,
+    workshopId,
     sessionId: `mechanics-${++serial}`,
     databaseName: 'tessera-outline-mechanics-tests',
   });

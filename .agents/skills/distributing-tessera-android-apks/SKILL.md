@@ -24,7 +24,7 @@ infrastructure under its persistent owner.
 ## Signers decide what can update what
 
 Android only installs an update when the signing certificate matches; otherwise
-it requires an uninstall, which **deletes that phone's notebook**. Never
+it requires an uninstall, which **deletes that phone's workshop**. Never
 uninstall on the user's behalf.
 
 - **Debug key** `~/.android/debug.keystore`, cert SHA-256 `f160ca64…568399`.
@@ -225,7 +225,7 @@ explanation.
   (NEW_TASK|CLEAR_TASK, the launcher's flags; `--activity-new-task` is not an
   `am` option). `adb -s "$SERIAL" shell pidof dev.tessera.android` must stay the
   same across launches since 3ffe5666. Do not create a note in a live phone
-  notebook merely for QA.
+  workshop merely for QA.
 - Self-update: Android can't silently update a sideloaded app; an in-app updater
   would need `REQUEST_INSTALL_PACKAGES` and a PackageInstaller session (first
   update still prompts). Not built as of 2026-10-22.

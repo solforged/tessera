@@ -1,6 +1,6 @@
 ---
 name: smoke-testing-tessera-library
-description: "Smoke-tests Tessera library, reader, highlight, triage and export changes in the browser on a throwaway notebook with real EPUBs and an article; use for end-to-end reading flows and empty or edge-state passes."
+description: "Smoke-tests Tessera library, reader, highlight, triage and export changes in the browser on a throwaway workshop with real EPUBs and an article; use for end-to-end reading flows and empty or edge-state passes."
 ---
 
 # Smoke-testing the Tessera library
@@ -13,7 +13,7 @@ Follow
 [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the library smoke's workspace and run.
 
-The clickaround notebook and named Calibre edge-case books below are external
+The clickaround workshop and named Calibre edge-case books below are external
 prerequisites; report missing coverage if unavailable rather than inventing
 replacements.
 
@@ -94,7 +94,7 @@ task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/library" add --wait <permit
 
 ## Edge-state pass checklist
 
-Empty notebook and seeded copy, at 1440, 760 and 412: every tab empty and
+Empty workshop and seeded copy, at 1440, 760 and 412: every tab empty and
 populated; search no-match; empty collection and the Collections index;
 Highlights with zero highlights, with highlights, and with a zero-match color
 filter (filter sheet footer); failed import rows; Shelf grouped by year and by

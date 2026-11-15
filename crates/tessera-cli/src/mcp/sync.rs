@@ -1,4 +1,4 @@
-//! `tessera_sync`: whether this notebook's edits have reached its hub.
+//! `tessera_sync`: whether this workshop's edits have reached its hub.
 
 use serde_json::Value;
 

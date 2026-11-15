@@ -14,19 +14,19 @@ struct Holder {
 
 /// The OS releases ownership when this handle closes, including after a crash.
 /// Never unlink the file: doing so would let another owner lock a new inode.
-pub struct NotebookOwnership {
+pub struct WorkshopOwnership {
     file: File,
 }
 
-impl NotebookOwnership {
-    pub fn acquire(notebook: &Path, port: u16) -> io::Result<Self> {
-        std::fs::create_dir_all(notebook).map_err(|error| {
+impl WorkshopOwnership {
+    pub fn acquire(workshop: &Path, port: u16) -> io::Result<Self> {
+        std::fs::create_dir_all(workshop).map_err(|error| {
             io::Error::new(
                 error.kind(),
-                format!("cannot create workshop {}: {error}", notebook.display()),
+                format!("cannot create workshop {}: {error}", workshop.display()),
             )
         })?;
-        let path = notebook.join(LOCK_FILE);
+        let path = workshop.join(LOCK_FILE);
         let mut file = File::options()
             .read(true)
             .write(true)
@@ -53,15 +53,15 @@ impl NotebookOwnership {
                         port: Some(port),
                     }) => format!(
                         "workshop {} is already served by PID {pid} on port {port}",
-                        notebook.display()
+                        workshop.display()
                     ),
                     Some(Holder { pid, port: None }) => format!(
                         "workshop {} is already served by PID {pid} (port not bound yet)",
-                        notebook.display()
+                        workshop.display()
                     ),
                     None => format!(
                         "workshop {} is already served by another process (holder details unavailable)",
-                        notebook.display()
+                        workshop.display()
                     ),
                 };
                 return Err(io::Error::new(io::ErrorKind::WouldBlock, message));

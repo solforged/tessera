@@ -36,7 +36,7 @@ export const sync = createRoot(() => {
   const visible = () => document.visibilityState === 'visible';
   const schedule = () => {
     window.clearTimeout(timer);
-    // Only a replica changes underneath the page; a hub or a standalone notebook is read once per refresh.
+    // Only a replica changes underneath the page; a hub or a standalone workshop is read once per refresh.
     if (state()?.role === 'replica' && visible())
       timer = window.setTimeout(() => {
         void refresh();

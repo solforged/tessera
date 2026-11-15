@@ -8,9 +8,9 @@ description: "Ships an explicitly authorized, landed Tessera commit to the insta
 The user works in the installed app on http://127.0.0.1:4318. Since v0.2.0
 (2026-10-08) that is `/Applications/Tessera.app` (bundle `dev.tessera.desktop`,
 Tauri window `tessera-desktop` plus the `tessera` CLI inside), with launch agent
-`dev.tessera.serve`. Resolve the current notebook through the service rather
+`dev.tessera.serve`. Resolve the current workshop through the service rather
 than assume a historical workshop path. Shipping replaces the host app, backs
-up/migrates the live notebook and restarts its agent: an audit/fix request alone
+up/migrates the live workshop and restarts its agent: an audit/fix request alone
 does not authorize those effects or device installation.
 
 ## Shared lifecycle and authorization
@@ -112,7 +112,7 @@ The ruleset `green` requires signed commits, linear history and seven checks:
    `ts-ship <explicit-full-landed-sha>` under normal host HOME, not
    `task_run`. It builds in managed persistent `~/.cache/tessera/ship` (~45 s
    warm), quits Tessera.app if open, replaces it, then runs `tessera install`,
-   which backs up the notebook and restarts the agent. This is the explicitly
+   which backs up the workshop and restarts the agent. This is the explicitly
    authorized host effect; never allocate/delete/re-home that managed cache as
    an agent task worktree.
 2. Expect `ship: <sha> is live at http://127.0.0.1:4318`. Exit 0 also when
@@ -127,10 +127,10 @@ The ruleset `green` requires signed commits, linear history and seven checks:
    identity and persistent host backup path in `TASK_EVIDENCE`. Record any
    intentionally retained services/handoffs.
 
-## Throwaway smoke notebook
+## Throwaway smoke workshop
 
 The ship's persistent backup (`~/.local/share/tessera/backups/<id>/<timestamp>`)
-is a complete notebook, not disposable scratch. Copy it to
+is a complete workshop, not disposable scratch. Copy it to
 `$TASK_RUN/notebooks/ship-smoke` using the shared copied-lock/sync-detachment
 safeguards; stage the matching shipped release at `TASK_BIN`, then start
 `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/ship-smoke" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`
@@ -145,7 +145,7 @@ does not answer; the task then puts the previous app back. Read the actual host
 serve log (`~/.local/state/tessera/logs/serve.log` for the default host layout),
 retain relevant evidence privately, fix forward and re-run
 ancestry/authorization checks before shipping again. Never hand-edit the live
-notebook or bypass a failed install by deleting its backup/state.
+workshop or bypass a failed install by deleting its backup/state.
 
 ## Do not
 

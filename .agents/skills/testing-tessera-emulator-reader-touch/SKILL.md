@@ -35,7 +35,7 @@ install on the physical Fold.
    cold launch can open quick capture or the sync-setup sheet; dismiss with
    `adb -s "$SERIAL" shell input keyevent 111` (Escape). Avoid `keyevent` 4, which
    can close the activity. If the fresh emulator needs onboarding/content, use
-   only its local throwaway notebook and the explicitly permitted seed
+   only its local throwaway workshop and the explicitly permitted seed
    procedure; never join a live hub.
 4. Forward again after every relaunch: read the pid with
    `adb -s "$SERIAL" shell pidof dev.tessera.android` in its own call, then
@@ -106,7 +106,7 @@ install on the physical Fold.
 - Unexplained Back presses or folds mean ownership is wrong, not permission to
   stop another session's emulator. Inspect the recorded device/service identity;
   resume only on the run-owned AVD.
-- Test highlights belong only to this private emulator notebook. List their ids
+- Test highlights belong only to this private emulator workshop. List their ids
   and observed persistence in `TASK_EVIDENCE`, along with motion samples,
   reduced-motion setup, layouts, system-bar evidence, build/APK identity, serial
   and CDP bindings.

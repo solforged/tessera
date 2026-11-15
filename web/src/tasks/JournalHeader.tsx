@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup } from 'solid-js';
 import type { Agenda, Citation, LibraryRow, SourceView } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
 import { BlockText } from '../outline/BlockText';
 import { plainText } from '../outline/names';
@@ -34,28 +34,28 @@ import '../library/library.css';
 export function JournalHeader(props: {
   date: string;
   journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod'];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
-  const today = createMemo(() => props.date === props.notebook.todayDate());
+  const today = createMemo(() => props.date === props.workshop.todayDate());
   // Refetches return equal data for most edits; equality keeps the tiles, ledger rows and book map from re-rendering.
   const [desk, setDesk] = createSignal<{ agenda: Agenda; due: number } | undefined>(undefined, { equals: sameData });
   const [deskError, setDeskError] = createSignal('');
   const [reading, setReading] = createSignal<
     { row: LibraryRow; source: SourceView; highlights: { at: number; color: Citation['color'] }[] } | null | undefined
   >(undefined, { equals: sameData });
-  const readingChanges = createSettledChanges(props.notebook);
+  const readingChanges = createSettledChanges(props.workshop);
   const [readingError, setReadingError] = createSignal('');
   createEffect(() => {
     const date = props.date;
     if (!today()) return;
-    props.notebook.changeSequence();
-    props.notebook.lastChange();
+    props.workshop.changeSequence();
+    props.workshop.lastChange();
     const controller = new AbortController();
     setDeskError('');
     void Promise.all([
-      props.notebook.api.agenda(date, controller.signal),
-      props.notebook.api.cardQuery({ source: null, selection: 'due', limit: 1 }, controller.signal),
+      props.workshop.api.agenda(date, controller.signal),
+      props.workshop.api.cardQuery({ source: null, selection: 'due', limit: 1 }, controller.signal),
     ])
       .then(([agenda, cards]) => {
         if (!controller.signal.aborted) setDesk({ agenda, due: cards.total });
@@ -70,7 +70,7 @@ export function JournalHeader(props: {
     readingChanges();
     const controller = new AbortController();
     setReadingError('');
-    void props.notebook.api
+    void props.workshop.api
       .library(
         { states: ['reading'], format: 'epub', sort: 'last_read', direction: 'desc', limit: 1 },
         controller.signal,
@@ -82,8 +82,8 @@ export function JournalHeader(props: {
           return;
         }
         const [source, highlights] = await Promise.all([
-          props.notebook.api.source(row.page.id, controller.signal),
-          props.notebook.api.highlights({ source_id: row.page.id, limit: null }, controller.signal),
+          props.workshop.api.source(row.page.id, controller.signal),
+          props.workshop.api.highlights({ source_id: row.page.id, limit: null }, controller.signal),
         ]);
         const snapshotId = source.source.current_snapshot_id;
         const marks = highlights.rows.flatMap(highlight =>
@@ -104,7 +104,7 @@ export function JournalHeader(props: {
     const summary = agendaDaySummary(agenda.items, props.date);
     const items = summary.items;
     const clock = new Intl.DateTimeFormat('en-GB', {
-      timeZone: props.notebook.settings()?.time_zone,
+      timeZone: props.workshop.settings()?.time_zone,
       hour: '2-digit',
       minute: '2-digit',
       hourCycle: 'h23',
@@ -124,15 +124,15 @@ export function JournalHeader(props: {
     const current = chapterAt(chapters, at);
     return { length, at, chapters, current };
   });
-  const clock = createClock(props.notebook);
+  const clock = createClock(props.workshop);
   const dayGroups = createMemo(() => {
     const agenda = desk()?.agenda;
     return agenda ? groupDayAgenda(agenda.items, [], props.date) : null;
   });
   // Every commit refreshes the desk, so Plan needs no refresh of its own.
-  const carried = createBulkMove(props.notebook, () => {});
-  const tiles = () => props.notebook.todayTemplate().tiles;
-  const plan = () => section(props.notebook.todayTemplate(), 'plan');
+  const carried = createBulkMove(props.workshop, () => {});
+  const tiles = () => props.workshop.todayTemplate().tiles;
+  const plan = () => section(props.workshop.todayTemplate(), 'plan');
   const Placeholder = () => (
     <span class="journal-tile-placeholder" aria-hidden="true">
       <span />
@@ -166,9 +166,9 @@ export function JournalHeader(props: {
         date={props.date}
         today={today()}
         journalPeriod={props.journalPeriod}
-        notebook={props.notebook}
+        workshop={props.workshop}
         onSelect={async date => {
-          const pageId = await props.notebook.journal(date);
+          const pageId = await props.workshop.journal(date);
           props.onOpen({ kind: 'page', pageId }, false);
         }}
       />
@@ -226,7 +226,7 @@ export function JournalHeader(props: {
                               </Show>
                               <BlockText
                                 text={next().source.block.text || 'Empty task'}
-                                notebook={props.notebook}
+                                workshop={props.workshop}
                                 interactive={false}
                               />
                             </>
@@ -399,7 +399,7 @@ export function JournalHeader(props: {
               date={props.date}
               groups={groups()}
               now={clock()}
-              notebook={props.notebook}
+              workshop={props.workshop}
               carried={carried}
               onOpen={props.onOpen}
             />
@@ -418,7 +418,7 @@ function JournalPlan(props: {
   date: string;
   groups: ReturnType<typeof groupDayAgenda>;
   now: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   carried: ReturnType<typeof createBulkMove>;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
@@ -490,7 +490,7 @@ function JournalPlan(props: {
                   <span class="journal-carried-count">{props.groups.overdue.length} carried over</span>
                   <span class="journal-carried-titles">
                     {props.groups.overdue
-                      .map(row => plainText(row.source.block.text, id => props.notebook.lookup(id)) || 'Empty task')
+                      .map(row => plainText(row.source.block.text, id => props.workshop.lookup(id)) || 'Empty task')
                       .join(' · ')}
                   </span>
                   <Show when={movable()}>
@@ -528,7 +528,7 @@ function JournalPlan(props: {
                         <span>
                           <BlockText
                             text={row.source.block.text || 'Empty task'}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             interactive={false}
                           />
                         </span>
@@ -550,7 +550,7 @@ function JournalPlan(props: {
               <TaskSourceRows
                 rows={props.groups.overdue}
                 date={props.date}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 timetable
                 gutter={gutter()}
                 plan
@@ -562,7 +562,7 @@ function JournalPlan(props: {
           <TaskSourceRows
             rows={props.groups.planned}
             date={props.date}
-            notebook={props.notebook}
+            workshop={props.workshop}
             timetable
             gutter={gutter()}
             plan

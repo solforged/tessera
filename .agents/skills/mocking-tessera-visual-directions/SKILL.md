@@ -12,17 +12,17 @@ plate frame that injects HTML fragments into captured shells (best for wide
 rounds with many plates), E a per-view UX review with static proposal plates.
 Nothing is committed until the user picks.
 
-## Notebook and browser (all techniques)
+## Workshop and browser (all techniques)
 
 - Complete
   [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
   and source its prepared environment. Keep mock sources/shots and design
   decisions in `TASK_EVIDENCE`.
-- Copy the selected notebook into `$TASK_RUN/notebooks/mock` using the shared
+- Copy the selected workshop into `$TASK_RUN/notebooks/mock` using the shared
   copied-lock/sync-detachment safeguards, then start
   `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/mock" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`
   (or matching embedded assets). Browsing writes reading positions, so never
-  point the mock browser at the real notebook.
+  point the mock browser at the real workshop.
 - Use the shared fresh Chrome for Testing launch with
   `$TASK_RUN/profiles/<device>` and
   `--headless=new --window-size=1440,900 --hide-scrollbars`; attach to the
@@ -66,10 +66,10 @@ Nothing is committed until the user picks.
 ## B. Injected prototype of one view (reader round, 2026-10-11)
 
 Faster and more honest than static plates when the change is layout or
-typography inside an existing view: run the real app on a throwaway notebook,
+typography inside an existing view: run the real app on a throwaway workshop,
 inject a CSS file plus an idempotent in-page script, screenshot.
 
-1. Seed the owned run notebook with the pinned release `TASK_BIN` under
+1. Seed the owned run workshop with the pinned release `TASK_BIN` under
    `task_run` and an exact named service/owned HTTP+sync ports, then
    `task_run "$TASK_BIN" --workshop <owned-notebook> add --wait <epubs>`. Real
    books with messy markup make good private cases: Huizinga's Waning of the
@@ -104,7 +104,7 @@ inject a CSS file plus an idempotent in-page script, screenshot.
 Used 2026-10-11 for the notes Index, note views, spreads and note header
 (`~/artifacts/tessera/notes-index-mock/`).
 
-1. Serve the owned notebook copy, open the base page in its private profile,
+1. Serve the owned workshop copy, open the base page in its private profile,
    blur focus and save `document.documentElement.outerHTML` under
    `TASK_EVIDENCE/mock`.
 2. Download every referenced `/assets/*.css` plus its `url(...)` fonts into this
@@ -157,13 +157,13 @@ assume/reimplement them in this procedure.
    (`http://127.0.0.1:<port>/assets/...`) and break when the server stops;
    rewrite to retained local `assets/`. Download
    `<img src="/api/snapshots/...">` covers into this mock's `covers/` and
-   rewrite. Strip the throwaway notebook marker (`span.notebook-marker`) and
+   rewrite. Strip the throwaway workshop marker (`span.notebook-marker`) and
    private runtime-path text without altering the retained provenance manifest.
 4. Replica shells need a real private replica: serve the owned hub copy,
    `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/replica" sync clone <recorded-private-hub-origin>`,
    then serve it with a distinct named service and owned HTTP/sync ports. To
    show "waiting/unreachable", create a page through its `POST /api/batches` and
-   stop only the recorded hub. Retain both notebooks' provenance/screenshots
+   stop only the recorded hub. Retain both workshops' provenance/screenshots
    before exact teardown; never connect the mock replica to a real hub or host
    Sharing/Pair.
 5. Seed permitted real data:

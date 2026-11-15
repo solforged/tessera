@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use crate::aliases::fold;
 use crate::reads::hidden_blocks;
 use crate::storage::{validate_id, validation};
-use crate::{NoteGroup, NoteLayout, Notebook, Query, QueryRow, Reading, Result};
+use crate::{NoteGroup, NoteLayout, Query, QueryRow, Reading, Result, Workshop};
 
 impl Query {
     pub(crate) fn selects_notes(&self) -> bool {
@@ -25,7 +25,7 @@ impl Query {
     }
 }
 
-impl Notebook {
+impl Workshop {
     pub(crate) fn query_reference_ids(
         &self,
         term: &str,

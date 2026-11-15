@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { ulid } from 'ulid';
 import type { CardTemplateInfo, CardTemplateState, FieldDefinition } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
 import { typeQuery } from '../table/query';
@@ -26,7 +26,7 @@ import '../notes/notes.css';
 interface Props {
   typeId: string;
   applyId?: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   view: FieldsViewState;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -34,18 +34,18 @@ interface Props {
 }
 
 export function CardTemplatesPane(props: Props) {
-  const index = noteIndex(props.notebook);
+  const index = noteIndex(props.workshop);
   const kind = createMemo(() => index()?.kinds.find(value => value.type_id === props.typeId));
   const [type] = createResource(
-    () => [props.typeId, props.notebook.changeSequence()] as const,
-    ([id]) => props.notebook.api.type(id),
+    () => [props.typeId, props.workshop.changeSequence()] as const,
+    ([id]) => props.workshop.api.type(id),
   );
   let scroll!: HTMLDivElement;
   onMount(() => {
     scroll.scrollTop = props.view.scroll;
     scroll.focus({ preventScroll: true });
   });
-  const title = createMemo(() => type()?.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag');
+  const title = createMemo(() => type()?.page.text ?? props.workshop.lookup(props.typeId)()?.text ?? 'Tag');
   // The kind reads as the sidebar names it: its glyph and plural, as on List, Table and Fields.
   const registerName = createMemo(() => (kind() ? kindLabel(kind()!) : type()?.plural || autoPlural(title())));
   const indexTarget = (): OpenTarget => ({ kind: 'index', key: kind()?.key ?? `type:${props.typeId}` });
@@ -120,7 +120,7 @@ export function CardTemplatesPane(props: Props) {
           onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))}
           onCards={() => {}}
         />
-        <RecipeSection typeId={props.typeId} notebook={props.notebook} onOpen={props.onOpen} />
+        <RecipeSection typeId={props.typeId} workshop={props.workshop} onOpen={props.onOpen} />
       </div>
     </div>
   );
@@ -129,7 +129,7 @@ export function CardTemplatesPane(props: Props) {
 /** The tag page and Cards tab share the same recipe rows and history. */
 export function RecipeSection(props: {
   typeId: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [version, setVersion] = createSignal(0);
@@ -140,13 +140,13 @@ export function RecipeSection(props: {
   const [newField, setNewField] = createSignal('');
   const [backMenu, setBackMenu] = createSignal<HTMLElement | null>(null);
   const doc = createMemo(() => {
-    const value = props.notebook.open(props.typeId);
+    const value = props.workshop.open(props.typeId);
     onCleanup(() => value.release());
     return value;
   });
   createEffect(
     on(
-      () => props.notebook.changeSequence(),
+      () => props.workshop.changeSequence(),
       () => {
         const timer = setTimeout(() => setVersion(value => value + 1), 150);
         onCleanup(() => clearTimeout(timer));
@@ -158,12 +158,12 @@ export function RecipeSection(props: {
     () => [props.typeId, version()] as const,
     async ([id]) => {
       const [type, register, templates, cards] = await Promise.all([
-        props.notebook.api.type(id),
-        props.notebook.api.fields(),
-        props.notebook.api.cardTemplates(id),
-        props.notebook.api.cardQuery({ source: typeQuery(id), selection: 'all', limit: 0 }),
+        props.workshop.api.type(id),
+        props.workshop.api.fields(),
+        props.workshop.api.cardTemplates(id),
+        props.workshop.api.cardQuery({ source: typeQuery(id), selection: 'all', limit: 0 }),
       ]);
-      const members = await props.notebook.api.members(id, Math.max(1, type.members));
+      const members = await props.workshop.api.members(id, Math.max(1, type.members));
       return { type, fields: register.fields, templates, members, cards };
     },
   );
@@ -445,7 +445,7 @@ export function RecipeSection(props: {
                   const field =
                     backField() === 'new' ? { name: newField() } : fields().find(field => field.id === backField());
                   if (!field) throw new Error('Choose a back field.');
-                  const pending = convertSyntax(props.notebook, data.latest!.type, atoms(), templates(), field);
+                  const pending = convertSyntax(props.workshop, data.latest!.type, atoms(), templates(), field);
                   const history = doc().rememberChange(pending);
                   await pending;
                   await history;

@@ -4,7 +4,7 @@ import { deleteDB, openDB } from 'idb';
 import { ulid } from 'ulid';
 import type { Block, BlockCapabilities, Operation, PageView, TaskState } from '../api/types';
 import { Outbox } from './outbox';
-import type { NotebookCommand, PageCommand } from './types';
+import type { WorkshopCommand, PageCommand } from './types';
 
 const task: TaskState = {
   status: 'todo',
@@ -18,7 +18,7 @@ const task: TaskState = {
   completed_on: null,
 };
 
-test('v2 page records migrate additively and recover frozen page and notebook commands in authored order', async () => {
+test('v2 page records migrate additively and recover frozen page and workshop commands in authored order', async () => {
   const database = `outbox-upgrade-${ulid()}`;
   const root: Block = {
     id: ulid(),
@@ -58,7 +58,7 @@ test('v2 page records migrate additively and recover frozen page and notebook co
   const errors: unknown[] = [];
   const outbox = new Outbox('notebook', 'window', error => errors.push(error), database);
   try {
-    const notebook: NotebookCommand = {
+    const workshop: WorkshopCommand = {
       kind: 'notebook',
       id: ulid(),
       order: 2,
@@ -70,12 +70,12 @@ test('v2 page records migrate additively and recover frozen page and notebook co
       operations: [{ op: 'start_review_session', id: ulid(), deck_id: null, started_at: 1000 }],
       frozen: '{"new":"immutable"}',
     };
-    const saved = outbox.put(notebook);
-    notebook.frozen = 'caller mutation';
-    notebook.operations[0] = { op: 'start_review_session', id: ulid(), deck_id: null, started_at: 9000 };
+    const saved = outbox.put(workshop);
+    workshop.frozen = 'caller mutation';
+    workshop.operations[0] = { op: 'start_review_session', id: ulid(), deck_id: null, started_at: 9000 };
     await saved;
     const recovered = await outbox.load();
-    expect(recovered.commands.map(command => command.id)).toEqual([page.id, notebook.id]);
+    expect(recovered.commands.map(command => command.id)).toEqual([page.id, workshop.id]);
     expect(recovered.commands[0]?.frozen).toBe(page.frozen);
     expect(recovered.commands[1]?.frozen).toBe('{"new":"immutable"}');
     const command = recovered.commands[1]!;
@@ -312,7 +312,7 @@ test('merge acknowledgement removes every tombstone cache and its durable comman
   const from = root('Duplicate'),
     into = root('Survivor');
   const entry: Block = { ...from, id: ulid(), kind: 'block', parent_id: from.id, text: 'Field entry' };
-  const command: NotebookCommand = {
+  const command: WorkshopCommand = {
     kind: 'notebook',
     id: ulid(),
     order: 1,
@@ -458,7 +458,7 @@ test('capture intake survives immediate reload and two windows share one frozen 
   const errors: unknown[] = [];
   const first = new Outbox('notebook', 'first-window', error => errors.push(error), database, intake);
   const second = new Outbox('notebook', 'second-window', error => errors.push(error), database, intake);
-  const commands: NotebookCommand[] = Array.from({ length: 10 }, (_, index) => ({
+  const commands: WorkshopCommand[] = Array.from({ length: 10 }, (_, index) => ({
     kind: 'notebook',
     id: ulid(),
     order: index,
@@ -506,7 +506,7 @@ test('a failed synchronous capture intake is not accepted or cleared', async () 
     },
   };
   const outbox = new Outbox('notebook', 'window', () => {}, database, intake);
-  const command: NotebookCommand = {
+  const command: WorkshopCommand = {
     kind: 'notebook',
     id: ulid(),
     order: 1,
@@ -614,7 +614,7 @@ test('closed-window intake keeps the latest deferred value after an older Indexe
   const errors: unknown[] = [];
   const first = new Outbox('notebook', 'closed', error => errors.push(error), database, intake, locks);
   const next = new Outbox('notebook', 'next', error => errors.push(error), database, intake, locks);
-  const create: NotebookCommand = {
+  const create: WorkshopCommand = {
     kind: 'notebook',
     id: ulid(),
     order: 1,
@@ -626,7 +626,7 @@ test('closed-window intake keeps the latest deferred value after an older Indexe
     after: null,
     frozen: '{"immutable":"create"}',
   };
-  const text: NotebookCommand = {
+  const text: WorkshopCommand = {
     kind: 'notebook',
     id: ulid(),
     order: 2,

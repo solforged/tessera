@@ -349,9 +349,9 @@ async fn run_turn(
     turn: Arc<Turn>,
 ) -> Result<Stop, String> {
     let mut cancelled = turn.cancel.subscribe();
-    let notebook = state.notebook.clone();
+    let workshop = state.workshop.clone();
     let system =
-        tokio::task::spawn_blocking(move || tools::context(&notebook.lock(), &request.context))
+        tokio::task::spawn_blocking(move || tools::context(&workshop.lock(), &request.context))
             .await
             .map_err(|_| "Cannot read workshop context.".to_owned())?
             .map_err(|e| provider.redact(&e.to_string()))?;
@@ -404,20 +404,20 @@ async fn run_turn(
             let result = match args {
                 Err(error) => Err(error),
                 Ok(args) => {
-                    let notebook = state.notebook.clone();
+                    let workshop = state.workshop.clone();
                     let changes = state.changes.clone();
                     let running = turn.clone();
                     let name = call.name.clone();
                     let actor = actor.clone();
                     let reason = reason.clone();
-                    // Await a started notebook operation even when cancelled: its edit event
+                    // Await a started workshop operation even when cancelled: its edit event
                     // must be delivered before done, never after it.
                     tokio::task::spawn_blocking(move || {
-                        let mut notebook = notebook.lock();
+                        let mut workshop = workshop.lock();
                         if running.cancelled() {
                             return Err("Turn cancelled.".to_owned());
                         }
-                        tools::execute(&mut notebook, &changes, &name, &args, &actor, &reason)
+                        tools::execute(&mut workshop, &changes, &name, &args, &actor, &reason)
                             .map_err(|e| e.to_string())
                     })
                     .await

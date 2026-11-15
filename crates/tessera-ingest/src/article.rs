@@ -282,7 +282,7 @@ const FORENAME_RANKS: &[&str] = &[
 
 /// A catalogue heading such as `Augustine, of Hippo, Saint, 354-430` or
 /// `Pusey, E. B. (Edward Bouverie), 1800-1882` as a reader writes the name.
-/// A plain `Surname, Forename` stays inverted, as the notebook reads it.
+/// A plain `Surname, Forename` stays inverted, as the workshop reads it.
 fn heading_name(heading: &str) -> String {
     let parts: Vec<&str> = heading
         .split(',')

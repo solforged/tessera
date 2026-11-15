@@ -4,8 +4,8 @@ use std::time::Instant;
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use tessera_core::{
-    Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Completion, Notebook, Operation,
-    PageReferences, PageView, ReferenceCount, Revision,
+    Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Completion, Operation, PageReferences,
+    PageView, ReferenceCount, Revision, Workshop,
 };
 
 use crate::corpus::{Corpus, Expected, Model, batch, bench_types, id, references, tag};
@@ -150,7 +150,7 @@ fn elapsed(start: Instant) -> f64 {
 
 pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Result<()> {
     let model = &corpus.model;
-    let notebook = Notebook::open(dir)?;
+    let workshop = Workshop::open(dir)?;
     let http = Http::start(dir).await?;
     for (&rows, page_id) in &corpus.pages {
         for cold in [true, false] {
@@ -158,15 +158,15 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
             let budget = if cold { 500.0 } else { 100.0 };
             // Connection-cold, not OS-cache-cold. No privileged cache eviction.
             if !cold {
-                model.check_page(&notebook.page(page_id)?)?;
+                model.check_page(&workshop.page(page_id)?)?;
             }
             let mut times = Vec::new();
             for _ in 0..recorder.runs {
                 let start = Instant::now();
                 let page = if cold {
-                    Notebook::open(dir)?.page(page_id)?
+                    Workshop::open(dir)?.page(page_id)?
                 } else {
-                    notebook.page(page_id)?
+                    workshop.page(page_id)?
                 };
                 times.push(elapsed(start));
                 model.check_page(&page)?;
@@ -202,7 +202,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result = notebook.complete(query, 30)?;
+            let result = workshop.complete(query, 30)?;
             times.push(elapsed(start));
             check_blocks(model, &result, &expected)?;
         }
@@ -233,7 +233,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result = notebook.search(query, 30)?;
+            let result = workshop.search(query, 30)?;
             times.push(elapsed(start));
             check_search(model, &result, &expected)?;
         }
@@ -263,7 +263,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result = notebook.backlinks(&target, 100)?;
+            let result = workshop.backlinks(&target, 100)?;
             times.push(elapsed(start));
             check_backlinks(model, &result, &expected)?;
         }
@@ -293,7 +293,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result = notebook.page_references(page, 100)?;
+            let result = workshop.page_references(page, 100)?;
             times.push(elapsed(start));
             model.check_page_references(page, &result, 100)?;
         }
@@ -323,7 +323,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result = notebook.reference_counts(page)?;
+            let result = workshop.reference_counts(page)?;
             times.push(elapsed(start));
             ensure!(
                 result == expected_counts,
@@ -379,7 +379,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         for _ in 0..recorder.runs {
             let start = Instant::now();
             let root = if transport == "core" {
-                notebook.page_by_title("PAGE 00000")?.unwrap()
+                workshop.page_by_title("PAGE 00000")?.unwrap()
             } else {
                 http.get::<Block>("/api/pages/by-title/PAGE%2000000")
                     .await?
@@ -389,7 +389,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
             ensure!(root.id == type_id, "title lookup mismatch");
             let start = Instant::now();
             let members = if transport == "core" {
-                notebook.members(&type_id, 100)?
+                workshop.members(&type_id, 100)?
             } else {
                 http.get::<Vec<BlockInPage>>(&format!("/api/types/{type_id}/members?limit=100"))
                     .await?
@@ -408,7 +408,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result = notebook.changes_since(after, 100)?;
+            let result = workshop.changes_since(after, 100)?;
             times.push(elapsed(start));
             model.check_changes(&result, after, 100)?;
         }
@@ -491,7 +491,7 @@ pub async fn commits(
         dir.join(tessera_core::DATABASE_FILE),
         work.path().join(tessera_core::DATABASE_FILE),
     )?;
-    let mut notebook = Notebook::open(work.path())?;
+    let mut workshop = Workshop::open(work.path())?;
     let http = if transport == "http" {
         Some(Http::start(work.path()).await?)
     } else {
@@ -529,7 +529,7 @@ pub async fn commits(
                     let revision = model.blocks[&target].revision;
                     deletion = Some(
                         apply(
-                            &mut notebook,
+                            &mut workshop,
                             http.as_ref(),
                             &mut model,
                             Operation::Delete {
@@ -596,10 +596,10 @@ pub async fn commits(
                     },
                     _ => unreachable!(),
                 };
-                let (committed, ms) = apply(&mut notebook, http.as_ref(), &mut model, op).await?;
+                let (committed, ms) = apply(&mut workshop, http.as_ref(), &mut model, op).await?;
                 times.push(ms);
                 // Check full observable page state independently, outside timing.
-                check_current_page(&notebook, http.as_ref(), &model, page_id).await?;
+                check_current_page(&workshop, http.as_ref(), &model, page_id).await?;
                 let cleanup = match operation {
                     "insert" => vec![Operation::Delete {
                         id: new_id.clone(),
@@ -624,7 +624,7 @@ pub async fn commits(
                     _ => Vec::new(),
                 };
                 for op in cleanup {
-                    apply(&mut notebook, http.as_ref(), &mut model, op).await?;
+                    apply(&mut workshop, http.as_ref(), &mut model, op).await?;
                 }
             }
             recorder.record(
@@ -640,7 +640,7 @@ pub async fn commits(
 }
 
 async fn apply(
-    notebook: &mut Notebook,
+    workshop: &mut Workshop,
     http: Option<&Http>,
     model: &mut Model,
     op: Operation,
@@ -672,7 +672,7 @@ async fn apply(
     let start = Instant::now();
     let committed = match http {
         Some(http) => http.apply(&batch).await?,
-        None => notebook.apply(&batch)?,
+        None => workshop.apply(&batch)?,
     };
     let ms = elapsed(start);
     // The engine stores `#bench_type_N` as a canonical tag and reports the rewrite; the model follows it.
@@ -697,7 +697,7 @@ async fn apply(
             generated.id.parse::<ulid::Ulid>()?.to_string() == generated.id,
             "generated page ID is not canonical"
         );
-        let root = notebook
+        let root = workshop
             .page_by_title(&title)?
             .ok_or_else(|| anyhow::anyhow!("missing generated type page"))?;
         ensure!(
@@ -726,7 +726,7 @@ async fn apply(
         });
         for id in &dropped {
             ensure!(
-                notebook.block(id).is_err(),
+                workshop.block(id).is_err(),
                 "unused generated type page {id} survived"
             );
             let page = model.blocks.get_mut(id).unwrap();
@@ -741,7 +741,7 @@ async fn apply(
         change.1.clone_from(&revisions);
         change.2.push(root.id.clone());
         change.2.sort_unstable();
-        let members = notebook.members(&root.id, 2)?;
+        let members = workshop.members(&root.id, 2)?;
         ensure!(
             members.len() == 1 && members[0].block.id == revisions[0].id,
             "generated type membership mismatch"
@@ -752,7 +752,7 @@ async fn apply(
 }
 
 async fn check_current_page(
-    notebook: &Notebook,
+    workshop: &Workshop,
     http: Option<&Http>,
     model: &Model,
     page_id: &str,
@@ -762,7 +762,7 @@ async fn check_current_page(
             http.get::<PageView>(&format!("/api/pages/{page_id}"))
                 .await?
         }
-        None => notebook.page(page_id)?,
+        None => workshop.page(page_id)?,
     };
     model.check_page(&page)
 }

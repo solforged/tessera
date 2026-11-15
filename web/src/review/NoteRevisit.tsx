@@ -1,6 +1,6 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { NoteState, RevisitAction } from '../api/types';
-import type { DocumentChange, NotebookClient } from '../document/contract';
+import type { DocumentChange, WorkshopClient } from '../document/contract';
 import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
@@ -9,7 +9,7 @@ import { calendarDate } from '../tasks/relative-date';
 import { isPhone } from '../ui/phone';
 import './revisits.css';
 
-export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
+export function NoteRevisit(props: { id: string; workshop: WorkshopClient }) {
   const [note, setNote] = createSignal<NoteState>(workingNote());
   const [date, setDate] = createSignal<string | null>(null);
   const [changed, setChanged] = createSignal(false);
@@ -21,12 +21,12 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
   const [undone, setUndone] = createSignal(false);
   createEffect(() => {
     const id = props.id;
-    props.notebook.changeSequence();
-    props.notebook.connection();
+    props.workshop.changeSequence();
+    props.workshop.connection();
     // A newly created page is editable before the service has acknowledged its root.
-    if (props.notebook.lookup(id)()?.revision === 0) return;
+    if (props.workshop.lookup(id)()?.revision === 0) return;
     const controller = new AbortController();
-    void props.notebook.api.capabilities(id, controller.signal).then(
+    void props.workshop.api.capabilities(id, controller.signal).then(
       value => {
         if (controller.signal.aborted) return;
         setError('');
@@ -44,7 +44,7 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
     setBusy(true);
     setError('');
     try {
-      setHistory(await changeRevisit(props.notebook, props.id, action, next));
+      setHistory(await changeRevisit(props.workshop, props.id, action, next));
       setUndone(false);
     } catch (reason) {
       setError(String(reason));
@@ -67,7 +67,7 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
       setBusy(false);
     }
   }
-  const due = () => !note().resolved_at && !!date() && date()! <= props.notebook.todayDate();
+  const due = () => !note().resolved_at && !!date() && date()! <= props.workshop.todayDate();
   // On a phone Revisit is a tint capsule with its glyph, and its date reads in prose.
   const phone = isPhone();
   return (
@@ -83,7 +83,7 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
         {note().resolved_at
           ? 'Resolved'
           : date()
-            ? `Revisit ${phone ? calendarDate(date()!, props.notebook.todayDate()) : date()}`
+            ? `Revisit ${phone ? calendarDate(date()!, props.workshop.todayDate()) : date()}`
             : 'Revisit'}
       </Button>
       <Show when={changed()}>
@@ -125,12 +125,12 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
       <Show keyed when={picker()}>
         {anchor => (
           <DatePicker
-            notebook={props.notebook}
+            workshop={props.workshop}
             anchor={anchor}
             label="Set revisit date"
             presets="revisit"
             value={date()}
-            contextDate={props.notebook.todayDate()}
+            contextDate={props.workshop.todayDate()}
             onDismiss={() => setPicker(undefined)}
             onSelect={value => change('later', value.date)}
           />

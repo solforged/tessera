@@ -1,6 +1,6 @@
 import { Show, createResource, createSignal } from 'solid-js';
 import type { Block } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { Button } from '../ui/Button';
@@ -30,16 +30,16 @@ const labels: Record<RelationAction, string> = {
 
 /** The same people, groups, filing and creation choices in a perspective and a question draft. */
 export async function holderChoices(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   text: string,
   preferred?: { ids: Set<string>; types: Set<string> },
-  roots = notebook.roots(),
+  roots = workshop.roots(),
 ): Promise<HolderChoice[]> {
   if (!preferred) {
-    const [entities, types] = await Promise.all([notebook.api.entities(), notebook.api.types()]);
+    const [entities, types] = await Promise.all([workshop.api.entities(), workshop.api.types()]);
     preferred = { ids: new Set(entities), types: new Set(types.map(type => type.page.id)) };
   }
-  const names = await completeNames(notebook, text, roots);
+  const names = await completeNames(workshop, text, roots);
   const people: HolderChoice[] = names.rows
     .filter(({ page }) => preferred.ids.has(page.id))
     .map(({ page, alias }) => ({ block: page, alias, section: 'People and groups' }));
@@ -140,7 +140,7 @@ export function createRelationActions(
               return { ids: new Set<string>(), questions: [] as Block[], types: new Set<string>() };
             // Holders are people and groups, refined types included, in one read. Type pages are never offered for filing.
             if (holding) {
-              const [entities, types] = await Promise.all([props.notebook.api.entities(), props.notebook.api.types()]);
+              const [entities, types] = await Promise.all([props.workshop.api.entities(), props.workshop.api.types()]);
               return {
                 ids: new Set(entities),
                 questions: [] as Block[],
@@ -148,10 +148,10 @@ export function createRelationActions(
               };
             }
             const [index, questions, directory, types] = await Promise.all([
-              props.notebook.api.kindNotes('concept'),
-              props.notebook.api.questions({}),
-              props.notebook.api.noteIndex(),
-              props.notebook.api.types(),
+              props.workshop.api.kindNotes('concept'),
+              props.workshop.api.questions({}),
+              props.workshop.api.noteIndex(),
+              props.workshop.api.types(),
             ]);
             const ids = new Set(index.notes.map(note => note.id));
             const typeIds = new Set(types.map(type => type.page.id));
@@ -163,7 +163,7 @@ export function createRelationActions(
               const typeId = pending.pop()!;
               if (visited.has(typeId)) continue;
               visited.add(typeId);
-              for (const row of await props.notebook.api.members(typeId, 100000)) {
+              for (const row of await props.workshop.api.members(typeId, 100000)) {
                 if (row.block.kind !== 'page' || row.block.archived) continue;
                 ids.add(row.block.id);
                 if (typeIds.has(row.block.id)) pending.push(row.block.id);
@@ -172,11 +172,11 @@ export function createRelationActions(
             return { ids, questions: questions.map(row => row.block.block), types: typeIds };
           });
           const [choices] = createResource(
-            () => [query(), preferred(), props.notebook.roots()] as const,
+            () => [query(), preferred(), props.workshop.roots()] as const,
             async ([text, preferred, roots]): Promise<Choice[]> => {
               if (!preferred) return [];
-              if (holding) return holderChoices(props.notebook, text, preferred, roots);
-              const names = await completeNames(props.notebook, text, roots);
+              if (holding) return holderChoices(props.workshop, text, preferred, roots);
+              const names = await completeNames(props.workshop, text, roots);
               const result: Choice[] = names.rows.map(({ page, alias }) => ({
                 block: page,
                 alias,
@@ -192,13 +192,13 @@ export function createRelationActions(
                 const questions = new Set(preferred.questions.map(block => block.id));
                 for (const choice of result)
                   if (questions.has(choice.block.id)) choice.section = 'Questions and concepts';
-                const matches = text.trim() ? await props.notebook.api.search(text, 100) : null;
+                const matches = text.trim() ? await props.workshop.api.search(text, 100) : null;
                 const ids = matches && new Set(matches.map(row => row.block.id));
                 for (const block of preferred.questions)
                   if (block.kind === 'block' && (!ids || ids.has(block.id)))
                     result.push({ block, section: 'Questions and concepts' });
               } else if (current.kind === 'integrate' && text.trim()) {
-                const found = await props.notebook.api.search(text, 100);
+                const found = await props.workshop.api.search(text, 100);
                 for (const row of found)
                   if (row.block.kind === 'block' && !row.block.archived)
                     result.push({ block: row.block, section: 'Atoms' });
@@ -226,20 +226,20 @@ export function createRelationActions(
               const holderId = !holding
                 ? choice.block.id
                 : choice.create
-                  ? await createEntity(props.notebook, choice.block.text, choice.create)
+                  ? await createEntity(props.workshop, choice.block.text, choice.create)
                   : choice.block.id;
-              if (choice.file) await fileAsEntity(props.notebook, holderId, choice.file);
+              if (choice.file) await fileAsEntity(props.workshop, holderId, choice.file);
               if (current.kind === 'reading') {
                 await onAddReading?.(holderId);
                 setState(undefined);
                 return;
               }
               if (current.kind === 'integrate') {
-                const change = await props.notebook.integrateBlock(current.id, choice.block.id);
+                const change = await props.workshop.integrateBlock(current.id, choice.block.id);
                 if (current.queue) advance(current);
                 else setState(undefined);
                 showNotice(
-                  `Integrated into ${plainText(choice.block.text, target => props.notebook.lookup(target))}.`,
+                  `Integrated into ${plainText(choice.block.text, target => props.workshop.lookup(target))}.`,
                   change.undo,
                 );
               } else {
@@ -248,7 +248,7 @@ export function createRelationActions(
                 if (current.kind === 'holder') {
                   const alias = positionLinks(text)[0]?.alias;
                   const keep =
-                    alias && (await resolveName(props.notebook, alias)).some(match => match.page.id === holderId);
+                    alias && (await resolveName(props.workshop, alias)).some(match => match.page.id === holderId);
                   const latest = doc.block(current.id)!.text;
                   text = changeHolderText(
                     latest,
@@ -282,7 +282,7 @@ export function createRelationActions(
                     <span class="file-all-text">
                       <BlockText
                         text={doc.block(current.id)?.text ?? ''}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         interactive={false}
                       />
                     </span>
@@ -334,7 +334,7 @@ export function createRelationActions(
                   <span class="picker-text">
                     <Show when={choice.create}>{kind => <>Create {entityLabel(kind())} “</>}</Show>
                     <Show when={choice.file}>File “</Show>
-                    <BlockText text={choice.block.text} notebook={props.notebook} interactive={false} />
+                    <BlockText text={choice.block.text} workshop={props.workshop} interactive={false} />
                     <Show when={choice.create}>”</Show>
                     <Show when={choice.file}>{kind => <>” as {entityLabel(kind())}</>}</Show>
                   </span>
@@ -343,7 +343,7 @@ export function createRelationActions(
                   </Show>
                   <Show when={choice.block.kind === 'block'}>
                     <span class="picker-meta">
-                      <BlockBreadcrumb block={choice.block} notebook={props.notebook} />
+                      <BlockBreadcrumb block={choice.block} workshop={props.workshop} />
                     </span>
                   </Show>
                 </>

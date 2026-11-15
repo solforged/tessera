@@ -1,11 +1,11 @@
 import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import type { Block, IndexKind, NoteIndex, Shelf, View } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { indexKindTarget, kindLabel, noteKindIcon, shelves } from '../notes/kinds';
 import { displayTitle } from '../outline/names';
 import { createPageIcon } from '../outline/source';
-import { knownNotebooks } from '../settings/notebooks';
-import { NotebookSwitcher } from '../settings/NotebookSwitcher';
+import { knownWorkshops } from '../settings/notebooks';
+import { WorkshopSwitcher } from '../settings/NotebookSwitcher';
 import { journalLabel } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import { longPress, openContextMenu } from '../ui/context-menu';
@@ -15,7 +15,7 @@ import type { MenuItem } from '../ui/Menu';
 import type { OpenTarget } from '../core/contract';
 
 /** Pages open as rows; roots arrive as fresh objects whenever any root changes, so rows are keyed by id. */
-function PageRows(props: { roots: Block[]; notebook: NotebookClient; onOpen(target: OpenTarget): void }) {
+function PageRows(props: { roots: Block[]; workshop: WorkshopClient; onOpen(target: OpenTarget): void }) {
   const byId = createMemo(() => new Map(props.roots.map(root => [root.id, root])));
   const ids = createMemo(() => props.roots.map(root => root.id), undefined, {
     equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]),
@@ -25,14 +25,14 @@ function PageRows(props: { roots: Block[]; notebook: NotebookClient; onOpen(targ
       {id => {
         const root = () => byId().get(id)!;
         const title = () => {
-          const page = props.notebook.lookup(id)() ?? root();
+          const page = props.workshop.lookup(id)() ?? root();
           return page.kind === 'journal'
-            ? journalLabel(page.text, props.notebook.todayDate())
+            ? journalLabel(page.text, props.workshop.todayDate())
             : page.kind === 'page'
-              ? displayTitle(page.text, target => props.notebook.lookup(target))
+              ? displayTitle(page.text, target => props.workshop.lookup(target))
               : page.text;
         };
-        const icon = createPageIcon(props.notebook, root, () => true, 'today');
+        const icon = createPageIcon(props.workshop, root, () => true, 'today');
         return (
           <ListRow
             push
@@ -54,7 +54,7 @@ function PageRows(props: { roots: Block[]; notebook: NotebookClient; onOpen(targ
  * so no row carries a ··· of its own. Settings sits once, under Workshop, beside Fields.
  */
 export function PhoneIndex(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   index: NoteIndex | undefined;
   /** Atoms due for revisit, shown at Revisits. */
   revisits: number;
@@ -92,7 +92,7 @@ export function PhoneIndex(props: {
   );
   // A workshop menu is worth a control only when there is a second workshop to switch to.
   const switchable = () =>
-    (knownNotebooks()?.notebooks ?? []).filter(entry => entry.current || entry.available).length > 1;
+    (knownWorkshops()?.notebooks ?? []).filter(entry => entry.current || entry.available).length > 1;
   let root!: HTMLDivElement;
   onMount(() =>
     onCleanup(
@@ -110,7 +110,7 @@ export function PhoneIndex(props: {
     <div ref={root} class="phone-index">
       <Show when={props.pinned.length}>
         <ListGroup label="Pinned">
-          <PageRows roots={props.pinned} notebook={props.notebook} onOpen={props.onOpen} />
+          <PageRows roots={props.pinned} workshop={props.workshop} onOpen={props.onOpen} />
         </ListGroup>
       </Show>
       <For each={shelves}>
@@ -185,14 +185,14 @@ export function PhoneIndex(props: {
           when={props.recent.length}
           fallback={<ListRow class="phone-index-note">Atoms you open appear here</ListRow>}
         >
-          <PageRows roots={props.recent} notebook={props.notebook} onOpen={props.onOpen} />
+          <PageRows roots={props.recent} workshop={props.workshop} onOpen={props.onOpen} />
         </Show>
       </ListGroup>
       <ListGroup
         label="Workshop"
         action={
           <Show when={switchable()}>
-            <NotebookSwitcher notebook={props.notebook} onOpen={props.onOpen} onError={props.onError} />
+            <WorkshopSwitcher workshop={props.workshop} onOpen={props.onOpen} onError={props.onError} />
           </Show>
         }
       >

@@ -27,7 +27,7 @@ import type {
   ReviewStats,
   TagDeck,
 } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { opensBeside } from '../core/beside';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../core/contract';
@@ -72,7 +72,7 @@ import './review.css';
 export interface ReviewPaneProps {
   pane: PaneId;
   view: ReviewViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   commands: CommandRegistry;
   active: boolean;
   onActivate(): void;
@@ -219,7 +219,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   );
   const otherSessions = createMemo(() => openSessions().filter(value => value.id !== sessionId()));
   // Queue bookkeeping must not refresh a shown card unless command state changes.
-  const commandState = createMemo(() => props.notebook.commandState());
+  const commandState = createMemo(() => props.workshop.commandState());
   const queued = createMemo(() => ['saving', 'queued', 'offline'].includes(commandState()));
   const locked = createMemo(() => !!pending() || queued());
   // A notice for a write that is already done by the next frame would only push the card down.
@@ -319,7 +319,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   }
   /** The shared civil-date wording and a 24-hour time: `today · 07:55`. */
   function sessionWhen(value: ReviewSession) {
-    return nextCardTime(value.started_at, props.notebook.todayDate(), props.notebook.settings()?.time_zone);
+    return nextCardTime(value.started_at, props.workshop.todayDate(), props.workshop.settings()?.time_zone);
   }
   function sessionLabel(value: ReviewSession) {
     return `${sessionName(value)} · ${sessionWhen(value)}`;
@@ -414,8 +414,8 @@ function CardReviewPane(props: ReviewPaneProps) {
           deckId(),
           sessionId(),
           selection(),
-          props.notebook.changeSequence(),
-          props.notebook.todayDate(),
+          props.workshop.changeSequence(),
+          props.workshop.todayDate(),
           commandState(),
           retry(),
         ] as const,
@@ -557,10 +557,10 @@ function CardReviewPane(props: ReviewPaneProps) {
   }
   async function presentation(item: CardRow): Promise<Presentation> {
     const [previews, context] = await Promise.all([
-      props.notebook.api.cardPreviews(item.card.id),
-      reviewSource(props.notebook.api, item),
+      props.workshop.api.cardPreviews(item.card.id),
+      reviewSource(props.workshop.api, item),
     ]);
-    const current = await props.notebook.api.card(item.card.id);
+    const current = await props.workshop.api.card(item.card.id);
     if (!sameCardSnapshot(item.card, current))
       throw new Error('The card changed while loading its intervals. Refresh to review its current text.');
     return { item, previews, context };
@@ -580,14 +580,14 @@ function CardReviewPane(props: ReviewPaneProps) {
     setLoading(true);
     try {
       const [savedDecks, currentTagDecks, savedSessions] = await Promise.all([
-        props.notebook.api.decks(),
-        props.notebook.api.tagDecks(),
-        props.notebook.api.reviewSessions(),
+        props.workshop.api.decks(),
+        props.workshop.api.tagDecks(),
+        props.workshop.api.reviewSessions(),
       ]);
       if (disposed || version !== generation) return;
       let currentSession = requestedSession
         ? (savedSessions.find(value => value.id === requestedSession) ??
-          (await props.notebook.api.reviewSession(requestedSession)))
+          (await props.workshop.api.reviewSession(requestedSession)))
         : null;
       if (disposed || version !== generation) return;
       if (!requestedSession && recover) {
@@ -615,7 +615,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           moveTo({ deckId: null, sessionId: null });
           return;
         }
-        const page = await props.notebook.api.block(requestedDeck).catch((reason: unknown) => {
+        const page = await props.workshop.api.block(requestedDeck).catch((reason: unknown) => {
           if (reason instanceof ApiError && reason.status === 404) return null;
           throw reason;
         });
@@ -636,26 +636,26 @@ function CardReviewPane(props: ReviewPaneProps) {
       const nextQuery = copyCardQuery(deck?.query ?? { source: null, selection: 'due', limit: null });
       if (requestedSelection) nextQuery.selection = requestedSelection;
       const [result, history, nextStats, globalStats, nextLandingCards, ...totals] = await Promise.all([
-        props.notebook.api.cardQuery({ ...nextQuery, limit: nextQuery.limit ?? 2000 }),
+        props.workshop.api.cardQuery({ ...nextQuery, limit: nextQuery.limit ?? 2000 }),
         currentSession
-          ? props.notebook.api.reviewSessionEvents(currentSession.id)
+          ? props.workshop.api.reviewSessionEvents(currentSession.id)
           : Promise.resolve([] as ReviewEvent[]),
-        props.notebook.api.reviewStats(requestedDeck, props.notebook.todayDate()),
+        props.workshop.api.reviewStats(requestedDeck, props.workshop.todayDate()),
         !currentSession && requestedDeck
-          ? props.notebook.api.reviewStats(null, props.notebook.todayDate())
+          ? props.workshop.api.reviewStats(null, props.workshop.todayDate())
           : Promise.resolve(null),
         !currentSession
-          ? props.notebook.api.cardQuery({ source: nextQuery.source, selection: nextQuery.selection, limit: 50 })
+          ? props.workshop.api.cardQuery({ source: nextQuery.source, selection: nextQuery.selection, limit: 50 })
           : Promise.resolve(null),
         ...selections.map(value =>
-          props.notebook.api.cardQuery({ ...nextQuery, selection: value, limit: 0 }).then(found => found.total),
+          props.workshop.api.cardQuery({ ...nextQuery, selection: value, limit: 0 }).then(found => found.total),
         ),
       ]);
       // All is ordered by scheduled time before new cards; one row is enough
       // when the due-now queue is empty, without loading the whole inventory.
       const upcoming =
         !currentSession && totals[0] === 0
-          ? (await props.notebook.api.cardQuery({ ...nextQuery, selection: 'all', limit: 1 })).rows[0]?.card.schedule
+          ? (await props.workshop.api.cardQuery({ ...nextQuery, selection: 'all', limit: 1 })).rows[0]?.card.schedule
               .due_at
           : undefined;
       if (disposed || version !== generation) return;
@@ -668,20 +668,20 @@ function CardReviewPane(props: ReviewPaneProps) {
       const missedFrom = currentSession ? localStorage.getItem(`tessera.review-missed.${currentSession.id}`) : null;
       const blockFrom = currentSession ? localStorage.getItem(`tessera.review-block.${currentSession.id}`) : null;
       if (missedFrom) {
-        const original = await props.notebook.api.reviewSessionEvents(missedFrom);
+        const original = await props.workshop.api.reviewSessionEvents(missedFrom);
         const ids = [...new Set(original.filter(event => event.grade === 'again').map(event => event.card_id))];
-        candidates = (await Promise.all(ids.map(id => loadReviewCard(props.notebook.api, id)))).filter(
+        candidates = (await Promise.all(ids.map(id => loadReviewCard(props.workshop.api, id)))).filter(
           row => row.card.active && !row.card.held,
         );
       } else if (blockFrom) {
         // A deleted block leaves nothing to review, so its session finishes instead of failing every read.
-        const block = await props.notebook.api.block(blockFrom).catch((reason: unknown) => {
+        const block = await props.workshop.api.block(blockFrom).catch((reason: unknown) => {
           if (reason instanceof ApiError && reason.status === 404) return null;
           throw reason;
         });
-        const units = block ? await props.notebook.api.sourceCards(blockFrom) : [];
+        const units = block ? await props.workshop.api.sourceCards(blockFrom) : [];
         candidates = await Promise.all(
-          units.filter(card => card.active && !card.held).map(card => loadReviewCard(props.notebook.api, card.id)),
+          units.filter(card => card.active && !card.held).map(card => loadReviewCard(props.workshop.api, card.id)),
         );
         nextScope = block ? cardSubject(block.text) || 'Untitled atom' : 'Deleted atom';
       }
@@ -699,7 +699,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           : null;
       const queue =
         currentSession?.state === 'open'
-          ? await sessionQueue(props.notebook.api, candidates, history, gone ?? restored)
+          ? await sessionQueue(props.workshop.api, candidates, history, gone ?? restored)
           : { rows: candidates, restoredUnavailable: false };
       const remaining = queue.rows;
       const nextLedger = !currentSession
@@ -707,7 +707,7 @@ function CardReviewPane(props: ReviewPaneProps) {
             deckRows(savedDecks, currentTagDecks).map(async deck => {
               const [due, fresh, all] = await Promise.all(
                 selections.map(value =>
-                  props.notebook.api
+                  props.workshop.api
                     .cardQuery({ source: deck.query.source, selection: value, limit: 0 })
                     .then(found => found.total),
                 ),
@@ -802,7 +802,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     setPending('Starting review…');
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'start_review_session', id, deck_id: targetDeck, started_at: Date.now() }],
         'Start review',
       );
@@ -837,7 +837,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     setPending(state === 'finished' ? 'Finishing review…' : 'Abandoning review…');
     setCommandError('');
     try {
-      const receipt = await props.notebook.commit(
+      const receipt = await props.workshop.commit(
         [{ op: 'finish_review_session', id: value.id, base_revision: value.revision, state, ended_at: Date.now() }],
         state === 'finished' ? 'Finish review' : 'Abandon review',
       );
@@ -881,7 +881,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     setPending('Saving grade…');
     setCommandError('');
     try {
-      await props.notebook.commit([operation], 'Grade card');
+      await props.workshop.commit([operation], 'Grade card');
     } catch (reason) {
       if (!disposed) {
         setNeedsReload(true);
@@ -918,9 +918,9 @@ function CardReviewPane(props: ReviewPaneProps) {
     });
     setCommandError('');
     try {
-      const card = await props.notebook.api.card(event.card_id);
+      const card = await props.workshop.api.card(event.card_id);
       if (disposed) return;
-      const receipt = await props.notebook.commit(
+      const receipt = await props.workshop.commit(
         [
           {
             op: 'undo_grade',
@@ -966,7 +966,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     setPending('Resetting progress…');
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [
           {
             op: 'reset_card',
@@ -1025,7 +1025,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     setPending('Deleting deck…');
     setCommandError('');
     try {
-      await props.notebook.commit([{ op: 'delete_deck', id: deck.id, base_revision: deck.revision }], 'Delete deck');
+      await props.workshop.commit([{ op: 'delete_deck', id: deck.id, base_revision: deck.revision }], 'Delete deck');
       if (disposed) return;
       setDeletion(null);
       moveTo({ deckId: null, sessionId: null });
@@ -1050,7 +1050,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     try {
       // Store only the evidence session, never a copied card definition or schedule.
       localStorage.setItem(`tessera.review-missed.${id}`, previous);
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'start_review_session', id, deck_id: deckId(), started_at: Date.now() }],
         'Review missed cards',
       );
@@ -1089,7 +1089,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     try {
       // Store only the block, never a copied card definition or schedule. Its cards are due or not.
       localStorage.setItem(`tessera.review-block.${id}`, blockId);
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'start_review_session', id, deck_id: null, started_at: Date.now() }],
         'Review atom cards',
       );
@@ -1106,17 +1106,17 @@ function CardReviewPane(props: ReviewPaneProps) {
 
   async function backToToday() {
     if (!done() || locked() || loading() || disposed) return;
-    const pageId = await props.notebook.today();
+    const pageId = await props.workshop.today();
     props.onOpen({ kind: 'page', pageId }, false);
   }
 
   async function createCard(text: string, again: boolean) {
-    const pageId = await props.notebook.today();
-    const doc = props.notebook.open(pageId);
+    const pageId = await props.workshop.today();
+    const doc = props.workshop.open(pageId);
     try {
       await documentReady(doc);
       const id = ulid();
-      await props.notebook.commit(
+      await props.workshop.commit(
         [
           {
             op: 'insert',
@@ -1314,7 +1314,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         <div class="review-notice" role="status">
           {commandState() === 'offline' ? 'Offline · Review changes are kept for retry.' : 'Saving review changes…'}
           <Show when={commandState() === 'offline'}>
-            <Button onClick={() => props.notebook.retry()}>Retry delivery</Button>
+            <Button onClick={() => props.workshop.retry()}>Retry delivery</Button>
           </Show>
         </div>
       </Show>
@@ -1375,7 +1375,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                             {due => (
                               <p>
                                 Next card{' '}
-                                {nextCardTime(due(), props.notebook.todayDate(), props.notebook.settings()?.time_zone)}
+                                {nextCardTime(due(), props.workshop.todayDate(), props.workshop.settings()?.time_zone)}
                               </p>
                             )}
                           </Show>
@@ -1442,7 +1442,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                     </ListGroup>
                   </Show>
                 </section>
-                <ReviewForecast stats={value()} today={props.notebook.todayDate()} />
+                <ReviewForecast stats={value()} today={props.workshop.todayDate()} />
               </div>
               <dl class="review-stats">
                 <div>
@@ -1610,7 +1610,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                           </h2>
                         </Show>
                         <For each={cards().rows}>
-                          {row => <ReviewQueueRow row={row} notebook={props.notebook} onOpen={props.onOpen} />}
+                          {row => <ReviewQueueRow row={row} workshop={props.workshop} onOpen={props.onOpen} />}
                         </For>
                         <Show when={cards().total > cards().rows.length}>
                           <p class="review-cards-more">{cards().total - cards().rows.length} more</p>
@@ -1664,13 +1664,13 @@ function CardReviewPane(props: ReviewPaneProps) {
                       <p class="review-pending">{grades().filter(event => event.grade === 'hard').length} Hard</p>
                     </Show>
                     <Show when={stats()}>
-                      {value => <ReviewForecast stats={value()} today={props.notebook.todayDate()} />}
+                      {value => <ReviewForecast stats={value()} today={props.workshop.todayDate()} />}
                     </Show>
                     <Show when={missed().length}>
                       <section class="review-missed">
                         <h3>Missed</h3>
                         <For each={missed()}>
-                          {event => <ReviewMissedCard event={event} notebook={props.notebook} />}
+                          {event => <ReviewMissedCard event={event} workshop={props.workshop} />}
                         </For>
                       </section>
                     </Show>
@@ -1732,7 +1732,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                     {forecast => (
                       <p class="review-end-line">
                         <Icon name="calendar" />
-                        <span>{figures(nextDueLine(forecast().forecast, props.notebook.todayDate()))}</span>
+                        <span>{figures(nextDueLine(forecast().forecast, props.workshop.todayDate()))}</span>
                       </p>
                     )}
                   </Show>
@@ -1783,7 +1783,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                       kind={shown()!.item.card.kind}
                       front={shown()!.item.card.front}
                       back={shown()!.item.card.back}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                     />
                   </div>
                   <div>
@@ -1793,7 +1793,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                       front={shown()!.item.card.front}
                       back={shown()!.item.card.back}
                       blocks={shown()!.item.card.answer_blocks}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                     />
                   </div>
                 </section>
@@ -1805,7 +1805,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                       kind={updated()!.item.card.kind}
                       front={updated()!.item.card.front}
                       back={updated()!.item.card.back}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                     />
                   </div>
                   <div>
@@ -1815,7 +1815,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                       front={updated()!.item.card.front}
                       back={updated()!.item.card.back}
                       blocks={updated()!.item.card.answer_blocks}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                     />
                   </div>
                 </section>
@@ -1854,7 +1854,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                       beside,
                     );
                   }}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   previews={snapshot.previews.current}
                   resetPreviews={snapshot.previews.reset}
                   busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()}
@@ -1897,7 +1897,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                   cardId={snapshot.item.card.id}
                   kind={snapshot.item.card.kind}
                   template={!!snapshot.item.card.template}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                 />
               </Show>
             </>
@@ -2003,7 +2003,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         {anchor => (
           <CardComposer
             anchor={anchor}
-            where={`${shortDay(props.notebook.todayDate())} · end of journal`}
+            where={`${shortDay(props.workshop.todayDate())} · end of journal`}
             bounds={paneBounds}
             onSave={createCard}
             onDismiss={() => setComposer(null)}
@@ -2069,7 +2069,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         {state => (
           <DeckEditor
             anchor={state.anchor}
-            notebook={props.notebook}
+            workshop={props.workshop}
             deck={state.deck}
             query={query()}
             bounds={paneBounds}
@@ -2174,10 +2174,10 @@ function CardReviewPane(props: ReviewPaneProps) {
   );
 }
 
-function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen: ReviewPaneProps['onOpen'] }) {
+function ReviewQueueRow(props: { row: CardRow; workshop: WorkshopClient; onOpen: ReviewPaneProps['onOpen'] }) {
   const [siblings] = createResource(
     () => (props.row.card.kind === 'occlusion' ? props.row : false),
-    row => props.notebook.api.sourceCards(row.card.source_block_id).then(cards => cards.filter(card => card.active)),
+    row => props.workshop.api.sourceCards(row.card.source_block_id).then(cards => cards.filter(card => card.active)),
   );
   const kind = createMemo(() =>
     cardKindLabel(props.row.card, siblings() ?? parseCardText(props.row.source.block.text).cards),
@@ -2194,15 +2194,15 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
     props.row.card.schedule.last_reviewed_at === null
       ? null
       : relativeDate(
-          civilDate(props.row.card.schedule.due_at, props.notebook.settings()?.time_zone),
-          props.notebook.todayDate(),
+          civilDate(props.row.card.schedule.due_at, props.workshop.settings()?.time_zone),
+          props.workshop.todayDate(),
         ),
   );
   // A phone calls only a card from an earlier day late; one due earlier today is simply today's.
   const late = createMemo(
     () =>
       props.row.card.schedule.last_reviewed_at !== null &&
-      civilDate(props.row.card.schedule.due_at, props.notebook.settings()?.time_zone) < props.notebook.todayDate(),
+      civilDate(props.row.card.schedule.due_at, props.workshop.settings()?.time_zone) < props.workshop.todayDate(),
   );
   return (
     <Button
@@ -2224,7 +2224,7 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
                 kind={props.row.card.kind}
                 front={front()}
                 back={props.row.card.back}
-                notebook={props.notebook}
+                workshop={props.workshop}
               />
             }
           >
@@ -2234,7 +2234,7 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
         <span class="review-queue-meta">
           <span class="review-queue-kind">{kind()}</span>
           <span class="review-queue-source">
-            {displayTitle(props.row.source.page.text, id => props.notebook.lookup(id))}
+            {displayTitle(props.row.source.page.text, id => props.workshop.lookup(id))}
           </span>
         </span>
       </span>
@@ -2378,13 +2378,13 @@ function ReviewForecast(props: { stats: ReviewStats; today: string }) {
   );
 }
 
-function ReviewMissedCard(props: { event: ReviewEvent; notebook: NotebookClient }) {
+function ReviewMissedCard(props: { event: ReviewEvent; workshop: WorkshopClient }) {
   const [kind, setKind] = createSignal<CardKind>();
   const [template, setTemplate] = createSignal(false);
   const [error, setError] = createSignal('');
   createEffect(() => {
     let cancelled = false;
-    void props.notebook.api
+    void props.workshop.api
       .card(props.event.card_id)
       .then(card => {
         if (!cancelled) {
@@ -2411,7 +2411,7 @@ function ReviewMissedCard(props: { event: ReviewEvent; notebook: NotebookClient 
                 front={props.event.shown_front}
                 back={props.event.shown_back}
                 revealed
-                notebook={props.notebook}
+                workshop={props.workshop}
               />
             </Show>
             <CardBack
@@ -2419,7 +2419,7 @@ function ReviewMissedCard(props: { event: ReviewEvent; notebook: NotebookClient 
               kind={value()}
               front={props.event.shown_front}
               back={props.event.shown_back}
-              notebook={props.notebook}
+              workshop={props.workshop}
             />
           </div>
         )}
@@ -2433,7 +2433,7 @@ function ReviewMissedCard(props: { event: ReviewEvent; notebook: NotebookClient 
   );
 }
 
-function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolean; notebook: NotebookClient }) {
+function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolean; workshop: WorkshopClient }) {
   const [open, setOpen] = createSignal(false);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [loading, setLoading] = createSignal(false);
@@ -2441,11 +2441,11 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolea
   const [retry, setRetry] = createSignal(0);
   createEffect(() => {
     if (!open()) return;
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     retry();
     let cancelled = false;
     setLoading(true);
-    void props.notebook.api
+    void props.workshop.api
       .cardReviews(props.cardId)
       .then(value => {
         if (!cancelled) {
@@ -2507,7 +2507,7 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolea
                         kind={props.kind}
                         front={event.shown_front}
                         back={event.shown_back}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </div>
                     <div class="review-history-text">
@@ -2516,7 +2516,7 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolea
                         kind={props.kind}
                         front={event.shown_front}
                         back={event.shown_back}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </div>
                   </Show>

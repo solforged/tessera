@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from 'bun:test';
-import { NotebookHandoff } from './takeover';
+import { WorkshopHandoff } from './takeover';
 
 class TestChannel {
   onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
@@ -20,7 +20,7 @@ class TestChannel {
 test('an owner announces release only after its save and close finish', async () => {
   const channel = new TestChannel();
   const saved = Promise.withResolvers<boolean>();
-  const handoff = new NotebookHandoff(channel, {
+  const handoff = new WorkshopHandoff(channel, {
     release: () => saved.promise,
     waiting() {},
     released() {},
@@ -40,7 +40,7 @@ test('an owner announces release only after its save and close finish', async ()
 test('an owner with uncommitted edits keeps ownership and never announces release', async () => {
   const channel = new TestChannel();
   const saved = Promise.withResolvers<boolean>();
-  const handoff = new NotebookHandoff(channel, {
+  const handoff = new WorkshopHandoff(channel, {
     release: () => saved.promise,
     waiting() {},
     released() {},
@@ -56,7 +56,7 @@ test('an owner with uncommitted edits keeps ownership and never announces releas
 test('only the current addressed release opens a requesting window', () => {
   const channel = new TestChannel();
   const states: string[] = [];
-  const handoff = new NotebookHandoff(channel, {
+  const handoff = new WorkshopHandoff(channel, {
     release: async () => false,
     waiting: () => {
       states.push('waiting');
@@ -95,7 +95,7 @@ test('an unanswered request times out after five seconds and ignores a late rele
   const timer = spyOn(globalThis, 'setTimeout').mockImplementation(schedule as unknown as typeof setTimeout);
   const channel = new TestChannel();
   const states: string[] = [];
-  const handoff = new NotebookHandoff(channel, {
+  const handoff = new WorkshopHandoff(channel, {
     release: async () => false,
     waiting: () => {
       states.push('waiting');

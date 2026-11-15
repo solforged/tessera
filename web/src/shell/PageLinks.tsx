@@ -1,6 +1,6 @@
 import { For, createMemo } from 'solid-js';
 import type { Block } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { createPageIcon } from '../outline/source';
 import { Button } from '../ui/Button';
@@ -10,7 +10,7 @@ import type { OpenTarget } from '../core/contract';
 export function PageLinks(props: {
   roots: Block[];
   sourceIcons?: boolean;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   activeId?: string;
   onOpen(target: OpenTarget, beside?: boolean): void;
 }) {
@@ -24,10 +24,10 @@ export function PageLinks(props: {
       {id => {
         const root = () => byId().get(id)!;
         const title = () => {
-          const page = props.notebook.lookup(id)() ?? root();
-          return page.kind === 'page' ? displayTitle(page.text, target => props.notebook.lookup(target)) : page.text;
+          const page = props.workshop.lookup(id)() ?? root();
+          return page.kind === 'page' ? displayTitle(page.text, target => props.workshop.lookup(target)) : page.text;
         };
-        const icon = createPageIcon(props.notebook, root, () => !!props.sourceIcons, 'today');
+        const icon = createPageIcon(props.workshop, root, () => !!props.sourceIcons, 'today');
         return (
           <Button
             class={id === props.activeId ? 'selected' : ''}

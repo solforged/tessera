@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import {
   cachedExactPage,
   completedReference,
@@ -305,16 +305,16 @@ describe('hand-typed reference linking', () => {
     const journal = { id: 'journal', kind: 'journal', text: date } as Block;
     let rows = [ordinary];
     const created: string[] = [];
-    const notebook = {
+    const workshop = {
       api: { complete: async () => rows },
       createPage: async (title: string) => {
         created.push(title);
         return 'created';
       },
-    } as unknown as NotebookClient;
-    expect((await titleTargets(notebook, [date])).size).toBe(0);
+    } as unknown as WorkshopClient;
+    expect((await titleTargets(workshop, [date])).size).toBe(0);
     rows = [ordinary, journal];
-    const targets = await titleTargets(notebook, [date]);
+    const targets = await titleTargets(workshop, [date]);
     expect(targets.size).toBe(1);
     expect(targets.get(foldName(date))).toBe(journal.id);
     expect(created).toEqual([]);
@@ -331,8 +331,8 @@ test('exact title completion uses canonical Unicode case folding without droppin
   ]) {
     const page = { id: 'page', kind: 'page', parent_id: null, text: title } as Block;
     const roots = [page];
-    const notebook = { roots: () => roots, lookup: () => () => page } as unknown as NotebookClient;
-    expect(cachedExactPage(notebook, query!)).toBe(page);
-    expect(cachedExactPage(notebook, 'cafe')).toBeNull();
+    const workshop = { roots: () => roots, lookup: () => () => page } as unknown as WorkshopClient;
+    expect(cachedExactPage(workshop, query!)).toBe(page);
+    expect(cachedExactPage(workshop, 'cafe')).toBeNull();
   }
 });

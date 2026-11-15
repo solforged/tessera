@@ -2,7 +2,7 @@ import { For, Show, createSignal, onCleanup } from 'solid-js';
 import type { Component } from 'solid-js';
 import type { ApiClient } from '../api/client';
 import type { Citation, HighlightRow, TocEntry } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { pendingCaretInput } from '../shell/pending-caret';
 import { documentReady } from '../tasks/JournalAgenda';
@@ -45,7 +45,7 @@ export async function highlightSections(
  * new note in place passes `composeNote`; it returns false to fall back to opening the note on its page.
  */
 export function createHighlightActions(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   onOpen: (target: OpenTarget, beside: boolean) => void,
   onError: (message: string) => void,
   onProcessed?: (row: HighlightRow) => void,
@@ -106,7 +106,7 @@ export function createHighlightActions(
   const loadDocument = async (pageId: string) => {
     let doc = documents.get(pageId);
     if (!doc) {
-      doc = notebook.open(pageId);
+      doc = workshop.open(pageId);
       documents.set(pageId, doc);
       await documentReady(doc);
       if (!disposed) setDocumentsVersion(value => value + 1);
@@ -163,7 +163,7 @@ export function createHighlightActions(
           ids.add(child);
           if (document.block(child)?.text.trim()) written++;
         }
-        const references = (await notebook.api.referenceCounts(pageId))
+        const references = (await workshop.api.referenceCounts(pageId))
           .filter(value => ids.has(value.block_id))
           .reduce((sum, value) => sum + value.count, 0);
         if (disposed) return;

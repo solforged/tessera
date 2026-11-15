@@ -6,15 +6,15 @@ import '@fontsource-variable/piazzolla/standard-italic.css';
 import { render } from 'solid-js/web';
 import { Show, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { bindNotebook, setStreamFactory, setTransport } from '../api/client';
+import { bindWorkshop, setStreamFactory, setTransport } from '../api/client';
 import { App } from '../shell/App';
 import { Button } from '../ui/Button';
 import { DemoFailure, DemoTransport } from './transport';
-import { setBrowserNotebook } from './notebook';
+import { setBrowserWorkshop } from './notebook';
 import { installInstalledWindow } from './installed';
-import { persistOwnNotebook } from './offline';
-import type { Notebook } from '../document';
-import { NotebookHandoff } from './takeover';
+import { persistOwnWorkshop } from './offline';
+import type { Workshop } from '../document';
+import { WorkshopHandoff } from './takeover';
 import { installIosViewport } from '../ui/ios-viewport';
 import '../styles.css';
 import './demo.css';
@@ -24,8 +24,8 @@ installIosViewport();
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');
 let transport: DemoTransport;
-let notebook: Notebook | undefined;
-let ownsNotebook = false;
+let workshop: Workshop | undefined;
+let ownsWorkshop = false;
 let operation = Promise.resolve();
 function exclusive(work: () => Promise<void>): Promise<void> {
   const next = operation.then(work);
@@ -64,16 +64,16 @@ function State(props: { message: string; failure?: boolean; back?: boolean; acti
 }
 let dispose = render(() => <State message="Opening your local workshop…" />, root);
 function replace(view: () => JSX.Element): void {
-  notebook = undefined;
+  workshop = undefined;
   dispose();
   dispose = render(view, root!);
 }
-const handoff = new NotebookHandoff(new BroadcastChannel('tessera.browser.handoff'), {
+const handoff = new WorkshopHandoff(new BroadcastChannel('tessera.browser.handoff'), {
   release: async () => {
-    if (!ownsNotebook) return false;
+    if (!ownsWorkshop) return false;
     let released = false;
     await exclusive(async () => {
-      if (!ownsNotebook) return;
+      if (!ownsWorkshop) return;
       // Keep the editor mounted while blur submits field text and flush drains its outbox.
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       document.body.inert = true;
@@ -81,13 +81,13 @@ const handoff = new NotebookHandoff(new BroadcastChannel('tessera.browser.handof
         const blurred = Promise.withResolvers<void>();
         setTimeout(blurred.resolve, 0);
         await blurred.promise;
-        if (notebook) {
-          await notebook.flush();
+        if (workshop) {
+          await workshop.flush();
           // Failed/conflicting edits stay with their owner, never in a terminated worker.
-          if (notebook.saveState() !== 'saved') return;
+          if (workshop.saveState() !== 'saved') return;
         }
         await transport.close();
-        ownsNotebook = false;
+        ownsWorkshop = false;
         replace(() => <State message="Tessera moved to another window." action="Use it here" onAction={useHere} />);
         released = true;
       } finally {
@@ -99,13 +99,13 @@ const handoff = new NotebookHandoff(new BroadcastChannel('tessera.browser.handof
   waiting: () => replace(() => <State message="Waiting for the other window to save…" />),
   released: () => {
     void exclusive(async () => {
-      await openNotebook(1500);
+      await openWorkshop(1500);
     });
   },
   // A closed owner never answers; its storage may already be free.
   timeout: () => {
     void exclusive(async () => {
-      if (!(await openNotebook(0, false))) showTimeout();
+      if (!(await openWorkshop(0, false))) showTimeout();
     });
   },
 });
@@ -116,20 +116,20 @@ function showTimeout(): void {
       action="Try again"
       onAction={() => {
         void exclusive(async () => {
-          await openNotebook();
+          await openWorkshop();
         });
       }}
     />
   ));
 }
-/** Open the notebook if no window holds it, otherwise ask the window that does. */
+/** Open the workshop if no window holds it, otherwise ask the window that does. */
 function useHere(): void {
   void exclusive(async () => {
-    if (!(await openNotebook(300, false))) handoff.request();
+    if (!(await openWorkshop(300, false))) handoff.request();
   });
 }
-/** False when another window still holds the notebook and `showLocked` is off. */
-async function openNotebook(retryLockedMs = 0, showLocked = true): Promise<boolean> {
+/** False when another window still holds the workshop and `showLocked` is off. */
+async function openWorkshop(retryLockedMs = 0, showLocked = true): Promise<boolean> {
   handoff.cancel();
   replace(() => <State message="Opening your local workshop…" />);
   const deadline = Date.now() + retryLockedMs;
@@ -139,8 +139,8 @@ async function openNotebook(retryLockedMs = 0, showLocked = true): Promise<boole
     setStreamFactory(transport.stream);
     try {
       const { info, fresh } = await transport.ready;
-      bindNotebook('', info.id);
-      ownsNotebook = true;
+      bindWorkshop('', info.id);
+      ownsWorkshop = true;
       replace(() => (fresh ? <FirstRun /> : <DemoApp />));
       return true;
     } catch (reason) {
@@ -173,27 +173,27 @@ function showFailure(reason: unknown): void {
       : `The workshop could not open. ${failure.message}`;
   replace(() => <State message={message} failure />);
 }
-const notebookKey = 'tessera.browser.notebook';
-function resetNotebook(): Promise<void> {
+const workshopKey = 'tessera.browser.notebook';
+function resetWorkshop(): Promise<void> {
   return exclusive(async () => {
     // Dispose the editor before replacing its storage so it cannot submit old work.
     replace(() => <State message="Erasing…" />);
     try {
       await transport.reset();
-      localStorage.removeItem(notebookKey);
+      localStorage.removeItem(workshopKey);
       if (!handoff.requested) window.location.reload();
     } catch (reason) {
       showFailure(reason);
     }
   });
 }
-function restoreNotebook(file?: File): Promise<void> {
+function restoreWorkshop(file?: File): Promise<void> {
   return exclusive(async () => {
     replace(() => <State message={file ? `Restoring ${file.name}…` : 'Restoring the copy from before the upgrade…'} />);
     try {
       if (file) await transport.restore(await file.arrayBuffer());
       else await transport.restoreUpgradeCopy();
-      localStorage.setItem(notebookKey, 'own');
+      localStorage.setItem(workshopKey, 'own');
       if (!handoff.requested) window.location.reload();
     } catch (reason) {
       if (reason instanceof DemoFailure && reason.code === 'invalid')
@@ -202,13 +202,13 @@ function restoreNotebook(file?: File): Promise<void> {
     }
   });
 }
-setBrowserNotebook({
-  exportNotebook: () => transport.exportNotebook(),
+setBrowserWorkshop({
+  exportWorkshop: () => transport.exportWorkshop(),
   upgradeCopy: () => transport.upgradeCopy(),
   exportUpgradeCopy: () => transport.exportUpgradeCopy(),
-  restore: restoreNotebook,
-  restoreUpgradeCopy: () => restoreNotebook(),
-  reset: resetNotebook,
+  restore: restoreWorkshop,
+  restoreUpgradeCopy: () => restoreWorkshop(),
+  reset: resetWorkshop,
 });
 
 function FirstRun() {
@@ -225,7 +225,7 @@ function FirstRun() {
       try {
         if (typeof kind === 'string') await transport.start(kind);
         else await transport.restore(await kind.arrayBuffer());
-        localStorage.setItem(notebookKey, kind === 'tour' ? 'tour' : 'own');
+        localStorage.setItem(workshopKey, kind === 'tour' ? 'tour' : 'own');
         replace(() => <DemoApp />);
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason));
@@ -298,11 +298,11 @@ function FirstRun() {
   );
 }
 function DemoApp() {
-  persistOwnNotebook();
+  persistOwnWorkshop();
   const [confirmReset, setConfirmReset] = createSignal(false);
   return (
     <div class="demo-shell">
-      <Show when={localStorage.getItem(notebookKey) !== 'own'}>
+      <Show when={localStorage.getItem(workshopKey) !== 'own'}>
         <aside class="demo-notice" aria-label="Tour workshop">
           <span>
             This is the tour workshop. It lives only in this browser.{' '}
@@ -323,7 +323,7 @@ function DemoApp() {
               <Button
                 class="bordered danger"
                 onClick={() => {
-                  void resetNotebook();
+                  void resetWorkshop();
                 }}
               >
                 Confirm
@@ -333,8 +333,8 @@ function DemoApp() {
         </aside>
       </Show>
       <App
-        onNotebook={value => {
-          notebook = value;
+        onWorkshop={value => {
+          workshop = value;
         }}
       />
     </div>
@@ -342,6 +342,6 @@ function DemoApp() {
 }
 // Mount the editor once, outside a reactive condition that its resources could invalidate.
 void exclusive(async () => {
-  await openNotebook();
+  await openWorkshop();
 });
 // The native entry's embedded-app offline cache is intentionally not registered here.

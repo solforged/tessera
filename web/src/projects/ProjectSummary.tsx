@@ -1,5 +1,5 @@
 import { Show, createResource } from 'solid-js';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
@@ -11,7 +11,7 @@ import './projects.css';
 
 export function createProjectSummary(props: {
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   date(): string;
   onOpen(target: OpenTarget, beside: boolean): void;
   onEdit(anchor: HTMLElement): void;
@@ -19,16 +19,16 @@ export function createProjectSummary(props: {
   const [tasks, { refetch }] = createResource(
     () =>
       props.doc.root()?.revision !== 0 && props.doc.root()?.project
-        ? ([props.notebook.changeSequence(), props.date()] as const)
+        ? ([props.workshop.changeSequence(), props.date()] as const)
         : false,
     async ([, date]) => {
       const query = createTaskQuery(date);
       query.filter = { ...query.filter, project_id: props.doc.pageId, selection: 'all', sort: 'outline' };
       query.limit = 2000;
       const [next, plan, done] = await Promise.all([
-        props.notebook.api.taskQuery({ ...query, filter: { ...query.filter, selection: 'unfinished' }, limit: 1 }),
-        props.notebook.api.taskQuery({ ...query, filter: { ...query.filter, sort: 'plan', project_via: 'field' } }),
-        props.notebook.api.taskQuery({ ...query, filter: { ...query.filter, statuses: ['done'] }, limit: 1 }),
+        props.workshop.api.taskQuery({ ...query, filter: { ...query.filter, selection: 'unfinished' }, limit: 1 }),
+        props.workshop.api.taskQuery({ ...query, filter: { ...query.filter, sort: 'plan', project_via: 'field' } }),
+        props.workshop.api.taskQuery({ ...query, filter: { ...query.filter, statuses: ['done'] }, limit: 1 }),
       ]);
       return {
         next: next.rows[0],
@@ -49,7 +49,7 @@ export function createProjectSummary(props: {
                 {labels[project().status]}
               </Button>
               <Show when={project().deadline}>
-                {date => <span>due {relativeDate(date(), props.notebook.todayDate())}</span>}
+                {date => <span>due {relativeDate(date(), props.workshop.todayDate())}</span>}
               </Show>
             </div>
             <Show when={project().outcome}>
@@ -85,7 +85,7 @@ export function createProjectSummary(props: {
                           )
                         }
                       >
-                        Next: <BlockText text={row().source.block.text} notebook={props.notebook} interactive={false} />
+                        Next: <BlockText text={row().source.block.text} workshop={props.workshop} interactive={false} />
                       </Button>
                     )}
                   </Show>
@@ -111,7 +111,7 @@ export function createProjectSummary(props: {
             rows={tasks()?.linked ?? []}
             date={props.date()}
             pageId={props.doc.pageId}
-            notebook={props.notebook}
+            workshop={props.workshop}
             plan
             onOpen={props.onOpen}
             onChanged={() => {

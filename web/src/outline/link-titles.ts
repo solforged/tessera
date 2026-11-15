@@ -1,4 +1,4 @@
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 import { foldName, resolveName } from './names';
@@ -30,21 +30,21 @@ export function typedTitles(text: string): string[] {
  * its page, except a date, which names a journal and stays as typed when that day has none.
  */
 export async function titleTargets(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   titles: readonly string[],
-  createPage = (title: string) => notebook.createPage(title),
+  createPage = (title: string) => workshop.createPage(title),
 ): Promise<TitleTargets> {
   const targets: TitleTargets = new Map();
   for (const title of titles) {
     const key = foldName(title);
     if (isJournalReference(title)) {
-      const target = (await notebook.api.complete(title, 20)).find(
+      const target = (await workshop.api.complete(title, 20)).find(
         block => block.kind === 'journal' && block.text === title,
       )?.id;
       if (target) targets.set(key, target);
       continue;
     }
-    const matches = await resolveName(notebook, title);
+    const matches = await resolveName(workshop, title);
     if (matches.length > 1) continue;
     if (matches.length === 1) {
       targets.set(key, matches[0]!.page.id);

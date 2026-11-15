@@ -2,12 +2,12 @@ mod common;
 #[path = "common/tag_identity.rs"]
 mod tag_identity;
 
-use tessera_core::{Actor, Batch, BlockKind, Committed, Notebook, Operation, Revision};
+use tessera_core::{Actor, Batch, BlockKind, Committed, Operation, Revision, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: Some("type regression".into()),
@@ -59,7 +59,7 @@ fn tag(value: u128, alias: &str) -> String {
 #[test]
 fn tags_resolve_case_insensitively_create_pages_and_preserve_token_boundaries() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let committed = apply(
         &mut nb,
         vec![
@@ -101,7 +101,7 @@ fn tags_resolve_case_insensitively_create_pages_and_preserve_token_boundaries() 
 #[test]
 fn unicode_bare_tags_keep_marks_and_identity_through_rename() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -129,7 +129,7 @@ fn unicode_bare_tags_keep_marks_and_identity_through_rename() {
 #[test]
 fn inline_code_never_creates_type_pages_and_removes_a_previously_active_tag() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -155,7 +155,7 @@ fn inline_code_never_creates_type_pages_and_removes_a_previously_active_tag() {
 #[test]
 fn explicit_type_page_later_in_batch_wins_and_failed_batches_leave_no_generated_pages() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let committed = apply(
         &mut nb,
         vec![page(1, "Notes"), insert(10, 1, "#book"), page(2, "Book")],
@@ -179,7 +179,7 @@ fn explicit_type_page_later_in_batch_wins_and_failed_batches_leave_no_generated_
 #[test]
 fn memberships_follow_edits_subtree_deletion_and_same_id_restore() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -216,7 +216,7 @@ fn memberships_follow_edits_subtree_deletion_and_same_id_restore() {
 #[test]
 fn change_events_expose_current_blocks_removals_and_apply_time_topology() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -289,7 +289,7 @@ fn migration_three_backfills_tags_without_rewriting_earlier_schema_or_identity()
     conn.execute("INSERT INTO blocks(id,kind,parent_id,page_id,ordinal,text,revision,created_at,updated_at) VALUES (?1,'block',?2,?2,1024,'#book',1,123,123)", rusqlite::params![id(10),id(1)]).unwrap();
     conn.pragma_update(None, "user_version", 2).unwrap();
     drop(conn);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.info().unwrap().id, id(100));
     let book = nb.page_by_title("BOOK").unwrap().unwrap();
     assert_eq!(nb.members(&book.id, 10).unwrap()[0].block.id, id(10));
@@ -299,7 +299,7 @@ fn migration_three_backfills_tags_without_rewriting_earlier_schema_or_identity()
 #[test]
 fn bracketed_tags_with_ulid_titles_do_not_become_block_references() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -320,7 +320,7 @@ fn bracketed_tags_with_ulid_titles_do_not_become_block_references() {
 #[test]
 fn renaming_tag_page_keeps_identity_after_a_harmless_source_edit() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -347,7 +347,7 @@ fn renaming_tag_page_keeps_identity_after_a_harmless_source_edit() {
 #[test]
 fn normalization_receipts_preserve_spelling_and_rename_touches_only_the_page() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let original = "#codex #CODEX #[[ Codex ]] word#codex `#codex`";
     let receipt = apply(
         &mut nb,
@@ -420,7 +420,7 @@ fn normalization_receipts_preserve_spelling_and_rename_touches_only_the_page() {
 #[test]
 fn rename_undo_does_not_conflict_with_independent_member_edits() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![page(1, "Notes"), page(2, "Codex"), insert(10, 1, "#codex")],
@@ -439,7 +439,7 @@ fn rename_undo_does_not_conflict_with_independent_member_edits() {
 #[test]
 fn case_only_rename_and_undo_preserve_authored_aliases() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -459,7 +459,7 @@ fn case_only_rename_and_undo_preserve_authored_aliases() {
 #[test]
 fn rename_collision_and_unrepresentable_tag_titles_leave_sources_unchanged() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -503,7 +503,7 @@ fn rename_collision_and_unrepresentable_tag_titles_leave_sources_unchanged() {
 #[test]
 fn legacy_tokens_resolve_final_titles_and_canonical_tokens_keep_identity() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes"), page(2, "BÖÖK")]);
     let receipt = apply(
         &mut nb,
@@ -523,7 +523,7 @@ fn legacy_tokens_resolve_final_titles_and_canonical_tokens_keep_identity() {
 #[test]
 fn retrying_normalization_and_rename_replays_receipts_without_rewrites() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes"), page(2, "Codex")]);
     let request = Batch {
         actor: Actor::Person,
@@ -559,7 +559,7 @@ fn retrying_normalization_and_rename_replays_receipts_without_rewrites() {
 #[test]
 fn swapping_and_repeatedly_renaming_tags_preserves_each_original_target() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -594,7 +594,7 @@ fn swapping_and_repeatedly_renaming_tags_preserves_each_original_target() {
 #[test]
 fn restored_tombstone_keeps_its_place_after_live_sibling_rebalancing() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes")]);
     for (value, predecessor, text) in [
         (10, None, "L"),
@@ -642,7 +642,7 @@ fn restored_tombstone_keeps_its_place_after_live_sibling_rebalancing() {
 #[test]
 fn recreated_titles_never_rebind_canonical_sources_and_same_id_restore_resolves() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -690,7 +690,7 @@ fn recreated_titles_never_rebind_canonical_sources_and_same_id_restore_resolves(
 #[test]
 fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_pages() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -783,7 +783,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     )
     .unwrap();
     drop(conn);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert!(nb.page_by_title("UpgradeType").unwrap().is_none());
     assert!(nb.page(&id(1)).unwrap().targets.is_empty());
     apply(&mut nb, vec![page(3, "UpgradeType")]);
@@ -809,7 +809,7 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
         })
     }
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -979,7 +979,7 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
 #[test]
 fn simultaneous_unicode_renames_resolve_context_sensitive_lowercase_titles() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1019,7 +1019,7 @@ fn remove_type(value: u128, revision: i64, title: &str) -> Operation {
 #[test]
 fn manual_membership_add_remove_is_revisioned_and_preserves_authored_title() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "Reading")]);
     let receipt = apply(&mut nb, vec![add_type(10, 1, "BÖÖK shelf")]);
     let target = nb.page_by_title("böök shelf").unwrap().unwrap();
@@ -1063,7 +1063,7 @@ fn manual_membership_add_remove_is_revisioned_and_preserves_authored_title() {
 #[test]
 fn manual_and_text_memberships_count_once_and_either_keeps_the_block() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1108,7 +1108,7 @@ fn manual_and_text_memberships_count_once_and_either_keeps_the_block() {
 #[test]
 fn removing_text_only_membership_and_stale_manual_writes_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#Book")]);
     for (operation, conflict) in [
         (remove_type(10, 1, "Book"), false),
@@ -1148,7 +1148,7 @@ fn removing_text_only_membership_and_stale_manual_writes_are_rejected() {
 #[test]
 fn manual_membership_follows_type_rename_without_changing_block_text() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1182,7 +1182,7 @@ fn manual_membership_follows_type_rename_without_changing_block_text() {
 #[test]
 fn manual_membership_survives_subtree_tombstone_and_restore() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1203,7 +1203,7 @@ fn manual_membership_survives_subtree_tombstone_and_restore() {
 #[test]
 fn manual_membership_uses_explicit_later_page_and_validates_tag_titles() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1231,7 +1231,7 @@ fn manual_membership_uses_explicit_later_page_and_validates_tag_titles() {
 #[test]
 fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1314,7 +1314,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          PRAGMA user_version = 6;",
     ).unwrap();
     drop(conn);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert!(nb.page_by_title("Codex").unwrap().is_none());
     assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
@@ -1333,7 +1333,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
 #[test]
 fn provisional_tag_pages_follow_saved_prefixes_and_emit_normal_deletions() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#p")]);
     for (revision, title) in [(1, "ph"), (2, "phi"), (3, "phil"), (4, "")] {
         let previous: Vec<_> = nb
@@ -1380,7 +1380,7 @@ fn provisional_tag_pages_follow_saved_prefixes_and_emit_normal_deletions() {
 #[test]
 fn provisional_pages_count_shared_manual_and_live_link_uses() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1442,7 +1442,7 @@ fn provisional_pages_count_shared_manual_and_live_link_uses() {
 fn provisional_pages_with_authored_claims_and_explicit_pages_survive() {
     use tessera_core::{FieldKind, TaskState};
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1516,7 +1516,7 @@ fn provisional_pages_with_authored_claims_and_explicit_pages_survive() {
 fn provisional_pages_named_by_saved_queries_survive() {
     use tessera_core::{CardQuery, Query, TaskQuery, library::LibraryQuery};
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -1602,7 +1602,7 @@ fn provisional_pages_named_by_saved_queries_survive() {
 #[test]
 fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#legacy")]);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
@@ -1649,7 +1649,7 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
     )
     .unwrap();
     drop(conn);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![edit(10, 1, "")]);
     assert!(nb.page_by_title("legacy").unwrap().is_some());
 }

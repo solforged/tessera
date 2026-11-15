@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
-import { ApiError, bindNotebook, createApi } from '../api/client';
+import { ApiError, bindWorkshop, createApi } from '../api/client';
 import type {
   Batch,
   Block,
@@ -25,7 +25,7 @@ import type {
   CaptureReceipt,
   DerivedType,
   DocumentChange,
-  NotebookClient,
+  WorkshopClient,
   PageDocument,
   SaveState,
   SourceDetailsEdit,
@@ -36,17 +36,17 @@ import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
 import { WorkshopChangeStream } from './change-stream';
 import type { WorkshopChangeHost } from './change-stream';
-import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
+import type { Action, Command, Compiled, WorkshopCommand, PageCommand, Ticket } from './types';
 import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { SubtreeCache } from './subtrees';
 import { titleKey } from './title-key';
-export type { NotebookClient, PageDocument, BlockState, Edit, EditResult, SaveState } from './contract';
+export type { WorkshopClient, PageDocument, BlockState, Edit, EditResult, SaveState } from './contract';
 
-export interface NotebookOptions {
+export interface WorkshopOptions {
   baseUrl?: string;
   /** A test or embedding may supply its own persistent window identity. */
   sessionId?: string;
-  notebookId?: string;
+  workshopId?: string;
   databaseName?: string;
   coalesceMs?: number;
 }
@@ -62,7 +62,7 @@ type SourceCommandPart = { pageId: string; actions: Action[]; expected?: string;
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
 const WARM_DOCUMENTS = 3;
 /** One single-flight operation queue for every document in this window. */
-export class Notebook implements NotebookClient, DocumentHost {
+export class Workshop implements WorkshopClient, DocumentHost {
   readonly ready: Promise<void>;
   readonly api: ApiClient;
   readonly roots: Accessor<readonly Block[]>;
@@ -78,7 +78,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private subtreeCache: SubtreeCache;
   private queue: Command[] = [];
   private tickets = new Map<string, Ticket>();
-  private notebookId = '';
+  private workshopId = '';
   private deletedPages = new Map<string, Action>();
   private rejected = new Map<string, Command>();
   private outbox?: Outbox;
@@ -172,7 +172,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.revision[0]();
     return !this.settingsBusy() && this.settingRedo.length > 0;
   };
-  constructor(private options: NotebookOptions = {}) {
+  constructor(private options: WorkshopOptions = {}) {
     // Each document lifetime owns a distinct outbox. Closed windows' drafts are
     // recovered under a Web Lock, rather than depending on restored sessionStorage.
     this.sessionId = options.sessionId ?? ulid();
@@ -230,10 +230,10 @@ export class Notebook implements NotebookClient, DocumentHost {
   };
   private async initialize() {
     const key = `tessera:notebook:${this.options.baseUrl ?? ''}`;
-    let notebookId = this.options.notebookId;
+    let workshopId = this.options.workshopId;
     try {
-      const info = await this.api.notebook();
-      notebookId = info.id;
+      const info = await this.api.workshop();
+      workshopId = info.id;
       try {
         sessionStorage.setItem(key, info.id);
       } catch {
@@ -242,20 +242,20 @@ export class Notebook implements NotebookClient, DocumentHost {
     } catch (error) {
       this.connectionSignal[1]('offline');
       try {
-        notebookId ??= sessionStorage.getItem(key) ?? undefined;
+        workshopId ??= sessionStorage.getItem(key) ?? undefined;
       } catch {
-        /* No remembered notebook. */
+        /* No remembered workshop. */
       }
-      if (!notebookId) {
+      if (!workshopId) {
         this.failure = error instanceof Error ? error.message : String(error);
         this.touch();
         return;
       }
     }
-    this.notebookId = notebookId;
-    bindNotebook(this.options.baseUrl ?? '', notebookId);
+    this.workshopId = workshopId;
+    bindWorkshop(this.options.baseUrl ?? '', workshopId);
     try {
-      this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${notebookId}`) ?? '{}').vim === true);
+      this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${workshopId}`) ?? '{}').vim === true);
     } catch {
       /* Optional offline preference. */
     }
@@ -275,12 +275,12 @@ export class Notebook implements NotebookClient, DocumentHost {
     } catch {
       /* The service still guards unknown clocks. */
     }
-    this.outbox = new Outbox(notebookId, this.sessionId, this.storageFailed, this.options.databaseName);
+    this.outbox = new Outbox(workshopId, this.sessionId, this.storageFailed, this.options.databaseName);
     const stored = await this.outbox.load();
     this.queue = stored.commands.filter(command => !command.rejection);
     for (const command of stored.commands) if (command.rejection) this.rejected.set(command.id, command);
     for (const command of this.queue) this.persisted.add(command.id);
-    for (const row of stored.tickets) this.tickets.set(row.key.slice(notebookId.length + 1), row.ticket);
+    for (const row of stored.tickets) this.tickets.set(row.key.slice(workshopId.length + 1), row.ticket);
     this.setRoots(stored.roots);
     this.order = Math.max(this.order, ...this.queue.map(command => command.order));
     for (const root of stored.roots) this.publish(root);
@@ -318,10 +318,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     );
   }
   clipboardScope() {
-    return this.notebookId;
+    return this.workshopId;
   }
   async prepareClipboard(content: BlockClipboard): Promise<BlockClipboard> {
-    if (!content.cut || content.scope !== this.notebookId) return { ...content, cut: false };
+    if (!content.cut || content.scope !== this.workshopId) return { ...content, cut: false };
     const roots = content.blocks.filter(item => item.depth === 0).map(item => item.block.id);
     if (
       roots.every(
@@ -464,7 +464,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (force || !block || !current || block.revision >= current.revision) entry[1](block);
     } else this.cache.set(id, createSignal<Block | null | undefined>(block));
   }
-  /** A save removed this page on the notebook's side, as when the last tag naming an untouched tag page goes. */
+  /** A save removed this page on the workshop's side, as when the last tag naming an untouched tag page goes. */
   private receiveRemoval(id: string) {
     this.publish(null, id);
     this.updateRoot(null, id);
@@ -618,7 +618,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     await this.ready;
     if (this.closed) throw new Error('The workshop is closed.');
     if (!this.outbox) throw new Error('Recovery storage has not opened.');
-    const command: NotebookCommand = {
+    const command: WorkshopCommand = {
       kind: 'notebook',
       id: ulid(),
       order: ++this.order,
@@ -705,14 +705,14 @@ export class Notebook implements NotebookClient, DocumentHost {
   async queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void> {
     if (this.closed || !this.outbox) throw new Error('Recovery storage has not opened.');
     const tail = this.queue.at(-1);
-    let command: NotebookCommand;
+    let command: WorkshopCommand;
     if (tail?.kind === 'notebook' && tail.createdValueText?.id === valueId && !tail.frozen) {
       command = tail;
       (command.operations[0] as Extract<Operation, { op: 'edit_text' }>).text = text;
     } else {
       const previous = [...this.queue]
         .reverse()
-        .find((item): item is NotebookCommand => item.kind === 'notebook' && item.createdValueText?.id === valueId);
+        .find((item): item is WorkshopCommand => item.kind === 'notebook' && item.createdValueText?.id === valueId);
       const operation = previous?.operations[0] as Extract<Operation, { op: 'edit_text' }> | undefined;
       const saved = this.docs.get(pageId)?.baseBlocks.get(valueId);
       const before = operation?.text ?? saved?.text ?? '';
@@ -775,7 +775,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (!this.initialized) await this.ready;
     if (this.closed) throw new Error('The workshop is closed.');
     if (!snapshot.operations.length) throw new Error('A command needs an operation.');
-    const command: NotebookCommand = {
+    const command: WorkshopCommand = {
       kind: 'notebook',
       id,
       order: ++this.order,
@@ -1209,7 +1209,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   commandMessage() {
     const state = this.commandState();
     const rejected = [...this.rejected.values()].filter(
-      (command): command is NotebookCommand => command.kind === 'notebook',
+      (command): command is WorkshopCommand => command.kind === 'notebook',
     );
     if (rejected.length)
       return rejected
@@ -1914,7 +1914,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     this.touch();
   }
-  private async sendNotebook(command: NotebookCommand): Promise<boolean> {
+  private async sendWorkshop(command: WorkshopCommand): Promise<boolean> {
     let acknowledged = false;
     try {
       if (command.capture) {
@@ -2150,7 +2150,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         const command = this.queue[0]!;
         if (this.draftTag?.commandId === command.id) break;
         if (command.kind === 'notebook') {
-          if (await this.sendNotebook(command)) continue;
+          if (await this.sendWorkshop(command)) continue;
           break;
         }
         const doc = this.docs.get(command.pageId) ?? (this.open(command.pageId) as Document);
@@ -2481,7 +2481,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       );
   }
   unsavedText() {
-    // A notebook command shows its words; one without words, like a capability change, keeps its payload as the record.
+    // A workshop command shows its words; one without words, like a capability change, keeps its payload as the record.
     const operations = this.queue.flatMap(command =>
       command.kind === 'notebook'
         ? [
@@ -3045,6 +3045,6 @@ function rejectionText(command: Command): string {
   return [words, record].filter(Boolean).join('\n');
 }
 
-export function createNotebookClient(options?: NotebookOptions): Notebook {
-  return new Notebook(options);
+export function createWorkshopClient(options?: WorkshopOptions): Workshop {
+  return new Workshop(options);
 }

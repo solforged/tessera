@@ -610,7 +610,7 @@ Workshop. Empty kinds are one expandable row in Loose. New view is a plain
 action at the end of the Views label, and a long press on a view opens its
 context menu, so no row carries a ···. Recent is a plain group, and a journal
 day reads Today or Friday. Settings appears once, under Workshop beside Fields;
-the Index has no gear. The notebook switcher shows in the Workshop label only
+the Index has no gear. The workshop switcher shows in the Workshop label only
 when a second workshop exists.
 
 A kind's list shares the title block: the count and noun in Plex (`9 people`),

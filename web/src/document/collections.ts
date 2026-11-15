@@ -1,7 +1,7 @@
 import { ulid } from 'ulid';
 import type { ApiClient } from '../api/client';
 import type { Block, Committed, Fields, Operation, PageView } from '../api/types';
-import type { NotebookClient } from './contract';
+import type { WorkshopClient } from './contract';
 import { fieldEntryId } from '../core/field-entry';
 import { titleKey } from './title-key';
 
@@ -38,17 +38,17 @@ function text(plan: Plan, block: Block, value: string) {
     text: block.text,
   }));
 }
-async function commit(notebook: NotebookClient, plan: Plan, reason: string): Promise<CollectionChange | null> {
+async function commit(workshop: WorkshopClient, plan: Plan, reason: string): Promise<CollectionChange | null> {
   if (!plan.operations.length) return null;
-  const receipt = await notebook.commit(plan.operations, reason);
+  const receipt = await workshop.commit(plan.operations, reason);
   const inverse = plan.inverse.map(make => make(receipt));
   const createdPages = plan.operations.flatMap(operation => (operation.op === 'create_page' ? [operation.id] : []));
   return {
     undo: async () => {
-      const capabilities = await Promise.all(createdPages.map(id => notebook.api.capabilities(id)));
+      const capabilities = await Promise.all(createdPages.map(id => workshop.api.capabilities(id)));
       const systemPages = new Set(capabilities.filter(value => value.built_in_tag).map(value => value.block_id));
       const operations = inverse.filter(operation => operation.op !== 'delete' || !systemPages.has(operation.id));
-      if (operations.length) await notebook.commit(operations, `Undo ${reason.toLocaleLowerCase()}`);
+      if (operations.length) await workshop.commit(operations, `Undo ${reason.toLocaleLowerCase()}`);
     },
   };
 }
@@ -65,7 +65,7 @@ export async function collectionPages(api: ApiClient, signal?: AbortSignal): Pro
 }
 
 /** The only Collections field bootstrap: an Instance field linking to the Collection type, on the Book and Article templates. */
-async function ensureCollectionsField(notebook: NotebookClient, pending: Plan, register: Fields): Promise<string> {
+async function ensureCollectionsField(workshop: WorkshopClient, pending: Plan, register: Fields): Promise<string> {
   const existing = register.fields.find(field => field.name.toLocaleLowerCase() === 'collections');
   const id = existing?.id ?? ulid();
   let fieldRevision = existing?.revision ?? 1;
@@ -91,7 +91,7 @@ async function ensureCollectionsField(notebook: NotebookClient, pending: Plan, r
     }));
     fieldRevision += 1;
   }
-  const roots = await notebook.api.roots();
+  const roots = await workshop.api.roots();
   const find = (title: string) => roots.find(page => page.kind === 'page' && titleKey(page.text) === title);
   let collectionType = find('collection')?.id;
   if (!collectionType) {
@@ -118,7 +118,7 @@ async function ensureCollectionsField(notebook: NotebookClient, pending: Plan, r
   for (const name of ['book', 'article']) {
     const root = find(name);
     if (!root) continue;
-    const previous = (await notebook.api.type(root.id)).fields;
+    const previous = (await workshop.api.type(root.id)).fields;
     if (previous.includes(id)) continue;
     pending.operations.push({
       op: 'set_type_fields',
@@ -169,14 +169,14 @@ export async function sourceCollections(api: ApiClient, sourceId: string, signal
     : [];
 }
 async function membership(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   pending: Plan,
   field: string,
   collection: string,
   ids: readonly string[],
   add: boolean,
 ) {
-  const pages = await Promise.all([...new Set(ids)].map(id => notebook.api.page(id)));
+  const pages = await Promise.all([...new Set(ids)].map(id => workshop.api.page(id)));
   for (const page of pages) {
     const current = values(page, field, !add).filter(value => fieldEntryId(value.text) === collection);
     if (!add) {
@@ -206,44 +206,44 @@ async function membership(
 }
 
 export async function createCollection(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   name: string,
   sourceIds: readonly string[] = [],
 ): Promise<{ id: string; change: CollectionChange }> {
   const pending = plan();
-  const field = await ensureCollectionsField(notebook, pending, await notebook.api.fields());
+  const field = await ensureCollectionsField(workshop, pending, await workshop.api.fields());
   const id = ulid();
   inserted(pending, { op: 'create_page', id, title: name.trim() });
   pending.operations.push({ op: 'add_type', id, base_revision: 1, title: 'Collection' });
-  await membership(notebook, pending, field, id, sourceIds, true);
-  return { id, change: (await commit(notebook, pending, 'Create collection'))! };
+  await membership(workshop, pending, field, id, sourceIds, true);
+  return { id, change: (await commit(workshop, pending, 'Create collection'))! };
 }
 export async function changeCollectionMembers(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   collection: string,
   sourceIds: readonly string[],
   add: boolean,
 ): Promise<CollectionChange | null> {
   const pending = plan();
-  const field = (await notebook.api.fields()).fields.find(
+  const field = (await workshop.api.fields()).fields.find(
     field => field.name.toLocaleLowerCase() === 'collections' && field.kind === 'instance',
   );
   if (!field) throw new Error('The Collections Instance field is missing.');
-  await membership(notebook, pending, field.id, collection, sourceIds, add);
-  return commit(notebook, pending, add ? 'Add to collection' : 'Remove from collection');
+  await membership(workshop, pending, field.id, collection, sourceIds, add);
+  return commit(workshop, pending, add ? 'Add to collection' : 'Remove from collection');
 }
 export async function renameCollection(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   collection: Block,
   name: string,
 ): Promise<CollectionChange | null> {
   const pending = plan();
   text(pending, collection, name.trim());
-  return commit(notebook, pending, 'Rename collection');
+  return commit(workshop, pending, 'Rename collection');
 }
-export async function deleteCollection(notebook: NotebookClient, collection: Block): Promise<CollectionChange> {
+export async function deleteCollection(workshop: WorkshopClient, collection: Block): Promise<CollectionChange> {
   const pending = plan();
-  for (const value of await notebook.api.collectionValues(collection.id)) text(pending, value, '');
+  for (const value of await workshop.api.collectionValues(collection.id)) text(pending, value, '');
   pending.operations.push({ op: 'delete', id: collection.id, base_revision: collection.revision });
   pending.inverse.unshift(receipt => ({
     op: 'restore',
@@ -251,5 +251,5 @@ export async function deleteCollection(notebook: NotebookClient, collection: Blo
     deletion_id: receipt.deletions[0]!,
     revision: revision(receipt, collection.id),
   }));
-  return (await commit(notebook, pending, 'Delete collection'))!;
+  return (await commit(workshop, pending, 'Delete collection'))!;
 }

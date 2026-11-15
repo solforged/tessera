@@ -2,7 +2,7 @@ import { opensBeside } from '../core/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Operation, SpreadReference, SpreadValue } from '../api/types';
-import type { Edit, NotebookClient, PageDocument } from '../document/contract';
+import type { Edit, WorkshopClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
@@ -14,7 +14,7 @@ import './spread.css';
 interface SpreadPaneProps {
   noteIds?: string[];
   doc?: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChange?(ids: string[]): void;
@@ -23,10 +23,10 @@ interface SpreadPaneProps {
 /** The saved form uses the same page document as its commentary, including its undo history. */
 export function SpreadPane(props: SpreadPaneProps) {
   let pane: HTMLElement | undefined;
-  const changes = createSettledChanges(props.notebook);
+  const changes = createSettledChanges(props.workshop);
   const [result, { refetch }] = createResource(
     () => [props.doc?.pageId, props.noteIds?.join(','), changes()] as const,
-    ([pageId]) => (pageId ? props.notebook.api.savedSpread(pageId) : props.notebook.api.spread(props.noteIds ?? [])),
+    ([pageId]) => (pageId ? props.workshop.api.savedSpread(pageId) : props.workshop.api.spread(props.noteIds ?? [])),
   );
   const ids = () => (props.doc ? (result.latest?.note_ids ?? []) : (props.noteIds ?? []));
   const [picker, setPicker] = createSignal<HTMLElement>();
@@ -39,7 +39,7 @@ export function SpreadPane(props: SpreadPaneProps) {
   const [error, setError] = createSignal('');
   const [matches] = createResource(
     () => (picker() ? query() : false),
-    text => props.notebook.api.complete(text, 50),
+    text => props.workshop.api.complete(text, 50),
   );
   const choices = createMemo(() =>
     (matches() ?? []).filter(
@@ -112,7 +112,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     setBusy(true);
     setError('');
     try {
-      if (await props.notebook.pageByTitle(name, false)) throw new Error('An atom with this title already exists.');
+      if (await props.workshop.pageByTitle(name, false)) throw new Error('An atom with this title already exists.');
       const id = ulid();
       const operations: Operation[] = [
         { op: 'create_page', id, title: name },
@@ -124,7 +124,7 @@ export function SpreadPane(props: SpreadPaneProps) {
         operations.push({ op: 'insert', id: blockId, parent_id: id, after, text: `[[${noteId}]]`, heading: null });
         after = blockId;
       }
-      await props.notebook.commit(operations, 'Save spread');
+      await props.workshop.commit(operations, 'Save spread');
       setSave(undefined);
       props.onOpen({ kind: 'page', pageId: id }, beside);
     } catch (reason) {
@@ -139,7 +139,7 @@ export function SpreadPane(props: SpreadPaneProps) {
         <div class="spread-value">
           <Show
             when={value.target_id && !value.text.trim().startsWith('[[')}
-            fallback={<BlockText text={value.text} notebook={props.notebook} onOpen={props.onOpen} />}
+            fallback={<BlockText text={value.text} workshop={props.workshop} onOpen={props.onOpen} />}
           >
             <Button
               class="spread-link"

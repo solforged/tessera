@@ -1,5 +1,5 @@
 import type { AgendaItem, Committed, Operation, TaskRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { calendarDate, daysBetween } from './relative-date';
 import { isFinished } from './task-labels';
 import { shiftCalendarDate } from './week-calendar';
@@ -20,12 +20,12 @@ export interface Rescheduled {
 }
 
 /**
- * Moves the schedule of each movable task to `date` as one notebook command. Omitted time preserves each task's
+ * Moves the schedule of each movable task to `date` as one workshop command. Omitted time preserves each task's
  * time; null explicitly makes it all-day. Deadlines and repeats stay. A missed deadline without a schedule gains
  * one, so the task shows on that day. Null when neither date nor time changes.
  */
 export async function rescheduleTasks(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   rows: readonly (TaskRow | AgendaItem)[],
   date: string,
   label: string,
@@ -39,12 +39,12 @@ export async function rescheduleTasks(
     base_revision: row.source.block.revision,
     task: { ...row.task, scheduled: date, scheduled_time: time === undefined ? row.task.scheduled_time : time },
   }));
-  const committed = await notebook.commit(operations, label);
+  const committed = await workshop.commit(operations, label);
   const revisions = new Map(committed.revisions.map(value => [value.id, value.revision]));
   return {
     count: moving.length,
     undo: () =>
-      notebook.commit(
+      workshop.commit(
         moving.map(row => ({
           op: 'set_task',
           id: row.source.block.id,

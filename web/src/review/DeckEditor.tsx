@@ -1,7 +1,7 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
 import type { CardQuery, CardSelection, Deck, FieldDefinition, IndexKind } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { SourceQueryControls } from '../table/SourceQueryControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -13,7 +13,7 @@ import './review.css';
 
 export interface DeckEditorProps {
   anchor: PopupAnchor;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   deck: Deck | null;
   query: CardQuery;
   onDismiss(): void;
@@ -51,7 +51,7 @@ export function DeckEditor(props: DeckEditorProps) {
   };
   const dirty = () => !saved() && (name() !== initial.name || JSON.stringify(copyCardQuery(query())) !== initial.query);
   const stale = () => !!base() && current()?.revision !== base()!.revision;
-  const locked = () => pending() || saved() || ['saving', 'queued', 'offline'].includes(props.notebook.commandState());
+  const locked = () => pending() || saved() || ['saving', 'queued', 'offline'].includes(props.workshop.commandState());
   let disposed = false;
   let discarded = false;
   // Escape and an outside click close the editor; the draft waits for the next time it opens, until it is saved or cancelled.
@@ -63,14 +63,14 @@ export function DeckEditor(props: DeckEditorProps) {
   });
 
   createEffect(() => {
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     retry();
     let cancelled = false;
     setLoading(true);
     void Promise.all([
-      props.notebook.api.fields(),
-      props.notebook.api.noteIndex(),
-      props.deck ? props.notebook.api.deck(id) : Promise.resolve(null),
+      props.workshop.api.fields(),
+      props.workshop.api.noteIndex(),
+      props.deck ? props.workshop.api.deck(id) : Promise.resolve(null),
     ])
       .then(([definitions, index, deck]) => {
         if (cancelled) return;
@@ -94,9 +94,9 @@ export function DeckEditor(props: DeckEditorProps) {
   // The count previews the draft query; it never blocks saving.
   createEffect(() => {
     const draft = copyCardQuery(query());
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     let cancelled = false;
-    void props.notebook.api
+    void props.workshop.api
       .cardQuery({ ...draft, limit: 1 })
       .then(result => {
         if (!cancelled) setMatching(result.total);
@@ -121,7 +121,7 @@ export function DeckEditor(props: DeckEditorProps) {
     setPending(true);
     setError('');
     try {
-      await props.notebook.commit([operation], base() ? 'Edit deck' : 'New deck');
+      await props.workshop.commit([operation], base() ? 'Edit deck' : 'New deck');
       if (disposed) return;
       setSaved(true);
       props.onSaved(id);
@@ -176,7 +176,7 @@ export function DeckEditor(props: DeckEditorProps) {
           query={query().source}
           types={types()}
           fields={fields()}
-          notebook={props.notebook}
+          workshop={props.workshop}
           disabled={locked() || loading()}
           onChange={source => setQuery(value => ({ ...value, source }))}
         />
@@ -221,7 +221,7 @@ export function DeckEditor(props: DeckEditorProps) {
         <div class="popup-actions">
           <Show when={pending() || loading()}>
             <span class="deck-editor-saving" role="status">
-              {pending() ? `Saving deck… ${props.notebook.commandMessage()}` : 'Loading source filters…'}
+              {pending() ? `Saving deck… ${props.workshop.commandMessage()}` : 'Loading source filters…'}
             </span>
           </Show>
           <Button

@@ -1,7 +1,7 @@
-//! The notebooks this computer knows, and switching the service between them. One service owns
-//! one notebook, so a switch drains the service and restarts it on the chosen notebook at the same
+//! The workshops this computer knows, and switching the service between them. One service owns
+//! one workshop, so a switch drains the service and restarts it on the chosen workshop at the same
 //! ports. `GET /api/notebooks` lists them, `POST /api/notebooks/open` switches (creating an empty
-//! notebook when asked), and `POST /api/notebooks/forget` drops one from the list without touching
+//! workshop when asked), and `POST /api/notebooks/forget` drops one from the list without touching
 //! its files.
 
 use std::io;
@@ -15,12 +15,12 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
-use tessera_core::{DATABASE_FILE, Notebook, NotebookOwnership};
+use tessera_core::{DATABASE_FILE, Workshop, WorkshopOwnership};
 use tokio::sync::watch;
 
 use crate::{AppState, error::ApiError, paths, run};
 
-/// The registry file and the notebook a service opens when none was named.
+/// The registry file and the workshop a service opens when none was named.
 #[derive(Clone, Debug)]
 pub struct Registry {
     pub path: PathBuf,
@@ -29,11 +29,12 @@ pub struct Registry {
 
 #[derive(Default, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Stored {
-    /// The notebook last switched to by a service that follows the registry.
+    /// The workshop last switched to by a service that follows the registry.
     #[serde(default)]
     pub(crate) current: Option<PathBuf>,
     #[serde(default)]
-    pub(crate) notebooks: Vec<PathBuf>,
+    #[serde(rename = "notebooks")]
+    pub(crate) workshops: Vec<PathBuf>,
 }
 
 impl Registry {
@@ -70,13 +71,13 @@ impl Registry {
 
     fn load(&self) -> io::Result<Stored> {
         let mut stored = self.load_raw()?;
-        let count = stored.notebooks.len();
-        stored.notebooks.retain(|path| {
+        let count = stored.workshops.len();
+        stored.workshops.retain(|path| {
             path == &self.default
                 || Some(path) == stored.current.as_ref()
                 || path.join(DATABASE_FILE).is_file()
         });
-        if count != stored.notebooks.len() {
+        if count != stored.workshops.len() {
             self.save(&stored)?;
         }
         Ok(stored)
@@ -142,7 +143,7 @@ pub(crate) fn routes() -> Router<AppState> {
 /// A workshop the switcher knows. `display_path` writes the home folder as `~`; `named` marks one
 /// made by name in the workshops folder.
 #[derive(Serialize, ts_rs::TS)]
-#[ts(rename = "KnownNotebook")]
+#[ts(rename = "KnownWorkshop")]
 pub(crate) struct Entry {
     path: PathBuf,
     name: String,
@@ -150,14 +151,15 @@ pub(crate) struct Entry {
     named: bool,
     current: bool,
     default: bool,
-    /// False when the folder no longer holds a notebook database.
+    /// False when the folder no longer holds a workshop database.
     available: bool,
 }
 
 #[derive(Serialize, ts_rs::TS)]
-#[ts(rename = "KnownNotebooks")]
-pub(crate) struct Notebooks {
-    notebooks: Vec<Entry>,
+#[ts(rename = "KnownWorkshops")]
+pub(crate) struct Workshops {
+    #[serde(rename = "notebooks")]
+    workshops: Vec<Entry>,
 }
 
 #[derive(Deserialize)]
@@ -188,7 +190,7 @@ fn switcher(state: &AppState) -> Result<Arc<Switcher>, ApiError> {
 }
 
 async fn current_path(state: &AppState) -> Result<PathBuf, ApiError> {
-    run(state, |notebook| notebook.info().map(|info| info.path)).await
+    run(state, |workshop| workshop.info().map(|info| info.path)).await
 }
 
 /// Paths are compared canonically; a missing folder keeps its spelling.
@@ -196,14 +198,14 @@ fn canonical(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn listing(registry: &Registry, current: &Path) -> io::Result<Notebooks> {
+fn listing(registry: &Registry, current: &Path) -> io::Result<Workshops> {
     let stored = registry.load()?;
     let default = canonical(&registry.default);
     // The default workshop lives in the workshops folder, so the registry names that folder itself and tests
     // never read the machine's own.
     let named_root = registry.default.parent().map(canonical);
     let mut paths = vec![default.clone()];
-    for path in stored.notebooks.iter().map(|path| canonical(path)) {
+    for path in stored.workshops.iter().map(|path| canonical(path)) {
         if !paths.contains(&path) {
             paths.push(path);
         }
@@ -230,8 +232,8 @@ fn listing(registry: &Registry, current: &Path) -> io::Result<Notebooks> {
     if !paths.iter().any(|path| path == current) {
         paths.push(current.to_path_buf());
     }
-    Ok(Notebooks {
-        notebooks: paths
+    Ok(Workshops {
+        workshops: paths
             .into_iter()
             .map(|path| Entry {
                 name: path
@@ -249,7 +251,7 @@ fn listing(registry: &Registry, current: &Path) -> io::Result<Notebooks> {
     })
 }
 
-async fn list(State(state): State<AppState>) -> Result<Json<Notebooks>, ApiError> {
+async fn list(State(state): State<AppState>) -> Result<Json<Workshops>, ApiError> {
     let switcher = switcher(&state)?;
     let current = current_path(&state).await?;
     tokio::task::spawn_blocking(move || listing(&switcher.registry, &current))
@@ -286,7 +288,7 @@ fn expand(path: &str) -> Result<PathBuf, ApiError> {
     Ok(expanded)
 }
 
-/// Check the target can open before the current notebook stops: it exists (or may be created),
+/// Check the target can open before the current workshop stops: it exists (or may be created),
 /// no other service owns it, and its database opens and migrates.
 fn prepare(path: &Path, create: bool, current: &Path) -> Result<PathBuf, ApiError> {
     let conflict =
@@ -320,14 +322,14 @@ fn prepare(path: &Path, create: bool, current: &Path) -> Result<PathBuf, ApiErro
     if path == current {
         return Err(conflict("That workshop is already open.".into()));
     }
-    let ownership = NotebookOwnership::acquire(&path, 0).map_err(|error| {
+    let ownership = WorkshopOwnership::acquire(&path, 0).map_err(|error| {
         if error.kind() == io::ErrorKind::WouldBlock {
             ApiError::new(StatusCode::CONFLICT, "notebook_busy", error.to_string())
         } else {
             ApiError::internal(error)
         }
     })?;
-    Notebook::open(&path).map_err(ApiError::from)?;
+    Workshop::open(&path).map_err(ApiError::from)?;
     drop(ownership);
     Ok(path)
 }
@@ -360,10 +362,10 @@ async fn open(
         let _guard = guard;
         let path = prepare(&target, request.create, &current)?;
         let mut stored = worker.registry.load().map_err(ApiError::internal)?;
-        // Keep the notebook being left on the list, so the switcher can come back to it.
+        // Keep the workshop being left on the list, so the switcher can come back to it.
         for known in [current, path.clone()] {
-            if !stored.notebooks.contains(&known) {
-                stored.notebooks.push(known);
+            if !stored.workshops.contains(&known) {
+                stored.workshops.push(known);
             }
         }
         if worker.remember {
@@ -382,7 +384,7 @@ async fn open(
 async fn forget(
     State(state): State<AppState>,
     body: Result<Json<ForgetRequest>, JsonRejection>,
-) -> Result<Json<Notebooks>, ApiError> {
+) -> Result<Json<Workshops>, ApiError> {
     let Json(request) = body.map_err(ApiError::from)?;
     let switcher = switcher(&state)?;
     let current = current_path(&state).await?;
@@ -398,7 +400,7 @@ async fn forget(
         }
         let mut stored = registry.load().map_err(ApiError::internal)?;
         stored
-            .notebooks
+            .workshops
             .retain(|known| known != &request.path && canonical(known) != path);
         if stored
             .current
@@ -433,7 +435,7 @@ mod tests {
         registry
             .save(&Stored {
                 current: Some(current.clone()),
-                notebooks: vec![
+                workshops: vec![
                     registry.default.clone(),
                     current.clone(),
                     available.clone(),
@@ -442,26 +444,26 @@ mod tests {
             })
             .unwrap();
         let listed = listing(&registry, &current).unwrap();
-        assert_eq!(listed.notebooks.len(), 3);
+        assert_eq!(listed.workshops.len(), 3);
         assert!(
             listed
-                .notebooks
+                .workshops
                 .iter()
                 .any(|entry| entry.current && !entry.available)
         );
         assert!(
             listed
-                .notebooks
+                .workshops
                 .iter()
                 .any(|entry| entry.default && !entry.available)
         );
         assert!(
             listed
-                .notebooks
+                .workshops
                 .iter()
                 .any(|entry| entry.path == canonical(&available) && entry.available)
         );
-        assert_eq!(registry.load_raw().unwrap().notebooks.len(), 3);
+        assert_eq!(registry.load_raw().unwrap().workshops.len(), 3);
     }
 
     #[test]

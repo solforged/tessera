@@ -19,7 +19,7 @@ pub enum NoteTarget {
     /// page whose title or alias matches it folded, as `[[Name]]` links;
     /// created when none matches. A name several pages share is refused.
     Page { title: String },
-    /// The journal root for a `YYYY-MM-DD` date, or today in the notebook
+    /// The journal root for a `YYYY-MM-DD` date, or today in the workshop
     /// time zone; created when missing.
     Journal {
         #[serde(default)]

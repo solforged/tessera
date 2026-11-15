@@ -2,7 +2,7 @@
 
 import type { NoteKind } from '../api/types';
 import type { CommandRegistry, OpenTarget, PageProjection, PaneId, ViewState } from '../core/contract';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 export interface OutlinePaneProps {
   pane: PaneId;
@@ -29,5 +29,5 @@ export interface OutlinePaneProps {
   /** Vim mode indicator for the header, or null when Vim is off. */
   onVimMode(mode: 'insert' | 'normal' | 'visual' | 'outline' | null): void;
   commands: CommandRegistry;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
 }

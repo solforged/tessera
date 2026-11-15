@@ -1,7 +1,7 @@
 import { For, Show, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { foldName } from '../outline/names';
 import { captureSection, isWritten, sectionRoles, writtenSections } from '../tasks/today-template';
 import type { TodaySection, TodayTemplate } from '../tasks/today-template';
@@ -44,10 +44,10 @@ interface Drag {
  * lifting under the finger) or with Alt+Up and Alt+Down, rename in place and switch on or off; Notes and the capture section
  * stay on.
  */
-export function TodaySettings(props: { id: string; heading: JSX.Element; pane: string; notebook: NotebookClient }) {
+export function TodaySettings(props: { id: string; heading: JSX.Element; pane: string; workshop: WorkshopClient }) {
   const phone = () => isPhone();
-  const template = () => props.notebook.todayTemplate();
-  const busy = () => props.notebook.settingsBusy();
+  const template = () => props.workshop.todayTemplate();
+  const busy = () => props.workshop.settingsBusy();
   const [problem, setProblem] = createSignal('');
   const [draft, setDraft] = createSignal('');
   let list!: HTMLOListElement;
@@ -56,7 +56,7 @@ export function TodaySettings(props: { id: string; heading: JSX.Element; pane: s
   const save = async (next: Partial<TodayTemplate>) => {
     setProblem('');
     try {
-      await props.notebook.setSetting('today_template', JSON.stringify({ ...template(), ...next }));
+      await props.workshop.setSetting('today_template', JSON.stringify({ ...template(), ...next }));
       return true;
     } catch {
       return false; /* The document shows the save error and keeps the acknowledged template. */

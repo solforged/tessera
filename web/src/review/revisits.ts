@@ -1,18 +1,18 @@
 import { createEffect, createSignal, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
 import type { NoteState, RevisitAction, RevisitRow, RevisitSnapshot } from '../api/types';
-import type { DocumentChange, NotebookClient } from '../document/contract';
+import type { DocumentChange, WorkshopClient } from '../document/contract';
 
 export const workingNote = (): NoteState => ({ resolved_at: null, revisit_on: null, date_set_at: null });
 
-export function createRevisits(notebook: NotebookClient) {
+export function createRevisits(workshop: WorkshopClient) {
   const [rows, setRows] = createSignal<RevisitRow[]>([]);
   const [error, setError] = createSignal('');
   createEffect(() => {
-    notebook.changeSequence();
-    const today = notebook.todayDate();
+    workshop.changeSequence();
+    const today = workshop.todayDate();
     const controller = new AbortController();
-    void notebook.api.revisits(today, controller.signal).then(
+    void workshop.api.revisits(today, controller.signal).then(
       value => {
         if (!controller.signal.aborted) {
           setRows(value);
@@ -41,26 +41,26 @@ const revisitSummaries: Record<RevisitAction, string> = {
 
 /** Review advances across pages, so this history stays with the action, not the next page's outline. */
 export async function changeRevisit(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   id: string,
   action: RevisitAction,
   nextOn: string | null,
 ): Promise<DocumentChange | undefined> {
-  let block = await notebook.api.block(id);
-  const document = notebook.open(block.page_id);
+  let block = await workshop.api.block(id);
+  const document = workshop.open(block.page_id);
   try {
     await document.flush();
   } finally {
     document.release();
   }
-  block = await notebook.api.block(id);
-  const capabilities = await notebook.api.capabilities(id);
+  block = await workshop.api.block(id);
+  const capabilities = await workshop.api.capabilities(id);
   const state: RevisitSnapshot = {
     note: capabilities.note ?? workingNote(),
     question: capabilities.question?.state ?? null,
   };
   let eventId = action === 'revisited' || action === 'keep_recurrent' ? ulid() : null;
-  const result = await notebook.commit(
+  const result = await workshop.commit(
     [{ op: 'revisit', id, base_revision: block.revision, action, next_on: nextOn, event_id: eventId }],
     revisitSummaries[action],
     [block.page_id],
@@ -70,14 +70,14 @@ export async function changeRevisit(
   let applied = true;
   const travel = async (forward: boolean) => {
     if (applied === forward) return;
-    const document = notebook.open(block.page_id);
+    const document = workshop.open(block.page_id);
     try {
       await document.flush();
     } finally {
       document.release();
     }
     const nextEventId = forward && (action === 'revisited' || action === 'keep_recurrent') ? ulid() : null;
-    const committed = await notebook.commit(
+    const committed = await workshop.commit(
       [
         forward
           ? { op: 'revisit', id, base_revision: revision!, action, next_on: nextOn, event_id: nextEventId }

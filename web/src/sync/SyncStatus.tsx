@@ -3,7 +3,7 @@ import { Portal } from 'solid-js/web';
 import type { PairedDevice, SyncState } from '../api/types';
 import { api } from '../api/client';
 import { DEMO, MOBILE } from '../core/mode';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
@@ -107,7 +107,7 @@ export function SyncCover(props: { onOpen(anchor: HTMLElement): void; open: bool
 
 /** Kept outside the hidden rail so first-run setup and cover sheets still mount on a phone. */
 export function SyncLifecycle(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   anchor: HTMLElement | null;
   onClose(): void;
   onDevices(deviceId: string | null): void;
@@ -123,7 +123,7 @@ export function SyncLifecycle(props: {
   });
   createEffect(
     on(
-      () => props.notebook.changeSequence(),
+      () => props.workshop.changeSequence(),
       () => {
         if (!DEMO) void sync.refresh();
       },

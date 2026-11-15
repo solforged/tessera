@@ -121,7 +121,8 @@ pub struct PairedDevice {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PairedHub {
     pub name: String,
-    pub notebook_id: String,
+    #[serde(rename = "notebook_id")]
+    pub workshop_id: String,
     pub schema_version: u32,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -202,8 +203,8 @@ impl HttpHub {
             Ok(result)
         })
     }
-    pub fn download(&self, notebook: &Path) -> anyhow::Result<(CloneTicket, PathBuf)> {
-        let partial = notebook.join(format!("{DATABASE_FILE}.clone"));
+    pub fn download(&self, workshop: &Path) -> anyhow::Result<(CloneTicket, PathBuf)> {
+        let partial = workshop.join(format!("{DATABASE_FILE}.clone"));
         let result = self.runtime.block_on(async {
             let mut response = checked(
                 self.client

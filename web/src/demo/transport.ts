@@ -1,7 +1,7 @@
 /// <reference lib="es2024.promise" />
 import { CHANGE_CLOSED, CHANGE_CLOSING, CHANGE_CONNECTING, CHANGE_OPEN } from '../api/client';
 import type { ChangeSocket, Transport } from '../api/client';
-import type { NotebookInfo } from '../api/types';
+import type { WorkshopInfo } from '../api/types';
 import type { FailureCode, FromWorker, ToWorker } from './protocol';
 import type { UpgradeCopy } from './notebook';
 
@@ -23,7 +23,7 @@ interface Pending {
 }
 
 export class DemoTransport {
-  private startup = Promise.withResolvers<{ info: NotebookInfo; fresh: boolean }>();
+  private startup = Promise.withResolvers<{ info: WorkshopInfo; fresh: boolean }>();
   readonly ready = this.startup.promise;
   private failure?: DemoFailure;
   private nextId = 0;
@@ -194,7 +194,7 @@ export class DemoTransport {
     if (message.type !== 'done') throw new Error('The workshop worker did not return a response.');
   }
 
-  async exportNotebook(): Promise<ArrayBuffer> {
+  async exportWorkshop(): Promise<ArrayBuffer> {
     const message = await this.exchange({ id: ++this.nextId, type: 'export' });
     if (message.type !== 'bytes') throw new Error('The workshop worker did not return a response.');
     return message.body;
@@ -213,13 +213,13 @@ export class DemoTransport {
   }
 
   /** Transfers ownership of the backup's bytes to the worker. */
-  async restore(body: ArrayBuffer): Promise<NotebookInfo> {
+  async restore(body: ArrayBuffer): Promise<WorkshopInfo> {
     const message = await this.exchange({ id: ++this.nextId, type: 'restore', body }, [body]);
     if (message.type !== 'restored') throw new Error('The workshop worker did not return a response.');
     return message.info;
   }
 
-  async restoreUpgradeCopy(): Promise<NotebookInfo> {
+  async restoreUpgradeCopy(): Promise<WorkshopInfo> {
     const message = await this.exchange({ id: ++this.nextId, type: 'restore-upgrade-copy' });
     if (message.type !== 'restored') throw new Error('The workshop worker did not return a response.');
     return message.info;

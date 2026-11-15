@@ -13,9 +13,9 @@ import {
 } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
-import type { Block, IndexKind, NoteKind, NotebookInfo, Shelf, Type, View } from '../api/types';
-import { createNotebookClient, type Notebook } from '../document';
-import type { NotebookClient } from '../document/contract';
+import type { Block, IndexKind, NoteKind, WorkshopInfo, Shelf, Type, View } from '../api/types';
+import { createWorkshopClient, type Workshop } from '../document';
+import type { WorkshopClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { builtInTagReason } from '../outline/PageMerge';
@@ -90,8 +90,8 @@ import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
-import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
-import { NotebookSwitcher } from '../settings/NotebookSwitcher';
+import { WorkshopOpening, registerWorkshopCommands } from '../settings/notebooks';
+import { WorkshopSwitcher } from '../settings/NotebookSwitcher';
 import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, shelves, tagOnly } from '../notes/kinds';
 import { DEMO } from '../core/mode';
 import { AgentDock } from '../agent/AgentDock';
@@ -103,11 +103,11 @@ import type { ContextRef } from '../api/types';
 /** How long the deletion toast stays when nothing rests on it. */
 const UNDO_TOAST_MS = 8000;
 
-function HolderDeletionImpact(props: { notebook: NotebookClient; pageId: string | undefined }) {
+function HolderDeletionImpact(props: { workshop: WorkshopClient; pageId: string | undefined }) {
   const [count] = createResource(
-    () => (props.pageId ? ([props.pageId, props.notebook.changeSequence()] as const) : false),
+    () => (props.pageId ? ([props.pageId, props.workshop.changeSequence()] as const) : false),
     async ([holder]) => {
-      const result = await props.notebook.api.positions({ holder });
+      const result = await props.workshop.api.positions({ holder });
       return result.rows.filter(row => row.block.page.id !== holder).length;
     },
   );
@@ -194,25 +194,25 @@ function targetFromView(entry: HistoryEntry): OpenTarget {
   return target;
 }
 
-export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
+export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   installTabRule();
   const identityKey = `tessera.identity.${location.origin}`;
-  let cachedIdentity: NotebookInfo | undefined;
+  let cachedIdentity: WorkshopInfo | undefined;
   try {
-    const value = JSON.parse(localStorage.getItem(identityKey) ?? 'null') as NotebookInfo | null;
+    const value = JSON.parse(localStorage.getItem(identityKey) ?? 'null') as WorkshopInfo | null;
     if (value && typeof value.id === 'string' && typeof value.path === 'string') cachedIdentity = value;
   } catch {
-    /* A first offline visit has no cached notebook identity. */
+    /* A first offline visit has no cached workshop identity. */
   }
-  const notebook = createNotebookClient({ notebookId: cachedIdentity?.id });
+  const workshop = createWorkshopClient({ workshopId: cachedIdentity?.id });
   onCleanup(() => {
-    void notebook.dispose();
+    void workshop.dispose();
   });
-  props.onNotebook?.(notebook);
+  props.onWorkshop?.(workshop);
   const commands = createCommandRegistry();
   const [info] = createResource(async () => {
     try {
-      const value = await api.notebook();
+      const value = await api.workshop();
       try {
         localStorage.setItem(identityKey, JSON.stringify(value));
       } catch {
@@ -224,7 +224,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     }
   });
   const [views, { refetch: refetchViews }] = createResource(
-    () => notebook.connection() === 'live',
+    () => workshop.connection() === 'live',
     async () => {
       try {
         return await api.views();
@@ -235,7 +235,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     },
   );
   createEffect(() => {
-    if ((notebook.lastChange()?.views ?? []).length) void refetchViews();
+    if ((workshop.lastChange()?.views ?? []).length) void refetchViews();
   });
   const [sessions, setSessions] = createSignal<Record<PaneId, PaneSession>>({ main: emptySession() });
   /** The panes left to right; the first is 'main' until it closes. */
@@ -243,7 +243,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   /** Relative widths from dragging dividers; a pane without one takes 1. */
   const [weights, setWeights] = createSignal<Record<PaneId, number>>({});
   const [active, setActive] = createSignal<PaneId>('main');
-  const vim = notebook.vim;
+  const vim = workshop.vim;
   const [vimModes, setVimModes] = createSignal<Record<PaneId, VimMode>>({});
   const narrowQuery = window.matchMedia('(max-width: 1047px)');
   const [narrow, setNarrow] = createSignal(narrowQuery.matches);
@@ -287,21 +287,21 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     reopen: boolean;
   } | null>(null);
   const [retainedDeletions] = createResource(
-    () => notebook.changeSequence(),
-    () => notebook.api.deletedPages(),
+    () => workshop.changeSequence(),
+    () => workshop.api.deletedPages(),
   );
   const [deletionUndoSequence, setDeletionUndoSequence] = createSignal<number | null>(null);
   createEffect(() => {
     const sequence = deletionUndoSequence();
-    if (sequence !== null && (notebook.changeSequence() !== sequence || notebook.saveState() !== 'saved'))
+    if (sequence !== null && (workshop.changeSequence() !== sequence || workshop.saveState() !== 'saved'))
       setDeletionUndoSequence(null);
   });
   /** Notices share the deletion toast's lifetime and pause while hovered or focused (ui/Notice.tsx). */
   const showNotice = (value: CreateNotice) => {
     showToast({ text: value.message, action: value.actions, duration: UNDO_TOAST_MS, onError: reportError });
   };
-  const todayDate = () => notebook.todayDate();
-  const counts = deskCounts(notebook, todayDate);
+  const todayDate = () => workshop.todayDate();
+  const counts = deskCounts(workshop, todayDate);
   let searchButton!: HTMLButtonElement;
   let sidebarToggle!: HTMLButtonElement;
   let sidebarElement!: HTMLElement;
@@ -310,10 +310,10 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     return session?.entries[session.index];
   };
   const split = () => order().length > 1;
-  const activeRoot = () => notebook.roots().find(root => root.id === pageIdOf(entry(active())));
+  const activeRoot = () => workshop.roots().find(root => root.id === pageIdOf(entry(active())));
   const journalDate = (pane: PaneId) => {
     if (pendingJournals[pane]) return pendingJournals[pane]!.date;
-    const root = notebook.roots().find(root => root.id === pageIdOf(entry(pane)));
+    const root = workshop.roots().find(root => root.id === pageIdOf(entry(pane)));
     return root?.kind === 'journal' ? root.text : todayDate();
   };
   const reportError = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
@@ -415,7 +415,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     if (target.kind === 'page' && target.caretId) pendingCaretInput.begin(pane, target.caretId);
     else pendingCaretInput.cancel();
     if (target.kind === 'agenda' && target.viewId && !target.query) {
-      void notebook.api
+      void workshop.api
         .taskView(target.viewId)
         .then(saved => {
           if (request === navigationRequests[pane])
@@ -665,7 +665,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     beside = beside && canOpenBeside(owner);
     const pane: PaneId = beside ? (besideSlot(order(), owner).existing ?? `${owner}:beside`) : owner;
     // An earlier day than the one showing turns back, as Back does.
-    const showing = notebook.roots().find(root => root.id === pageIdOf(entry(owner)));
+    const showing = workshop.roots().find(root => root.id === pageIdOf(entry(owner)));
     const turn = journalTurn(
       pendingJournals[owner]?.date ?? (showing?.kind === 'journal' ? showing.text : undefined),
       value ?? todayDate(),
@@ -675,7 +675,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     pendingJournals[pane] = { date: value ?? todayDate(), controller };
     try {
       const pageId =
-        value === null ? await notebook.today(controller.signal) : await notebook.journal(value, controller.signal);
+        value === null ? await workshop.today(controller.signal) : await workshop.journal(value, controller.signal);
       if (request === navigationRequests[pane])
         open(
           { kind: 'page', pageId, ...(journalPeriod ? { journalPeriod } : {}) },
@@ -721,7 +721,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       if (target.kind === 'agenda' || target.kind === 'review') return target.kind;
       if (
         target.kind === 'page' &&
-        notebook.roots().some(root => root.id === target.pageId && root.kind === 'journal' && root.text === todayDate())
+        workshop.roots().some(root => root.id === target.pageId && root.kind === 'journal' && root.text === todayDate())
       )
         return 'today';
     }
@@ -730,7 +730,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   let phoneToday: { date: string; id: Promise<string> } | undefined;
   const phoneRoot = async (tab: PhoneTab): Promise<HistoryEntry> => {
     if (tab === 'today') {
-      if (phoneToday?.date !== todayDate()) phoneToday = { date: todayDate(), id: notebook.today() };
+      if (phoneToday?.date !== todayDate()) phoneToday = { date: todayDate(), id: workshop.today() };
       return {
         target: { kind: 'page', pageId: await phoneToday.id },
         view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false },
@@ -972,7 +972,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       .find(command => command.id === `outline.${pane}.${suffix}`)
       ?.run();
   const reviewConflict = () => {
-    const conflicted = notebook.conflictedPages();
+    const conflicted = workshop.conflictedPages();
     const pageId = conflicted.includes(pageIdOf(entry(active())) ?? '') ? pageIdOf(entry(active())) : conflicted[0];
     if (!pageId) return;
     const pane = order().find(owner => pageIdOf(entry(owner)) === pageId) ?? active();
@@ -989,7 +989,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const pageId = pageIdOf(entry(pane));
     if (!pageId) return;
     const title =
-      notebook.lookup(pageId)()?.text ?? notebook.roots().find(block => block.id === pageId)?.text ?? 'Atom';
+      workshop.lookup(pageId)()?.text ?? workshop.roots().find(block => block.id === pageId)?.text ?? 'Atom';
     try {
       await deletePages([{ id: pageId, title }], undefined, true);
       setPopup(null);
@@ -1003,17 +1003,17 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} atoms`,
     reopen = false,
   ) => {
-    const capabilities = await Promise.all(pages.map(page => notebook.api.capabilities(page.id)));
+    const capabilities = await Promise.all(pages.map(page => workshop.api.capabilities(page.id)));
     for (let index = 0; index < pages.length; index++) {
       const reason = builtInTagReason(pages[index]!.title, capabilities[index], 'delete');
       if (reason) throw new Error(reason);
     }
     const ids = new Set(pages.map(page => page.id)),
-      roots = notebook.roots(),
+      roots = workshop.roots(),
       done: typeof pages = [];
     try {
       for (const page of pages) {
-        await notebook.deletePage(page.id);
+        await workshop.deletePage(page.id);
         done.push(page);
       }
     } finally {
@@ -1021,7 +1021,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         const message = `${done.length === pages.length ? label : `${done.length} atoms`} deleted`;
         setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} atoms`, reopen });
         showNotice({ message, actions: [{ label: 'Undo', run: restorePage }] });
-        const remaining = notebook.roots().find(block => !ids.has(block.id));
+        const remaining = workshop.roots().find(block => !ids.has(block.id));
         const previousDay = new Date(`${todayDate()}T12:00:00`);
         previousDay.setDate(previousDay.getDate() - 1);
         const deletedToday = roots.some(
@@ -1029,7 +1029,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         );
         // Do not recreate a deleted journal date: that would prevent restoring its IDs.
         const replacement = async () =>
-          remaining?.id ?? (deletedToday ? await notebook.journal(localDate(previousDay)) : await notebook.today());
+          remaining?.id ?? (deletedToday ? await workshop.journal(localDate(previousDay)) : await workshop.today());
         for (const owner of order()) {
           const current = entry(owner);
           if (
@@ -1038,7 +1038,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           )
             open({ kind: 'page', pageId: await replacement() }, false, owner);
         }
-        setDeletionUndoSequence(notebook.changeSequence());
+        setDeletionUndoSequence(workshop.changeSequence());
       }
     }
   };
@@ -1046,13 +1046,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     () => {
       const state = popup();
       const id = state?.kind === 'delete' ? pageIdOf(entry(state.pane)) : undefined;
-      return id ? ([id, notebook.changeSequence()] as const) : false;
+      return id ? ([id, workshop.changeSequence()] as const) : false;
     },
-    ([id]) => notebook.api.capabilities(id),
+    ([id]) => workshop.api.capabilities(id),
   );
   const deleteDisabledReason = (pane: PaneId) => {
     const id = pageIdOf(entry(pane));
-    const title = notebook.lookup(id ?? '')()?.text ?? rootById().get(id ?? '')?.text ?? '';
+    const title = workshop.lookup(id ?? '')()?.text ?? rootById().get(id ?? '')?.text ?? '';
     return deleteCapabilities.error
       ? String(deleteCapabilities.error)
       : !deleteCapabilities()
@@ -1067,7 +1067,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     if (!value) return;
     setDeletionUndoSequence(null);
     try {
-      for (const page of value.pages) await notebook.restorePage(page.id);
+      for (const page of value.pages) await workshop.restorePage(page.id);
       batch(() => {
         setDeleted(null);
         dismissNotice();
@@ -1111,7 +1111,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   onMount(() => {
     onCleanup(installLinkDrop(openCreate));
-    resumeLinkImports(notebook);
+    resumeLinkImports(workshop);
     const requested = (event: Event) => {
       if (event instanceof CustomEvent && event.detail) openCreate(event.detail as CreateRequest);
     };
@@ -1298,26 +1298,26 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   createEffect(() => {
     if (info.loading || initializing) return;
     initializing = true;
-    const notebookInfo = info();
+    const workshopInfo = info();
     void (async () => {
-      if (!notebookInfo && !navigator.onLine) {
+      if (!workshopInfo && !navigator.onLine) {
         setOfflineUnavailable(true);
         setError('Workshop unavailable offline · Open this workshop online once.');
         return;
       }
-      await notebook.ready;
-      if (notebook.connection() === 'offline' && !notebook.roots().length) {
+      await workshop.ready;
+      if (workshop.connection() === 'offline' && !workshop.roots().length) {
         setOfflineUnavailable(true);
         setError('Workshop unavailable offline · Open this workshop online once.');
         return;
       }
-      if (!notebookInfo) {
+      if (!workshopInfo) {
         await today();
         return;
       }
       let stored: SavedNavigation = {};
       try {
-        stored = JSON.parse(localStorage.getItem(`tessera.navigation.${notebookInfo.id}`) ?? '{}') ?? {};
+        stored = JSON.parse(localStorage.getItem(`tessera.navigation.${workshopInfo.id}`) ?? '{}') ?? {};
       } catch {
         /* Navigation preferences are optional; document durability is IndexedDB. */
       }
@@ -1394,11 +1394,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'page' && 'zoom' in saved.view) {
           const savedId = saved.target.pageId;
-          const exists = notebook.roots().some(root => root.id === savedId);
+          const exists = workshop.roots().some(root => root.id === savedId);
           current = exists
             ? { target: targetFromView(saved), view: { ...copyView(saved.view), reveal: undefined } }
             : {
-                target: { kind: 'page', pageId: await notebook.today() },
+                target: { kind: 'page', pageId: await workshop.today() },
                 view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false },
               };
         } else return;
@@ -1468,7 +1468,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           setActive(pane);
         });
       } else await today();
-      setNavigationId(notebookInfo.id);
+      setNavigationId(workshopInfo.id);
     })().catch(reportError);
   });
   installOpenedFiles(
@@ -1775,7 +1775,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       id: 'shell.review-conflict',
       title: 'Review workshop conflict',
       section: 'Editing',
-      disabledReason: () => (notebook.conflictedPages().length ? undefined : 'No conflicting atoms'),
+      disabledReason: () => (workshop.conflictedPages().length ? undefined : 'No conflicting atoms'),
       run: reviewConflict,
     },
     {
@@ -1783,27 +1783,27 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       title: 'Retry saving',
       section: 'Editing',
       disabledReason: () =>
-        notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined,
-      run: () => notebook.retry(),
+        workshop.saveState() === 'saved' && workshop.connection() === 'live' ? 'All changes are saved' : undefined,
+      run: () => workshop.retry(),
     },
     {
       id: 'shell.copy-unsaved',
       title: 'Copy unsaved text',
       section: 'Editing',
       disabledReason: () =>
-        notebook.localPersistence() === 'failed' || notebook.rejectedText()
+        workshop.localPersistence() === 'failed' || workshop.rejectedText()
           ? undefined
           : 'Local recovery storage is working',
       run: () => {
-        void navigator.clipboard.writeText(notebook.rejectedText() || notebook.unsavedText()).catch(reportError);
+        void navigator.clipboard.writeText(workshop.rejectedText() || workshop.unsavedText()).catch(reportError);
       },
     },
     {
       id: 'shell.dismiss-rejected',
       title: 'Dismiss rejected changes',
       section: 'Editing',
-      disabledReason: () => (notebook.rejectedText() ? undefined : 'No rejected changes'),
-      run: () => notebook.dismissRejected(),
+      disabledReason: () => (workshop.rejectedText() ? undefined : 'No rejected changes'),
+      run: () => workshop.dismissRejected(),
     },
     { id: 'shell.sidebar', title: 'Toggle sidebar', section: 'View', run: toggleSidebar },
   ]);
@@ -1851,8 +1851,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       ),
     );
   });
-  registerNotebookCommands(commands, notebook, reportError);
-  const rootById = createMemo(() => new Map(notebook.roots().map(root => [root.id, root])));
+  registerWorkshopCommands(commands, workshop, reportError);
+  const rootById = createMemo(() => new Map(workshop.roots().map(root => [root.id, root])));
   const pinnedRoots = () =>
     pinned()
       .map(id => rootById().get(id))
@@ -1866,10 +1866,10 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       .slice(0, 10);
   const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
   const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
-  const index = noteIndex(notebook);
+  const index = noteIndex(workshop);
   const [destinationTypes] = createResource(
-    () => notebook.changeSequence(),
-    () => notebook.api.types(),
+    () => workshop.changeSequence(),
+    () => workshop.api.types(),
   );
   const goToCommand = (id: string, title: string, action: (beside: boolean, pane: PaneId) => void): Command => ({
     id: `shell.go-to.${id}`,
@@ -1957,10 +1957,10 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           : undefined;
   };
   const [fieldNames] = createResource(
-    () => (order().some(pane => entry(pane)?.target.kind === 'field') ? notebook.changeSequence() : false),
+    () => (order().some(pane => entry(pane)?.target.kind === 'field') ? workshop.changeSequence() : false),
     async () => {
       try {
-        return await notebook.api.fields();
+        return await workshop.api.fields();
       } catch (reason) {
         reportError(reason);
         return undefined;
@@ -1969,7 +1969,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   );
   const fieldName = (id: string) => {
     const field = fieldNames()?.fields.find(field => field.id === id);
-    return field ? fieldLabel({ name: notebook.lookup(id)()?.text ?? field.name, built_in: field.built_in }) : '…';
+    return field ? fieldLabel({ name: workshop.lookup(id)()?.text ?? field.name, built_in: field.built_in }) : '…';
   };
   // A table pane is named for its saved view, else its type, and an index pane for its kind, rather than the generic label.
   const paneTitle = (pane: PaneId) => {
@@ -2008,7 +2008,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const page = rootById().get(pageIdOf(entry(pane)) ?? '');
     return page
       ? page.kind === 'page'
-        ? displayTitle(page.text, id => notebook.lookup(id))
+        ? displayTitle(page.text, id => workshop.lookup(id))
         : page.text
       : (paneTitle(pane) ?? paneLabel(entry(pane)?.target));
   };
@@ -2096,7 +2096,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         label: row.dataset.openLabel ?? row.textContent?.trim() ?? '',
       };
     const reference = element.closest<HTMLElement>('.outline-reference[data-reference]');
-    const block = reference && notebook.lookup(reference.dataset.reference!)();
+    const block = reference && workshop.lookup(reference.dataset.reference!)();
     if (!reference || !block) return null;
     return {
       target:
@@ -2261,7 +2261,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   });
   // The agent dock: its thread, the pages it reads (the panes in view, less any left out, plus dropped links) and
   // the rows it changed, which outline rows mark through AgentMarks.
-  const agentSession = createAgentSession(() => navigationId() ?? undefined, notebook.api);
+  const agentSession = createAgentSession(() => navigationId() ?? undefined, workshop.api);
   const agentMarks = {
     mark: (id: string) => agentSession.marks().get(id),
     undo: (seq: number) => agentSession.undo(seq),
@@ -2538,7 +2538,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                   </h2>
                   <PageLinks
                     roots={pinnedRoots()}
-                    notebook={notebook}
+                    workshop={workshop}
                     activeId={pageIdOf(entry(active()))}
                     onOpen={onOpen}
                   />
@@ -2633,7 +2633,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                   <PageLinks
                     roots={recentRoots()}
                     sourceIcons
-                    notebook={notebook}
+                    workshop={workshop}
                     activeId={pageIdOf(entry(active()))}
                     onOpen={onOpen}
                   />
@@ -2641,7 +2641,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
               </details>
             </div>
             <div class="sidebar-foot">
-              <NotebookSwitcher notebook={notebook} onOpen={onOpen} onError={reportError} />
+              <WorkshopSwitcher workshop={workshop} onOpen={onOpen} onError={reportError} />
               <Button
                 icon="settings"
                 label="Settings"
@@ -2655,7 +2655,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         }
       >
         <PhoneIndex
-          notebook={notebook}
+          workshop={workshop}
           index={index()}
           revisits={counts()?.revisits ?? 0}
           views={views() ?? []}
@@ -2672,9 +2672,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     );
   };
   // Getters, not a snapshot: each pane reads these the way it read Solid props.
-  const workshop: WorkshopShell = {
-    get notebook() {
-      return notebook;
+  const shell: WorkshopShell = {
+    get workshop() {
+      return workshop;
     },
     get commands() {
       return commands;
@@ -2707,7 +2707,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     },
   };
   return (
-    <WorkshopContext.Provider value={workshop}>
+    <WorkshopContext.Provider value={shell}>
       <AgentMarks.Provider value={agentMarks}>
         <div
           class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`}
@@ -2835,7 +2835,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                 </Button>
               </div>
             </Show>
-            <GlobalBanner notebook={notebook} onReview={reviewConflict} />
+            <GlobalBanner workshop={workshop} onReview={reviewConflict} />
             <div ref={paneRow} class="panes">
               <For each={order()}>
                 {(pane, position) => (
@@ -2940,7 +2940,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
             {held => (
               <AgentDock
                 leaving={held().leaving}
-                notebook={notebook}
+                workshop={workshop}
                 session={agentSession}
                 chips={dockChips()}
                 excluded={dockExcluded()}
@@ -2960,7 +2960,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
             )}
           </Show>
           <SyncLifecycle
-            notebook={notebook}
+            workshop={workshop}
             anchor={syncAnchor()}
             onClose={() => setSyncAnchor(null)}
             onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })}
@@ -3091,7 +3091,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                     pane={state.pane}
                     mode={state.kind === 'commands' ? 'commands' : 'search'}
                     commands={commands}
-                    notebook={notebook}
+                    workshop={workshop}
                     noteKinds={index()?.kinds ?? []}
                     onDismiss={() => setPopup(null)}
                     onRestoreFocus={() => {
@@ -3104,7 +3104,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                 </Show>
                 <Show when={state.kind === 'calendar'}>
                   <Calendar
-                    notebook={notebook}
+                    workshop={workshop}
                     anchor={state.anchor}
                     date={state.date ?? journalDate(state.pane)}
                     today={todayDate()}
@@ -3147,7 +3147,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                 <Show when={state.kind === 'restore-pages'}>
                   <DeletedPages
                     anchor={state.anchor}
-                    notebook={notebook}
+                    workshop={workshop}
                     onDismiss={() => setPopup(null)}
                     onRestored={id => {
                       setPopup(null);
@@ -3167,11 +3167,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                   >
                     <p>
                       Delete “
-                      {notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ??
+                      {workshop.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ??
                         rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}
                       ” and {state.source ? 'its highlights' : 'all its atoms'}?
                     </p>
-                    <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
+                    <HolderDeletionImpact workshop={workshop} pageId={pageIdOf(entry(state.pane))} />
                     <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
                     <div class="popup-actions">
                       <Button onClick={() => setPopup(null)}>Cancel</Button>
@@ -3241,7 +3241,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           <Show keyed when={creation()}>
             {state => (
               <CreateSlip
-                notebook={notebook}
+                workshop={workshop}
                 request={state.request}
                 anchor={state.anchor}
                 onDismiss={closeCreate}
@@ -3252,13 +3252,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
             )}
           </Show>
           <ReferencePreviews
-            notebook={notebook}
+            workshop={workshop}
             navigationKey={`${active()}:${order()
               .map(pane => sessions()[pane]?.generation ?? 0)
               .join(':')}`}
             onOpen={(target, beside, pane) => open(target, beside, pane ?? active())}
           />
-          <NotebookOpening />
+          <WorkshopOpening />
         </div>
       </AgentMarks.Provider>
     </WorkshopContext.Provider>

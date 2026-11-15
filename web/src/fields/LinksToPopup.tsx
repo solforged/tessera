@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
@@ -13,7 +13,7 @@ import { titleKey } from '../document/title-key';
  */
 export function LinksToPopup(props: {
   anchor: HTMLElement;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   targets: readonly string[];
   disabled?: boolean;
   onApply(targets: string[]): void;
@@ -21,13 +21,13 @@ export function LinksToPopup(props: {
 }) {
   const [draft, setDraft] = createSignal([...props.targets]);
   const [types] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.types(),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.types(),
   );
   const choices = createMemo(() => {
     const pages = new Map((types() ?? []).map(type => [type.page.id, type.page]));
     // Source stands for every source, so a type page of the same name would only repeat it; keep one only when it is already a target.
-    for (const page of props.notebook.roots())
+    for (const page of props.workshop.roots())
       if (
         page.kind === 'page' &&
         !page.archived &&

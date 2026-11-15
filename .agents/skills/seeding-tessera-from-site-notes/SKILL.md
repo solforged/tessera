@@ -1,13 +1,13 @@
 ---
 name: seeding-tessera-from-site-notes
-description: "Imports solforged.io (~/src/site) notes into a Tessera notebook as real primitives (questions, positions, sources, highlights, quotes) when requested for QA or a starting point, and repairs or migrates already-imported data in the live notebook."
+description: "Imports solforged.io (~/src/site) notes into a Tessera workshop as real primitives (questions, positions, sources, highlights, quotes) when requested for QA or a starting point, and repairs or migrates already-imported data in the live workshop."
 ---
 
 # Seeding Tessera from site notes
 
 Use when the user wants site notes (`~/src/site/src/content`) in Tessera as QA
 material or a starting point, or wants imported data repaired. QA defaults to a
-private notebook, never live :4318. Writing/repairing a live notebook requires
+private workshop, never live :4318. Writing/repairing a live workshop requires
 explicit authorization for that exact target and import/repair scope after the
 dry-run results are available.
 

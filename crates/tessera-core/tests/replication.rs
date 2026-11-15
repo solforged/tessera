@@ -3,7 +3,7 @@ use std::path::Path;
 use rusqlite::{Connection, types::Value};
 use tessera_core::replication::{Replication, TABLES};
 use tessera_core::scheduler::Grade;
-use tessera_core::{Actor, Batch, ChangeStamp, Committed, Error, Notebook, Operation, library::*};
+use tessera_core::{Actor, Batch, ChangeStamp, Committed, Error, Operation, Workshop, library::*};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -95,10 +95,10 @@ fn replicated_state(dir: &Path) -> Vec<(String, Vec<String>)> {
     state
 }
 
-/// Two copies of one notebook, as a clone for a second device would be.
+/// Two copies of one workshop, as a clone for a second device would be.
 fn two_devices() -> (tempfile::TempDir, tempfile::TempDir) {
     let first = tempfile::tempdir().unwrap();
-    drop(Notebook::open(first.path()).unwrap());
+    drop(Workshop::open(first.path()).unwrap());
     let second = tempfile::tempdir().unwrap();
     for entry in std::fs::read_dir(first.path()).unwrap() {
         let entry = entry.unwrap();
@@ -115,7 +115,7 @@ fn two_devices() -> (tempfile::TempDir, tempfile::TempDir) {
 #[test]
 fn every_table_has_a_replication_class() {
     let dir = tempfile::tempdir().unwrap();
-    drop(Notebook::open(dir.path()).unwrap());
+    drop(Workshop::open(dir.path()).unwrap());
     let conn = Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     let tables: Vec<String> = conn
         .prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
@@ -151,7 +151,7 @@ fn every_table_has_a_replication_class() {
 
 /// Apply one stamped change to every device; each must commit it the same way.
 fn apply_both(
-    devices: &mut [Notebook],
+    devices: &mut [Workshop],
     change: u128,
     at: i64,
     operations: Vec<Operation>,
@@ -173,8 +173,8 @@ fn apply_both(
 fn two_copies_reach_the_same_state_from_the_same_changes() {
     let (first, second) = two_devices();
     let mut devices = [
-        Notebook::open(first.path()).unwrap(),
-        Notebook::open(second.path()).unwrap(),
+        Workshop::open(first.path()).unwrap(),
+        Workshop::open(second.path()).unwrap(),
     ];
     // A tag creates a type page, and card text derives a card.
     apply_both(
@@ -326,40 +326,40 @@ fn two_copies_reach_the_same_state_from_the_same_changes() {
 #[test]
 fn a_change_id_commits_once() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let mut workshop = Workshop::open(dir.path()).unwrap();
     let create = batch(vec![Operation::CreatePage {
         id: id(1),
         title: "Arrived twice".into(),
     }]);
-    let first = notebook.apply_stamped(&create, &stamp(1, 5_000)).unwrap();
-    let again = notebook.apply_stamped(&create, &stamp(1, 9_000)).unwrap();
+    let first = workshop.apply_stamped(&create, &stamp(1, 5_000)).unwrap();
+    let again = workshop.apply_stamped(&create, &stamp(1, 9_000)).unwrap();
     assert!(again.replayed);
     assert_eq!(again.seq, first.seq);
-    assert_eq!(notebook.block(&id(1)).unwrap().created_at, 5_000);
+    assert_eq!(workshop.block(&id(1)).unwrap().created_at, 5_000);
 
     let different = batch(vec![Operation::CreatePage {
         id: id(2),
         title: "Same change, other operations".into(),
     }]);
-    let error = notebook
+    let error = workshop
         .apply_stamped(&different, &stamp(1, 5_000))
         .unwrap_err();
     assert!(matches!(error, Error::Validation { .. }), "{error:?}");
-    assert!(notebook.block(&id(2)).is_err());
+    assert!(workshop.block(&id(2)).is_err());
 }
 
 #[test]
 fn local_changes_record_this_device_as_origin() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    let device = notebook.device_id().unwrap();
-    let committed = notebook
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    let device = workshop.device_id().unwrap();
+    let committed = workshop
         .apply(&batch(vec![Operation::CreatePage {
             id: id(1),
             title: "Written here".into(),
         }]))
         .unwrap();
-    drop(notebook);
+    drop(workshop);
     let conn = Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     let (change, origin): (String, String) = conn
         .query_row(
@@ -370,9 +370,9 @@ fn local_changes_record_this_device_as_origin() {
         .unwrap();
     assert_eq!(origin, device);
     assert!(change.parse::<ulid::Ulid>().is_ok());
-    // A reopened notebook keeps its device.
+    // A reopened workshop keeps its device.
     assert_eq!(
-        Notebook::open(dir.path()).unwrap().device_id().unwrap(),
+        Workshop::open(dir.path()).unwrap().device_id().unwrap(),
         device
     );
 }
@@ -381,8 +381,8 @@ fn local_changes_record_this_device_as_origin() {
 fn question_parent_state_replicates_and_changes_without_rewriting_text() {
     let (first, second) = two_devices();
     let mut devices = [
-        Notebook::open(first.path()).unwrap(),
-        Notebook::open(second.path()).unwrap(),
+        Workshop::open(first.path()).unwrap(),
+        Workshop::open(second.path()).unwrap(),
     ];
     apply_both(
         &mut devices,
@@ -503,7 +503,7 @@ fn question_parent_state_replicates_and_changes_without_rewriting_text() {
 #[test]
 fn every_replicated_table_is_strict() {
     let dir = tempfile::tempdir().unwrap();
-    drop(Notebook::open(dir.path()).unwrap());
+    drop(Workshop::open(dir.path()).unwrap());
     let conn = Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     // PRAGMA table_list: schema, name, type, ncol, wr, strict.
     let tables: std::collections::HashMap<String, (String, bool)> = conn

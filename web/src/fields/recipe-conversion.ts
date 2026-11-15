@@ -8,7 +8,7 @@ import type {
   Operation,
   Type,
 } from '../api/types';
-import type { DocumentChange, NotebookClient } from '../document/contract';
+import type { DocumentChange, WorkshopClient } from '../document/contract';
 import { cardMarks, parseCardText } from '../core/card-text';
 import { fieldEntryId } from '../core/field-entry';
 import { textTokens } from '../document/text-tokens';
@@ -60,14 +60,14 @@ const transferred = (operation: Operation): operation is Extract<Operation, { op
 
 /** Standard operations and key transfers share one revision-checked change, including inverse replay. */
 export async function convertSyntax(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   type: Type,
   atoms: readonly SyntaxAtom[],
   templates: readonly CardTemplateInfo[],
   field: FieldDefinition | { name: string },
 ): Promise<DocumentChange> {
   if (!atoms.length) throw new Error('No simple syntax atoms to convert.');
-  await notebook.flush();
+  await workshop.flush();
   const steps: Step[] = [];
   const pages = new Set([type.page.id]);
   const insert = (parent_id: string, text: string, after: string | null = null) => {
@@ -85,7 +85,7 @@ export async function convertSyntax(
   } else {
     const name = field.name.trim();
     if (!name) throw new Error('Name the answer field.');
-    const register = await notebook.api.fields();
+    const register = await workshop.api.fields();
     if (register.fields.some(field => field.name.toLocaleLowerCase() === name.toLocaleLowerCase()))
       throw new Error('That field already exists. Choose it from the list.');
     pages.add(register.page_id);
@@ -131,7 +131,7 @@ export async function convertSyntax(
   for (const atom of atoms) {
     const block = atom.source.block;
     pages.add(block.page_id);
-    const [tree, cards] = await Promise.all([notebook.api.subtree(block.id), notebook.api.sourceCards(block.id)]);
+    const [tree, cards] = await Promise.all([workshop.api.subtree(block.id), workshop.api.sourceCards(block.id)]);
     if (tree.truncated || tree.rows.find(row => row.block.id === block.id)?.block.revision !== block.revision)
       throw new Error('An atom changed or its children could not be fully loaded. Reopen the preview.');
     const rows = tree.rows.map(row => row.block);
@@ -192,7 +192,7 @@ export async function convertSyntax(
       revisions.set(id, revision + 1);
       return operation.op === 'restore' ? { ...operation, revision } : { ...operation, base_revision: revision };
     });
-    const receipt: Committed = await notebook.commit(
+    const receipt: Committed = await workshop.commit(
       operations,
       forward ? 'Use fields for card syntax' : 'Restore card syntax',
       [...pages],
@@ -206,7 +206,7 @@ export async function convertSyntax(
             step => !step.cardId && transferred(step.forward) && step.forward.source_id === atom.source.block.id,
           )
         )
-          created.set(atom.source.block.id, await notebook.api.sourceCards(atom.source.block.id));
+          created.set(atom.source.block.id, await workshop.api.sourceCards(atom.source.block.id));
     let deletion = 0;
     for (const step of ordered) {
       const sent = forward ? step.forward : step.backward,

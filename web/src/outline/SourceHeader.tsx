@@ -5,7 +5,7 @@ import { Portal } from 'solid-js/web';
 import { api, exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
 import type { Citation, FieldDefinition, HighlightResult, ReadingState } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OutlinePaneProps } from './contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -37,7 +37,7 @@ const stateLabels: Record<ReadingState, string> = {
 
 export function SourceHeader(props: {
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen: OutlinePaneProps['onOpen'];
   onError(message: string): void;
   resetItems(): MenuItem[];
@@ -56,8 +56,8 @@ export function SourceHeader(props: {
   onFieldsVisible(visible: boolean): void;
 }) {
   const [source] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.source(props.doc.pageId),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.source(props.doc.pageId),
   );
   const [menu, setMenu] = createSignal<{
     anchor: HTMLElement;
@@ -69,10 +69,10 @@ export function SourceHeader(props: {
   const snapshot = createMemo(() =>
     source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id),
   );
-  const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, props.fields));
+  const metadata = createMemo(() => sourceMetadata(props.doc, props.workshop, props.fields));
   const authored = createMemo(() => sourceEntries(props.doc, props.fields));
   const creators = createMemo(
-    () => sourceFieldValue(props.doc, props.notebook, props.fields, 'creators') as SourceCreator[],
+    () => sourceFieldValue(props.doc, props.workshop, props.fields, 'creators') as SourceCreator[],
   );
   const cover = createMemo(() => metadata().cover ?? (authored().has('cover') ? null : snapshot()?.metadata.cover));
   const description = createMemo(
@@ -97,7 +97,7 @@ export function SourceHeader(props: {
       .flatMap(id => props.doc.outline.children(id))
       .map(id => props.doc.block(id))
       .find(block => block && !block.archived && block.text.trim());
-    return value ? valueLabel(value.text, id => props.notebook.lookup(id)) : null;
+    return value ? valueLabel(value.text, id => props.workshop.lookup(id)) : null;
   });
   const imprint = createMemo(() =>
     [
@@ -132,10 +132,10 @@ export function SourceHeader(props: {
     setBusy(true);
     setResult('');
     try {
-      const preview = await props.notebook.api.lookup(identifier);
+      const preview = await props.workshop.api.lookup(identifier);
       const filled = await saveDetails(
         props.doc,
-        props.notebook,
+        props.workshop,
         { ...preview.metadata, title: metadata().title, cover: cover() ? null : preview.cover_url },
         true,
       );
@@ -200,8 +200,8 @@ export function SourceHeader(props: {
     let collections;
     try {
       const [pages, ids] = await Promise.all([
-        collectionPages(props.notebook.api),
-        sourceCollections(props.notebook.api, props.doc.pageId),
+        collectionPages(props.workshop.api),
+        sourceCollections(props.workshop.api, props.doc.pageId),
       ]);
       collections = pages.filter(page => ids.includes(page.id));
     } catch (error) {
@@ -234,7 +234,7 @@ export function SourceHeader(props: {
                 label: `Remove from ${collection.text}`,
                 action: () => {
                   void collectionActions.run(`Removed from ${collection.text}`, () =>
-                    changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false),
+                    changeCollectionMembers(props.workshop, collection.id, [props.doc.pageId], false),
                   );
                 },
               })),
@@ -298,7 +298,7 @@ export function SourceHeader(props: {
                 submenu: () => ({
                   title: 'Snapshots',
                   items: (source()?.snapshots ?? []).map(snapshot => ({
-                    label: `${journalLabel(civilDate(snapshot.attached_at, props.notebook.settings()?.time_zone), props.notebook.todayDate())} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
+                    label: `${journalLabel(civilDate(snapshot.attached_at, props.workshop.settings()?.time_zone), props.workshop.todayDate())} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
                     action: () =>
                       props.onOpen({ kind: 'reader', sourceId: props.doc.pageId, snapshotId: snapshot.id }, false),
                   })),
@@ -605,9 +605,9 @@ export function SourceHeader(props: {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
           if (file)
-            void props.notebook.api
+            void props.workshop.api
               .uploadCover(file)
-              .then(cover => saveDetails(props.doc, props.notebook, { ...metadata(), cover }, false, true))
+              .then(cover => saveDetails(props.doc, props.workshop, { ...metadata(), cover }, false, true))
               .catch(fail);
         }}
       />
@@ -616,12 +616,12 @@ export function SourceHeader(props: {
           {result()}
         </p>
       </Show>
-      <SourceCollections notebook={props.notebook} sourceId={props.doc.pageId} actions={collectionActions} />
+      <SourceCollections workshop={props.workshop} sourceId={props.doc.pageId} actions={collectionActions} />
       <Show when={collectionPicker()}>
         {anchor => (
           <CollectionPicker
             anchor={anchor()}
-            notebook={props.notebook}
+            workshop={props.workshop}
             sourceIds={[props.doc.pageId]}
             onChanged={collectionActions.record}
             onDismiss={() => setCollectionPicker(undefined)}
@@ -636,10 +636,10 @@ export function SourceHeader(props: {
 export function CitationChip(props: {
   citation: Citation;
   pageId: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen: OutlinePaneProps['onOpen'];
 }) {
-  const title = () => shortSourceTitle(props.notebook.lookup(props.citation.source_id)()?.text ?? 'Source');
+  const title = () => shortSourceTitle(props.workshop.lookup(props.citation.source_id)()?.text ?? 'Source');
   return (
     <Button
       class={`outline-planning outline-citation${props.citation.source_id === props.pageId ? ' outline-citation-local' : ''}`}

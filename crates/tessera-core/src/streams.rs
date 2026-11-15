@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::calendar::add_days;
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
-use crate::{Block, Error, Notebook, Result, Row};
+use crate::{Block, Error, Result, Row, Workshop};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct BatchSubtree {
@@ -29,7 +29,7 @@ pub struct StreamArrival {
     pub anchor_id: String,
 }
 
-impl Notebook {
+impl Workshop {
     /// One bounded read for live embeds. Missing/hidden roots have no rows and
     /// are not truncated; a root omitted by a row cap is marked truncated.
     pub fn subtrees(&self, ids: &[String], per_id: usize, total: usize) -> Result<BatchSubtrees> {

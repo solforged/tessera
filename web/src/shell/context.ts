@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'solid-js';
 import type { NoteKind } from '../api/types';
 import type { CreateRequest } from '../create/request';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import type { CommandRegistry, PagePresentation } from '../core/contract';
 
@@ -10,7 +10,7 @@ import type { CommandRegistry, PagePresentation } from '../core/contract';
  * tracks the signal it closes over, rather than a value captured in App.
  */
 export interface WorkshopShell {
-  readonly notebook: NotebookClient;
+  readonly workshop: WorkshopClient;
   readonly commands: CommandRegistry;
   readonly vim: boolean;
   readonly split: boolean;

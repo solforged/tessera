@@ -1,7 +1,7 @@
 import { opensBeside } from '../core/beside';
 import { Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
@@ -13,12 +13,12 @@ import './streams.css';
 export function Embed(props: {
   target: string;
   fallback: JSX.Element;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
-  const tree = props.notebook.watchSubtree(props.target);
+  const tree = props.workshop.watchSubtree(props.target);
   onCleanup(tree.release);
-  const source = () => (tree.value()?.rows.length ? props.notebook.lookup(props.target)() : undefined);
+  const source = () => (tree.value()?.rows.length ? props.workshop.lookup(props.target)() : undefined);
   const page = () => tree.value()?.page;
   const [expanded, setExpanded] = createSignal(false);
   const descendants = createMemo(() => tree.value()?.rows.slice(1) ?? []);
@@ -37,7 +37,7 @@ export function Embed(props: {
             <BlockText
               text={source()?.text ?? ''}
               blockId={props.target}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
             />
           </div>
@@ -49,15 +49,15 @@ export function Embed(props: {
               props.onOpen({ kind: 'page', pageId: source()!.page_id, blockId: props.target }, opensBeside(event));
             }}
           >
-            {page()?.kind === 'journal' ? streamDay(page()!.text, props.notebook.todayDate()) : page()?.text}
+            {page()?.kind === 'journal' ? streamDay(page()!.text, props.workshop.todayDate()) : page()?.text}
           </Button>
         </div>
         <Show when={rows().length}>
           <div class="stream-embed-children" onMouseDown={event => event.stopPropagation()}>
             <BlockTree
               rows={rows()}
-              block={id => props.notebook.lookup(id)() ?? undefined}
-              notebook={props.notebook}
+              block={id => props.workshop.lookup(id)() ?? undefined}
+              workshop={props.workshop}
               onOpen={props.onOpen}
             />
           </div>

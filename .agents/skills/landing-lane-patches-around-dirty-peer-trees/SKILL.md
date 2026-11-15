@@ -55,10 +55,10 @@ as a uniquely named service. Record readiness, actual listeners and
 `/api/service` build identity. Old services retain their old schema and binary;
 restart only services owned by this run after a rebuild and recopy.
 
-- Seed a fresh notebook through `POST /api/batches`
+- Seed a fresh workshop through `POST /api/batches`
   (`{actor:{kind:'person'},reason,idempotency_key:null,operations:[{op:'create_page',…},{op:'add_type',id,base_revision,title}]}`).
-  Never mutate live notebooks or their registry for smoke tests.
-- Detach permitted notebook copies using the shared consistent-backup,
+  Never mutate live workshops or their registry for smoke tests.
+- Detach permitted workshop copies using the shared consistent-backup,
   copied-lock and sync-attachment procedure before serving.
 - `document.test.ts` has used port 4330. Allocate a supported private test port,
   or serialize with its recorded owner; a process name or port collision is not

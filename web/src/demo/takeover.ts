@@ -12,7 +12,7 @@ interface HandoffOptions {
 }
 
 /** Only a completed, addressed release permits the requester to open the pool. */
-export class NotebookHandoff {
+export class WorkshopHandoff {
   private requestId?: string;
   private timer?: ReturnType<typeof setTimeout>;
   private releasing = false;

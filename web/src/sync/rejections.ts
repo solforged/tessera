@@ -1,11 +1,11 @@
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Operation, RejectedChange } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 /** Recovery and settling are one acknowledged batch, with one batch to undo them. */
 export async function settleRejection(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   change: RejectedChange,
   copy: boolean,
 ): Promise<{ undo(): Promise<void> }> {
@@ -15,11 +15,11 @@ export async function settleRejection(
   if (copy) {
     let newDay = false;
     if (!pageId) {
-      const date = notebook.todayDate();
-      pageId = notebook.roots().find(root => root.kind === 'journal' && root.text === date)?.id ?? null;
+      const date = workshop.todayDate();
+      pageId = workshop.roots().find(root => root.kind === 'journal' && root.text === date)?.id ?? null;
       if (!pageId) {
         try {
-          pageId = (await notebook.api.journal(date)).id;
+          pageId = (await workshop.api.journal(date)).id;
         } catch (reason) {
           if (!(reason instanceof ApiError) || reason.status !== 404) throw reason;
           pageId = ulid();
@@ -28,7 +28,7 @@ export async function settleRejection(
         }
       }
     }
-    const page = newDay ? null : await notebook.api.page(pageId);
+    const page = newDay ? null : await workshop.api.page(pageId);
     let after = page?.rows.filter(row => row.block.parent_id === pageId).at(-1)?.block.id ?? null;
     for (const text of change.texts) {
       const id = ulid();
@@ -38,7 +38,7 @@ export async function settleRejection(
     }
   }
   operations.push({ op: 'settle_sync_rejection', id: change.id, settled: true });
-  const receipt = await notebook.commit(
+  const receipt = await workshop.commit(
     operations,
     copy ? 'Copy rejected text back' : 'Dismiss rejected change',
     pageId ? [pageId] : [],
@@ -52,7 +52,7 @@ export async function settleRejection(
   }
   return {
     undo: async () => {
-      await notebook.commit(
+      await workshop.commit(
         inverse,
         copy ? 'Undo copying rejected text' : 'Undo dismissing rejected change',
         pageId ? [pageId] : [],

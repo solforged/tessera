@@ -7,9 +7,9 @@ use crate::calendar::{add_days, days_between, validate_civil_date};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
-    Agenda, AgendaItem, AgendaReason, BlockInPage, DateRange, Error, Notebook, Operation, Result,
-    Revision, TaskPriority, TaskProjectVia, TaskQuery, TaskQueryResult, TaskRow, TaskSelection,
-    TaskSort, TaskState, TaskStatus, TaskView,
+    Agenda, AgendaItem, AgendaReason, BlockInPage, DateRange, Error, Operation, Result, Revision,
+    TaskPriority, TaskProjectVia, TaskQuery, TaskQueryResult, TaskRow, TaskSelection, TaskSort,
+    TaskState, TaskStatus, TaskView, Workshop,
 };
 
 pub(crate) fn validate(conn: &Connection, query: &TaskQuery) -> Result<()> {
@@ -391,7 +391,7 @@ pub(crate) fn apply_view(
     })
 }
 
-impl Notebook {
+impl Workshop {
     pub fn task_query(&self, query: &TaskQuery) -> Result<TaskQueryResult> {
         validate_filter(&self.conn, query)?;
         let sources = query

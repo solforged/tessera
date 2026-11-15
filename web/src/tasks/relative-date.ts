@@ -3,7 +3,7 @@ import { journalBarTitle, journalWeek } from './journal-date';
 /**
  * Every list that names a day says it one way, measured from civil today: today, yesterday and tomorrow; the weekday
  * within six days either side; then the month and day (`Oct 24`), adding the year outside today's (`Oct 24, 2025`).
- * Dates are civil ISO strings already in the notebook's zone; `civilDate` brings a timestamp there first.
+ * Dates are civil ISO strings already in the workshop's zone; `civilDate` brings a timestamp there first.
  */
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -65,7 +65,7 @@ export function journalLabel(date: string, today: string): string {
   return Math.abs(days) <= 6 ? journalBarTitle(date).title : calendarDate(date, today);
 }
 
-/** The civil date of a timestamp in `zone`, or this device's zone while the notebook has none. */
+/** The civil date of a timestamp in `zone`, or this device's zone while the workshop has none. */
 export function civilDate(value: number, zone?: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
     value,

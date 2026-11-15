@@ -1,5 +1,5 @@
 use tessera_core::library::{CreatorRole, LibraryPerson, LibraryQuery};
-use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Notebook};
+use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Workshop};
 
 fn block(text: &str, children: Vec<NoteBlock>) -> NoteBlock {
     NoteBlock {
@@ -11,8 +11,8 @@ fn block(text: &str, children: Vec<NoteBlock>) -> NoteBlock {
 }
 
 /// Files a note as an agent does through MCP, returning its page id.
-fn add_note(notebook: &mut Notebook, title: &str, blocks: Vec<NoteBlock>) -> String {
-    notebook
+fn add_note(workshop: &mut Workshop, title: &str, blocks: Vec<NoteBlock>) -> String {
+    workshop
         .agent_edit(&AgentRequest {
             actor: Actor::Agent {
                 name: "claude".into(),
@@ -42,7 +42,7 @@ fn person(id: Option<&str>, name: &str) -> LibraryPerson {
 #[test]
 fn bibliography_links_creator_pages_and_names_the_form() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let ada = add_note(&mut nb, "Ada Lovelace #person", vec![block("x", vec![])]);
     let paper = add_note(
         &mut nb,

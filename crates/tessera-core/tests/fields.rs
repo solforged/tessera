@@ -2,7 +2,7 @@ mod common;
 
 use tessera_core::{
     Actor, Batch, Committed, Direction, Error, FieldHide, FieldKind, FieldRole, Filter, FilterOp,
-    Notebook, Operation, Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey,
+    Operation, Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -16,7 +16,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 fn page(value: u128, title: &str) -> Operation {
@@ -37,7 +37,7 @@ fn child(value: u128, parent: &str, text: &str) -> Operation {
         heading: None,
     }
 }
-fn edit(nb: &mut Notebook, value: u128, text: &str) {
+fn edit(nb: &mut Workshop, value: u128, text: &str) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -48,7 +48,7 @@ fn edit(nb: &mut Notebook, value: u128, text: &str) {
         }],
     );
 }
-fn archive(nb: &mut Notebook, value: u128, archived: bool) {
+fn archive(nb: &mut Workshop, value: u128, archived: bool) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -59,7 +59,7 @@ fn archive(nb: &mut Notebook, value: u128, archived: bool) {
         }],
     );
 }
-fn move_to(nb: &mut Notebook, value: u128, parent: &str) {
+fn move_to(nb: &mut Workshop, value: u128, parent: &str) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -71,7 +71,7 @@ fn move_to(nb: &mut Notebook, value: u128, parent: &str) {
         }],
     );
 }
-fn kind(nb: &mut Notebook, value: u128, kind: FieldKind) {
+fn kind(nb: &mut Workshop, value: u128, kind: FieldKind) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -96,9 +96,9 @@ fn query() -> Query {
 fn ids(result: QueryResult) -> Vec<String> {
     result.rows.into_iter().map(|r| r.block.block.id).collect()
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -113,7 +113,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     );
     (dir, nb)
 }
-fn reading(nb: &Notebook, field: u128) -> Reading {
+fn reading(nb: &Workshop, field: u128) -> Reading {
     nb.query(&query()).unwrap().rows[0].values[&id(field)][0]
         .reading
         .clone()
@@ -145,7 +145,7 @@ fn indexed(dir: &tempfile::TempDir, owner: u128) -> Vec<String> {
 #[test]
 fn query_pages_keep_totals_columns_and_deterministic_sort_boundaries() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let titles = ["zeta", "Alpha", "alpha", "Beta", "beta", "zeta", "alpha"];
     let years = [
@@ -309,7 +309,7 @@ fn table_columns_describe_base_membership_not_search_or_filters() {
 #[test]
 fn choice_sort_uses_option_order_then_problems_then_empty_in_both_directions() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let mut operations = vec![
         page(1, "Books"),
@@ -487,7 +487,7 @@ fn field_roles_migrate_only_existing_summaries_and_preserve_kind() {
     conn.execute_batch("ALTER TABLE fields DROP COLUMN role; PRAGMA user_version = 42;")
         .unwrap();
     drop(conn);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     for value in [50, 51] {
         assert_eq!(
             nb.field_detail(&id(value), None, None)
@@ -592,7 +592,7 @@ fn opening_gives_a_default_role_gloss_the_standfirst_once_and_keeps_a_chosen_rol
             role: FieldRole::Attribute,
         }],
     );
-    let role = |nb: &Notebook, value| {
+    let role = |nb: &Workshop, value| {
         nb.field_detail(&id(value), None, None)
             .unwrap()
             .field
@@ -601,7 +601,7 @@ fn opening_gives_a_default_role_gloss_the_standfirst_once_and_keeps_a_chosen_rol
     };
     assert_eq!(role(&nb, 50), FieldRole::Attribute);
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(role(&nb, 50), FieldRole::Standfirst);
     assert_eq!(role(&nb, 51), FieldRole::Attribute, "a chosen role stays");
     let repair = nb.changes_since(0, usize::MAX).unwrap().pop().unwrap();
@@ -623,7 +623,7 @@ fn opening_gives_a_default_role_gloss_the_standfirst_once_and_keeps_a_chosen_rol
     );
     let seq = nb.changes_since(0, usize::MAX).unwrap().pop().unwrap().seq;
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(role(&nb, 50), FieldRole::Attribute);
     assert_eq!(
         nb.changes_since(0, usize::MAX).unwrap().pop().unwrap().seq,
@@ -711,7 +711,7 @@ fn field_hide_defaults_round_trips_and_preserves_kind_and_query_values() {
         }],
     );
     drop(nb);
-    let reopened = Notebook::open(dir.path()).unwrap();
+    let reopened = Workshop::open(dir.path()).unwrap();
     let definition = reopened
         .field_detail(&id(10), None, None)
         .unwrap()
@@ -789,7 +789,7 @@ fn field_hide_migration_replays_from_schema_36() {
     conn.execute_batch("ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 36;")
         .unwrap();
     drop(conn);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(
         nb.info().unwrap().schema_version,
         tessera_core::SCHEMA_VERSION
@@ -838,7 +838,7 @@ fn fields_page_is_idempotent_undeletable_recreated_when_missing_and_backfilled_o
     let (dir, mut nb) = fixture();
     let fields = nb.fields().unwrap().page_id;
     assert_eq!(
-        Notebook::open(dir.path())
+        Workshop::open(dir.path())
             .unwrap()
             .fields()
             .unwrap()
@@ -917,7 +917,7 @@ fn fields_page_is_idempotent_undeletable_recreated_when_missing_and_backfilled_o
     )
     .unwrap();
     drop(conn);
-    nb = Notebook::open(dir.path()).unwrap();
+    nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.fields().unwrap().page_id, fields);
     assert_eq!(indexed(&dir, 100), vec![id(300)]);
     assert_eq!(
@@ -943,7 +943,7 @@ fn fields_page_is_idempotent_undeletable_recreated_when_missing_and_backfilled_o
              UPDATE blocks SET deletion_id = '{event}' WHERE page_id = '{fields}';"
         ))
         .unwrap();
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     let replacement = nb.fields().unwrap().page_id;
     assert_ne!(replacement, fields);
     assert!(nb.members(&replacement, 10).unwrap().is_empty());
@@ -952,7 +952,7 @@ fn fields_page_is_idempotent_undeletable_recreated_when_missing_and_backfilled_o
         format!("#[[{fields}|fields]]")
     );
     assert_eq!(
-        Notebook::open(dir.path())
+        Workshop::open(dir.path())
             .unwrap()
             .fields()
             .unwrap()
@@ -991,7 +991,7 @@ fn the_fields_register_keeps_its_name_and_every_definition() {
             .any(|field| field.definition.name == "status")
     );
     let fields = before.page_id.clone();
-    let edit = |nb: &Notebook, text: &str| Operation::EditText {
+    let edit = |nb: &Workshop, text: &str| Operation::EditText {
         id: fields.clone(),
         base_revision: nb.block(&fields).unwrap().revision,
         text: text.into(),

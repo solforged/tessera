@@ -252,7 +252,7 @@ export interface PageCommand extends CommandRecord {
   kind?: 'page';
   pageId: string;
 }
-export interface NotebookCommand extends CommandRecord {
+export interface WorkshopCommand extends CommandRecord {
   kind: 'notebook';
   pageId: null;
   operations: Operation[];
@@ -264,7 +264,7 @@ export interface NotebookCommand extends CommandRecord {
   /** Pages whose structure or explicit memberships must be refreshed after acknowledgement/replay. */
   refreshPages?: string[];
 }
-export type Command = PageCommand | NotebookCommand;
+export type Command = PageCommand | WorkshopCommand;
 export interface Ticket {
   deletionId: string;
   revision: number;

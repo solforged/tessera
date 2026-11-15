@@ -3,14 +3,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use tessera_core::{Actor, Batch, Committed, Notebook, Operation, PageView, SCHEMA_VERSION};
+use tessera_core::{Actor, Batch, Committed, Operation, PageView, SCHEMA_VERSION, Workshop};
 use tower::ServiceExt;
 
 const PORT: u16 = 4318;
 
 fn app(dir: &std::path::Path, assets: Option<std::path::PathBuf>, dev: Option<&str>) -> Router {
-    let notebook = Notebook::open(dir.join("nb")).unwrap();
-    tessera_service::router(notebook, PORT, assets, dev.map(str::to_string), None).unwrap()
+    let workshop = Workshop::open(dir.join("nb")).unwrap();
+    tessera_service::router(workshop, PORT, assets, dev.map(str::to_string), None).unwrap()
 }
 
 async fn send(app: Router, path: &str, headers: &[(&str, &str)]) -> (StatusCode, Vec<u8>) {
@@ -28,7 +28,7 @@ async fn send(app: Router, path: &str, headers: &[(&str, &str)]) -> (StatusCode,
 }
 
 #[tokio::test]
-async fn same_origin_request_reads_notebook_info() {
+async fn same_origin_request_reads_workshop_info() {
     let dir = tempfile::tempdir().unwrap();
     let (status, body) = send(
         app(dir.path(), None, None),
@@ -46,7 +46,7 @@ async fn same_origin_request_reads_notebook_info() {
 }
 
 #[tokio::test]
-async fn check_route_reports_a_clean_notebook() {
+async fn check_route_reports_a_clean_workshop() {
     let dir = tempfile::tempdir().unwrap();
     let (status, body) = send(
         app(dir.path(), None, None),
@@ -73,7 +73,7 @@ async fn check_route_reports_a_clean_notebook() {
 async fn rejects_foreign_origins_and_hosts() {
     let dir = tempfile::tempdir().unwrap();
     let cases: &[&[(&str, &str)]] = &[
-        // A website the user visits must not read the notebook.
+        // A website the user visits must not read the workshop.
         &[
             ("host", "127.0.0.1:4318"),
             ("origin", "https://example.com"),

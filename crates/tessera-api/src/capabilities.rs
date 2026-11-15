@@ -23,7 +23,7 @@ pub(crate) async fn block(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<BlockCapabilities>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.capabilities(&id))
+    read(&state, move |workshop| workshop.capabilities(&id))
         .await
         .map(Json)
 }
@@ -33,8 +33,8 @@ pub(crate) async fn task_occurrences(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<TaskOccurrence>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.task_occurrences(&id)
+    run(&state.workshop, move |workshop| {
+        workshop.task_occurrences(&id)
     })
     .await
     .map(Json)
@@ -45,7 +45,7 @@ pub(crate) async fn work_sessions(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<WorkSession>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| notebook.work_sessions(&id))
+    run(&state.workshop, move |workshop| workshop.work_sessions(&id))
         .await
         .map(Json)
 }
@@ -53,7 +53,7 @@ pub(crate) async fn work_sessions(
 pub(crate) async fn active_work_session(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Option<WorkSession>>, ApiError> {
-    run(&state.notebook, |notebook| notebook.active_work_session())
+    run(&state.workshop, |workshop| workshop.active_work_session())
         .await
         .map(Json)
 }
@@ -61,7 +61,7 @@ pub(crate) async fn active_work_session(
 pub(crate) async fn projects(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<ProjectRecord>>, ApiError> {
-    read(&state, |notebook| notebook.projects()).await.map(Json)
+    read(&state, |workshop| workshop.projects()).await.map(Json)
 }
 
 pub(crate) async fn positions(
@@ -69,7 +69,7 @@ pub(crate) async fn positions(
     query: Result<Query<PositionQuery>, QueryRejection>,
 ) -> Result<Json<PositionQueryResult>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.positions(&query))
+    read(&state, move |workshop| workshop.positions(&query))
         .await
         .map(Json)
 }
@@ -79,7 +79,7 @@ pub(crate) async fn relations(
     query: Result<Query<RelationQuery>, QueryRejection>,
 ) -> Result<Json<Vec<RelationRow>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.relations(&query))
+    read(&state, move |workshop| workshop.relations(&query))
         .await
         .map(Json)
 }
@@ -89,7 +89,7 @@ pub(crate) async fn questions(
     query: Result<Query<QuestionQuery>, QueryRejection>,
 ) -> Result<Json<Vec<QuestionRow>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.questions(&query))
+    read(&state, move |workshop| workshop.questions(&query))
         .await
         .map(Json)
 }
@@ -104,8 +104,8 @@ pub(crate) async fn revisits(
     query: Result<Query<RevisitQuery>, QueryRejection>,
 ) -> Result<Json<Vec<tessera_core::RevisitRow>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| {
-        notebook.revisits(query.due.as_deref().unwrap_or("today"), now_ms())
+    read(&state, move |workshop| {
+        workshop.revisits(query.due.as_deref().unwrap_or("today"), now_ms())
     })
     .await
     .map(Json)
@@ -116,8 +116,8 @@ pub(crate) async fn revisit_events(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::RevisitEvent>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.revisit_events(&id)
+    run(&state.workshop, move |workshop| {
+        workshop.revisit_events(&id)
     })
     .await
     .map(Json)
@@ -128,7 +128,7 @@ pub(crate) async fn task_query(
     body: Result<Json<TaskQuery>, JsonRejection>,
 ) -> Result<Json<TaskQueryResult>, ApiError> {
     let Json(query) = body.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| notebook.task_query(&query))
+    run(&state.workshop, move |workshop| workshop.task_query(&query))
         .await
         .map(Json)
 }
@@ -138,7 +138,7 @@ pub(crate) async fn agenda(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Agenda>, ApiError> {
     let Path(date) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.agenda(&date))
+    read(&state, move |workshop| workshop.agenda(&date))
         .await
         .map(Json)
 }
@@ -146,7 +146,7 @@ pub(crate) async fn agenda(
 pub(crate) async fn task_views(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<TaskView>>, ApiError> {
-    read(&state, |notebook| notebook.task_views())
+    read(&state, |workshop| workshop.task_views())
         .await
         .map(Json)
 }
@@ -156,7 +156,7 @@ pub(crate) async fn task_view(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<TaskView>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.task_view(&id))
+    read(&state, move |workshop| workshop.task_view(&id))
         .await
         .map(Json)
 }
@@ -166,7 +166,7 @@ pub(crate) async fn source_cards(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<CardUnit>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.source_cards(&id))
+    read(&state, move |workshop| workshop.source_cards(&id))
         .await
         .map(Json)
 }
@@ -176,7 +176,7 @@ pub(crate) async fn page_cards(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<CardUnit>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.page_cards(&id))
+    read(&state, move |workshop| workshop.page_cards(&id))
         .await
         .map(Json)
 }
@@ -186,7 +186,7 @@ pub(crate) async fn card(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<CardUnit>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.card(&id))
+    read(&state, move |workshop| workshop.card(&id))
         .await
         .map(Json)
 }
@@ -196,8 +196,8 @@ pub(crate) async fn card_query(
     body: Result<Json<CardQuery>, JsonRejection>,
 ) -> Result<Json<CardQueryResult>, ApiError> {
     let Json(query) = body.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.card_query(&query, now_ms())
+    run(&state.workshop, move |workshop| {
+        workshop.card_query(&query, now_ms())
     })
     .await
     .map(Json)
@@ -209,8 +209,8 @@ pub(crate) async fn card_previews(
 ) -> Result<Json<CardPreviews>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     // The core computes both current and reset previews from this one timestamp.
-    read(&state, move |notebook| {
-        notebook.card_previews(&id, now_ms())
+    read(&state, move |workshop| {
+        workshop.card_previews(&id, now_ms())
     })
     .await
     .map(Json)
@@ -221,19 +221,19 @@ pub(crate) async fn card_reviews(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<ReviewEvent>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.review_events(&id))
+    read(&state, move |workshop| workshop.review_events(&id))
         .await
         .map(Json)
 }
 
 pub(crate) async fn decks(State(state): State<WorkshopState>) -> Result<Json<Vec<Deck>>, ApiError> {
-    read(&state, |notebook| notebook.decks()).await.map(Json)
+    read(&state, |workshop| workshop.decks()).await.map(Json)
 }
 
 pub(crate) async fn tag_decks(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<TagDeck>>, ApiError> {
-    read(&state, |notebook| notebook.tag_decks())
+    read(&state, |workshop| workshop.tag_decks())
         .await
         .map(Json)
 }
@@ -243,7 +243,7 @@ pub(crate) async fn deck(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Deck>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.deck(&id))
+    read(&state, move |workshop| workshop.deck(&id))
         .await
         .map(Json)
 }
@@ -251,7 +251,7 @@ pub(crate) async fn deck(
 pub(crate) async fn review_sessions(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<ReviewSession>>, ApiError> {
-    read(&state, |notebook| notebook.review_sessions())
+    read(&state, |workshop| workshop.review_sessions())
         .await
         .map(Json)
 }
@@ -261,8 +261,8 @@ pub(crate) async fn review_session(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<ReviewSession>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.review_session(&id)
+    run(&state.workshop, move |workshop| {
+        workshop.review_session(&id)
     })
     .await
     .map(Json)

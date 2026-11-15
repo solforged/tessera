@@ -183,11 +183,11 @@ export function createOutlineCompletions(
   /** `@` offers dates; choosing one makes the block a scheduled task (or a deadline after `@by`/`@due`) and removes the token. */
   const dateRows = createMemo<DateSuggestion[]>(() => {
     const state = dateCompletion();
-    return state ? dateSuggestions(state.query, props.notebook.todayDate()) : [];
+    return state ? dateSuggestions(state.query, props.workshop.todayDate()) : [];
   });
   const dateError = createMemo(() => {
     const state = dateCompletion();
-    return state ? dateQueryError(state.query, props.notebook.todayDate()) : null;
+    return state ? dateQueryError(state.query, props.workshop.todayDate()) : null;
   });
   createEffect(() => {
     if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null);
@@ -216,8 +216,8 @@ export function createOutlineCompletions(
     const prose =
       token &&
       /\s/.test(token.query.trim()) &&
-      !dateQueryError(token.query, props.notebook.todayDate()) &&
-      !dateSuggestions(token.query, props.notebook.todayDate()).length;
+      !dateQueryError(token.query, props.workshop.todayDate()) &&
+      !dateSuggestions(token.query, props.workshop.todayDate()).length;
     if (!token || prose || dismissedDate?.from === token.from) {
       setDateCompletion(null);
       return;
@@ -635,7 +635,7 @@ export function createOutlineCompletions(
     const query = key.slice(key.indexOf(':') + 1);
     const promise: Promise<CompletionMatches> =
       mode === 'types'
-        ? completeTypes(props.notebook, query)
+        ? completeTypes(props.workshop, query)
         : mode === 'blocks'
           ? (query.trim() ? api.search(query, 20) : Promise.resolve([])).then(hits => ({
               rows: hits.map(hit => hit.block).filter(block => block.kind === 'block'),
@@ -796,9 +796,9 @@ export function createOutlineCompletions(
       const before = caret();
       // Enter owns this choice now. Closing the picker or leaving insert mode cannot revoke it.
       setCompletion(null);
-      const held = props.notebook.open(doc.pageId);
+      const held = props.workshop.open(doc.pageId);
       try {
-        const captured = await captureQuoteCompletion(props.notebook, id);
+        const captured = await captureQuoteCompletion(props.workshop, id);
         if (doc.block(source)?.text !== text) throw new Error('The quote row changed before its snapshot arrived.');
         const next = captured.text;
         const result = doc.edit({ kind: 'quote', id: source, value: captured.quote, text: next }, before);
@@ -847,7 +847,7 @@ export function createOutlineCompletions(
     });
     referenceSpace = space ? { id: source, offset: range.from + token.length + 1 } : null;
     const tracked = editor.trackRange(range.from, range.from + token.length);
-    const held = props.notebook.open(doc.pageId);
+    const held = props.workshop.open(doc.pageId);
     return {
       source,
       apply(target: string, title?: string) {
@@ -961,7 +961,7 @@ export function createOutlineCompletions(
                 : row.block.text
             ).toLocaleLowerCase() === state.query.trim().toLocaleLowerCase(),
         );
-      const id = target ?? (create ? await props.notebook.createPage(state.query.trim()) : null);
+      const id = target ?? (create ? await props.workshop.createPage(state.query.trim()) : null);
       if (id) {
         if (accepted) accepted.apply(id);
         else await insertReference(id, state);
@@ -1496,13 +1496,13 @@ export function createOutlineCompletions(
                   >
                     <Show when={row.kind === 'block' ? row.block : null}>
                       {block => {
-                        const icon = createPageIcon(props.notebook, block);
+                        const icon = createPageIcon(props.workshop, block);
                         return (
                           <>
                             <Icon name={block().icon ? noteKindIcon({ key: '', icon: block().icon! }) : icon()} />
                             <span class="picker-text">
                               {block().text ? (
-                                <BlockText text={block().text} notebook={props.notebook} interactive={false} />
+                                <BlockText text={block().text} workshop={props.workshop} interactive={false} />
                               ) : (
                                 'Empty atom'
                               )}
@@ -1512,7 +1512,7 @@ export function createOutlineCompletions(
                             </Show>
                             <Show when={block().kind === 'block'}>
                               <span class="picker-meta">
-                                <BlockBreadcrumb block={block()} notebook={props.notebook} />
+                                <BlockBreadcrumb block={block()} workshop={props.workshop} />
                               </span>
                             </Show>
                           </>
@@ -1565,7 +1565,7 @@ export function createOutlineCompletions(
         <Show keyed when={valueEditor()}>
           {state => (
             <ValueEditor
-              notebook={props.notebook}
+              workshop={props.workshop}
               anchor={state.anchor}
               field={definitionsById().get(state.field.id) ?? state.field}
               text={doc.block(state.id)?.text ?? ''}
@@ -1578,7 +1578,7 @@ export function createOutlineCompletions(
               onAdvance={backward => advanceFilling(state.id, backward)}
               onCreateOption={async text => {
                 const change = await createOptionValue(
-                  props.notebook,
+                  props.workshop,
                   doc,
                   {
                     field: state.field,
@@ -1668,13 +1668,13 @@ export function createOutlineCompletions(
         <Show keyed when={tokenDate()}>
           {state => (
             <DatePicker
-              notebook={props.notebook}
+              workshop={props.workshop}
               anchor={state.anchor}
               label={state.field === 'deadline' ? 'Deadline' : 'Schedule task'}
               value={doc.block(state.id)?.task?.[state.field] ?? null}
               initialQuery={state.query}
               time={null}
-              contextDate={props.notebook.todayDate()}
+              contextDate={props.workshop.todayDate()}
               onDismiss={() => {
                 setTokenDate(null);
                 if (editing() === state.id)

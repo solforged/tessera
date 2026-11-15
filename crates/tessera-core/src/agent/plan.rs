@@ -9,8 +9,8 @@ use crate::history::Step;
 use crate::notebook::{new_ulid, now_ms};
 use crate::storage::{validate_date, validate_id, validation};
 use crate::{
-    Block, BlockKind, CardQuery, Error, FieldKind, FieldOption, Notebook, Operation, Result,
-    TaskState, TaskStatus,
+    Block, BlockKind, CardQuery, Error, FieldKind, FieldOption, Operation, Result, TaskState,
+    TaskStatus, Workshop,
 };
 
 #[derive(Default)]
@@ -65,7 +65,7 @@ pub(super) fn next_revision(revisions: &mut HashMap<String, i64>, id: &str) -> i
     *revision - 1
 }
 
-impl Notebook {
+impl Workshop {
     pub(super) fn plan_note(
         &self,
         plan: &mut Plan,

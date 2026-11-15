@@ -1,4 +1,4 @@
-//! Replicating a notebook between devices: a hub orders changes, replicas
+//! Replicating a workshop between devices: a hub orders changes, replicas
 //! push theirs and pull the hub's. See `docs/sync.md`.
 //!
 //! Every change committed on a hub with replicas, or on a replica, records
@@ -20,11 +20,11 @@ use crate::operations::Extras;
 use crate::replication::applied_tables;
 use crate::storage::validation;
 pub use crate::sync_library::{ReadingRow, SurfacingRow, UnloggedPull, UnloggedRows};
-use crate::{Batch, ChangeStamp, Error, Notebook, Operation, Result, SCHEMA_VERSION};
+use crate::{Batch, ChangeStamp, Error, Operation, Result, SCHEMA_VERSION, Workshop};
 
 #[path = "sync_driver.rs"]
 mod driver;
-pub use driver::{NotebookAccess, sync_import, sync_send, sync_send_as, sync_with};
+pub use driver::{WorkshopAccess, sync_import, sync_send, sync_send_as, sync_with};
 #[path = "sync_replica.rs"]
 mod replica;
 pub use replica::{KeptCopy, OfflineFiles, RejectedChange, ReplicaConflicts};
@@ -101,7 +101,8 @@ pub struct Pull {
 /// What a new replica needs besides the database snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloneTicket {
-    pub notebook_id: String,
+    #[serde(rename = "notebook_id")]
+    pub workshop_id: String,
     /// The device ID the hub registered for the new replica.
     pub device_id: String,
     /// The hub's latest change in the snapshot.
@@ -188,7 +189,8 @@ pub struct SyncReport {
 pub struct SyncStatus {
     pub device_id: String,
     pub hub_url: String,
-    pub hub_notebook_id: String,
+    #[serde(rename = "hub_notebook_id")]
+    pub hub_workshop_id: String,
     pub confirmed_seq: i64,
     pub pending: usize,
     pub unapplied: usize,
@@ -204,9 +206,9 @@ pub struct ReplicaInfo {
     pub retired_at: Option<i64>,
 }
 
-/// A copy of a hub notebook for a new replica that still holds the hub's own
+/// A copy of a hub workshop for a new replica that still holds the hub's own
 /// state. [`ClonedSnapshot::finish`] removes that state. It needs no access to
-/// the hub notebook, so a service can run it after releasing the notebook.
+/// the hub workshop, so a service can run it after releasing the workshop.
 #[must_use = "a clone holds the hub's local state until it is finished"]
 pub struct ClonedSnapshot {
     path: PathBuf,
@@ -290,7 +292,7 @@ pub const RETIRE_AFTER_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 const RETIRED: &str = "the hub retired this replica after 30 days without syncing; \
      changes it pushed are kept, but it has to be cloned again (tessera sync reclone)";
 
-impl Hub for Notebook {
+impl Hub for Workshop {
     fn push(&mut self, device: &str, changes: &[PushedChange]) -> Result<Vec<PushReceipt>> {
         self.sync_push(device, changes)
     }
@@ -333,7 +335,7 @@ enum Role {
     Replica,
 }
 
-/// A commit in progress on a notebook that records patches.
+/// A commit in progress on a workshop that records patches.
 pub(crate) struct Recording<'conn> {
     role: Role,
     session: Session<'conn>,
@@ -403,7 +405,7 @@ pub(crate) fn begin<'conn>(
 
 /// Start recording a repair of the derived tables. A hub's replicas pull it
 /// like any change; a replica's repair stays local, since it is not a change
-/// the hub could apply, and a notebook without replicas records nothing.
+/// the hub could apply, and a workshop without replicas records nothing.
 pub(crate) fn begin_repair(conn: &Connection) -> Result<Option<Recording<'_>>> {
     Ok(match role(conn)? {
         Some(Role::Hub) => Some(Recording {
@@ -483,14 +485,14 @@ fn parse<T: for<'de> Deserialize<'de>>(text: &str) -> Result<T> {
 }
 
 /// Columns of applied tables written outside the change log. A row may differ
-/// from a patch there without the notebook having diverged from its hub.
+/// from a patch there without the workshop having diverged from its hub.
 const UNLOGGED_COLUMNS: &[(&str, &str)] = &[
     ("sources", "last_read_at"),
     ("citations", "resurface_muted_at"),
 ];
 
 /// Applies patches within one transaction, refusing any conflict that means
-/// this notebook's state is not the state the patch was made from.
+/// this workshop's state is not the state the patch was made from.
 struct Patcher {
     /// Column positions of [`UNLOGGED_COLUMNS`] by table.
     unlogged: Arc<BTreeMap<String, Vec<usize>>>,
@@ -774,10 +776,10 @@ fn latest_seq(conn: &Connection) -> Result<i64> {
     )
 }
 
-impl Notebook {
+impl Workshop {
     // Hub side.
 
-    /// Register a new replica and copy this notebook to `destination` for it.
+    /// Register a new replica and copy this workshop to `destination` for it.
     /// Finish the copy to remove this device's local state.
     pub fn sync_clone(&mut self, destination: &Path) -> Result<ClonedSnapshot> {
         self.sync_clone_for_device(destination, None)
@@ -811,7 +813,7 @@ impl Notebook {
         Ok(ClonedSnapshot {
             path: destination.to_owned(),
             ticket: CloneTicket {
-                notebook_id: self.info()?.id,
+                workshop_id: self.info()?.id,
                 device_id,
                 seq,
                 schema_version: SCHEMA_VERSION,
@@ -819,7 +821,7 @@ impl Notebook {
         })
     }
 
-    /// Replicas cloned from this notebook.
+    /// Replicas cloned from this workshop.
     pub fn sync_replicas(&self) -> Result<Vec<ReplicaInfo>> {
         Ok(self
             .conn
@@ -952,7 +954,7 @@ impl Notebook {
         })
     }
 
-    /// The snapshots among `ids` this notebook does not have, or has only some
+    /// The snapshots among `ids` this workshop does not have, or has only some
     /// passages of because a transfer stopped partway.
     pub fn sync_missing_snapshots(&self, ids: &[String]) -> Result<Vec<String>> {
         let mut complete = self.conn.prepare_cached(
@@ -1048,7 +1050,7 @@ impl Notebook {
 
     /// Store snapshots, or pieces of them, that another device extracted.
     /// Rows already here are kept, so pieces can arrive more than once. A
-    /// snapshot whose file this notebook holds under another ID is skipped.
+    /// snapshot whose file this workshop holds under another ID is skipped.
     pub fn sync_store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()> {
         let tx = self.conn.transaction()?;
         for snapshot in content {
@@ -1099,7 +1101,7 @@ impl Notebook {
 
     // Replica side.
 
-    /// Make this freshly cloned notebook a replica of the hub at `hub_url`.
+    /// Make this freshly cloned workshop a replica of the hub at `hub_url`.
     pub fn sync_adopt(&mut self, hub_url: &str, ticket: &CloneTicket) -> Result<()> {
         if ticket.schema_version != SCHEMA_VERSION {
             return Err(validation(format!(
@@ -1107,7 +1109,7 @@ impl Notebook {
                 ticket.schema_version
             )));
         }
-        if self.info()?.id != ticket.notebook_id {
+        if self.info()?.id != ticket.workshop_id {
             return Err(validation("the snapshot is not the ticket's workshop"));
         }
         let tx = self.conn.transaction()?;
@@ -1119,7 +1121,7 @@ impl Notebook {
         tx.execute(
             "INSERT INTO sync_hub(singleton, notebook_id, url, confirmed_seq, unlogged_cursor, unlogged_pushed)
              SELECT 1, ?1, ?2, ?3, unlogged_seq, unlogged_seq FROM replica WHERE singleton = 1",
-            params![ticket.notebook_id, hub_url, ticket.seq],
+            params![ticket.workshop_id, hub_url, ticket.seq],
         )?;
         tx.execute_batch(
             "INSERT INTO editor_events(seq, change_id, actor, reason, created_at, committed, restructured_pages, views)
@@ -1131,9 +1133,9 @@ impl Notebook {
         self.ensure_built_in_fields()
     }
 
-    /// This notebook's hub and outbox, when it is a replica.
+    /// This workshop's hub and outbox, when it is a replica.
     pub fn sync_status(&self) -> Result<Option<SyncStatus>> {
-        let Some((hub_notebook_id, hub_url, confirmed_seq)) = self
+        let Some((hub_workshop_id, hub_url, confirmed_seq)) = self
             .conn
             .query_row(
                 "SELECT notebook_id, url, confirmed_seq FROM sync_hub WHERE singleton = 1",
@@ -1152,7 +1154,7 @@ impl Notebook {
         Ok(Some(SyncStatus {
             device_id: self.device_id()?,
             hub_url,
-            hub_notebook_id,
+            hub_workshop_id,
             confirmed_seq,
             pending: pending as usize,
             unapplied: unapplied as usize,

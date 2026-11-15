@@ -1,7 +1,7 @@
 use tessera_core::card_text::CardKind;
 use tessera_core::scheduler::{Grade, schedule};
 use tessera_core::{
-    Actor, Batch, CardQuery, CardSelection, CardUnit, Committed, Error, Notebook, Operation,
+    Actor, Batch, CardQuery, CardSelection, CardUnit, Committed, Error, Operation, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -17,7 +17,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -31,9 +31,9 @@ fn insert(value: u128, parent: u128, text: &str) -> Operation {
     }
 }
 
-fn fixture(text: &str) -> (tempfile::TempDir, Notebook) {
+fn fixture(text: &str) -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -47,7 +47,7 @@ fn fixture(text: &str) -> (tempfile::TempDir, Notebook) {
     (dir, nb)
 }
 
-fn edit(nb: &mut Notebook, source: u128, text: &str) -> Committed {
+fn edit(nb: &mut Workshop, source: u128, text: &str) -> Committed {
     let revision = nb.block(&id(source)).unwrap().revision;
     apply(
         nb,
@@ -59,7 +59,7 @@ fn edit(nb: &mut Notebook, source: u128, text: &str) -> Committed {
     )
 }
 
-fn unit(nb: &Notebook, source: u128, key: &str) -> CardUnit {
+fn unit(nb: &Workshop, source: u128, key: &str) -> CardUnit {
     nb.source_cards(&id(source))
         .unwrap()
         .into_iter()
@@ -67,7 +67,7 @@ fn unit(nb: &Notebook, source: u128, key: &str) -> CardUnit {
         .unwrap()
 }
 
-fn grade(nb: &mut Notebook, source: u128, key: &str, event: u128) -> CardUnit {
+fn grade(nb: &mut Workshop, source: u128, key: &str, event: u128) -> CardUnit {
     let card = unit(nb, source, key);
     let reviewed_at = card.schedule.due_at + 1_000;
     apply(
@@ -93,7 +93,7 @@ fn grade(nb: &mut Notebook, source: u128, key: &str, event: u128) -> CardUnit {
     reviewed
 }
 
-fn visible_ids(nb: &Notebook) -> Vec<String> {
+fn visible_ids(nb: &Workshop) -> Vec<String> {
     nb.card_query(
         &CardQuery {
             source: None,
@@ -109,7 +109,7 @@ fn visible_ids(nb: &Notebook) -> Vec<String> {
     .collect()
 }
 
-fn split(nb: &Notebook, source: u128, new: u128, left: &str, right: &str) -> Operation {
+fn split(nb: &Workshop, source: u128, new: u128, left: &str, right: &str) -> Operation {
     Operation::Split {
         id: id(source),
         base_revision: nb.block(&id(source)).unwrap().revision,
@@ -119,7 +119,7 @@ fn split(nb: &Notebook, source: u128, new: u128, left: &str, right: &str) -> Ope
     }
 }
 
-fn merge(nb: &Notebook, source: u128, destination: u128) -> Operation {
+fn merge(nb: &Workshop, source: u128, destination: u128) -> Operation {
     Operation::Merge {
         source_id: id(source),
         source_revision: nb.block(&id(source)).unwrap().revision,
@@ -771,7 +771,7 @@ fn root_titles_never_become_cards_and_reopening_preserves_definitions_and_progre
     let reverse = unit(&nb, 11, "reverse");
     let evidence = nb.review_events(&reviewed.id).unwrap();
     drop(nb);
-    let reopened = Notebook::open(dir.path()).unwrap();
+    let reopened = Workshop::open(dir.path()).unwrap();
     assert_eq!(reopened.card(&reviewed.id).unwrap(), reviewed);
     assert_eq!(reopened.card(&reverse.id).unwrap(), reverse);
     assert_eq!(reopened.review_events(&reviewed.id).unwrap(), evidence);

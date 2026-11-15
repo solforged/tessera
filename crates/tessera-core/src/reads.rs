@@ -6,8 +6,8 @@ use crate::storage::{
     block_at, block_columns, not_found, stored, validate_date, validate_id, validation,
 };
 use crate::{
-    Backlink, Block, BlockInPage, ChangeEvent, Committed, Completion, Notebook, PageView, Result,
-    Row,
+    Backlink, Block, BlockInPage, ChangeEvent, Committed, Completion, PageView, Result, Row,
+    Workshop,
 };
 
 fn sql_limit(limit: usize) -> i64 {
@@ -98,7 +98,7 @@ pub struct DeletedPage {
     pub deleted_at: i64,
 }
 
-impl Notebook {
+impl Workshop {
     /// Retained page and journal deletions, newest first, including other windows.
     pub fn deleted_pages(&self) -> Result<Vec<DeletedPage>> {
         let mut statement = self.conn.prepare_cached(concat!(

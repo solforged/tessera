@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use tessera_core::{
-    Actor, Batch, Block, BlockInPage, ChangeEvent, Committed, Completion, Notebook, Operation,
+    Actor, Batch, Block, BlockInPage, ChangeEvent, Committed, Completion, Operation, Workshop,
 };
 use tokio_tungstenite::{
     connect_async,
@@ -26,7 +26,7 @@ fn edit(revision: i64, text: &str) -> Batch {
         text: text.into(),
     }])
 }
-async fn server(nb: Notebook) -> (String, tokio::task::JoinHandle<()>) {
+async fn server(nb: Workshop) -> (String, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let app = tessera_service::router(nb, port, None, None, None).unwrap();
@@ -52,7 +52,7 @@ async fn commit(client: &reqwest::Client, host: &str, batch: &Batch) -> Committe
 #[tokio::test]
 async fn catch_up_then_live_has_no_gap_or_duplicate_when_commit_races_subscription() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     nb.apply(&batch(vec![
         Operation::CreatePage {
             id: PAGE.into(),
@@ -121,7 +121,7 @@ async fn catch_up_then_live_has_no_gap_or_duplicate_when_commit_races_subscripti
 #[tokio::test]
 async fn websocket_upgrade_rejects_foreign_origins_and_hosts() {
     let dir = tempfile::tempdir().unwrap();
-    let (host, task) = server(Notebook::open(dir.path()).unwrap()).await;
+    let (host, task) = server(Workshop::open(dir.path()).unwrap()).await;
     for (header, value) in [
         ("origin", "https://evil.example"),
         ("host", "evil.example:4318"),
@@ -142,7 +142,7 @@ async fn websocket_upgrade_rejects_foreign_origins_and_hosts() {
 #[tokio::test]
 async fn title_and_members_routes_expose_generated_types_with_expected_json_shapes() {
     let dir = tempfile::tempdir().unwrap();
-    let (host, task) = server(Notebook::open(dir.path()).unwrap()).await;
+    let (host, task) = server(Workshop::open(dir.path()).unwrap()).await;
     let client = reqwest::Client::new();
     let committed = commit(
         &client,
@@ -217,7 +217,7 @@ async fn title_and_members_routes_expose_generated_types_with_expected_json_shap
 #[tokio::test]
 async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_inverse() {
     let dir = tempfile::tempdir().unwrap();
-    let (host, task) = server(Notebook::open(dir.path()).unwrap()).await;
+    let (host, task) = server(Workshop::open(dir.path()).unwrap()).await;
     let client = reqwest::Client::new();
     let seeded = commit(
         &client,
@@ -354,7 +354,7 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
 #[tokio::test]
 async fn capability_catch_up_and_live_review_protection_do_not_require_text_revisions() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let seeded = nb
         .apply(&batch(vec![
             Operation::CreatePage {
@@ -480,7 +480,7 @@ async fn capability_catch_up_and_live_review_protection_do_not_require_text_revi
 #[tokio::test]
 async fn provisional_tag_cleanup_reaches_receipts_stream_and_completion() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let seeded = nb
         .apply(&batch(vec![
             Operation::CreatePage {

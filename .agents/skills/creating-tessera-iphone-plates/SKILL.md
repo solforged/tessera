@@ -69,7 +69,7 @@ Kit gaps to fix before the next round:
 
 1. Set up this run's owned simulator and private detached seed per
    `installing-tessera-ios-builds`, building from the pinned `TASK_SOURCE`. Do
-   not borrow another lane's simulator or notebook.
+   not borrow another lane's simulator or workshop.
 2. Drive it from a persistent JS `eval` using the required helper with this run's
    explicit SIM/PORT: `sim.connect()`, then `ev(...)`.
    - Use `axe tap` for real touches and `axe touch --down/--up` for long-press.
@@ -116,7 +116,7 @@ stay unchanged.
    2026-10-29 example was `/tmp/tess-ios/BUILD-BRIEF.md`):
    - the plates are the spec;
    - phone-only scope;
-   - each writer has an owned source tree and separate prepared run, notebook
+   - each writer has an owned source tree and separate prepared run, workshop
      copy, simulator/browser profile, named services and ports; read-only plate
      finders may share source but never runtime state;
    - the external `phone.mjs` is a prerequisite for its screenshot method:
@@ -158,7 +158,7 @@ stay unchanged.
      `TASK_EVIDENCE`; Chrome can render `<img>` tiles without assuming
      ImageMagick is installed.
    - Compare desktop at 1280×800 against a pure pinned-base build in a separate
-     prepared run with its own binary, assets, notebook, profile and origin.
+     prepared run with its own binary, assets, workshop, profile and origin.
    - Then build the simulator app in `TASK_SOURCE`
      (`bun run --cwd "$TASK_SOURCE/web" build:mobile`, then
      `ts-ios-build --debug --target aarch64-sim` there with the

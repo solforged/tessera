@@ -156,7 +156,7 @@ export function createOutlineCommands(
     if (doc.root()?.kind !== 'page' || context.fields()?.page_id === props.pageId) return;
     if (editing()) commitFieldEntry(editing()!, false);
     const root = doc.root()!;
-    const collection = props.notebook.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
+    const collection = props.workshop.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
     const isCollection =
       !root.source &&
       typeKeys(root.text, root.manual_types).some(key => key === 'collection' || key === collection?.id.toLowerCase());
@@ -170,7 +170,7 @@ export function createOutlineCommands(
   function openSelected(beside: boolean, id = selected()) {
     if (!id) return;
     const reference = textTokens(doc.block(id)?.text ?? '').find(token => token.kind === 'reference');
-    const target = reference?.id ? props.notebook.lookup(reference.id)() : null;
+    const target = reference?.id ? props.workshop.lookup(reference.id)() : null;
     props.onOpen(
       target
         ? { kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined }
@@ -182,7 +182,7 @@ export function createOutlineCommands(
     void navigator.clipboard.writeText(text).catch(error => setMessage(`Couldn't copy: ${String(error)}`));
   }
   function referenceMenu(id: string, anchor: HTMLElement) {
-    const block = props.notebook.lookup(id)();
+    const block = props.workshop.lookup(id)();
     const open = (beside: boolean) =>
       block &&
       props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
@@ -277,7 +277,7 @@ export function createOutlineCommands(
               secondary: questionVerbs['Write assessment'],
               disabledReason: question.parked ? 'Resume the question before writing an assessment.' : undefined,
               action: () =>
-                apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true),
+                apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.workshop.todayDate() }, true),
             },
             {
               label: 'Add branch question',
@@ -289,7 +289,7 @@ export function createOutlineCommands(
               secondary: questionVerbs['Withdraw current answer'],
               disabledReason: !question.accepted ? 'There is no current answer.' : undefined,
               action: () =>
-                edit({ kind: 'question', id, value: currentReading(question, null, props.notebook.todayDate()) }),
+                edit({ kind: 'question', id, value: currentReading(question, null, props.workshop.todayDate()) }),
             },
             {
               label: 'Set revisit date…',
@@ -356,7 +356,7 @@ export function createOutlineCommands(
                   edit({
                     kind: 'question',
                     id: ownerId,
-                    value: currentReading(owner.state, id, props.notebook.todayDate()),
+                    value: currentReading(owner.state, id, props.workshop.todayDate()),
                   });
               },
             },
@@ -385,7 +385,7 @@ export function createOutlineCommands(
                       ? 'Resume the question before writing an assessment.'
                       : undefined,
                 action: () =>
-                  edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }),
+                  edit({ kind: 'assessment', id, value: { assessed_on: props.workshop.todayDate(), aporia: false } }),
               },
             ]
           : []),
@@ -1202,12 +1202,12 @@ export function createOutlineCommands(
         void (async () => {
           await doc.flush();
           const impact = await optionImpact(
-            props.notebook,
-            await Promise.all(selectedRoots.map(id => props.notebook.api.block(id))),
+            props.workshop,
+            await Promise.all(selectedRoots.map(id => props.workshop.api.block(id))),
             context.fields()?.fields ?? [],
           );
           const remove = async () => {
-            doc.rememberChange(await deleteFieldOptions(props.notebook, impact));
+            doc.rememberChange(await deleteFieldOptions(props.workshop, impact));
             setMessage('Choice options deleted; written labels kept.');
           };
           if (!impact.values.length) {
@@ -1305,7 +1305,7 @@ export function createOutlineCommands(
             capture: (): Command => {
               const id = selected();
               const bound = commandsFor(() => id).find(candidate => candidate.id === command.id)!;
-              const label = id ? plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) : '';
+              const label = id ? plainText(doc.block(id)?.text ?? '', target => props.workshop.lookup(target)) : '';
               const reason = !props.active ? 'This pane is not active.' : bound.disabledReason?.();
               if (command.id === 'add-field-root')
                 return {
@@ -1338,11 +1338,11 @@ export function createOutlineCommands(
     const holder = doc.block(id)?.position?.problem ? doc.block(id)?.position?.holder_id : undefined;
     if (!holder) return [];
     const name =
-      plainText(props.notebook.lookup(holder)()?.text ?? '', target => props.notebook.lookup(target)) || 'the holder';
+      plainText(props.workshop.lookup(holder)()?.text ?? '', target => props.workshop.lookup(target)) || 'the holder';
     return entityKinds.map(kind => ({
       label: `File ${name} as ${entityLabel(kind)}`,
       action: () => {
-        void fileAsEntity(props.notebook, holder, kind, [props.pageId]).catch(reason =>
+        void fileAsEntity(props.workshop, holder, kind, [props.pageId]).catch(reason =>
           setMessage(reason instanceof Error ? reason.message : String(reason)),
         );
       },
@@ -1516,7 +1516,7 @@ export function createOutlineCommands(
       anchor,
       label: 'Atom actions',
       title: 'Atom actions',
-      context: plainText(entry.text, target => props.notebook.lookup(target)),
+      context: plainText(entry.text, target => props.workshop.lookup(target)),
       items: [
         item('edit', 'Edit'),
         item('insert-below', 'Insert below'),
@@ -1621,7 +1621,7 @@ export function createOutlineCommands(
       anchor,
       label,
       ...(label === 'Question'
-        ? { title: label, context: plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) }
+        ? { title: label, context: plainText(doc.block(id)?.text ?? '', target => props.workshop.lookup(target)) }
         : {}),
       items: items.map(item => ({
         ...item,
@@ -1664,7 +1664,7 @@ export function createOutlineCommands(
     capabilities.open(id, 'project');
   }
   async function promoteToProject(id: string) {
-    const title = plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)).trim();
+    const title = plainText(doc.block(id)?.text ?? '', target => props.workshop.lookup(target)).trim();
     if (!title) {
       setMessage('Write the project’s name in the atom, then make it a project.');
       return;
@@ -1674,7 +1674,7 @@ export function createOutlineCommands(
     rowFocus(id);
     await capabilities
       .run(id, async () => {
-        const { change } = await props.notebook.promoteToProject(id, name);
+        const { change } = await props.workshop.promoteToProject(id, name);
         context.showNotice(`Made project ${name}${/[.!?…]$/u.test(name) ? '' : '.'}`, change.undo);
       })
       .catch(() => {});

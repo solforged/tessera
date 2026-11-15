@@ -9,7 +9,7 @@ use tessera_core::sync::{
     Hub, Pull, PushOutcome, PushReceipt, PushedChange, RETIRE_AFTER_MS, SnapshotContent,
     SyncReport, UnloggedPull, UnloggedRows,
 };
-use tessera_core::{Actor, Batch, DATABASE_FILE, Notebook, Operation, library::*};
+use tessera_core::{Actor, Batch, DATABASE_FILE, Operation, Workshop, library::*};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -24,8 +24,8 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(notebook: &mut Notebook, operations: Vec<Operation>) -> tessera_core::Committed {
-    notebook.apply(&batch(operations)).unwrap()
+fn apply(workshop: &mut Workshop, operations: Vec<Operation>) -> tessera_core::Committed {
+    workshop.apply(&batch(operations)).unwrap()
 }
 
 fn insert(id_: u128, parent: &str, after: Option<String>, text: &str) -> Operation {
@@ -38,21 +38,21 @@ fn insert(id_: u128, parent: &str, after: Option<String>, text: &str) -> Operati
     }
 }
 
-fn edit(notebook: &Notebook, block: &str, text: &str) -> Operation {
+fn edit(workshop: &Workshop, block: &str, text: &str) -> Operation {
     Operation::EditText {
         id: block.to_owned(),
-        base_revision: notebook.block(block).unwrap().revision,
+        base_revision: workshop.block(block).unwrap().revision,
         text: text.into(),
     }
 }
 
-fn text(notebook: &Notebook, block: &str) -> String {
-    notebook.block(block).unwrap().text
+fn text(workshop: &Workshop, block: &str) -> String {
+    workshop.block(block).unwrap().text
 }
 
-fn children(notebook: &Notebook, parent: &str) -> Vec<String> {
-    let page = notebook.block(parent).unwrap().page_id;
-    notebook
+fn children(workshop: &Workshop, parent: &str) -> Vec<String> {
+    let page = workshop.block(parent).unwrap().page_id;
+    workshop
         .page(&page)
         .unwrap()
         .rows
@@ -66,8 +66,8 @@ fn children(notebook: &Notebook, parent: &str) -> Vec<String> {
 struct Pair {
     _hub_dir: tempfile::TempDir,
     _replica_dir: tempfile::TempDir,
-    hub: Notebook,
-    replica: Notebook,
+    hub: Workshop,
+    replica: Workshop,
     page: String,
 }
 
@@ -77,9 +77,9 @@ fn pair() -> Pair {
 
 /// A hub with a page holding two blocks and whatever `setup` adds, and a
 /// replica cloned from it.
-fn pair_with(setup: impl FnOnce(&mut Notebook)) -> Pair {
+fn pair_with(setup: impl FnOnce(&mut Workshop)) -> Pair {
     let hub_dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(hub_dir.path()).unwrap();
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
     apply(
         &mut hub,
         vec![
@@ -98,7 +98,7 @@ fn pair_with(setup: impl FnOnce(&mut Notebook)) -> Pair {
         .unwrap()
         .finish()
         .unwrap();
-    let mut replica = Notebook::open(replica_dir.path()).unwrap();
+    let mut replica = Workshop::open(replica_dir.path()).unwrap();
     replica.sync_adopt("in-process", &ticket).unwrap();
     Pair {
         _hub_dir: hub_dir,
@@ -114,7 +114,7 @@ impl Pair {
         self.replica.sync_with(&mut self.hub).unwrap()
     }
 
-    /// Both notebooks hold the same replicated rows.
+    /// Both workshops hold the same replicated rows.
     fn assert_converged(&self) {
         let hub = state(&self.hub.info().unwrap().path);
         let replica = state(&self.replica.info().unwrap().path);
@@ -256,12 +256,12 @@ fn field_targets_and_their_inverse_replicate_after_offline_edits() {
 fn field_hide_survives_duplicate_field_merge_and_later_edits() {
     let mut p = pair();
     let fields = p.hub.fields().unwrap().page_id;
-    for (notebook, value, hide) in [
+    for (workshop, value, hide) in [
         (&mut p.hub, 50, tessera_core::FieldHide::WhenEmpty),
         (&mut p.replica, 51, tessera_core::FieldHide::Always),
     ] {
         apply(
-            notebook,
+            workshop,
             vec![
                 insert(value, &fields, None, "Author"),
                 Operation::SetFieldKind {
@@ -575,9 +575,9 @@ fn kept_copy_actions_and_their_inverses_replicate() {
         let committed = apply(&mut p.replica, operations);
         p.sync();
         p.assert_converged();
-        for notebook in [&p.hub, &p.replica] {
+        for workshop in [&p.hub, &p.replica] {
             assert_eq!(
-                text(notebook, &id(2)),
+                text(workshop, &id(2)),
                 if choice == "use" {
                     "Phone wording"
                 } else {
@@ -585,15 +585,15 @@ fn kept_copy_actions_and_their_inverses_replicate() {
                 }
             );
             if choice == "both" {
-                assert!(notebook.block(&copy).unwrap().kept_copy.is_none());
+                assert!(workshop.block(&copy).unwrap().kept_copy.is_none());
                 assert!(
-                    notebook.page(&p.page).unwrap().rows[1]
+                    workshop.page(&p.page).unwrap().rows[1]
                         .block
                         .kept_copy
                         .is_none()
                 );
             } else {
-                assert!(notebook.block(&copy).is_err());
+                assert!(workshop.block(&copy).is_err());
             }
         }
 
@@ -620,10 +620,10 @@ fn kept_copy_actions_and_their_inverses_replicate() {
         apply(&mut p.replica, inverse);
         p.sync();
         p.assert_converged();
-        for notebook in [&p.hub, &p.replica] {
-            assert_eq!(text(notebook, &id(2)), "Desktop wording");
-            assert_eq!(text(notebook, &copy), "Phone wording");
-            assert!(notebook.block(&copy).unwrap().kept_copy.is_some());
+        for workshop in [&p.hub, &p.replica] {
+            assert_eq!(text(workshop, &id(2)), "Desktop wording");
+            assert_eq!(text(workshop, &copy), "Phone wording");
+            assert!(workshop.block(&copy).unwrap().kept_copy.is_some());
         }
         // Keep both leaves the block editable at the acknowledged revision.
         apply(
@@ -833,7 +833,7 @@ fn a_move_on_one_device_and_an_edit_on_the_other_both_apply() {
 /// A hub that sends one change per pull, stops answering after a few, and
 /// counts the snapshot content requests and uploads it serves.
 struct Paged<'hub> {
-    hub: &'hub mut Notebook,
+    hub: &'hub mut Workshop,
     pulls_left: usize,
     pieces: usize,
 }
@@ -1372,32 +1372,32 @@ fn book(title: &str, unique_id: &str) -> ExtractedDocument {
 /// Import a book with its file and images; returns the snapshot, the source
 /// and the hashes of the file and of each image.
 fn import(
-    notebook: &mut Notebook,
+    workshop: &mut Workshop,
     document: &ExtractedDocument,
     file: &[u8],
     images: &[(&str, &[u8])],
 ) -> (String, String, Vec<String>) {
-    let file = notebook.put_object(file).unwrap();
+    let file = workshop.put_object(file).unwrap();
     let mut hashes = vec![file.clone()];
     let mut resources = Vec::new();
     for (href, bytes) in images {
-        let sha = notebook.put_object(bytes).unwrap();
+        let sha = workshop.put_object(bytes).unwrap();
         resources.push(((*href).to_owned(), sha.clone(), "image/png".to_owned()));
         hashes.push(sha);
     }
-    let snapshot = notebook
+    let snapshot = workshop
         .stage_snapshot(document, &file, &resources)
         .unwrap()
         .id;
-    let plan = notebook.plan_ingest(&snapshot, None, None).unwrap();
+    let plan = workshop.plan_ingest(&snapshot, None, None).unwrap();
     let source = plan.source_id.clone();
-    apply(notebook, plan.operations);
+    apply(workshop, plan.operations);
     (snapshot, source, hashes)
 }
 
 /// Field definitions, as (id, name), and the Book type's fields in order.
-fn book_fields(notebook: &Notebook) -> (Vec<(String, String)>, Vec<String>) {
-    let conn = Connection::open(notebook.info().unwrap().path.join(DATABASE_FILE)).unwrap();
+fn book_fields(workshop: &Workshop) -> (Vec<(String, String)>, Vec<String>) {
+    let conn = Connection::open(workshop.info().unwrap().path.join(DATABASE_FILE)).unwrap();
     let definitions = conn
         .prepare(
             "SELECT d.id, d.text FROM blocks d JOIN fields f ON f.block_id = d.id
@@ -1518,10 +1518,10 @@ fn a_book_longer_than_one_request_moves_in_pieces_both_ways() {
 }
 
 /// Quote the second passage of `snapshot` in a new block under `source`.
-fn highlight(notebook: &mut Notebook, source: &str, snapshot: &str, block: u128, citation: u128) {
-    let passage = notebook.passages(snapshot, 0, 10).unwrap().passages[1].clone();
+fn highlight(workshop: &mut Workshop, source: &str, snapshot: &str, block: u128, citation: u128) {
+    let passage = workshop.passages(snapshot, 0, 10).unwrap().passages[1].clone();
     apply(
-        notebook,
+        workshop,
         vec![
             insert(block, source, None, "A line worth keeping"),
             Operation::Cite {
@@ -1543,12 +1543,12 @@ fn highlight(notebook: &mut Notebook, source: &str, snapshot: &str, block: u128,
     );
 }
 
-fn has(notebook: &Notebook, sha: &str) -> bool {
-    notebook.read_object(sha).is_ok()
+fn has(workshop: &Workshop, sha: &str) -> bool {
+    workshop.read_object(sha).is_ok()
 }
 
-fn reading_ordinal(notebook: &Notebook, snapshot: &str) -> i64 {
-    Connection::open(notebook.info().unwrap().path.join(DATABASE_FILE))
+fn reading_ordinal(workshop: &Workshop, snapshot: &str) -> i64 {
+    Connection::open(workshop.info().unwrap().path.join(DATABASE_FILE))
         .unwrap()
         .query_row(
             "SELECT passage_ordinal FROM reading_positions WHERE snapshot_id = ?1",
@@ -1855,17 +1855,17 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
         PushOutcome::Accepted { .. }
     ));
     p.assert_converged();
-    for notebook in [&p.hub, &p.replica] {
-        assert_eq!(notebook.card(&second.id).unwrap().schedule, before);
+    for workshop in [&p.hub, &p.replica] {
+        assert_eq!(workshop.card(&second.id).unwrap().schedule, before);
         assert_eq!(
-            notebook.review_session(&id(50)).unwrap().state,
+            workshop.review_session(&id(50)).unwrap().state,
             tessera_core::ReviewSessionState::Open
         );
-        let history = notebook.review_events(&second.id).unwrap();
+        let history = workshop.review_events(&second.id).unwrap();
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].kind, tessera_core::ReviewEventKind::Reset);
         assert_eq!(history[1].undone_by, Some(id(800)));
-        let effective = notebook.review_session_events(&id(50)).unwrap();
+        let effective = workshop.review_session_events(&id(50)).unwrap();
         assert_eq!(
             effective
                 .iter()
@@ -1976,11 +1976,11 @@ fn review_upgrade_recovers_same_batch_order_despite_different_replica_rowids() {
                 .unwrap();
         }
     }
-    p.hub = Notebook::open(&hub_path).unwrap();
-    p.replica = Notebook::open(&replica_path).unwrap();
+    p.hub = Workshop::open(&hub_path).unwrap();
+    p.replica = Workshop::open(&replica_path).unwrap();
     p.assert_converged();
-    for notebook in [&p.hub, &p.replica] {
-        let events = notebook.review_session_events(&id(50)).unwrap();
+    for workshop in [&p.hub, &p.replica] {
+        let events = workshop.review_session_events(&id(50)).unwrap();
         assert_eq!(
             events
                 .iter()
@@ -2113,8 +2113,8 @@ fn retained_pre_undo_review_patch_is_ordered_before_it_can_be_undone_after_upgra
         );
         downgrade_review_order(&conn);
     }
-    p.hub = Notebook::open(&hub_path).unwrap();
-    p.replica = Notebook::open(&replica_path).unwrap();
+    p.hub = Workshop::open(&hub_path).unwrap();
+    p.replica = Workshop::open(&replica_path).unwrap();
     p.sync();
     p.assert_converged();
     let current = p.replica.card(&before.id).unwrap();
@@ -2383,7 +2383,7 @@ fn image_blocks_sync_their_bytes_to_hub_and_fresh_clone() {
         .unwrap()
         .finish()
         .unwrap();
-    let mut clone = Notebook::open(dir.path()).unwrap();
+    let mut clone = Workshop::open(dir.path()).unwrap();
     clone.sync_adopt("in-process", &ticket).unwrap();
     assert_eq!(clone.sync_with(&mut p.hub).unwrap().received_objects, 1);
     assert_eq!(clone.read_object(&image.sha256).unwrap(), bytes);

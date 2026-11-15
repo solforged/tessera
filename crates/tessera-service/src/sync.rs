@@ -200,15 +200,15 @@ async fn clone(
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
-    // Only the copy needs the notebook. Removing the hub's own state and
+    // Only the copy needs the workshop. Removing the hub's own state and
     // compacting run after it is released, and the file is streamed.
-    let (snapshot, path) = run(&state, move |notebook| {
-        let path = notebook.info()?.path.join(format!(
+    let (snapshot, path) = run(&state, move |workshop| {
+        let path = workshop.info()?.path.join(format!(
             "sync-clone-{}-{}.tmp",
             std::process::id(),
             CLONES.fetch_add(1, Ordering::Relaxed)
         ));
-        match notebook.sync_clone_for_device(&path, paired.as_ref().map(|p| p.id.as_str())) {
+        match workshop.sync_clone_for_device(&path, paired.as_ref().map(|p| p.id.as_str())) {
             Ok(snapshot) => Ok((snapshot, path)),
             Err(error) => {
                 let _ = std::fs::remove_file(&path);
@@ -275,8 +275,8 @@ async fn push(
     let device = paired
         .as_ref()
         .map_or_else(|| request.device.clone(), |p| p.name.clone());
-    let receipts = run_authorized(&state, paired, request.device.clone(), move |notebook| {
-        let receipts = notebook.sync_push(&request.device, &request.changes)?;
+    let receipts = run_authorized(&state, paired, request.device.clone(), move |workshop| {
+        let receipts = workshop.sync_push(&request.device, &request.changes)?;
         if let Some(seq) = receipts
             .iter()
             .map(|receipt| match receipt.outcome {
@@ -325,8 +325,8 @@ async fn pull(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let pull = run_authorized(&state, paired, request.device.clone(), move |notebook| {
-        notebook.sync_pull(
+    let pull = run_authorized(&state, paired, request.device.clone(), move |workshop| {
+        workshop.sync_pull(
             &request.device,
             request.acknowledged,
             request.after,
@@ -349,8 +349,8 @@ async fn missing_snapshots(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let ids = run(&state, move |notebook| {
-        notebook.sync_missing_snapshots(&request.ids)
+    let ids = run(&state, move |workshop| {
+        workshop.sync_missing_snapshots(&request.ids)
     })
     .await?;
     Ok(Json(SnapshotIds { ids }).into_response())
@@ -370,8 +370,8 @@ async fn snapshot_content(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let content = run(&state, move |notebook| {
-        notebook.sync_snapshot_content(&request.ids, request.from)
+    let content = run(&state, move |workshop| {
+        workshop.sync_snapshot_content(&request.ids, request.from)
     })
     .await?;
     Ok(Json(content).into_response())
@@ -384,8 +384,8 @@ async fn store_snapshots(
 ) -> Result<StatusCode, ApiError> {
     same_schema(&headers)?;
     let Json(content) = request?;
-    run(&state, move |notebook| {
-        notebook.sync_store_snapshots(&content)
+    run(&state, move |workshop| {
+        workshop.sync_store_snapshots(&content)
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -398,8 +398,8 @@ async fn missing_objects(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let ids = run(&state, move |notebook| {
-        notebook.sync_missing_objects(&request.ids)
+    let ids = run(&state, move |workshop| {
+        workshop.sync_missing_objects(&request.ids)
     })
     .await?;
     Ok(Json(SnapshotIds { ids }).into_response())
@@ -411,7 +411,7 @@ async fn object(
     Path(sha): Path<String>,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
-    let bytes = read(&state, move |notebook| notebook.sync_object(&sha))
+    let bytes = read(&state, move |workshop| workshop.sync_object(&sha))
         .await?
         .ok_or_else(ApiError::not_found)?;
     Ok(([(header::CONTENT_TYPE, "application/octet-stream")], bytes).into_response())
@@ -424,8 +424,8 @@ async fn store_object(
     body: Bytes,
 ) -> Result<StatusCode, ApiError> {
     same_schema(&headers)?;
-    run(&state, move |notebook| {
-        notebook.sync_store_object(&sha, &body)
+    run(&state, move |workshop| {
+        workshop.sync_store_object(&sha, &body)
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -446,8 +446,8 @@ async fn exchange_rows(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let pull = run_authorized(&state, paired, request.device.clone(), move |notebook| {
-        notebook.sync_exchange_rows(&request.device, &request.rows, request.after)
+    let pull = run_authorized(&state, paired, request.device.clone(), move |workshop| {
+        workshop.sync_exchange_rows(&request.device, &request.rows, request.after)
     })
     .await?;
     Ok(Json(pull).into_response())
@@ -466,8 +466,8 @@ async fn retire(
 ) -> Result<StatusCode, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    run_authorized(&state, paired, request.device.clone(), move |notebook| {
-        notebook.sync_retire(&request.device)
+    run_authorized(&state, paired, request.device.clone(), move |workshop| {
+        workshop.sync_retire(&request.device)
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -476,13 +476,13 @@ async fn retire(
 /// A stored file. A replica that does not have it yet fetches it from its
 /// hub and keeps it, so opening a book brings its images.
 pub(crate) async fn object_or_fetch(
-    notebook: std::sync::Arc<parking_lot::Mutex<tessera_core::Notebook>>,
+    workshop: std::sync::Arc<parking_lot::Mutex<tessera_core::Workshop>>,
     sha: String,
 ) -> Result<Vec<u8>, ApiError> {
     use tessera_core::sync::Hub;
     tokio::task::spawn_blocking(move || {
         let (url, credentials) = {
-            let n = notebook.lock();
+            let n = workshop.lock();
             if let Some(bytes) = n.sync_object(&sha)? {
                 return Ok(bytes);
             }
@@ -509,7 +509,7 @@ pub(crate) async fn object_or_fetch(
             .object(&sha)
             .map_err(|e| unreachable(e.into()))?
             .ok_or_else(ApiError::not_found)?;
-        notebook.lock().sync_store_object(&sha, &bytes)?;
+        workshop.lock().sync_store_object(&sha, &bytes)?;
         Ok(bytes)
     })
     .await

@@ -101,7 +101,7 @@ Use `distributing-tessera-android-apks` for release/debug signer compatibility,
 key alias and Keychain lookup, the `ANDROID_KEYSTORE` and
 `ANDROID_KEYSTORE_PASSWORD` GitHub secrets, phone-signer checks, and
 publishing/verifying the release-signed tailnet APK after a release. Never
-uninstall on the user's behalf: it deletes the phone's notebook. A release APK
+uninstall on the user's behalf: it deletes the phone's workshop. A release APK
 must not be described as requiring an uninstall without checking the phone's
 signer first.
 

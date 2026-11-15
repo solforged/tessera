@@ -1,7 +1,7 @@
 import { createMemo, createResource, createSignal } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Block, FieldDefinition } from '../api/types';
-import type { NotebookClient, RelationPickIntent } from '../document/contract';
+import type { WorkshopClient, RelationPickIntent } from '../document/contract';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
@@ -23,7 +23,7 @@ type RelationRow =
 export function RelationPicker(props: {
   anchor: PopupAnchor;
   field: FieldDefinition;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   current?: string;
   owner?: { id: string; page: string };
   onPick(intent: RelationPickIntent): void | Promise<void>;
@@ -33,15 +33,15 @@ export function RelationPicker(props: {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [members] = createResource(
-    () => ({ targets: props.field.targets, sequence: props.notebook.changeSequence() }),
-    ({ targets }) => relationMembers(props.notebook, targets),
+    () => ({ targets: props.field.targets, sequence: props.workshop.changeSequence() }),
+    ({ targets }) => relationMembers(props.workshop, targets),
   );
   const [types] = createResource(
     () => props.field.targets,
-    targets => Promise.all(typeTargets(targets).map(id => props.notebook.api.block(id))),
+    targets => Promise.all(typeTargets(targets).map(id => props.workshop.api.block(id))),
   );
-  const index = noteIndex(props.notebook);
-  const lookup: NotebookClient['lookup'] = id => props.notebook.lookup(id);
+  const index = noteIndex(props.workshop);
+  const lookup: WorkshopClient['lookup'] = id => props.workshop.lookup(id);
   const targetKind = createMemo(() =>
     props.field.targets.length === 1
       ? index()?.kinds.find(kind => kind.type_id === props.field.targets[0] || kind.key === props.field.targets[0])
@@ -52,9 +52,9 @@ export function RelationPicker(props: {
     return kind ? `Find ${/^[aeiou]/.test(kind) ? 'an' : 'a'} ${kind}…` : `${fieldLabel(props.field)}…`;
   });
   const [matches] = createResource(
-    () => members() && { query: query(), members: members()!, sequence: props.notebook.changeSequence() },
+    () => members() && { query: query(), members: members()!, sequence: props.workshop.changeSequence() },
     state =>
-      relationCandidates(props.notebook, state.members, props.field.targets.length > 0, state.query, props.owner).then(
+      relationCandidates(props.workshop, state.members, props.field.targets.length > 0, state.query, props.owner).then(
         result => ({ ...result, query: state.query }),
       ),
   );

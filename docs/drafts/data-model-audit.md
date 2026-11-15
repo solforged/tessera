@@ -1,6 +1,6 @@
 # Data model audit
 
-Working note, 2026-10-16. An audit of the notebook schema, the operation layer
+Working note, 2026-10-16. An audit of the workshop schema, the operation layer
 and sync against the two outliners Tessera borrows from most. It reads the
 migrations in `crates/tessera-core/migrations`, the operation engine, the
 replication classes and the design documents, and compares them with what is
@@ -53,7 +53,7 @@ Sources for the Tana and Logseq columns are listed at the end.
 These are worth protecting while changing anything else.
 
 - **Determinism inside apply.** Derived IDs hashed from the change (`derived_id`
-  in `notebook.rs`), stamped timestamps and a test that two notebooks reach
+  in `notebook.rs`), stamped timestamps and a test that two workshops reach
   identical state from the same changes. Neither Logseq generation makes this
   guarantee; Tana does not need to because the server is authoritative.
 - **Explicit replication classes.** `replication::TABLES` names how every table

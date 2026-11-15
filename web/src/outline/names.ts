@@ -1,5 +1,5 @@
 import type { Block, NameMatch } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { Token } from '../document/text-tokens';
 import { inlineTokens, isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { MenuItem } from '../ui/Menu';
@@ -68,20 +68,20 @@ interface Resolutions {
   sequence: number;
   names: Map<string, Promise<NameMatch[]>>;
 }
-const resolutions = new WeakMap<NotebookClient, Resolutions>();
+const resolutions = new WeakMap<WorkshopClient, Resolutions>();
 
 /** Share one request per folded name until an acknowledged local or remote change. */
-export function resolveName(notebook: NotebookClient, name: string): Promise<NameMatch[]> {
-  const sequence = notebook.changeSequence();
-  let cache = resolutions.get(notebook);
+export function resolveName(workshop: WorkshopClient, name: string): Promise<NameMatch[]> {
+  const sequence = workshop.changeSequence();
+  let cache = resolutions.get(workshop);
   if (!cache || cache.sequence !== sequence) {
     cache = { sequence, names: new Map() };
-    resolutions.set(notebook, cache);
+    resolutions.set(workshop, cache);
   }
   const key = foldName(name);
   const existing = cache.names.get(key);
   if (existing) return existing;
-  const request = notebook.api.resolveName(name.trim());
+  const request = workshop.api.resolveName(name.trim());
   cache.names.set(key, request);
   const names = cache.names;
   void request.catch(() => {
@@ -92,7 +92,7 @@ export function resolveName(notebook: NotebookClient, name: string): Promise<Nam
 
 /** Completion and exact identity share the same folding and aliases, within the caller's allowed pages. */
 export async function completeNames(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   query: string,
   pages: readonly Block[],
 ): Promise<{ rows: NameMatch[]; canCreate: boolean }> {
@@ -100,8 +100,8 @@ export async function completeNames(
   const allowed = new Map(pages.filter(page => page.kind === 'page' && !page.archived).map(page => [page.id, page]));
   if (!title) return { rows: [...allowed.values()].map(page => ({ page, alias: null })), canCreate: false };
   const [completed, exact] = await Promise.all([
-    notebook.api.complete(title, Math.max(20, notebook.roots().length)),
-    resolveName(notebook, title),
+    workshop.api.complete(title, Math.max(20, workshop.roots().length)),
+    resolveName(workshop, title),
   ]);
   const rows = new Map<string, NameMatch>();
   for (const match of [...exact, ...completed.map(page => ({ page, alias: page.alias }))]) {
@@ -125,7 +125,7 @@ export function referenceValue(text: string): { id: string | null; name: string 
 export function referenceLabel(
   token: Token,
   target: Block | null | undefined,
-  lookup: NotebookClient['lookup'],
+  lookup: WorkshopClient['lookup'],
   seen: ReadonlySet<string> = new Set(),
   unavailableLabel?: string,
 ): string {
@@ -140,7 +140,7 @@ export function referenceLabel(
 }
 
 /** Tag aliases are a fallback, never an override of the live page title. */
-export function tagLabel(token: Pick<Token, 'id' | 'alias' | 'value'>, lookup: NotebookClient['lookup']): string {
+export function tagLabel(token: Pick<Token, 'id' | 'alias' | 'value'>, lookup: WorkshopClient['lookup']): string {
   return (token.id ? lookup(token.id)()?.text : undefined) || token.alias || token.value || token.id || '';
 }
 
@@ -152,7 +152,7 @@ export function deletedHolderLabel(holder: { text: string }): string {
 /** What a reference or relation calls its target, as the core labels it: the first line, its trailing tags dropped and inner tags read as words. */
 export function targetLabel(
   text: string,
-  lookup: NotebookClient['lookup'],
+  lookup: WorkshopClient['lookup'],
   seen: ReadonlySet<string> = new Set(),
 ): string {
   if (quoteTarget(text)) return plainText(text, lookup, seen);
@@ -169,14 +169,14 @@ export function targetLabel(
 }
 
 /** Display the identity name, rendering tag-only titles with live tag labels. */
-export function displayTitle(text: string, lookup: NotebookClient['lookup'] = () => () => undefined): string {
+export function displayTitle(text: string, lookup: WorkshopClient['lookup'] = () => () => undefined): string {
   const name = identityName(text);
   return name === text && textTokens(text).some(token => token.kind === 'tag') ? plainText(text, lookup) : name;
 }
 
 function plainToken(
   token: Token,
-  lookup: NotebookClient['lookup'],
+  lookup: WorkshopClient['lookup'],
   seen: ReadonlySet<string>,
   deletedHolder?: { id: string; text: string } | null,
 ): string {
@@ -200,7 +200,7 @@ function plainToken(
 /** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */
 export function plainText(
   text: string,
-  lookup: NotebookClient['lookup'],
+  lookup: WorkshopClient['lookup'],
   seen: ReadonlySet<string> = new Set(),
   deletedHolder?: { id: string; text: string } | null,
 ): string {
@@ -214,7 +214,7 @@ export function plainText(
 /** Plain text as a reader sees it: card operators as their arrows, clozes as their answers, and inline code, bold and italic without their markers, as block text renders them. Never use it for text that is written back. */
 export function readableText(
   text: string,
-  lookup: NotebookClient['lookup'],
+  lookup: WorkshopClient['lookup'],
   deletedHolder?: { id: string; text: string } | null,
 ): string {
   if (quoteTarget(text)) return plainText(text, lookup, undefined, deletedHolder);
@@ -249,19 +249,19 @@ export function resolvedReferenceText(text: string, token: Token, target: string
 }
 
 export async function chooseName(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   blockId: string,
   token: Token,
   target?: string,
 ): Promise<void> {
-  const block = notebook.lookup(blockId)() ?? (await notebook.api.block(blockId));
-  const doc = notebook.open(block.page_id);
+  const block = workshop.lookup(blockId)() ?? (await workshop.api.block(blockId));
+  const doc = workshop.open(block.page_id);
   try {
     await documentReady(doc);
     const current = doc.block(blockId)?.text;
     if (current === undefined || resolvedReferenceText(current, token, '') === null) return;
     const name = token.id!.trim();
-    const id = target ?? (await notebook.createPage(name));
+    const id = target ?? (await workshop.createPage(name));
     const latest = doc.block(blockId)?.text;
     if (latest === undefined) return;
     const text = resolvedReferenceText(latest, token, id);
@@ -269,21 +269,21 @@ export async function chooseName(
     const result = doc.edit({ kind: 'text', id: blockId, text });
     if (!result.ok) throw new Error(result.reason);
     await doc.flush();
-    await notebook.api.addAlias(id, name);
+    await workshop.api.addAlias(id, name);
   } finally {
     doc.release();
   }
 }
 
 export function nameMenuItems(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   blockId: string,
   token: Token,
   matches: NameMatch[],
   onError: (message: string) => void,
 ): MenuItem[] {
   const choose = (id?: string) => {
-    void chooseName(notebook, blockId, token, id).catch(error =>
+    void chooseName(workshop, blockId, token, id).catch(error =>
       onError(error instanceof Error ? error.message : String(error)),
     );
   };

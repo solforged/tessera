@@ -1,14 +1,14 @@
 ---
 name: smoke-testing-tessera-sync
-description: "Smoke-tests Tessera device sync (hub service plus CLI replica) on a copy of the live notebook after changes to core, service, or CLI sync code."
+description: "Smoke-tests Tessera device sync (hub service plus CLI replica) on a copy of the live workshop after changes to core, service, or CLI sync code."
 ---
 
 # Smoke-testing Tessera sync (hub service + CLI replica)
 
 Use after changing `crates/tessera-core/src/sync*.rs`,
 `crates/tessera-service/src/sync.rs` or `crates/tessera-cli/src/sync.rs`. Unit
-tests in `crates/tessera-core/tests/sync.rs` use fresh notebooks. They miss
-paths that only a real notebook hits: an existing Book type, fields and authors
+tests in `crates/tessera-core/tests/sync.rs` use fresh workshops. They miss
+paths that only a real workshop hits: an existing Book type, fields and authors
 make a duplicate import collapse to an empty batch. Always run this smoke test
 as well.
 
@@ -19,7 +19,7 @@ Complete
 and source its prepared environment. Build/stage `tessera-cli` through its
 release-build procedure before running the hub/replica commands.
 
-Resolve the requested source notebook or backup read-only. For an online copy,
+Resolve the requested source workshop or backup read-only. For an online copy,
 first `mkdir "$TASK_RUN/notebooks/hub"`, then
 `/usr/bin/sqlite3 "file:<source>/notebook.db?mode=ro" ".backup \"$TASK_RUN/notebooks/hub/notebook.db\""`
 plus objects; alternatively restore an explicit backup with
@@ -31,7 +31,7 @@ Sharing/Pair against host Tailscale.
 Start the private hub only after the copy/restore completes, as an exact named
 service:
 `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/hub" serve --port <owned-hub-http> --sync-port <owned-hub-sync>`.
-Record actual ports/origin, build and notebook provenance in `TASK_EVIDENCE`;
+Record actual ports/origin, build and workshop provenance in `TASK_EVIDENCE`;
 `--sync-port 0` allocates an ephemeral loopback listener, not disabled sync.
 Avoid 4318 (installed app), 4320 (shared dev) and 4330 (web tests).
 
@@ -66,7 +66,7 @@ task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/phone" sync  # JSON SyncRep
   `search_blocks`) and `browser_objects`. Ignore `rowid`, `sync_seq` and
   `snapshots.created_at`. Work against stopped/read-only private copies. Python
   sqlite3 can compare non-FTS rows; use `/usr/bin/sqlite3` on Mac or the
-  service/core for FTS, never Android's PATH sqlite3 against an active notebook.
+  service/core for FTS, never Android's PATH sqlite3 against an active workshop.
 - Files: objects live at `<nb>/objects/<sha[0..2]>/<sha[2..]>`. Deleting one on
   a replica and requesting `/api/snapshots/{id}/resources/{href}` from that
   replica's service must fetch it from the hub and keep it.

@@ -560,7 +560,7 @@ pub(crate) fn remove_tag(text: &str, key: &str, type_id: Option<&str>) -> Option
 #[derive(Clone, Copy)]
 pub(crate) struct TypeCreation<'a> {
     /// The change creating the page; its ID derives from this and the title.
-    /// `None` only when migrating a notebook from before change IDs.
+    /// `None` only when migrating a workshop from before change IDs.
     pub change_id: Option<&'a str>,
     pub now: i64,
 }
@@ -746,7 +746,7 @@ pub(crate) fn resolve_type(
     Ok(Some(id))
 }
 
-impl crate::Notebook {
+impl crate::Workshop {
     /// Render canonical tags for text-only consumers without altering stored text.
     pub fn render_tag_text<'a>(&self, text: &'a str) -> Result<std::borrow::Cow<'a, str>> {
         let titles = self.live_tag_titles(text)?;

@@ -1,6 +1,6 @@
 import { Show, createEffect, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { formatProgress } from '../library/query';
 import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
@@ -22,10 +22,10 @@ export interface HighlightNoteDraft {
  * The note on a new highlight, written on a touch screen with the passage still in sight above the
  * keyboard. Text saves as it is typed, like an outline row; an empty note is removed on the way back.
  */
-export function HighlightComposer(props: { notebook: NotebookClient; draft: HighlightNoteDraft; onClose(): void }) {
+export function HighlightComposer(props: { workshop: WorkshopClient; draft: HighlightNoteDraft; onClose(): void }) {
   // The parent hands a new draft to a new composer, so the draft is read once; later reads of `props.draft` could be stale.
   const draft = props.draft;
-  const doc = props.notebook.open(draft.sourceId);
+  const doc = props.workshop.open(draft.sourceId);
   const noteId = draft.noteId;
   const [text, setText] = createSignal('');
   const [ready, setReady] = createSignal(false);

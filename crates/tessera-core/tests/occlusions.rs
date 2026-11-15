@@ -4,7 +4,7 @@ use tessera_core::occlusion::{
     MaskShape, Occlusion, OcclusionGroup, OcclusionMask, OcclusionMode, Rect,
 };
 use tessera_core::scheduler::Grade;
-use tessera_core::{Actor, Batch, CardQuery, CardSelection, CardUnit, Error, Notebook, Operation};
+use tessera_core::{Actor, Batch, CardQuery, CardSelection, CardUnit, Error, Operation, Workshop};
 
 #[allow(dead_code)]
 mod common;
@@ -74,9 +74,9 @@ fn state() -> Occlusion {
         ],
     }
 }
-fn setup() -> (tempfile::TempDir, Notebook) {
+fn setup() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     nb.apply(&batch(vec![
         Operation::CreatePage {
             id: id(1),
@@ -101,7 +101,7 @@ fn setup() -> (tempfile::TempDir, Notebook) {
     .unwrap();
     (dir, nb)
 }
-fn set(nb: &mut Notebook, occlusion: Option<Occlusion>) {
+fn set(nb: &mut Workshop, occlusion: Option<Occlusion>) {
     let op = Operation::SetOcclusion {
         id: id(2),
         base_revision: nb.block(&id(2)).unwrap().revision,
@@ -109,14 +109,14 @@ fn set(nb: &mut Notebook, occlusion: Option<Occlusion>) {
     };
     nb.apply(&batch(vec![op])).unwrap();
 }
-fn card(nb: &Notebook, group: &str) -> CardUnit {
+fn card(nb: &Workshop, group: &str) -> CardUnit {
     nb.source_cards(&id(2))
         .unwrap()
         .into_iter()
         .find(|card| card.key == format!("occlusion:{group}"))
         .unwrap()
 }
-fn grade(nb: &mut Notebook, card: &CardUnit, event: u128) {
+fn grade(nb: &mut Workshop, card: &CardUnit, event: u128) {
     nb.apply(&batch(vec![Operation::GradeCard {
         id: card.id.clone(),
         base_revision: card.revision,
@@ -396,7 +396,7 @@ fn migration_preserves_cards_reviews_undos_rowids_and_foreign_keys() {
     common::restore_pre_occlusions(&conn);
     conn.pragma_update(None, "user_version", 48).unwrap();
     drop(conn);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.card(&card.id).unwrap(), before);
     assert_eq!(nb.review_events(&card.id).unwrap(), reviews);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();

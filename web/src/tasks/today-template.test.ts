@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, PageView } from '../api/types';
 import { captureOperations } from '../capture/append';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import {
   captureSection,
   defaultTodayTemplate,
@@ -69,7 +69,7 @@ describe('captureOperations into a section', () => {
     created_at: 1,
     updated_at: 1,
   });
-  const notebook = (rows: Block[]) =>
+  const workshop = (rows: Block[]) =>
     ({
       api: {
         journal: async () => ({ id: 'day' }),
@@ -79,7 +79,7 @@ describe('captureOperations into a section', () => {
             rows: rows.map(value => ({ block: value })),
           }) as unknown as PageView,
       },
-    }) as unknown as NotebookClient;
+    }) as unknown as WorkshopClient;
   const capture = {
     date: '2026-10-25',
     text: 'A link to read',
@@ -90,7 +90,7 @@ describe('captureOperations into a section', () => {
 
   test('writes the missing heading and the line in one batch', async () => {
     const { operations } = await captureOperations(
-      notebook([block('n', 'day', 'A thought'), block('e', 'day', '')]),
+      workshop([block('n', 'day', 'A thought'), block('e', 'day', '')]),
       capture,
     );
     expect(operations).toMatchObject([
@@ -102,7 +102,7 @@ describe('captureOperations into a section', () => {
 
   test('appends as the last child of an existing heading', async () => {
     const { operations } = await captureOperations(
-      notebook([block('i', 'day', 'Inbox', 2), block('c', 'i', 'Earlier'), block('e', 'day', '')]),
+      workshop([block('i', 'day', 'Inbox', 2), block('c', 'i', 'Earlier'), block('e', 'day', '')]),
       capture,
     );
     expect(operations).toMatchObject([{ op: 'insert', parent_id: 'i', after: 'c', text: 'A link to read' }]);
@@ -115,7 +115,7 @@ describe('captureOperations into a section', () => {
       under: { id: source, text: readingRowText(source, 'Meditations', 'Book IV') },
     };
     const first = await captureOperations(
-      notebook([block('r', 'day', 'Reading', 2), block('o', 'r', '[[01JB0000000000000000000001|Other]]')]),
+      workshop([block('r', 'day', 'Reading', 2), block('o', 'r', '[[01JB0000000000000000000001|Other]]')]),
       { ...capture, section: reading },
     );
     expect(first.operations).toMatchObject([
@@ -124,7 +124,7 @@ describe('captureOperations into a section', () => {
     ]);
     expect((first.operations[1] as { parent_id: string }).parent_id).toBe((first.operations[0] as { id: string }).id);
     const again = await captureOperations(
-      notebook([
+      workshop([
         block('r', 'day', 'Reading', 2),
         block('s', 'r', `[[${source}|Meditations|Book III]]`),
         block('n', 's', 'Earlier'),

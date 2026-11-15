@@ -1,12 +1,12 @@
 import { createEffect, createSignal, onCleanup } from 'solid-js';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { FieldViewState, OpenTarget } from '../core/contract';
 import { FieldDetails } from './FieldDetails';
 
 export function FieldPane(props: {
   target: Extract<OpenTarget, { kind: 'field' }>;
   view: FieldViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onTargetChange(target: OpenTarget): void;
@@ -19,11 +19,11 @@ export function FieldPane(props: {
   createEffect(() => {
     const controller = new AbortController();
     let document: PageDocument | undefined;
-    void props.notebook.api
+    void props.workshop.api
       .pageByTitle('Fields', controller.signal)
       .then(page => {
         if (!controller.signal.aborted) {
-          document = props.notebook.open(page.id);
+          document = props.workshop.open(page.id);
           setDoc(document);
         }
       })
@@ -67,7 +67,7 @@ export function FieldPane(props: {
         fieldId={props.target.fieldId}
         previewKind={props.target.previewKind}
         section={props.target.section}
-        notebook={props.notebook}
+        workshop={props.workshop}
         document={doc()}
         onOpen={props.onOpen}
         onPreview={previewKind =>

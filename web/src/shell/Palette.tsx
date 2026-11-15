@@ -15,7 +15,7 @@ import type {
   PassagePage,
   SourceView,
 } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { BlockTree, type TreeRow } from '../outline/BlockTree';
 import { cachedExactPage } from '../outline/completion';
@@ -74,7 +74,7 @@ export function Palette(props: {
   pane: PaneId;
   mode: 'search' | 'commands';
   commands: CommandRegistry;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   noteKinds?: readonly NoteKind[];
   onDismiss(): void;
   onRestoreFocus(): void;
@@ -126,27 +126,27 @@ export function Palette(props: {
   }>();
   const initialRequests = new AbortController();
   onCleanup(() => initialRequests.abort());
-  const live = createMemo(() => props.notebook.connection() === 'live');
+  const live = createMemo(() => props.workshop.connection() === 'live');
   const [library] = createResource(
     () => mode() === 'search' && live(),
-    () => props.notebook.api.library({ limit: 500 }, initialRequests.signal),
+    () => props.workshop.api.library({ limit: 500 }, initialRequests.signal),
   );
   const [highlights] = createResource(
     () => mode() === 'search' && live(),
-    () => props.notebook.api.highlights({ limit: 500 }, initialRequests.signal),
+    () => props.workshop.api.highlights({ limit: 500 }, initialRequests.signal),
   );
   const books = createMemo(
     () => new Map((library.error ? [] : (library()?.rows ?? [])).map(row => [row.page.id, row])),
   );
   const [fields] = createResource(
-    () => (mode() === 'search' && live() ? props.notebook.changeSequence() : false),
-    () => props.notebook.api.fields(initialRequests.signal),
+    () => (mode() === 'search' && live() ? props.workshop.changeSequence() : false),
+    () => props.workshop.api.fields(initialRequests.signal),
   );
   // One registry projection supplies every result's identity, rather than a kinds request per row.
   const [identities] = createResource(
-    () => (mode() === 'search' && live() ? props.notebook.changeSequence() : false),
+    () => (mode() === 'search' && live() ? props.workshop.changeSequence() : false),
     () =>
-      props.notebook.api.query(
+      props.workshop.api.query(
         { ...typeQuery(null), source: 'notes', columns: [{ key: '@kind' }] },
         initialRequests.signal,
       ),
@@ -202,7 +202,7 @@ export function Palette(props: {
     setPassagesLoading(ready);
     if (!ready) return;
     const controller = new AbortController();
-    void props.notebook.api.searchPassages(q, undefined, 40, 0, controller.signal).then(
+    void props.workshop.api.searchPassages(q, undefined, 40, 0, controller.signal).then(
       rows => {
         if (!controller.signal.aborted) {
           setPassageHits(rows);
@@ -234,7 +234,7 @@ export function Palette(props: {
     void Promise.all(
       ids.map(async id => {
         try {
-          const source = await props.notebook.api.source(id, controller.signal);
+          const source = await props.workshop.api.source(id, controller.signal);
           if (!controller.signal.aborted) {
             sourceCache.set(id, source);
             setSources(new Map(sourceCache));
@@ -267,9 +267,9 @@ export function Palette(props: {
     onCleanup(() => clearTimeout(timer));
   });
   const [hits] = createResource(
-    () => (mode() === 'search' ? ([debounced(), props.notebook.changeSequence(), live()] as const) : false),
+    () => (mode() === 'search' ? ([debounced(), props.workshop.changeSequence(), live()] as const) : false),
     async ([q]): Promise<SearchHit[]> => {
-      if (!q) return props.notebook.roots().map(root => ({ block: root, page: root }));
+      if (!q) return props.workshop.roots().map(root => ({ block: root, page: root }));
       const [pages, blocks] = await Promise.all([api.complete(q, 40), api.search(q)]);
       const roots = pages.filter(page => page.kind !== 'block').map(page => ({ block: page, page, alias: page.alias }));
       const ids = new Set(roots.map(hit => hit.block.id));
@@ -286,7 +286,7 @@ export function Palette(props: {
   const [scopedPage] = createResource(
     () => {
       const id = scope()?.matching ? undefined : scope()?.page.id;
-      return live() && id && props.notebook.lookup(id)()?.revision !== 0 ? id : undefined;
+      return live() && id && props.workshop.lookup(id)()?.revision !== 0 ? id : undefined;
     },
     id => api.page(id),
   );
@@ -318,7 +318,7 @@ export function Palette(props: {
     const title = text();
     const exact =
       !parent && title
-        ? (cachedExactPage(props.notebook, title) ??
+        ? (cachedExactPage(props.workshop, title) ??
           rows.find(hit => hit.block.kind === 'page' && titleKey(hit.block.text) === titleKey(title))?.block)
         : null;
     const isExact = (entry: Entry) => entry.kind === 'hit' && entry.hit.block.id === exact?.id;
@@ -375,7 +375,7 @@ export function Palette(props: {
       const tag = textTokens(title);
       if (tag.length === 1 && tag[0]?.kind === 'tag') {
         const token = tag[0];
-        const page = token.id ? props.notebook.lookup(token.id)() : cachedExactPage(props.notebook, token.value);
+        const page = token.id ? props.workshop.lookup(token.id)() : cachedExactPage(props.workshop, token.value);
         result.push({
           kind: 'create',
           action: 'tag',
@@ -392,7 +392,7 @@ export function Palette(props: {
     return result;
   });
   const drill = async (hit: BlockInPage): Promise<boolean> => {
-    if (props.notebook.lookup(hit.page.id)()?.revision === 0) return false;
+    if (props.workshop.lookup(hit.page.id)()?.revision === 0) return false;
     const page = await api.page(hit.page.id);
     if (!page.rows.some(row => row.block.parent_id === hit.block.id)) return false;
     setScopes(previous => [...previous, hit]);
@@ -436,7 +436,7 @@ export function Palette(props: {
     queryInput?.blur();
     const pending = pendingCaretInput.prepare();
     try {
-      const { pageId, caretId, caretOffset } = await createPageDraft(props.notebook, { kind, text: title });
+      const { pageId, caretId, caretOffset } = await createPageDraft(props.workshop, { kind, text: title });
       if (disposed) {
         // Dismissed while the service was working: the atom exists, so say so and offer it rather than leave it orphaned.
         pending();
@@ -617,7 +617,7 @@ export function Palette(props: {
             <FindPreview
               entry={selectedEntry()}
               query={text()}
-              notebook={props.notebook}
+              workshop={props.workshop}
               fields={fields.error ? [] : (fields()?.fields ?? [])}
               book={
                 selectedEntry()?.kind === 'hit'
@@ -675,7 +675,7 @@ export function Palette(props: {
               {parent => (
                 <div class="scope-bar">
                   <Icon name="up" />
-                  <BlockText text={parent().block.text} notebook={props.notebook} interactive={false} />
+                  <BlockText text={parent().block.text} workshop={props.workshop} interactive={false} />
                   <kbd>⇧Tab</kbd>
                 </div>
               )}
@@ -731,7 +731,7 @@ export function Palette(props: {
             <HitRow
               hit={entry.hit}
               query={text()}
-              notebook={props.notebook}
+              workshop={props.workshop}
               selected={selected}
               book={books().get(entry.hit.page.id)}
               noteKind={resultKind(entry.hit.page.id)}
@@ -742,14 +742,14 @@ export function Palette(props: {
                 <Icon name="right" />
                 <span class="picker-text find-more">
                   <span class="fig">{entry.count}</span> more in{' '}
-                  {displayTitle(entry.page.text, id => props.notebook.lookup(id))}
+                  {displayTitle(entry.page.text, id => props.workshop.lookup(id))}
                 </span>
               </>
             ) : (
               <>
                 <Icon name="page" />
                 <span class="picker-text">
-                  +{entry.count} more in {displayTitle(entry.page.text, id => props.notebook.lookup(id))}
+                  +{entry.count} more in {displayTitle(entry.page.text, id => props.workshop.lookup(id))}
                 </span>
               </>
             )
@@ -812,19 +812,19 @@ export function Palette(props: {
 function HitRow(props: {
   hit: SearchHit;
   query: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   selected: boolean;
   book?: LibraryRow;
   noteKind?: NoteKind;
 }) {
   const isPage = () => props.hit.block.id === props.hit.page.id;
   const phone = isPhone();
-  const icon = createPageIcon(props.notebook, () => props.hit.block);
+  const icon = createPageIcon(props.workshop, () => props.hit.block);
   // A phone's meta line names the kind, so the title does not also carry its tag pill.
   const title = () => {
-    const text = props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text;
+    const text = props.workshop.lookup(props.hit.block.id)()?.text ?? props.hit.block.text;
     return phone && isPage() && !props.book && props.noteKind
-      ? displayTitle(text, id => props.notebook.lookup(id))
+      ? displayTitle(text, id => props.workshop.lookup(id))
       : text;
   };
   return (
@@ -832,12 +832,12 @@ function HitRow(props: {
       <Icon name={isPage() && props.noteKind ? noteKindIcon(props.noteKind) : icon()} />
       <span class="picker-text find-result">
         <span classList={{ 'find-snippet': !isPage(), 'find-work': isPage() && !!props.book }}>
-          <BlockText text={title()} notebook={props.notebook} interactive={false} highlight={props.query} />
+          <BlockText text={title()} workshop={props.workshop} interactive={false} highlight={props.query} />
         </span>
         <Show when={!isPage()}>
           <small>
-            {displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id =>
-              props.notebook.lookup(id),
+            {displayTitle(props.workshop.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id =>
+              props.workshop.lookup(id),
             )}
           </small>
         </Show>
@@ -899,7 +899,7 @@ function MatchText(props: { text: string; query: string }) {
 function FindPreview(props: {
   entry?: Entry;
   query: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   fields: readonly FieldDefinition[];
   book?: LibraryRow;
 }) {
@@ -930,11 +930,11 @@ function FindPreview(props: {
         lines.push({ kind: 'prose', text: row.block.text });
         continue;
       }
-      const values = inline?.value ? [valueLabel(inline.value, id => props.notebook.lookup(id))] : [];
+      const values = inline?.value ? [valueLabel(inline.value, id => props.workshop.lookup(id))] : [];
       while (index + 1 < page.rows.length && page.rows[index + 1]!.depth > row.depth) {
         const value = page.rows[++index]!;
         if (!value.block.archived && value.block.text.trim())
-          values.push(valueLabel(value.block.text, id => props.notebook.lookup(id)));
+          values.push(valueLabel(value.block.text, id => props.workshop.lookup(id)));
       }
       const name = definition ? (definition.built_in ? definition.name.toLowerCase() : definition.name) : inline!.name;
       lines.push({ kind: 'field', name, values });
@@ -980,7 +980,7 @@ function FindPreview(props: {
       const id = entry.kind === 'hit' ? entry.hit.page.id : entry.page.id;
       // Optimistic roots can enter the results while the create picker closes.
       // Track their acknowledgement before asking the service for a preview.
-      if (props.notebook.lookup(id)()?.revision === 0) {
+      if (props.workshop.lookup(id)()?.revision === 0) {
         setLoading(true);
         return;
       }
@@ -989,13 +989,13 @@ function FindPreview(props: {
     setLoading(true);
     const load = async () => {
       if (entry.kind === 'hit' || entry.kind === 'more') {
-        const page = await props.notebook.api.page(
+        const page = await props.workshop.api.page(
           entry.kind === 'hit' ? entry.hit.page.id : entry.page.id,
           controller.signal,
         );
         const targetId = entry.kind === 'hit' && entry.hit.block.id !== page.root.id ? entry.hit.block.id : undefined;
         return {
-          title: displayTitle(page.root.text, id => props.notebook.lookup(id)),
+          title: displayTitle(page.root.text, id => props.workshop.lookup(id)),
           cover: props.book?.cover
             ? { snapshotId: props.book.source.current_snapshot_id ?? '', href: props.book.cover }
             : undefined,
@@ -1008,11 +1008,11 @@ function FindPreview(props: {
       const ordinal = entry.kind === 'passage' ? entry.hit.passage.ordinal : entry.row.citation.ordinal;
       const citation = entry.kind === 'highlight' ? entry.row.citation : undefined;
       const end = citation
-        ? await props.notebook.api.locate(snapshotId, citation.end.passage_id, controller.signal)
+        ? await props.workshop.api.locate(snapshotId, citation.end.passage_id, controller.signal)
         : ordinal;
       const [source, passages] = await Promise.all([
-        props.notebook.api.source(sourceId, controller.signal),
-        props.notebook.api.passages(
+        props.workshop.api.source(sourceId, controller.signal),
+        props.workshop.api.passages(
           snapshotId,
           Math.max(0, ordinal - 1),
           Math.max(3, (end ?? ordinal) - ordinal + 3),
@@ -1021,7 +1021,7 @@ function FindPreview(props: {
       ]);
       const chapter = source.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= ordinal).at(-1)?.title;
       return {
-        title: displayTitle(source.page.text, id => props.notebook.lookup(id)),
+        title: displayTitle(source.page.text, id => props.workshop.lookup(id)),
         location: [source.source.siglum, chapter ? contentsTitle(chapter) : null, `¶${ordinal + 1}`]
           .filter(Boolean)
           .join(' · '),
@@ -1084,7 +1084,7 @@ function FindPreview(props: {
                 <BlockTree
                   rows={outlineRows()}
                   block={id => previewBlocks().get(id)}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   interactive={false}
                   highlight={props.query}
                 />
@@ -1109,7 +1109,7 @@ function FindPreview(props: {
                     <p>
                       <BlockText
                         text={line.text}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         interactive={false}
                         highlight={props.query}
                       />

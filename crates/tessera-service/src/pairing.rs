@@ -1,5 +1,5 @@
 //! Five-minute, single-use codes live only in the service process. Device keys are
-//! random bearer credentials; only their hashes are retained by the hub notebook.
+//! random bearer credentials; only their hashes are retained by the hub workshop.
 
 use std::fmt::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -102,7 +102,7 @@ pub(crate) async fn authenticate(
         .and_then(|h| h.strip_prefix("Bearer "))
         .ok_or_else(unpaired)?
         .to_owned();
-    let device = run(&state, move |notebook| notebook.sync_authenticate(&key))
+    let device = run(&state, move |workshop| workshop.sync_authenticate(&key))
         .await?
         .ok_or_else(unpaired)?;
     request.extensions_mut().insert(device);
@@ -130,12 +130,12 @@ fn unpaired() -> ApiError {
 }
 
 pub(crate) fn check_device(
-    notebook: &tessera_core::Notebook,
+    workshop: &tessera_core::Workshop,
     paired: Option<&PairedDevice>,
     replica: &str,
 ) -> Result<(), ApiError> {
     if let Some(paired) = paired
-        && !notebook.sync_device_owns_replica(&paired.id, replica)?
+        && !workshop.sync_device_owns_replica(&paired.id, replica)?
     {
         return Err(ApiError::new(
             StatusCode::FORBIDDEN,
@@ -150,12 +150,12 @@ pub(crate) async fn run_authorized<T: Send + 'static>(
     state: &AppState,
     paired: Option<axum::Extension<PairedDevice>>,
     replica: String,
-    operation: impl FnOnce(&mut tessera_core::Notebook) -> tessera_core::Result<T> + Send + 'static,
+    operation: impl FnOnce(&mut tessera_core::Workshop) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
-    run(state, move |notebook| {
+    run(state, move |workshop| {
         Ok(
-            check_device(notebook, paired.as_ref().map(|p| &p.0), &replica)
-                .and_then(|()| operation(notebook).map_err(ApiError::from)),
+            check_device(workshop, paired.as_ref().map(|p| &p.0), &replica)
+                .and_then(|()| operation(workshop).map_err(ApiError::from)),
         )
     })
     .await?
@@ -264,15 +264,15 @@ async fn pair(
 ) -> Result<Response, ApiError> {
     let Json(request) = request?;
     let pairing = state.pairing.clone();
-    let response = run(&state, move |notebook| {
+    let response = run(&state, move |workshop| {
         Ok((|| {
             let mut pairing = pairing.lock();
             pairing.check(&request.code, now_ms())?;
             let mut bytes = [0; 32];
             getrandom::fill(&mut bytes).map_err(ApiError::internal)?;
             let key = URL_SAFE_NO_PAD.encode(bytes);
-            let device = notebook.sync_pair_device(&request.name, &key)?;
-            let info = notebook.info()?;
+            let device = workshop.sync_pair_device(&request.name, &key)?;
+            let info = workshop.info()?;
             *pairing = Pairing::Paired(device.clone());
             Ok::<_, ApiError>((key, device, info.id))
         })())
@@ -301,8 +301,8 @@ pub(crate) struct SyncDevices {
 }
 
 async fn devices(State(state): State<AppState>) -> Result<Response, ApiError> {
-    let (devices, retained) = run(&state, |notebook| {
-        Ok((notebook.sync_devices()?, notebook.sync_retained_patches()?))
+    let (devices, retained) = run(&state, |workshop| {
+        Ok((workshop.sync_devices()?, workshop.sync_retained_patches()?))
     })
     .await?;
     let devices = {
@@ -351,7 +351,7 @@ async fn forget(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     let forgotten = id.clone();
-    run(&state, move |notebook| notebook.sync_forget_device(&id)).await?;
+    run(&state, move |workshop| workshop.sync_forget_device(&id)).await?;
     state.sync_health.lock().remove(&forgotten);
     Ok(StatusCode::NO_CONTENT)
 }
@@ -429,18 +429,18 @@ mod tests {
 
     /// A hub's sync listener with code 4F7K-92QD waiting.
     fn hub(dir: &std::path::Path) -> (AppState, Router) {
-        let notebook = Arc::new(Mutex::new(tessera_core::Notebook::open(dir).unwrap()));
+        let workshop = Arc::new(Mutex::new(tessera_core::Workshop::open(dir).unwrap()));
         let changes = tokio::sync::broadcast::channel(256).0;
         let state = AppState {
             readers: None,
             library: crate::library::Library::start(
-                notebook.clone(),
+                workshop.clone(),
                 changes.clone(),
                 crate::library::extract,
             )
             .unwrap(),
             objects: crate::state::hub_objects(),
-            notebook,
+            workshop,
             changes,
             assets: None,
             port: 4500,
@@ -471,7 +471,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (state, app) = hub(dir.path());
         let device = state
-            .notebook
+            .workshop
             .lock()
             .sync_pair_device("Fold", "paired-key")
             .unwrap();
@@ -555,7 +555,7 @@ mod tests {
         };
         // A change from before change IDs. The phone's copy must not send it back.
         state
-            .notebook
+            .workshop
             .lock()
             .apply(&page("Written on the Mac"))
             .unwrap();
@@ -571,9 +571,9 @@ mod tests {
         tokio::spawn(async move { axum::serve(listener, app).await });
         let phone_dir = tempfile::tempdir().unwrap();
         let (phone, handles) =
-            crate::embedded_router(tessera_core::Notebook::open(phone_dir.path()).unwrap())
+            crate::embedded_router(tessera_core::Workshop::open(phone_dir.path()).unwrap())
                 .unwrap();
-        let before = handles.notebook.lock().info().unwrap().id;
+        let before = handles.workshop.lock().info().unwrap().id;
         let join = json!({"url": url, "code": "4f7k-92qd", "name": "Phone"});
         assert_eq!(
             request(&phone, "/api/sync/join", None, join.clone())
@@ -594,7 +594,7 @@ mod tests {
             .unwrap();
         assert_eq!(stale.status(), StatusCode::CONFLICT);
         assert_eq!(value(stale).await["error"]["code"], "notebook_changed");
-        let device = state.notebook.lock().sync_devices().unwrap()[0].id.clone();
+        let device = state.workshop.lock().sync_devices().unwrap()[0].id.clone();
         forget(State(state.clone()), Path(device))
             .await
             .unwrap_or_else(|_| panic!("forget failed"));
@@ -603,7 +603,7 @@ mod tests {
             tessera_core::Operation::CreatePage { id, .. } => id.clone(),
             _ => unreachable!(),
         };
-        handles.notebook.lock().apply(&forgotten).unwrap();
+        handles.workshop.lock().apply(&forgotten).unwrap();
         let synced = value(request(&phone, "/api/sync/run", None, json!({})).await).await;
         assert_eq!(synced["replica"]["last_error"]["code"], "unpaired");
         assert_eq!(synced["replica"]["pending"], 1);
@@ -616,7 +616,7 @@ mod tests {
         assert_eq!(again["replica"]["rejected"], 0);
         assert!(again["replica"]["last_error"].is_null());
         assert_eq!(
-            state.notebook.lock().block(&id).unwrap().text,
+            state.workshop.lock().block(&id).unwrap().text,
             "Written after Forget"
         );
     }
@@ -662,7 +662,7 @@ mod tests {
             .await
             .unwrap();
         let other = state
-            .notebook
+            .workshop
             .lock()
             .sync_pair_device("Other", "other-key")
             .unwrap();
@@ -693,7 +693,7 @@ mod tests {
         }
         assert!(
             !state
-                .notebook
+                .workshop
                 .lock()
                 .sync_device_owns_replica(&other.id, &ticket.device_id)
                 .unwrap()

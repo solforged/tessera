@@ -1,14 +1,14 @@
 use tessera_core::library::{ReadingState, SourceFormat, SourceState};
 use tessera_core::{
-    Actor, Batch, Error, Filter, FilterOp, Notebook, Operation, ProjectState, Query, QuerySource,
-    QuestionState, Shelf, TaskState, TaskStatus,
+    Actor, Batch, Error, Filter, FilterOp, Operation, ProjectState, Query, QuerySource,
+    QuestionState, Shelf, TaskState, TaskStatus, Workshop,
 };
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -25,11 +25,11 @@ fn page(value: u128, title: &str) -> Operation {
     }
 }
 
-fn revision(nb: &Notebook, value: u128) -> i64 {
+fn revision(nb: &Workshop, value: u128) -> i64 {
     nb.block(&id(value)).unwrap().revision
 }
 
-fn tag(nb: &mut Notebook, value: u128, title: &str) {
+fn tag(nb: &mut Workshop, value: u128, title: &str) {
     let base_revision = revision(nb, value);
     apply(
         nb,
@@ -41,7 +41,7 @@ fn tag(nb: &mut Notebook, value: u128, title: &str) {
     );
 }
 
-fn keys(nb: &Notebook) -> Vec<(String, String, usize)> {
+fn keys(nb: &Workshop) -> Vec<(String, String, usize)> {
     nb.note_index()
         .unwrap()
         .kinds
@@ -50,7 +50,7 @@ fn keys(nb: &Notebook) -> Vec<(String, String, usize)> {
         .collect()
 }
 
-fn titles(nb: &Notebook, key: &str) -> Vec<String> {
+fn titles(nb: &Workshop, key: &str) -> Vec<String> {
     nb.kind_notes(key)
         .unwrap()
         .notes
@@ -62,7 +62,7 @@ fn titles(nb: &Notebook, key: &str) -> Vec<String> {
 #[test]
 fn notes_file_under_built_in_kinds_capabilities_and_types_you_made() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -213,7 +213,7 @@ fn notes_file_under_built_in_kinds_capabilities_and_types_you_made() {
 #[test]
 fn index_lists_tag_only_types_without_changing_note_counts() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -340,7 +340,7 @@ fn index_lists_tag_only_types_without_changing_note_counts() {
 #[test]
 fn index_shelves_types_you_made_by_what_most_of_their_notes_are() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -362,7 +362,7 @@ fn index_shelves_types_you_made_by_what_most_of_their_notes_are() {
     tag(&mut nb, 6, "Place");
     // A library type shelves with sources even though no member carries a source record.
     tag(&mut nb, 8, "Collection");
-    let source = |nb: &Notebook, value| Operation::SetSource {
+    let source = |nb: &Workshop, value| Operation::SetSource {
         id: id(value),
         base_revision: revision(nb, value),
         source: Some(SourceState {
@@ -414,7 +414,7 @@ fn index_shelves_types_you_made_by_what_most_of_their_notes_are() {
 #[test]
 fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let insert = |value, parent_id: String, after, text: String, heading| Operation::Insert {
         id: id(value),
@@ -551,7 +551,7 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
 #[test]
 fn filing_queue_create_type_and_membership_share_one_batch_and_keep_links() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -601,7 +601,7 @@ fn filing_queue_create_type_and_membership_share_one_batch_and_keep_links() {
 #[test]
 fn type_presentation_defaults_overrides_reset_and_validation() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Book"), page(2, "A book")]);
     tag(&mut nb, 2, "Book");
     let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
@@ -661,7 +661,7 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
 #[test]
 fn capability_kind_counts_finding_aids_and_tables_include_untagged_atoms() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let mut operations = vec![
         page(1, "Workshop"),
         page(2, "Capability-only page"),

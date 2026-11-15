@@ -11,7 +11,7 @@ use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
 use crate::{
     Block, BlockKind, CountsAs, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldRole,
-    FieldsView, Notebook, Operation, Reading, ReadingValue, Result,
+    FieldsView, Operation, Reading, ReadingValue, Result, Workshop,
 };
 
 pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
@@ -588,7 +588,7 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
     Ok(result)
 }
 
-impl Notebook {
+impl Workshop {
     pub fn fields(&self) -> Result<FieldsView> {
         let mut fields: Vec<FieldSummary> = definitions(&self.conn)?
             .into_iter()

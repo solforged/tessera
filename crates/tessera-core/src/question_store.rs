@@ -8,9 +8,9 @@ use crate::calendar::validate_civil_date;
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    AssessmentInfo, AssessmentState, BlockCapabilities, BlockInPage, CurrentReading, Notebook,
-    Operation, QuestionFilter, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,
-    QuestionStatus, Result,
+    AssessmentInfo, AssessmentState, BlockCapabilities, BlockInPage, CurrentReading, Operation,
+    QuestionFilter, QuestionInfo, QuestionQuery, QuestionRow, QuestionState, QuestionStatus,
+    Result, Workshop,
 };
 
 pub fn question_status(state: &QuestionState, accepted_live: bool) -> QuestionStatus {
@@ -428,7 +428,7 @@ fn set_state<T: serde::Serialize + PartialEq>(
     Ok(true)
 }
 
-impl Notebook {
+impl Workshop {
     pub fn questions(&self, query: &QuestionQuery) -> Result<Vec<QuestionRow>> {
         if let Some(date) = &query.review_by {
             validate_civil_date(date)?;

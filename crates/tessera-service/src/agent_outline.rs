@@ -851,7 +851,7 @@ mod tests {
     fn what_read_page_shows_reads_back_as_the_same_blocks() {
         use crate::agent_render::{Clock, Fields, PageContext, render};
         use std::collections::HashMap;
-        use tessera_core::{Actor, Batch, Notebook, Operation};
+        use tessera_core::{Actor, Batch, Operation, Workshop};
 
         // Text, heading and depth, in outline order.
         let rows: [(&str, Option<u8>, usize); 14] = [
@@ -883,7 +883,7 @@ mod tests {
             ("[x] looks done", None, 0),
         ];
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |n: usize| format!("{n:026}");
         let root = id(100);
         let mut operations = vec![Operation::CreatePage {
@@ -952,9 +952,9 @@ mod tests {
     #[test]
     fn a_choice_value_read_page_shows_by_name_reads_back_as_its_option() {
         use crate::agent_render::{Clock, Fields, PageContext, render};
-        use tessera_core::{Actor, AgentEdit, AgentRequest, NoteTarget, Notebook};
+        use tessera_core::{Actor, AgentEdit, AgentRequest, NoteTarget, Workshop};
 
-        fn add(nb: &mut Notebook, title: &str, markdown: &str) -> String {
+        fn add(nb: &mut Workshop, title: &str, markdown: &str) -> String {
             nb.agent_edit(&AgentRequest {
                 actor: Actor::Agent {
                     name: "test".into(),
@@ -973,7 +973,7 @@ mod tests {
             .id
         }
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let original = add(&mut nb, "Attention", "- gloss:: A paper.\n- form:: paper");
         let fields = Fields::from(nb.fields().unwrap());
         let clock = Clock::new(&nb.settings_view(0).unwrap()).unwrap();

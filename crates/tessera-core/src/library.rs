@@ -1,5 +1,5 @@
 //! What an extractor reads from one file or web page. `tessera-ingest`
-//! produces an [`ExtractedDocument`] without touching a notebook; the
+//! produces an [`ExtractedDocument`] without touching a workshop; the
 //! service stores its bytes and resources in the object store and commits it
 //! as a snapshot of a source.
 //!

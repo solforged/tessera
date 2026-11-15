@@ -1,6 +1,6 @@
 import { Show, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { NotebookInfo, ServiceInfo } from '../api/types';
+import type { WorkshopInfo, ServiceInfo } from '../api/types';
 import { MOBILE } from '../core/mode';
 import { size } from '../sync/state';
 import { Button } from '../ui/Button';
@@ -15,7 +15,7 @@ import { shortDate } from './time';
  * printed until asked for; the id and service addresses sit behind Diagnostics, whose body the caller passes.
  */
 export function PhoneAbout(props: {
-  info: NotebookInfo;
+  info: WorkshopInfo;
   service: ServiceInfo | undefined;
   bytes: number | undefined;
   zone: string;

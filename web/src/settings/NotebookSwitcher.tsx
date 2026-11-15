@@ -1,40 +1,40 @@
 import { Show, createSignal } from 'solid-js';
 import { api } from '../api/client';
 import { DEMO, EMBEDDED, MOBILE } from '../core/mode';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { hubDevices, plural, replica, sync } from '../sync/state';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
-import { knownNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook } from './notebooks';
+import { knownWorkshops, workshopLabel, workshopOpening, workshopPlace, openWorkshop } from './notebooks';
 
 /**
  * The sidebar foot names the open workshop and nothing else; how it syncs belongs to the rail's sync mark. Its menu
  * switches workshops and starts pairing; Settings and Fields keep their own icons beside it.
  */
-export function NotebookSwitcher(props: {
-  notebook: NotebookClient;
+export function WorkshopSwitcher(props: {
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget): void;
   onError(reason: unknown): void;
 }) {
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
-  const current = () => knownNotebooks()?.notebooks.find(entry => entry.current);
+  const current = () => knownWorkshops()?.notebooks.find(entry => entry.current);
   const devices = (deviceId?: string | null) => props.onOpen({ kind: 'settings', section: 'devices', deviceId });
   // A workshop whose folder has gone is listed only in Settings, where it can be forgotten.
-  const notebooks = (): MenuItem[] =>
-    (knownNotebooks()?.notebooks ?? [])
+  const workshops = (): MenuItem[] =>
+    (knownWorkshops()?.notebooks ?? [])
       .filter(entry => entry.current || entry.available)
       .map(entry => ({
         section: 'Workshops',
-        label: notebookLabel(entry),
+        label: workshopLabel(entry),
         checked: entry.current,
-        secondary: notebookPlace(entry),
-        disabledReason: entry.current ? undefined : notebookOpening() ? 'A workshop is already opening' : undefined,
+        secondary: workshopPlace(entry),
+        disabledReason: entry.current ? undefined : workshopOpening() ? 'A workshop is already opening' : undefined,
         action: entry.current
           ? undefined
           : () => {
-              void openNotebook(props.notebook, entry.path, false, notebookLabel(entry)).catch(props.onError);
+              void openWorkshop(props.workshop, entry.path, false, workshopLabel(entry)).catch(props.onError);
             },
       }));
   const syncRows = (): MenuItem[] => {
@@ -70,7 +70,7 @@ export function NotebookSwitcher(props: {
     ];
   };
   const items = (): MenuItem[] => [
-    ...notebooks(),
+    ...workshops(),
     ...(EMBEDDED
       ? []
       : [
@@ -89,7 +89,7 @@ export function NotebookSwitcher(props: {
         aria-haspopup="menu"
         aria-expanded={anchor() !== null}
         title={current()?.display_path}
-        aria-label={`Workshop: ${current() ? notebookLabel(current()!) : 'this workshop'}`}
+        aria-label={`Workshop: ${current() ? workshopLabel(current()!) : 'this workshop'}`}
         onClick={event => {
           void sync.refresh();
           setAnchor(event.currentTarget);
@@ -99,7 +99,7 @@ export function NotebookSwitcher(props: {
           class="notebook-switcher-name"
           classList={{ 'notebook-switcher-other': !!current() && !current()!.default }}
         >
-          {current() ? notebookLabel(current()!) : 'Workshop'}
+          {current() ? workshopLabel(current()!) : 'Workshop'}
         </span>
         {/* The foot is too narrow for a chevron beside two icons; the menu is announced by aria-haspopup. */}
       </Button>

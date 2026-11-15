@@ -1,7 +1,7 @@
 use crate::library::*;
 use crate::library_store::{enum_at, json_at, source};
 use crate::storage::{not_found, validation};
-use crate::{FieldKind, Notebook, Operation, Result};
+use crate::{FieldKind, Operation, Result, Workshop};
 use rusqlite::{OptionalExtension, params};
 use std::collections::{HashMap, HashSet};
 
@@ -129,7 +129,7 @@ pub(crate) fn suffix(mut n: usize) -> String {
     bytes.reverse();
     String::from_utf8(bytes).expect("ASCII suffix")
 }
-fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) -> Result<String> {
+fn citation_key(workshop: &Workshop, metadata: &ExtractedMetadata, title: &str) -> Result<String> {
     let creator = metadata
         .creators
         .iter()
@@ -141,7 +141,7 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
                 .find(|c| c.role == CreatorRole::Editor)
         });
     suggested_citation_key(
-        &notebook.conn,
+        &workshop.conn,
         creator.map(|c| c.name.as_str()),
         metadata.site.as_deref(),
         metadata.published.as_deref(),
@@ -233,7 +233,7 @@ fn suggested_citation_key(
 }
 
 pub(crate) struct Planner<'a> {
-    notebook: &'a Notebook,
+    workshop: &'a Workshop,
     pub(crate) operations: Vec<Operation>,
     pages: HashMap<String, (String, i64)>,
     fields: HashMap<String, crate::FieldDefinition>,
@@ -242,14 +242,14 @@ pub(crate) struct Planner<'a> {
     filed_creators: HashSet<String>,
 }
 impl<'a> Planner<'a> {
-    pub(crate) fn new(notebook: &'a Notebook) -> Result<Self> {
-        let fields_page = crate::fields::page_id(&notebook.conn)?
+    pub(crate) fn new(workshop: &'a Workshop) -> Result<Self> {
+        let fields_page = crate::fields::page_id(&workshop.conn)?
             .ok_or_else(|| validation("The Fields register is missing."))?;
-        let fields = crate::fields::definitions(&notebook.conn)?
+        let fields = crate::fields::definitions(&workshop.conn)?
             .into_iter()
             .map(|f| (f.name.to_lowercase(), f))
             .collect();
-        let definition_after = notebook
+        let definition_after = workshop
             .conn
             .query_row(
                 "SELECT id
@@ -262,7 +262,7 @@ impl<'a> Planner<'a> {
             )
             .optional()?;
         Ok(Self {
-            notebook,
+            workshop,
             operations: vec![],
             pages: HashMap::new(),
             fields,
@@ -276,7 +276,7 @@ impl<'a> Planner<'a> {
         if let Some(page) = self.pages.get(&key) {
             return Ok(page.clone());
         }
-        let page = if let Some(page) = self.notebook.page_by_title(title)? {
+        let page = if let Some(page) = self.workshop.page_by_title(title)? {
             (page.id, page.revision)
         } else {
             let id = crate::notebook::new_ulid().to_string();
@@ -325,7 +325,7 @@ impl<'a> Planner<'a> {
                     .get(&crate::storage::title_key(title))
                     .map(|page| page.0.clone())
                     .or_else(|| {
-                        self.notebook
+                        self.workshop
                             .page_by_title(title)
                             .ok()
                             .flatten()
@@ -405,7 +405,7 @@ impl<'a> Planner<'a> {
         if self.filed_creators.contains(id) {
             return Ok(());
         }
-        let typed: bool = self.notebook.conn.query_row(
+        let typed: bool = self.workshop.conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1)",
             [id],
             |row| row.get(0),
@@ -485,7 +485,7 @@ impl<'a> Planner<'a> {
                 }) {
                     continue;
                 }
-                let matches = self.notebook.resolve_name(value)?;
+                let matches = self.workshop.resolve_name(value)?;
                 let page = match matches.as_slice() {
                     [matched] => {
                         let page = self
@@ -548,7 +548,7 @@ impl<'a> Planner<'a> {
                 })
                 .collect();
         let (id, revision) = self.page(title)?;
-        let has: bool = self.notebook.conn.query_row(
+        let has: bool = self.workshop.conn.query_row(
             "SELECT EXISTS(
                  SELECT 1 FROM type_fields
                  WHERE type_id = ?1
@@ -581,7 +581,7 @@ impl<'a> Planner<'a> {
             Ok(!self
                 .pages
                 .contains_key(&crate::storage::title_key(candidate))
-                && self.notebook.page_by_title(candidate)?.is_none())
+                && self.workshop.page_by_title(candidate)?.is_none())
         };
         if available(title)? {
             return Ok(title.into());
@@ -600,7 +600,7 @@ impl<'a> Planner<'a> {
         }
     }
 }
-impl Notebook {
+impl Workshop {
     pub(crate) fn backfill_library_creators(&mut self) -> Result<()> {
         let done: bool = self.conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM settings WHERE key = 'library_creator_targets' AND value = 'true')",

@@ -1,6 +1,6 @@
 use super::common;
 
-use tessera_core::{Actor, Batch, ChangeStamp, DATABASE_FILE, Notebook, Operation};
+use tessera_core::{Actor, Batch, ChangeStamp, DATABASE_FILE, Operation, Workshop};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -43,8 +43,8 @@ fn stamp(n: u128, origin: u128) -> ChangeStamp {
 fn offline_rename_and_tagging_converge_on_one_page_after_exchanging_batches() {
     let a_dir = tempfile::tempdir().unwrap();
     let b_dir = tempfile::tempdir().unwrap();
-    let mut a = Notebook::open(a_dir.path()).unwrap();
-    let mut b = Notebook::open(b_dir.path()).unwrap();
+    let mut a = Workshop::open(a_dir.path()).unwrap();
+    let mut b = Workshop::open(b_dir.path()).unwrap();
     // Book is a protected built-in; Codex exercises the same custom-tag split.
     let seed = batch(vec![
         page(1, "Notes"),
@@ -79,7 +79,7 @@ fn offline_rename_and_tagging_converge_on_one_page_after_exchanging_batches() {
 #[test]
 fn legacy_pipe_titles_and_unrepresentable_live_titles_use_empty_aliases() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let text = format!("#[[A|B]] {}", tag(3, "Old"));
     let receipt = nb
         .apply(&batch(vec![
@@ -105,7 +105,7 @@ fn legacy_pipe_titles_and_unrepresentable_live_titles_use_empty_aliases() {
 #[test]
 fn migration_051_normalizes_existing_live_tags_without_changes_or_missing_pages() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let receipt = nb
         .apply(&batch(vec![
             page(1, "Notes"),
@@ -130,7 +130,7 @@ fn migration_051_normalizes_existing_live_tags_without_changes_or_missing_pages(
         ],
     )
     .unwrap();
-    // A notebook written before 051 holds legacy text in the source and in its card unit.
+    // A workshop written before 051 holds legacy text in the source and in its card unit.
     conn.execute(
         "UPDATE blocks SET text = 'tahâfut >> incoherence #Codex' WHERE id = ?1",
         [id(11)],
@@ -145,7 +145,7 @@ fn migration_051_normalizes_existing_live_tags_without_changes_or_missing_pages(
     conn.execute_batch("ALTER TABLE card_templates DROP COLUMN hint; ALTER TABLE card_templates DROP COLUMN details;").unwrap();
     conn.pragma_update(None, "user_version", 50).unwrap();
     drop(conn);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(
         nb.info().unwrap().schema_version,
         tessera_core::SCHEMA_VERSION
@@ -217,7 +217,7 @@ fn migration_051_normalizes_existing_live_tags_without_changes_or_missing_pages(
 #[test]
 fn check_reports_legacy_and_wrong_memberships_then_repairs_with_rewrite_receipts() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     nb.apply(&batch(vec![
         page(1, "Notes"),
         page(2, "Codex"),
@@ -275,7 +275,7 @@ fn check_reports_legacy_and_wrong_memberships_then_repairs_with_rewrite_receipts
 #[test]
 fn dangling_canonical_tokens_stay_literal_and_never_resolve_by_alias() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let text = format!("{} {}", tag(99, "Codex"), tag(98, ""));
     let receipt = nb
         .apply(&batch(vec![
@@ -297,7 +297,7 @@ fn dangling_canonical_tokens_stay_literal_and_never_resolve_by_alias() {
 #[test]
 fn canonical_builtin_identity_drives_capabilities_and_removal_ignores_alias() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     nb.apply(&batch(vec![
         page(1, "Notes"),
         page(2, "Task"),

@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { BlockText } from './BlockText';
 import './block-tree.css';
@@ -50,7 +50,7 @@ export function blockContextRows(doc: PageDocument, id: string, limit: number): 
 export function BlockTree(props: {
   rows: readonly TreeRow[];
   block(id: string): TreeBlock | undefined;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen?(target: OpenTarget, beside: boolean): void;
   interactive?: boolean;
   highlight?: string;
@@ -83,7 +83,7 @@ export function BlockTree(props: {
               <BlockText
                 text={block()?.text ?? ''}
                 blockId={props.interactive === false ? undefined : row.id}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 onOpen={props.onOpen}
                 interactive={props.interactive}
                 highlight={props.highlight}

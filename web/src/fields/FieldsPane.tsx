@@ -2,7 +2,7 @@ import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { api } from '../api/client';
 import type { FieldKind, FieldSummary, Fields } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../core/contract';
 import { besideHint, opensBeside } from '../core/beside';
 import { typeQuery } from '../table/query';
@@ -20,7 +20,7 @@ import './fields.css';
 interface FieldsPaneProps {
   typeId?: string;
   view: FieldsViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: FieldsViewState): void;
@@ -85,7 +85,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
   createEffect(() => {
     const id = pageId();
     if (!id) return;
-    const document = props.notebook.open(id);
+    const document = props.workshop.open(id);
     setDoc(document);
     onCleanup(() => {
       setDoc(undefined);
@@ -93,7 +93,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     });
   });
   createEffect(() => {
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     retry();
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -462,7 +462,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
                 fieldId={id()}
                 previewKind={previewKind()}
                 inspector
-                notebook={props.notebook}
+                workshop={props.workshop}
                 document={doc()}
                 onPreview={setPreviewKind}
                 onOpen={props.onOpen}

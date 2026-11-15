@@ -3,20 +3,20 @@ use tessera_core::library::{
 };
 use tessera_core::{
     Actor, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, CardQuery,
-    CardSelection, Error, NoteBlock, NoteTarget, Notebook, Operation, TaskPriority, TaskState,
-    TaskStatus,
+    CardSelection, Error, NoteBlock, NoteTarget, Operation, TaskPriority, TaskState, TaskStatus,
+    Workshop,
 };
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let notebook = Notebook::open(dir.path()).unwrap();
-    (dir, notebook)
+    let workshop = Workshop::open(dir.path()).unwrap();
+    (dir, workshop)
 }
-fn seed(notebook: &mut Notebook, operations: Vec<Operation>) {
-    notebook
+fn seed(workshop: &mut Workshop, operations: Vec<Operation>) {
+    workshop
         .apply(&Batch {
             actor: Actor::Person,
             reason: None,
@@ -26,7 +26,7 @@ fn seed(notebook: &mut Notebook, operations: Vec<Operation>) {
         .unwrap();
 }
 /// Page 1 "Dune" with "first" (2) holding "nested" (3), then "second" (4).
-fn dune(notebook: &mut Notebook) {
+fn dune(workshop: &mut Workshop) {
     let insert = |value: u128, parent: u128, after: Option<u128>, text: &str| Operation::Insert {
         id: id(value),
         parent_id: id(parent),
@@ -35,7 +35,7 @@ fn dune(notebook: &mut Notebook) {
         heading: None,
     };
     seed(
-        notebook,
+        workshop,
         vec![
             Operation::CreatePage {
                 id: id(1),
@@ -90,8 +90,8 @@ fn task(status: TaskStatus) -> TaskState {
     }
 }
 /// Each row of the page as indented text, in reading order.
-fn outline(notebook: &Notebook, page_id: &str) -> Vec<String> {
-    notebook
+fn outline(workshop: &Workshop, page_id: &str) -> Vec<String> {
+    workshop
         .page(page_id)
         .unwrap()
         .rows
@@ -99,14 +99,14 @@ fn outline(notebook: &Notebook, page_id: &str) -> Vec<String> {
         .map(|row| format!("{}{}", "  ".repeat(row.depth as usize), row.block.text))
         .collect()
 }
-fn run(notebook: &mut Notebook, request: &AgentRequest) -> AgentReceipt {
-    notebook.agent_edit(request).unwrap()
+fn run(workshop: &mut Workshop, request: &AgentRequest) -> AgentReceipt {
+    workshop.agent_edit(request).unwrap()
 }
-fn undo(notebook: &mut Notebook, seq: i64) -> Result<tessera_core::UndoReceipt, Error> {
-    notebook.undo_change(seq, &Actor::Person)
+fn undo(workshop: &mut Workshop, seq: i64) -> Result<tessera_core::UndoReceipt, Error> {
+    workshop.undo_change(seq, &Actor::Person)
 }
-fn agent_history(notebook: &Notebook) -> Vec<tessera_core::HistoryEntry> {
-    notebook
+fn agent_history(workshop: &Workshop) -> Vec<tessera_core::HistoryEntry> {
+    workshop
         .history(500, None)
         .unwrap()
         .into_iter()
@@ -563,7 +563,7 @@ fn tasks_are_set_completed_and_restored_by_undo() {
             task,
         })
     };
-    let state = |nb: &Notebook| nb.capabilities(&id(4)).unwrap().task;
+    let state = |nb: &Workshop| nb.capabilities(&id(4)).unwrap().task;
     let planned = TaskState {
         scheduled: Some("2026-10-09".into()),
         priority: Some(TaskPriority::High),
@@ -910,7 +910,7 @@ fn hold(card_id: &str, revision: Option<i64>, held: bool) -> AgentRequest {
     })
 }
 
-fn dune_card(nb: &mut Notebook) -> tessera_core::CardUnit {
+fn dune_card(nb: &mut Workshop) -> tessera_core::CardUnit {
     dune(nb);
     run(nb, &edit(&id(4), "front>>back"));
     nb.source_cards(&id(4)).unwrap().remove(0)
@@ -1253,7 +1253,7 @@ fn deck_edit_serde_defaults_and_receipt_compatibility() {
     assert!(older.decks.is_empty());
 }
 
-fn evidence(nb: &mut Notebook, attached: bool) -> (String, Vec<Passage>) {
+fn evidence(nb: &mut Workshop, attached: bool) -> (String, Vec<Passage>) {
     let document = ExtractedDocument {
         format: SourceFormat::Epub,
         media_type: "application/epub+zip".into(),
@@ -2200,14 +2200,14 @@ fn a_keyed_request_sent_again_returns_its_first_receipt_without_writing() {
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.pragma_update(None, "user_version", 54).unwrap();
     drop(conn);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let reopened = nb.agent_edit_keyed(&ask, Some("retry-1")).unwrap();
     assert!(reopened.committed.replayed);
     assert_eq!(reopened.seq, first.seq);
     assert_eq!(agent_history(&nb).len(), 2);
 }
 
-fn kinds(nb: &Notebook, page_id: &str) -> Vec<String> {
+fn kinds(nb: &Workshop, page_id: &str) -> Vec<String> {
     let mut keys: Vec<String> = nb
         .note_kinds(page_id)
         .unwrap()
@@ -2218,7 +2218,7 @@ fn kinds(nb: &Notebook, page_id: &str) -> Vec<String> {
     keys
 }
 
-fn definition(nb: &Notebook, name: &str) -> tessera_core::FieldDefinition {
+fn definition(nb: &Workshop, name: &str) -> tessera_core::FieldDefinition {
     nb.fields()
         .unwrap()
         .fields
@@ -2487,7 +2487,7 @@ fn shorthand_values_a_typed_field_cannot_read_are_refused() {
 #[test]
 fn title_references_link_a_unique_alias_and_refuse_a_shared_one() {
     let (_dir, mut nb) = fixture();
-    let with_alias = |nb: &mut Notebook, title: &str, alias: &str| {
+    let with_alias = |nb: &mut Workshop, title: &str, alias: &str| {
         run(
             nb,
             &note(

@@ -2,8 +2,8 @@ import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
 import type { Operation } from '../api/types';
-import { createNotebookClient } from '../document/index';
-import type { Notebook } from '../document/index';
+import { createWorkshopClient } from '../document/index';
+import type { Workshop } from '../document/index';
 import { startService } from '../testing/service';
 import { ensureField } from '../outline/source-fields';
 import {
@@ -31,15 +31,15 @@ async function eventually(predicate: () => boolean) {
 test('field conversion, repair and option creation each have a single exact undo and redo', async () => {
   const service = await startService({ name: 'fields-command' });
   const { baseUrl, api } = service;
-  let notebook: Notebook | undefined;
+  let workshop: Workshop | undefined;
   try {
-    notebook = createNotebookClient({
+    workshop = createWorkshopClient({
       baseUrl,
-      notebookId: service.workshopId,
+      workshopId: service.workshopId,
       sessionId: ulid(),
       databaseName: `field-commands-${ulid()}`,
     });
-    await notebook.ready;
+    await workshop.ready;
     const register = await api.fields();
     const field = ulid();
     const blank = ulid();
@@ -58,9 +58,9 @@ test('field conversion, repair and option creation each have a single exact undo
         { op: 'insert', id: values[index]!, parent_id: entry, after: null, text: texts[index]!, heading: null },
       );
     }
-    await notebook.commit(operations);
-    const doc = notebook.open(notes[0]!);
-    const definitions = notebook.open(register.page_id);
+    await workshop.commit(operations);
+    const doc = workshop.open(notes[0]!);
+    const definitions = workshop.open(register.page_id);
     try {
       await eventually(() => doc.status() === 'ready' && definitions.status() === 'ready');
       const preview = await api.fieldDetail(field, 'choice');
@@ -71,9 +71,9 @@ test('field conversion, repair and option creation each have a single exact undo
       expect(choicePreview(preview, mappings).problems_total).toBe(0);
       expect(choicePreview(preview, mappings).readable).toHaveLength(3);
       expect(choicePreview(preview, {}).problems_total).toBe(3);
-      const seq = notebook.changeSequence();
-      doc.rememberChange(await changeFieldKind(notebook, preview, mappings));
-      expect(notebook.changeSequence()).toBe(seq + 1);
+      const seq = workshop.changeSequence();
+      doc.rememberChange(await changeFieldKind(workshop, preview, mappings));
+      expect(workshop.changeSequence()).toBe(seq + 1);
       expect((await api.fieldDetail(field)).problems_total).toBe(0);
       expect((await api.block(values[0]!)).text).toBe((await api.block(values[1]!)).text);
       doc.undo();
@@ -86,10 +86,10 @@ test('field conversion, repair and option creation each have a single exact undo
       expect((await api.fieldDetail(field)).problems_total).toBe(0);
       doc.undo();
       await doc.flush();
-      doc.rememberChange(await changeFieldKind(notebook, await api.fieldDetail(field, 'choice'), {}));
+      doc.rememberChange(await changeFieldKind(workshop, await api.fieldDetail(field, 'choice'), {}));
       const problem = await api.fieldDetail(field);
       expect(problem.problems_total).toBe(3);
-      doc.rememberChange(await makeFieldOption(notebook, problem, texts[0]!));
+      doc.rememberChange(await makeFieldOption(workshop, problem, texts[0]!));
       expect((await api.fieldDetail(field)).problems_total).toBe(1);
       doc.undo();
       await doc.flush();
@@ -99,16 +99,16 @@ test('field conversion, repair and option creation each have a single exact undo
       expect((await api.fieldDetail(field)).problems_total).toBe(1);
 
       let pendingValue!: string;
-      const creating = createFieldEntry(notebook, doc, await api.fields(), notes[0]!, 'Pending text', 'text', id => {
+      const creating = createFieldEntry(workshop, doc, await api.fields(), notes[0]!, 'Pending text', 'text', id => {
         pendingValue = id;
       });
-      const firstInput = notebook.queueCreatedValueText(pendingValue, notes[0]!, 'pending accepted valueX');
-      const correctedInput = notebook.queueCreatedValueText(pendingValue, notes[0]!, 'pending accepted value');
+      const firstInput = workshop.queueCreatedValueText(pendingValue, notes[0]!, 'pending accepted valueX');
+      const correctedInput = workshop.queueCreatedValueText(pendingValue, notes[0]!, 'pending accepted value');
       await Promise.all([creating, firstInput, correctedInput]);
       expect((await api.block(pendingValue)).text).toBe('pending accepted value');
       expect((await api.block(pendingValue)).revision).toBe(2);
 
-      const fresh = await createFieldEntry(notebook, doc, await api.fields(), notes[0]!, 'Phase', 'choice');
+      const fresh = await createFieldEntry(workshop, doc, await api.fields(), notes[0]!, 'Phase', 'choice');
       expect(fresh.field.id).not.toBe(blank);
       expect((await api.block(blank)).text).toBe('');
       expect(fresh.field.kind).toBe('choice');
@@ -117,7 +117,7 @@ test('field conversion, repair and option creation each have a single exact undo
       await fresh.change.redo();
       expect((await api.fields()).fields.find(field => field.id === fresh.field.id)?.kind).toBe('choice');
       await createOptionValue(
-        notebook,
+        workshop,
         doc,
         { field: fresh.field, ownerId: notes[0]!, valueId: fresh.value },
         'First option',
@@ -135,7 +135,7 @@ test('field conversion, repair and option creation each have a single exact undo
       expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(0);
       const optionId = (await api.fieldDetail(fresh.field.id)).field.options[0]!.id;
       const childNote = ulid();
-      await notebook.commit([
+      await workshop.commit([
         {
           op: 'insert',
           id: childNote,
@@ -145,9 +145,9 @@ test('field conversion, repair and option creation each have a single exact undo
           heading: null,
         },
       ]);
-      const optionDeletion = await optionImpact(notebook, [await api.block(optionId)], (await api.fields()).fields);
+      const optionDeletion = await optionImpact(workshop, [await api.block(optionId)], (await api.fields()).fields);
       expect(optionDeletion.values.map(value => value.owner)).toEqual([notes[0]!]);
-      const deletedOption = await deleteFieldOptions(notebook, optionDeletion);
+      const deletedOption = await deleteFieldOptions(workshop, optionDeletion);
       expect((await api.block(fresh.value)).text).toBe('First option');
       expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(1);
       expect((await api.block(childNote)).parent_id).toBe(fresh.value);
@@ -157,20 +157,20 @@ test('field conversion, repair and option creation each have a single exact undo
       await deletedOption.redo();
       expect((await api.block(fresh.value)).text).toBe('First option');
       await deletedOption.undo();
-      const detachedChoice = await applyFieldImpact(notebook, await fieldImpact(notebook, fresh.field.id), 'detach');
+      const detachedChoice = await applyFieldImpact(workshop, await fieldImpact(workshop, fresh.field.id), 'detach');
       expect((await api.block(fresh.value)).text).toBe('Phase: First option');
       expect((await api.block(fresh.value)).parent_id).toBe(notes[0]!);
       expect((await api.block(childNote)).parent_id).toBe(fresh.value);
       await detachedChoice.undo();
       expect((await api.block(fresh.value)).text).toBe(`[[${optionId}]]`);
       expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(0);
-      const shorthand = await ensureField(notebook, 'New shorthand field');
+      const shorthand = await ensureField(workshop, 'New shorthand field');
       expect(shorthand.id).not.toBe(blank);
       expect((await api.block(blank)).text).toBe('');
       expect((await api.fields()).fields.every(field => field.name.trim())).toBe(true);
       const templateType = ulid();
-      await notebook.commit([{ op: 'create_page', id: templateType, title: 'Template proof type' }]);
-      const templated = await createTemplateField(notebook, await api.type(templateType), 'Template proof', 'choice');
+      await workshop.commit([{ op: 'create_page', id: templateType, title: 'Template proof type' }]);
+      const templated = await createTemplateField(workshop, await api.type(templateType), 'Template proof', 'choice');
       const [templateField] = (await api.type(templateType)).fields;
       expect((await api.fields()).fields.find(field => field.id === templateField)).toMatchObject({
         name: 'Template proof',
@@ -179,11 +179,11 @@ test('field conversion, repair and option creation each have a single exact undo
       await templated.undo();
       expect((await api.type(templateType)).fields).toEqual([]);
       expect((await api.fields()).fields.some(field => field.id === templateField)).toBe(false);
-      await expect(createTemplateField(notebook, await api.type(templateType), 'phase', 'text')).rejects.toThrow(
+      await expect(createTemplateField(workshop, await api.type(templateType), 'phase', 'text')).rejects.toThrow(
         'already exists',
       );
-      const survivor = (await createFieldEntry(notebook, doc, await api.fields(), notes[0]!, 'Survivor', 'text')).field;
-      await notebook.commit([
+      const survivor = (await createFieldEntry(workshop, doc, await api.fields(), notes[0]!, 'Survivor', 'text')).field;
+      await workshop.commit([
         {
           op: 'edit_text',
           id: values[0]!,
@@ -194,7 +194,7 @@ test('field conversion, repair and option creation each have a single exact undo
       const typeId = ulid();
       const viewId = ulid();
       const secondViewId = ulid();
-      await notebook.commit([
+      await workshop.commit([
         { op: 'create_page', id: typeId, title: 'Schema proof type' },
         { op: 'set_type_fields', type_id: typeId, base_revision: 1, fields: [field] },
         {
@@ -237,10 +237,10 @@ test('field conversion, repair and option creation each have a single exact undo
       const beforeView = await api.view(viewId);
       const beforeSecondView = await api.view(secondViewId);
       const beforeMerge = await api.page(notes[0]!);
-      const previewMerge = await fieldImpact(notebook, field, survivor.id);
+      const previewMerge = await fieldImpact(workshop, field, survivor.id);
       expect(previewMerge.conflicts).toHaveLength(1);
       expect(previewMerge.views.map(view => view.name).sort()).toEqual(['Another field view', 'Field recipe']);
-      const merged = await applyFieldImpact(notebook, previewMerge, 'merge');
+      const merged = await applyFieldImpact(workshop, previewMerge, 'merge');
       expect((await api.fieldDetail(survivor.id)).entries).toHaveLength(4);
       expect((await api.block(values[0]!)).text).toBe('First meaning');
       const mergedView = await api.view(viewId);
@@ -265,24 +265,24 @@ test('field conversion, repair and option creation each have a single exact undo
       );
       expect((await api.view(viewId)).query).toEqual(beforeView.query);
       expect((await api.view(secondViewId)).query).toEqual(beforeSecondView.query);
-      const archived = await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'archive');
+      const archived = await applyFieldImpact(workshop, await fieldImpact(workshop, field), 'archive');
       expect((await api.fieldDetail(field)).field.archived).toBe(true);
       expect((await api.fieldDetail(field)).values_total).toBe(3);
       expect((await api.query((await api.view(viewId)).query)).total).toBe(3);
       await archived.undo();
-      const detached = await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'detach');
+      const detached = await applyFieldImpact(workshop, await fieldImpact(workshop, field), 'detach');
       expect((await api.block(values[0]!)).text).toBe('Strand: First meaning');
       expect((await api.block(values[0]!)).parent_id).toBe(notes[0]!);
       await detached.undo();
       expect((await api.block(values[0]!)).text).toBe('First meaning');
       expect((await api.fieldDetail(field)).entries).toHaveLength(3);
-      await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'archive');
+      await applyFieldImpact(workshop, await fieldImpact(workshop, field), 'archive');
       for (const action of ['detach', 'delete'] as const) {
         const before = await api.page(notes[0]!);
-        const impact = await fieldImpact(notebook, field);
+        const impact = await fieldImpact(workshop, field);
         expect(impact.templates.map(template => template.page.id)).toEqual([typeId]);
         expect(impact.views).toHaveLength(2);
-        const removed = await applyFieldImpact(notebook, impact, action);
+        const removed = await applyFieldImpact(workshop, impact, action);
         expect((await api.view(viewId)).query.field_names).toEqual({ [field]: 'Strand' });
         await expect(api.query((await api.view(viewId)).query)).rejects.toThrow('Field “Strand” is missing');
         await removed.undo();
@@ -299,7 +299,7 @@ test('field conversion, repair and option creation each have a single exact undo
       definitions.release();
     }
   } finally {
-    await notebook?.dispose();
+    await workshop?.dispose();
     await service.stop();
   }
 }, 60000);

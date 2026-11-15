@@ -1,5 +1,5 @@
 import { ApiError } from '../api/client';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 /**
  * A Link also added to the Library: once its import finishes, the captured line becomes a reference to the new
@@ -47,16 +47,16 @@ export function sourceLineText(sourceId: string, title: string | null): string {
   return label ? `[[${sourceId}|${label}]]` : `[[${sourceId}]]`;
 }
 
-export function linkWhenImported(notebook: NotebookClient, pending: PendingLink) {
+export function linkWhenImported(workshop: WorkshopClient, pending: PendingLink) {
   store([...load().filter(entry => entry.job !== pending.job), pending]);
-  void watch(notebook, pending);
+  void watch(workshop, pending);
 }
 
-export function resumeLinkImports(notebook: NotebookClient) {
-  for (const pending of load()) void watch(notebook, pending);
+export function resumeLinkImports(workshop: WorkshopClient) {
+  for (const pending of load()) void watch(workshop, pending);
 }
 
-async function watch(notebook: NotebookClient, pending: PendingLink) {
+async function watch(workshop: WorkshopClient, pending: PendingLink) {
   if (watching.has(pending.job)) return;
   watching.add(pending.job);
   try {
@@ -64,7 +64,7 @@ async function watch(notebook: NotebookClient, pending: PendingLink) {
     for (let delay = 1000; delay < 10 * 60 * 1000; delay = Math.min(delay * 1.5, 30000)) {
       let job;
       try {
-        job = await notebook.api.ingestJob(pending.job);
+        job = await workshop.api.ingestJob(pending.job);
       } catch (reason) {
         if (reason instanceof ApiError && reason.status === 404) break;
         await wait(delay);
@@ -72,7 +72,7 @@ async function watch(notebook: NotebookClient, pending: PendingLink) {
       }
       if (job.state === 'failed') break;
       if (job.state === 'done') {
-        if (job.source_id) await linkLine(notebook, pending, job.source_id);
+        if (job.source_id) await linkLine(workshop, pending, job.source_id);
         break;
       }
       await wait(delay);
@@ -85,12 +85,12 @@ async function watch(notebook: NotebookClient, pending: PendingLink) {
   }
 }
 
-async function linkLine(notebook: NotebookClient, pending: PendingLink, sourceId: string) {
-  const page = await notebook.api.page(pending.pageId);
+async function linkLine(workshop: WorkshopClient, pending: PendingLink, sourceId: string) {
+  const page = await workshop.api.page(pending.pageId);
   const block = page.rows.find(row => row.block.id === pending.blockId)?.block;
   // A line edited or removed since its capture keeps what the writer made of it.
   if (!block || block.archived || block.text !== pending.text) return;
-  await notebook.commit(
+  await workshop.commit(
     [{ op: 'edit_text', id: block.id, base_revision: block.revision, text: sourceLineText(sourceId, pending.title) }],
     'Link to library source',
     [pending.pageId],
@@ -98,9 +98,9 @@ async function linkLine(notebook: NotebookClient, pending: PendingLink, sourceId
 }
 
 /** Waits for an import to finish while someone watches and returns its source: null if it runs long, an error if it fails. */
-export async function importedSource(notebook: NotebookClient, jobId: string, limit = 60000): Promise<string | null> {
+export async function importedSource(workshop: WorkshopClient, jobId: string, limit = 60000): Promise<string | null> {
   for (let waited = 0, delay = 500; waited < limit; waited += delay, delay = Math.min(delay * 1.5, 4000)) {
-    const job = await notebook.api.ingestJob(jobId);
+    const job = await workshop.api.ingestJob(jobId);
     if (job.state === 'done') return job.source_id;
     if (job.state === 'failed') throw new Error(job.error ?? 'The link could not be imported.');
     await wait(delay);

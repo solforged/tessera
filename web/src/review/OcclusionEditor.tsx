@@ -2,9 +2,9 @@ import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMou
 import { Portal } from 'solid-js/web';
 import { ulid } from 'ulid';
 import type { ImageRef, Occlusion, OcclusionMask } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { Button } from '../ui/Button';
-import { NotebookImage } from '../ui/NotebookImage';
+import { WorkshopImage } from '../ui/NotebookImage';
 import { groupLetter } from '../core/card-text';
 import { MaskShape } from './OcclusionFigure';
 import { prepareOcclusionDraft } from './occlusion-draft';
@@ -30,7 +30,7 @@ export function OcclusionEditor(props: {
   image: ImageRef;
   caption: string;
   state: Occlusion | null;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   doc: PageDocument;
   onClose(): void;
 }) {
@@ -385,9 +385,9 @@ export function OcclusionEditor(props: {
         </div>
         <div class="occlusion-stage">
           <div class="occlusion-editor-image" style={{ '--image-ratio': props.image.width / props.image.height }}>
-            <NotebookImage
+            <WorkshopImage
               image={props.image}
-              api={props.notebook.api}
+              api={props.workshop.api}
               alt={props.caption || 'Image'}
               draggable={false}
             />

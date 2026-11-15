@@ -1,7 +1,7 @@
 use tessera_core::library::{
     ExtractedDocument, ExtractedMetadata, ExtractedPassage, PassageKind, PassagePoint, SourceFormat,
 };
-use tessera_core::{Actor, Batch, Committed, Error, Notebook, Operation};
+use tessera_core::{Actor, Batch, Committed, Error, Operation, Workshop};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -14,7 +14,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 fn page(n: u128, title: &str) -> Operation {
@@ -32,12 +32,12 @@ fn child(n: u128, parent: &str, after: Option<u128>, text: &str) -> Operation {
         heading: None,
     }
 }
-fn revision(nb: &Notebook, n: u128) -> i64 {
+fn revision(nb: &Workshop, n: u128) -> i64 {
     nb.block(&id(n)).unwrap().revision
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![

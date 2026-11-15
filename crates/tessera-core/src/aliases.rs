@@ -6,7 +6,7 @@ use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
 
 use crate::library_ingest::Planner;
 use crate::storage::validation;
-use crate::{Actor, Batch, Block, BlockKind, Committed, FieldKind, Notebook, Operation, Result};
+use crate::{Actor, Batch, Block, BlockKind, Committed, FieldKind, Operation, Result, Workshop};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NameMatch {
@@ -166,7 +166,7 @@ pub(crate) fn plan_alias(
     Ok(operations)
 }
 
-impl Notebook {
+impl Workshop {
     /// Alternate names written as top-level Aliases field values, in outline order.
     pub fn page_aliases(&self, page_id: &str) -> Result<Vec<String>> {
         self.alias_page(page_id)?;

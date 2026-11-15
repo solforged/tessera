@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::notebook::{new_ulid, now_ms};
 use crate::storage::validation;
-use crate::{Notebook, Result};
+use crate::{Result, Workshop};
 
 /// The device a pairing code admitted.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
@@ -43,7 +43,7 @@ pub struct HubCredentials {
     pub synced_at: Option<i64>,
 }
 
-impl Notebook {
+impl Workshop {
     /// Register a key minted by the pairing endpoint. Never retain its plaintext.
     pub fn sync_pair_device(&mut self, name: &str, key: &str) -> Result<PairedDevice> {
         let device = PairedDevice {

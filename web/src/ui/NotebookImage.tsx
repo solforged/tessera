@@ -25,8 +25,8 @@ function objectUrl(api: ApiClient, sha: string) {
   return url;
 }
 
-/** Immutable notebook objects retain their layout even while embedded bytes load. */
-export function NotebookImage(
+/** Immutable workshop objects retain their layout even while embedded bytes load. */
+export function WorkshopImage(
   props: { image: ImageRef; api: ApiClient } & Omit<
     JSX.ImgHTMLAttributes<HTMLImageElement>,
     'src' | 'srcset' | 'width' | 'height'

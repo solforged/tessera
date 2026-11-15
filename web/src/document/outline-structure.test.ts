@@ -5,17 +5,17 @@ import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
 import type { Operation } from '../api/types';
 import type { DocumentChange, Edit, PageDocument } from './contract';
-import { createNotebookClient } from './index';
-import type { Notebook } from './index';
+import { createWorkshopClient } from './index';
+import type { Workshop } from './index';
 import { outlineDrop } from '../outline/drag';
 import { selectionRoots } from '../outline/visibility';
 
 const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
-const clients: Notebook[] = [];
+const clients: Workshop[] = [];
 let service: WorkshopService | undefined;
-let notebookId: string;
+let workshopId: string;
 // Real service startup and document loading cannot be driven by fake timers.
 const eventually = async (predicate: () => boolean, message: string) => {
   const deadline = Date.now() + 5000;
@@ -27,7 +27,7 @@ const eventually = async (predicate: () => boolean, message: string) => {
 
 beforeAll(async () => {
   service = await startService({ name: 'outline-structure-tests', port });
-  notebookId = service.workshopId;
+  workshopId = service.workshopId;
 }, 60000);
 afterAll(async () => {
   for (const instance of clients) await instance.dispose();
@@ -35,10 +35,10 @@ afterAll(async () => {
 });
 
 async function fixture() {
-  const instance = createNotebookClient({
+  const instance = createWorkshopClient({
     baseUrl,
     sessionId: ulid(),
-    notebookId,
+    workshopId,
     databaseName: 'tessera-outline-structure-tests',
   });
   clients.push(instance);

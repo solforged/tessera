@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal, createUniqueId, onMount } from 'solid-js';
 import type { NoteKind } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { pendingCaretInput } from '../shell/pending-caret';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
@@ -27,7 +27,7 @@ const gistPrompt: Record<string, (noun: string) => string> = {
 };
 
 export function PageDraft(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   kind: CreateKind;
   noteKind?: NoteKind;
   text: string;
@@ -52,17 +52,17 @@ export function PageDraft(props: {
   const query = () => props.text.trim();
   const [existing] = createResource(
     () => query() || false,
-    async text => ({ title: text, id: await props.notebook.pageByTitle(text, false) }),
+    async text => ({ title: text, id: await props.workshop.pageByTitle(text, false) }),
   );
   // Find's Pages scope combines completion (aliases) and text search (infix titles); titles named inside a longer draft,
   // such as Kitchen renovation in “Is the kitchen renovation worth it?”, come first.
   const [similar] = createResource(
     () => query() || false,
     async text => {
-      const [names, hits] = await Promise.all([props.notebook.api.complete(text, 40), props.notebook.api.search(text)]);
+      const [names, hits] = await Promise.all([props.workshop.api.complete(text, 40), props.workshop.api.search(text)]);
       const folded = ` ${foldName(text).replace(/[^\p{L}\p{N}]+/gu, ' ')} `;
       const rows = new Map<string, { id: string; text: string; alias: string | null }>();
-      for (const page of props.notebook.roots()) {
+      for (const page of props.workshop.roots()) {
         if (page.kind !== 'page' || page.archived) continue;
         const name = foldName(page.text)
           .replace(/[^\p{L}\p{N}]+/gu, ' ')
@@ -81,16 +81,16 @@ export function PageDraft(props: {
   );
   const [type] = createResource(
     () => props.noteKind?.type_id || false,
-    key => props.notebook.api.type(key),
+    key => props.workshop.api.type(key),
   );
   const [recipes] = createResource(
     () => props.noteKind?.type_id || false,
-    async id => (await props.notebook.api.cardTemplates(id)).filter(recipe => recipe.applied),
+    async id => (await props.workshop.api.cardTemplates(id)).filter(recipe => recipe.applied),
   );
   const found = () => (existing.latest?.title === query() ? (existing.latest.id ?? undefined) : undefined);
   const [kinds] = createResource(
     () => found() || false,
-    key => props.notebook.api.noteKinds(key),
+    key => props.workshop.api.noteKinds(key),
   );
   const member = () =>
     !!found() && (props.kind === 'note' || kinds()?.some(kind => kind.key === (props.noteKind?.key ?? props.kind)));
@@ -115,7 +115,7 @@ export function PageDraft(props: {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const pending = pendingCaretInput.prepare();
     try {
-      const { pageId, caretId, caretOffset, created } = await createPageDraft(props.notebook, {
+      const { pageId, caretId, caretOffset, created } = await createPageDraft(props.workshop, {
         kind: props.kind,
         noteKind: props.noteKind,
         text,
@@ -225,7 +225,7 @@ export function PageDraft(props: {
       </Show>
       <Show when={!typePage()}>
         <DraftFields
-          notebook={props.notebook}
+          workshop={props.workshop}
           kind={props.kind}
           fieldIds={type()?.fields ?? []}
           existingId={found()}

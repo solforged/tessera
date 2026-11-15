@@ -1,9 +1,9 @@
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 
 /** Keep accepting the live draft while resolving names, including names added during the lookup. */
 export async function linkedCriteriaDraft(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   initial: string,
   latest: () => string,
 ): Promise<string> {
@@ -13,7 +13,7 @@ export async function linkedCriteriaDraft(
   for (;;) {
     const titles = typedTitles(draft).filter(title => !resolved.has(title));
     if (titles.length) {
-      for (const [name, id] of await titleTargets(notebook, titles)) targets.set(name, id);
+      for (const [name, id] of await titleTargets(workshop, titles)) targets.set(name, id);
       for (const title of titles) resolved.add(title);
     }
     const current = latest();

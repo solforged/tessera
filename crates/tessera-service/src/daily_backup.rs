@@ -3,7 +3,7 @@ use std::sync::{Arc, Weak};
 use std::time::{Duration, SystemTime};
 
 use parking_lot::Mutex;
-use tessera_core::{DATABASE_FILE, Notebook};
+use tessera_core::{DATABASE_FILE, Workshop};
 
 use crate::{AppState, BackupFailure, BackupLock};
 
@@ -29,7 +29,7 @@ impl Drop for Task {
 
 pub(super) fn start(state: &AppState) -> Option<Task> {
     let store = state.backup_store.clone()?;
-    let notebook = Arc::downgrade(&state.notebook);
+    let workshop = Arc::downgrade(&state.workshop);
     let backup = state.backup.clone();
     let mutex = backup.clone();
     let task = tokio::spawn(async move {
@@ -41,16 +41,16 @@ pub(super) fn start(state: &AppState) -> Option<Task> {
         let mut unchanged = None;
         loop {
             ticks.tick().await;
-            if notebook.strong_count() == 0 {
+            if workshop.strong_count() == 0 {
                 break;
             }
             let guard = mutex.clone().lock_owned().await;
-            let notebook = notebook.clone();
+            let workshop = workshop.clone();
             let store = store.clone();
             let seen = unchanged.take();
             let result = tokio::task::spawn_blocking(move || {
                 let mut guard = guard;
-                let result = check(&notebook, &store, seen);
+                let result = check(&workshop, &store, seen);
                 *guard = result.as_ref().err().map(|error| BackupFailure {
                     at: tessera_core::now_ms(),
                     message: error.to_string(),
@@ -77,8 +77,8 @@ fn due(newest: Option<i64>, now: i64) -> bool {
 #[derive(Debug, PartialEq)]
 struct Fingerprint([Option<(u64, SystemTime)>; 2]);
 
-fn fingerprint(notebook: &Path) -> Option<Fingerprint> {
-    let file = |name: String| match std::fs::metadata(notebook.join(name)) {
+fn fingerprint(workshop: &Path) -> Option<Fingerprint> {
+    let file = |name: String| match std::fs::metadata(workshop.join(name)) {
         Ok(metadata) => Some(Some((metadata.len(), metadata.modified().ok()?))),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(None),
         Err(_) => None,
@@ -93,14 +93,14 @@ fn fingerprint(notebook: &Path) -> Option<Fingerprint> {
 /// fingerprint from that check is returned and skips the next snapshot until
 /// something is written.
 fn check(
-    notebook: &Weak<Mutex<Notebook>>,
+    workshop: &Weak<Mutex<Workshop>>,
     store: &Path,
     unchanged: Option<Fingerprint>,
 ) -> tessera_core::Result<Option<Fingerprint>> {
-    let Some(notebook) = notebook.upgrade() else {
+    let Some(workshop) = workshop.upgrade() else {
         return Ok(None);
     };
-    let info = notebook.lock().info()?;
+    let info = workshop.lock().info()?;
     let backups = tessera_core::finished_backups(store, &info.id)?;
     if !due(
         backups.first().map(|(_, manifest)| manifest.created_at),
@@ -134,15 +134,15 @@ mod tests {
     #[test]
     fn automatic_backup_creates_then_skips_a_recent_snapshot() {
         let root = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            Notebook::open(root.path().join("workshop")).unwrap(),
+        let workshop = Arc::new(Mutex::new(
+            Workshop::open(root.path().join("workshop")).unwrap(),
         ));
-        let id = notebook.lock().info().unwrap().id;
+        let id = workshop.lock().info().unwrap().id;
         let store = root.path().join("backups");
-        check(&Arc::downgrade(&notebook), &store, None).unwrap();
+        check(&Arc::downgrade(&workshop), &store, None).unwrap();
         let first = tessera_core::finished_backups(&store, &id).unwrap();
         assert_eq!(first.len(), 1);
-        check(&Arc::downgrade(&notebook), &store, None).unwrap();
+        check(&Arc::downgrade(&workshop), &store, None).unwrap();
         let second = tessera_core::finished_backups(&store, &id).unwrap();
         assert_eq!(second.len(), 1);
         assert_eq!(first[0].0, second[0].0);
@@ -153,11 +153,11 @@ mod tests {
     fn an_unchanged_workshop_is_not_snapshotted_again_until_it_is_written() {
         use std::os::unix::fs::PermissionsExt;
         let root = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            Notebook::open(root.path().join("workshop")).unwrap(),
+        let workshop = Arc::new(Mutex::new(
+            Workshop::open(root.path().join("workshop")).unwrap(),
         ));
-        let weak = Arc::downgrade(&notebook);
-        let id = notebook.lock().info().unwrap().id;
+        let weak = Arc::downgrade(&workshop);
+        let id = workshop.lock().info().unwrap().id;
         let store = root.path().join("backups");
         assert_eq!(check(&weak, &store, None).unwrap(), None);
         // Age the only backup so the next check is due but finds nothing changed.
@@ -181,7 +181,7 @@ mod tests {
         let unchanged = skipped.unwrap();
         assert!(unchanged.is_some());
 
-        notebook
+        workshop
             .lock()
             .apply(&tessera_core::Batch {
                 actor: tessera_core::Actor::Person,

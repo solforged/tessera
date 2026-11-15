@@ -1,23 +1,23 @@
-//! An interrupted invalid import must not replace the current notebook.
+//! An interrupted invalid import must not replace the current workshop.
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use serde_json::{Value, json};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tessera_web::{handle, open};
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
 
 wasm_bindgen_test_configure!(run_in_dedicated_worker);
 
 #[wasm_bindgen_test]
-async fn opening_discards_an_invalid_stage_and_keeps_the_live_notebook() {
+async fn opening_discards_an_invalid_stage_and_keeps_the_live_workshop() {
     let pool = install::<sqlite_wasm_rs::WasmOsCallback>(&OpfsSAHPoolCfg::default(), true)
         .await
         .unwrap();
-    let mut notebook = Notebook::open("/demo").unwrap();
-    let id = notebook.info().unwrap().id;
+    let mut workshop = Workshop::open("/demo").unwrap();
+    let id = workshop.info().unwrap().id;
     let page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-    notebook
+    workshop
         .apply(
             &serde_json::from_value(json!({
                 "actor": {"kind": "person"}, "operations": [
@@ -27,7 +27,7 @@ async fn opening_discards_an_invalid_stage_and_keeps_the_live_notebook() {
             .unwrap(),
         )
         .unwrap();
-    drop(notebook);
+    drop(workshop);
     pool.import_db_unchecked("/demo-restore/notebook.db", b"interrupted import")
         .unwrap();
     pool.import_db_unchecked("/demo-restore/notebook.db-journal", b"partial journal")

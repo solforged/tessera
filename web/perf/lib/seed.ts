@@ -39,7 +39,7 @@ export async function seed(): Promise<Seed> {
           id,
           parent_id: parent,
           after: parent === page.id ? previous : null,
-          text: `Seed ${index}:${row} quiet notebook text`,
+          text: `Seed ${index}:${row} quiet workshop text`,
           heading: null,
         });
         if (parent === page.id) previous = id;

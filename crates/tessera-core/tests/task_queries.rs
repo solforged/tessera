@@ -1,8 +1,8 @@
 use tessera_core::calendar::{RepeatMode, RepeatUnit, Repeater};
 use tessera_core::{
-    Actor, Agenda, AgendaReason, Batch, Committed, DateRange, Error, Filter, FilterOp, Notebook,
-    Operation, ProjectState, ProjectStatus, Query, Revision, TaskFilter, TaskPriority, TaskQuery,
-    TaskQueryResult, TaskSelection, TaskState, TaskStatus,
+    Actor, Agenda, AgendaReason, Batch, Committed, DateRange, Error, Filter, FilterOp, Operation,
+    ProjectState, ProjectStatus, Query, Revision, TaskFilter, TaskPriority, TaskQuery,
+    TaskQueryResult, TaskSelection, TaskState, TaskStatus, Workshop,
 };
 
 fn todo() -> TaskState {
@@ -25,7 +25,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -39,9 +39,9 @@ fn insert(value: u128, parent: u128, text: &str) -> Operation {
     }
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![Operation::CreatePage {
@@ -52,7 +52,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     (dir, nb)
 }
 
-fn set_task(nb: &mut Notebook, value: u128, task: Option<TaskState>) {
+fn set_task(nb: &mut Workshop, value: u128, task: Option<TaskState>) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -64,12 +64,12 @@ fn set_task(nb: &mut Notebook, value: u128, task: Option<TaskState>) {
     );
 }
 
-fn task(nb: &mut Notebook, value: u128, state: TaskState) {
+fn task(nb: &mut Workshop, value: u128, state: TaskState) {
     apply(nb, vec![insert(value, 1, &format!("Task {value}"))]);
     set_task(nb, value, Some(state));
 }
 
-fn complete(nb: &mut Notebook, value: u128, occurrence: u128, date: &str) {
+fn complete(nb: &mut Workshop, value: u128, occurrence: u128, date: &str) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -82,7 +82,7 @@ fn complete(nb: &mut Notebook, value: u128, occurrence: u128, date: &str) {
     );
 }
 
-fn reverse(nb: &mut Notebook, value: u128, occurrence: u128) {
+fn reverse(nb: &mut Workshop, value: u128, occurrence: u128) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -94,7 +94,7 @@ fn reverse(nb: &mut Notebook, value: u128, occurrence: u128) {
     );
 }
 
-fn archive(nb: &mut Notebook, value: u128, archived: bool) {
+fn archive(nb: &mut Workshop, value: u128, archived: bool) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -106,7 +106,7 @@ fn archive(nb: &mut Notebook, value: u128, archived: bool) {
     );
 }
 
-fn project(nb: &mut Notebook, value: u128, state: Option<ProjectState>) {
+fn project(nb: &mut Workshop, value: u128, state: Option<ProjectState>) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -1024,7 +1024,7 @@ fn saved_task_views_validate_revisions_replay_and_execute_after_reload() {
     assert_eq!(updated.revision, 2);
     assert_eq!(updated.created_at, saved.created_at);
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.task_views().unwrap(), vec![updated.clone()]);
     assert_eq!(nb.task_view(&id(100)).unwrap(), updated);
     assert_eq!(ids(nb.task_query(&updated.query).unwrap()), vec![id(10)]);
@@ -1056,7 +1056,7 @@ fn saved_task_views_validate_revisions_replay_and_execute_after_reload() {
     assert!(nb.task_views().unwrap().is_empty());
 }
 
-fn project_field(nb: &mut Notebook) {
+fn project_field(nb: &mut Workshop) {
     let fields = nb.fields().unwrap().page_id;
     apply(
         nb,
@@ -1077,7 +1077,7 @@ fn project_field(nb: &mut Notebook) {
     );
 }
 
-fn link_project(nb: &mut Notebook, task: u128, entry: u128, project: u128) {
+fn link_project(nb: &mut Workshop, task: u128, entry: u128, project: u128) {
     apply(
         nb,
         vec![
@@ -1283,7 +1283,7 @@ fn task_table_project_filter_matches_the_project_task_query() {
     }
     link_project(&mut nb, 22, 100, 12);
     link_project(&mut nb, 23, 110, 10);
-    let table = |nb: &Notebook, project: u128| {
+    let table = |nb: &Workshop, project: u128| {
         let result = nb
             .query(&Query {
                 source: Some(tessera_core::QuerySource::Tasks),

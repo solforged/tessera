@@ -32,11 +32,11 @@ export function createOutlineRelated(
   const [limit, setLimit] = createSignal(100);
   let relatedRequests: AbortController | undefined;
   let countRequest: AbortController | undefined;
-  const relatedVersion = createSettledChanges(props.notebook);
+  const relatedVersion = createSettledChanges(props.workshop);
   const isCollection = createMemo(() => {
     const root = doc.root();
     if (root?.kind !== 'page' || root.source) return false;
-    const collection = props.notebook.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
+    const collection = props.workshop.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
     return typeKeys(root.text, root.manual_types).some(
       key => key === 'collection' || key === collection?.id.toLowerCase(),
     );
@@ -44,7 +44,7 @@ export function createOutlineRelated(
   const version = () =>
     doc.root()?.kind === 'page' && doc.root()?.revision === 0
       ? false
-      : `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
+      : `${props.pageId}:${relatedVersion()}:${props.workshop.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
   const subjects = createMemo(() => {
     doc.outline.version();
     doc.archivedVersion();
@@ -100,12 +100,12 @@ export function createOutlineRelated(
             : undefined,
           doc.root()?.question ? api.questions({ parent: props.pageId }, requests.signal) : Promise.resolve([]),
           collectionPage
-            ? props.notebook.api.library(
+            ? props.workshop.api.library(
                 { collection_id: props.pageId, sort: 'title', direction: 'asc', limit: null },
                 requests.signal,
               )
             : undefined,
-          collectionPage ? props.notebook.api.collectionValues(props.pageId, requests.signal) : [],
+          collectionPage ? props.workshop.api.collectionValues(props.pageId, requests.signal) : [],
         ]);
       const about = [
         ...new Map(aboutSubjects.flatMap(result => result.rows).map(row => [row.block.block.id, row])).values(),
@@ -265,7 +265,7 @@ export function createOutlineRelated(
           id={propsCount.id}
           count={count()}
           version={relatedVersion()}
-          notebook={props.notebook}
+          workshop={props.workshop}
           onOpen={props.onOpen}
         />
       </Show>
@@ -279,7 +279,7 @@ export function createOutlineRelated(
         version={relatedVersion()}
         heading={row.heading}
         enabled={row.id === props.pageId || row.id === zoom() || (countById().get(row.id) ?? 0) > 0}
-        notebook={props.notebook}
+        workshop={props.workshop}
         onOpen={props.onOpen}
       />
     );
@@ -296,7 +296,7 @@ export function createOutlineRelated(
     ([id, , count]) => api.backlinks(id, count),
   );
   function Backlinks(section: { cited?: boolean }) {
-    const work = createWorkTest(props.notebook);
+    const work = createWorkTest(props.workshop);
     const [expanded, setExpanded] = createSignal<boolean>();
     const [shown, setShown] = createSignal(100);
     const scoped = () => !!zoom() && !section.cited;
@@ -361,7 +361,7 @@ export function createOutlineRelated(
           <For each={pages()}>
             {pageId => {
               const group = () => groups().get(pageId)!;
-              const page = createMemo(() => props.notebook.lookup(pageId)() ?? group().page);
+              const page = createMemo(() => props.workshop.lookup(pageId)() ?? group().page);
               const sources = createMemo(() => new Map(group().sources.map(row => [row.source.id, row])));
               const ids = createMemo(() => [...sources().keys()]);
               return (
@@ -370,9 +370,9 @@ export function createOutlineRelated(
                     <Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>
                       {page().kind === 'journal'
                         ? isPhone()
-                          ? journalLabel(page().text, props.notebook.todayDate())
-                          : relativeDate(page().text, props.notebook.todayDate())
-                        : displayTitle(page().text, id => props.notebook.lookup(id))}
+                          ? journalLabel(page().text, props.workshop.todayDate())
+                          : relativeDate(page().text, props.workshop.todayDate())
+                        : displayTitle(page().text, id => props.workshop.lookup(id))}
                     </Button>
                     <span>{ids().length}</span>
                   </h3>
@@ -382,7 +382,7 @@ export function createOutlineRelated(
                         <BacklinkSource
                           block={sources().get(id)!.source}
                           page={group().page}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           onOpen={props.onOpen}
                         />
                         <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>
@@ -390,8 +390,8 @@ export function createOutlineRelated(
                             <Button class="backlink-target" onClick={() => zoomTo(target)}>
                               →{' '}
                               {plainText(
-                                doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '',
-                                reference => props.notebook.lookup(reference),
+                                doc.block(target)?.text ?? props.workshop.lookup(target)()?.text ?? '',
+                                reference => props.workshop.lookup(reference),
                               ) || 'Empty atom'}
                             </Button>
                           )}
@@ -457,7 +457,7 @@ export function createOutlineRelated(
       if (busy()) return;
       setBusy(row.block.id);
       setError('');
-      const source = props.notebook.open(row.page.id);
+      const source = props.workshop.open(row.page.id);
       try {
         await documentReady(source);
         const block = source.block(row.block.id);
@@ -502,7 +502,7 @@ export function createOutlineRelated(
           <For each={ids()}>
             {id => {
               const row = () => rows().get(id)!;
-              const live = props.notebook.lookup(id);
+              const live = props.workshop.lookup(id);
               return (
                 <div class="related-block mention-entry">
                   <div class="mention-body">
@@ -512,12 +512,12 @@ export function createOutlineRelated(
                         props.onOpen({ kind: 'page', pageId: row().page.id, blockId: id }, opensBeside(event))
                       }
                     >
-                      <BlockBreadcrumb block={live() ?? row().block} notebook={props.notebook} />
+                      <BlockBreadcrumb block={live() ?? row().block} workshop={props.workshop} />
                     </Button>
                     <BlockText
                       text={live()?.text ?? row().block.text}
                       blockId={id}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       onOpen={props.onOpen}
                       highlight={row().term}
                     />
@@ -587,14 +587,14 @@ export function createOutlineRelated(
           <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related atoms.</p>}>
             <For each={propsRelated.rows}>
               {result => {
-                const live = props.notebook.lookup(result.block.id);
+                const live = props.workshop.lookup(result.block.id);
                 return (
                   <div
                     class="related-block"
                     data-reading-id={propsRelated.relations ? result.block.id : undefined}
                     data-open-page={result.page.id}
                     data-open-block={result.block.id}
-                    data-open-label={displayTitle(result.page.text, id => props.notebook.lookup(id))}
+                    data-open-label={displayTitle(result.page.text, id => props.workshop.lookup(id))}
                   >
                     <div
                       class="related-open"
@@ -616,11 +616,11 @@ export function createOutlineRelated(
                       }
                     >
                       <span class="related-breadcrumb">
-                        <BlockBreadcrumb block={result.block} notebook={props.notebook} />
+                        <BlockBreadcrumb block={result.block} workshop={props.workshop} />
                       </span>
                       <BlockText
                         text={live()?.text ?? result.block.text}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         interactive={false}
                       />
                     </div>
@@ -637,7 +637,7 @@ export function createOutlineRelated(
                       <IncomingRelations
                         target={result.block.id}
                         version={relatedVersion()}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         onOpen={props.onOpen}
                       />
                     </Show>
@@ -690,7 +690,7 @@ export function createOutlineRelated(
                         onClick={event => props.onOpen({ kind: 'page', pageId: id }, opensBeside(event))}
                       >
                         <span class="collection-source-title">
-                          <BlockText text={row().page.text} notebook={props.notebook} interactive={false} />
+                          <BlockText text={row().page.text} workshop={props.workshop} interactive={false} />
                         </span>
                         <Show when={sourceByline(row())}>
                           {byline => <span class="collection-source-byline">{byline()}</span>}

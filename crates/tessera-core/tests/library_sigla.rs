@@ -1,9 +1,9 @@
-use tessera_core::{Actor, Batch, FieldKind, Notebook, Operation, library::*};
+use tessera_core::{Actor, Batch, FieldKind, Operation, Workshop, library::*};
 
 fn id() -> String {
     ulid::Ulid::generate().to_string()
 }
-fn apply(n: &mut Notebook, operations: Vec<Operation>) {
+fn apply(n: &mut Workshop, operations: Vec<Operation>) {
     n.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -12,7 +12,7 @@ fn apply(n: &mut Notebook, operations: Vec<Operation>) {
     })
     .unwrap();
 }
-fn source(n: &mut Notebook, title: &str) -> String {
+fn source(n: &mut Workshop, title: &str) -> String {
     let id = id();
     apply(
         n,
@@ -36,7 +36,7 @@ fn source(n: &mut Notebook, title: &str) -> String {
     );
     id
 }
-fn insert(n: &mut Notebook, parent: &str, after: Option<String>, text: &str) -> String {
+fn insert(n: &mut Workshop, parent: &str, after: Option<String>, text: &str) -> String {
     let id = id();
     apply(
         n,
@@ -50,7 +50,7 @@ fn insert(n: &mut Notebook, parent: &str, after: Option<String>, text: &str) -> 
     );
     id
 }
-fn field(n: &mut Notebook, owner: &str, name: &str, values: &[&str]) -> Vec<String> {
+fn field(n: &mut Workshop, owner: &str, name: &str, values: &[&str]) -> Vec<String> {
     let fields = n.fields().unwrap();
     let definition = fields
         .fields
@@ -66,7 +66,7 @@ fn field(n: &mut Notebook, owner: &str, name: &str, values: &[&str]) -> Vec<Stri
     }
     ids
 }
-fn edit(n: &mut Notebook, id: &str, text: &str) {
+fn edit(n: &mut Workshop, id: &str, text: &str) {
     apply(
         n,
         vec![Operation::EditText {
@@ -76,7 +76,7 @@ fn edit(n: &mut Notebook, id: &str, text: &str) {
         }],
     );
 }
-fn assert_siglum(n: &Notebook, id: &str, siglum: &str, basis: &str) {
+fn assert_siglum(n: &Workshop, id: &str, siglum: &str, basis: &str) {
     let record = n.source(id).unwrap().source;
     assert_eq!(record.siglum, siglum);
     assert_eq!(record.siglum_basis, basis);
@@ -107,7 +107,7 @@ fn assert_siglum(n: &Notebook, id: &str, siglum: &str, basis: &str) {
 #[test]
 fn authored_siglum_wins_and_uses_the_first_trimmed_case_insensitive_field_value() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "Source title");
     field(&mut n, &source, "Author", &["Karl Popper"]);
     let values = field(&mut n, &source, "sIgLuM", &["  Po  ", "ignored"]);
@@ -140,7 +140,7 @@ fn siglum_defaults_to_three_letters_of_the_first_author_family_name() {
         ("Ana ßab", "SSAB", "SSAB"),
     ] {
         let dir = tempfile::tempdir().unwrap();
-        let mut n = Notebook::open(dir.path()).unwrap();
+        let mut n = Workshop::open(dir.path()).unwrap();
         let source = source(&mut n, "Source title");
         field(&mut n, &source, "aUtHoR", &[author, "Karl Popper"]);
         field(&mut n, &source, "Editor", &["Jane Austen"]);
@@ -151,7 +151,7 @@ fn siglum_defaults_to_three_letters_of_the_first_author_family_name() {
 #[test]
 fn siglum_falls_back_to_editor_then_site_then_title() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "Évidence and meaning");
     assert_siglum(&n, &source, "ÉVI", "ÉVIDENCE");
     field(&mut n, &source, "sItE", &["Philosophy Journal"]);
@@ -167,7 +167,7 @@ fn siglum_falls_back_to_editor_then_site_then_title() {
 #[test]
 fn editing_current_author_values_and_linked_people_changes_the_default_siglum() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "Source title");
     let author = field(&mut n, &source, "Author", &["Karl Popper"]);
     assert_siglum(&n, &source, "POP", "POPPER");
@@ -208,7 +208,7 @@ fn editing_current_author_values_and_linked_people_changes_the_default_siglum() 
 #[test]
 fn siglum_skips_leading_digits_and_never_returns_an_empty_mark_or_basis() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let numbered = source(&mut n, "123 Philosophy");
     assert_siglum(&n, &numbered, "PHI", "PHILOSOPHY");
     field(&mut n, &numbered, "Author", &["123 !!!"]);
@@ -222,7 +222,7 @@ fn siglum_skips_leading_digits_and_never_returns_an_empty_mark_or_basis() {
 #[test]
 fn csl_export_includes_the_effective_citation_label_without_changing_other_formats() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "Source title");
     field(&mut n, &source, "Author", &["Dylan Thomas"]);
     let ids = std::slice::from_ref(&source);
@@ -258,7 +258,7 @@ fn source_records_stored_before_sigla_still_read() {
 #[test]
 fn author_sigla_supply_current_year_and_first_significant_title_initial() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "123 — The Evergreen notes");
     field(&mut n, &source, "Author", &["Andy Matuschak"]);
     let published = field(&mut n, &source, "Published", &["2019-10"]);
@@ -285,7 +285,7 @@ fn author_sigla_supply_current_year_and_first_significant_title_initial() {
 #[test]
 fn author_sigla_omit_unusable_years_and_title_initials() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "123 !!! the and of");
     field(&mut n, &source, "Author", &["Andy Matuschak"]);
     let published = field(&mut n, &source, "Published", &["unknown"]);
@@ -304,7 +304,7 @@ fn author_sigla_omit_unusable_years_and_title_initials() {
 #[test]
 fn authorless_and_authored_sigla_keep_the_original_collision_basis() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let source = source(&mut n, "Evergreen notes");
     field(&mut n, &source, "Editor", &["Andy Matuschak"]);
     field(&mut n, &source, "Published", &["2019-10"]);

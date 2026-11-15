@@ -1,4 +1,4 @@
-//! `tessera check`: verify a notebook and repair its derived tables.
+//! `tessera check`: verify a workshop and repair its derived tables.
 //!
 //! The read-only check runs SQLite's own file and foreign-key checks, derives
 //! every derived table again inside a transaction and compares the result with
@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use crate::notebook::{new_ulid, now_ms};
 use crate::replication::applied_tables;
 use crate::storage::{derive_links, derive_memberships, validation};
-use crate::{Actor, Batch, ChangeStamp, Committed, Notebook, Result, Revision};
+use crate::{Actor, Batch, ChangeStamp, Committed, Result, Revision, Workshop};
 
 /// How many row IDs a difference or violation lists.
 pub const SAMPLE_LIMIT: usize = 20;
@@ -77,7 +77,7 @@ pub struct TableHash {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckReport {
-    /// True when nothing below found a problem, as the notebook was found.
+    /// True when nothing below found a problem, as the workshop was found.
     pub ok: bool,
     /// Messages from `PRAGMA quick_check`; empty for a sound file.
     pub quick_check: Vec<String>,
@@ -245,7 +245,7 @@ const GUARDED: &[&str] = &[
 /// The full-text indexes and what they index.
 const SEARCH_INDEXES: &[&str] = &["blocks_fts", "passages_fts"];
 
-impl Notebook {
+impl Workshop {
     /// Check the database file, the derived tables and the model's
     /// invariants, and hash every replicated table. With `repair`, replace the
     /// derived tables with freshly derived rows in one change by the `check`

@@ -1,5 +1,5 @@
 //! `tessera mcp`: a Model Context Protocol server on stdin and stdout for
-//! agents. Each tool call goes to the running notebook service over its
+//! agents. Each tool call goes to the running workshop service over its
 //! loopback HTTP API, so the service stays the only writer. Messages are
 //! newline-delimited JSON-RPC 2.0; logs go to stderr.
 
@@ -62,10 +62,10 @@ tessera_sync tells whether your edits have reached the workshop's hub. Every wri
 change attributed to you and can be reversed with tessera_undo; tessera_recent_changes lists \
 the workshop history.";
 
-pub async fn serve(notebook: &Path) -> anyhow::Result<()> {
+pub async fn serve(workshop: &Path) -> anyhow::Result<()> {
     let mut lines = tokio::io::BufReader::new(tokio::io::stdin()).split(b'\n');
     let mut stdout = tokio::io::stdout();
-    let mut session = Session::new(notebook);
+    let mut session = Session::new(workshop);
     while let Some(line) = lines.next_segment().await? {
         let Some(response) = session.line(&line).await else {
             continue;
@@ -79,12 +79,12 @@ pub async fn serve(notebook: &Path) -> anyhow::Result<()> {
 }
 
 struct Session<'a> {
-    notebook: &'a Path,
+    workshop: &'a Path,
     /// Attribution for writes, from the client's `initialize` name.
     agent: String,
     /// The protocol version `initialize` settled on.
     version: Option<&'static str>,
-    /// The notebook ID the first tool call reached. The change numbers and IDs
+    /// The workshop ID the first tool call reached. The change numbers and IDs
     /// handed out since belong to it, so no later call may reach another.
     identity: OnceLock<String>,
     /// The current tool call's API, resolved on first use.
@@ -92,9 +92,9 @@ struct Session<'a> {
 }
 
 impl<'a> Session<'a> {
-    fn new(notebook: &'a Path) -> Self {
+    fn new(workshop: &'a Path) -> Self {
         Self {
-            notebook,
+            workshop,
             agent: DEFAULT_AGENT.into(),
             version: None,
             identity: OnceLock::new(),
@@ -319,13 +319,13 @@ impl Session<'_> {
         let api = self
             .api
             .get_or_try_init(|| async {
-                let service = service(self.notebook).await?;
+                let service = service(self.workshop).await?;
                 let first = self.identity.get_or_init(|| service.id.to_string());
                 anyhow::ensure!(
                     first.as_str() == &*service.id,
-                    "{} now holds notebook {}, not notebook {first} that this MCP server started with. \
+                    "{} now holds workshop {}, not workshop {first} that this MCP server started with. \
                      Restart the server to work in it; the change numbers and IDs it gave out belong to the old one.",
-                    self.notebook.display(),
+                    self.workshop.display(),
                     service.id
                 );
                 Ok(Api(service))

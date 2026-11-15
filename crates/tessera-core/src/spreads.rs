@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::fields::reference;
 use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_id, validation};
-use crate::{BlockKind, NoteKind, Notebook, Result, SeeTarget};
+use crate::{BlockKind, NoteKind, Result, SeeTarget, Workshop};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SpreadValue {
@@ -185,7 +185,7 @@ fn mark_shared<'a>(cells: impl Iterator<Item = &'a mut Vec<SpreadValue>>) {
     }
 }
 
-impl Notebook {
+impl Workshop {
     pub(crate) fn saved_spreads(&self) -> Result<Vec<SeeTarget>> {
         Ok(self
             .conn

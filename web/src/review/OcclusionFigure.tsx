@@ -1,7 +1,7 @@
 import { For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
-import { NotebookImage } from '../ui/NotebookImage';
+import type { WorkshopClient } from '../document/contract';
+import { WorkshopImage } from '../ui/NotebookImage';
 import { occlusionSides } from '../core/card-text';
 import type { CardMask } from '../core/card-text';
 import './occlusion.css';
@@ -39,7 +39,7 @@ export function MaskShape(props: { mask: CardMask; class?: string; style?: JSX.C
 export function OcclusionFigure(props: {
   front: string;
   back: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   revealed?: boolean;
   thumbnail?: boolean;
 }) {
@@ -68,9 +68,9 @@ export function OcclusionFigure(props: {
           style={{ '--image-ratio': (value().front.image.width * area().w) / (value().front.image.height * area().h) }}
         >
           <div class="occlusion-crop">
-            <NotebookImage
+            <WorkshopImage
               image={value().front.image}
-              api={props.notebook.api}
+              api={props.workshop.api}
               alt="Image"
               style={{
                 width: `${100 / area().w}%`,

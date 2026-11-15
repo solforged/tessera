@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal } from 'solid-js';
 import type { FieldDefinition, IndexKind, Query } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -16,7 +16,7 @@ export interface SourceQueryControlsProps {
   /** Registry tags with a type page, as the sidebar index lists them. */
   types: readonly IndexKind[];
   fields: readonly FieldDefinition[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   disabled?: boolean;
   sections?: 'all' | 'source' | 'fields';
   onChange(query: Query | null): void;
@@ -77,10 +77,10 @@ export function SourceQueryControls(props: SourceQueryControlsProps) {
         <For each={query().filters}>
           {(filter, index) => (
             <span class="table-chip">
-              {filterLabel(filter, props.fields, props.notebook)}
+              {filterLabel(filter, props.fields, props.workshop)}
               <Button
                 disabled={props.disabled}
-                label={`Remove ${filterLabel(filter, props.fields, props.notebook)}`}
+                label={`Remove ${filterLabel(filter, props.fields, props.workshop)}`}
                 onClick={() => update(removeFilter(query(), index()))}
               >
                 ×
@@ -127,7 +127,7 @@ export function SourceQueryControls(props: SourceQueryControlsProps) {
             <FilterPopup
               anchor={state.anchor}
               fields={props.fields}
-              notebook={props.notebook}
+              workshop={props.workshop}
               initialField=""
               onDismiss={() => setPopup(null)}
               onAdd={filter => {

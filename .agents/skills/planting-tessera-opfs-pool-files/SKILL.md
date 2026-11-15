@@ -21,7 +21,7 @@ and source its prepared environment. Build this checkout's demo assets into
 
 - Plant or restore files only in the verified private profile and owned loopback
   origin from this run. Never attach to a user's browser, production demo or
-  live notebook. Save the origin, profile, logical slot names and before/after
+  live workshop. Save the origin, profile, logical slot names and before/after
   bytes/checksums in `TASK_EVIDENCE`; keep the same origin/profile throughout
   persistence checks.
 - Only touch slots while no worker holds the pool: navigate the tab to a static
@@ -60,7 +60,7 @@ and source its prepared environment. Build this checkout's demo assets into
   only that run's browser/context handles.
 - Locate the Backups section with `section[id^="settings-backups-"]` (a
   role/heading filter also matches the pane section).
-- After a restore Confirm, the page reloads into the restored notebook; it may
+- After a restore Confirm, the page reloads into the restored workshop; it may
   reopen on Settings, so do not wait for `.outline-list`.
 - Retain screenshots, downloaded backups, OPFS/profile state and the recorded
   preview/browser origin/handles in `TASK_EVIDENCE`, then follow shared

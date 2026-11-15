@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import { ulid } from 'ulid';
 import type { FieldDefinition, FieldKind, FieldSummary, Operation, Type } from '../api/types';
-import type { DocumentChange, NotebookClient } from '../document/contract';
+import type { DocumentChange, WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { besideHint, opensBeside } from '../core/beside';
 import { fieldEntryId } from '../core/field-entry';
@@ -31,14 +31,14 @@ interface Filled {
 }
 
 /** Members lacking a template field: owners without a live entry for it, empty entries included as present. */
-async function templateGaps(notebook: NotebookClient, type: Type): Promise<Gap[]> {
+async function templateGaps(workshop: WorkshopClient, type: Type): Promise<Gap[]> {
   if (!type.fields.length || !type.members) return [];
-  const definitions = (await notebook.api.fields()).fields;
+  const definitions = (await workshop.api.fields()).fields;
   const slots = type.fields.filter(
     id => !definitions.some(field => field.id === id && taskFieldName(field) && taskFieldName(field) !== 'project'),
   );
   const query = (filters: { field: string; op: 'present'; value: null }[]) =>
-    notebook.api.query({ type: type.page.id, text: null, filters, sort: [], limit: null });
+    workshop.api.query({ type: type.page.id, text: null, filters, sort: [], limit: null });
   const [members, ...present] = await Promise.all([
     query([]),
     ...slots.map(field => query([{ field, op: 'present', value: null }])),
@@ -59,7 +59,7 @@ async function templateGaps(notebook: NotebookClient, type: Type): Promise<Gap[]
 export function TemplateEditor(props: {
   type: Type;
   fields: readonly FieldDefinition[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onError(message: string): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   pluralName?: string;
@@ -72,8 +72,8 @@ export function TemplateEditor(props: {
   const byId = createMemo(() => new Map(props.fields.map(field => [field.id, field])));
   // The type page has no register of its own; it reads usage once its template is open.
   const [ownSummaries] = createResource(
-    () => !props.register && open() && props.notebook.changeSequence(),
-    () => props.notebook.api.fields(),
+    () => !props.register && open() && props.workshop.changeSequence(),
+    () => props.workshop.api.fields(),
   );
   const summaries = createMemo(
     () => new Map((props.register?.fields ?? ownSummaries()?.fields ?? []).map(field => [field.id, field])),
@@ -87,7 +87,7 @@ export function TemplateEditor(props: {
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
   const [gaps, { refetch }] = createResource(
     () => (props.register || open()) && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`,
-    () => templateGaps(props.notebook, props.type),
+    () => templateGaps(props.workshop, props.type),
   );
   const missing = createMemo(() => (gaps() ?? []).reduce((sum, gap) => sum + gap.fields.length, 0));
   const hasVisibleGap = createMemo(() =>
@@ -125,30 +125,30 @@ export function TemplateEditor(props: {
       const name = edit.text.trim();
       setRenaming(null);
       if (name === field.name) return;
-      remember(`${fieldLabel(field)} renamed to ${name}.`)(await renameField(props.notebook, field, name));
+      remember(`${fieldLabel(field)} renamed to ${name}.`)(await renameField(props.workshop, field, name));
     });
   /** A kind every value already reads as applies in place; otherwise the field page reviews the values first. */
   const changeKind = (field: FieldDefinition, kind: FieldKind, beside: boolean) =>
     run(async () => {
-      const detail = await props.notebook.api.fieldDetail(field.id, kind);
+      const detail = await props.workshop.api.fieldDetail(field.id, kind);
       if (detail.problems_total) {
         props.onOpen({ kind: 'field', fieldId: field.id, previewKind: kind }, beside);
         return;
       }
       remember(`${fieldLabel(field)} is now a ${kindNoun(kind)} field.`)(
-        await changeFieldKind(props.notebook, detail, {}),
+        await changeFieldKind(props.workshop, detail, {}),
       );
     });
   const kindSummary = (field: FieldDefinition) =>
     taskFieldFormat(field) ??
     (field.kind === 'instance'
-      ? `${kindLabels.instance} → ${linksToSummary(props.notebook, field.targets, 'any atom')}`
+      ? `${kindLabels.instance} → ${linksToSummary(props.workshop, field.targets, 'any atom')}`
       : field.kind === 'choice'
         ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}`
         : kindLabels[field.kind]);
   const setFields = (fields: string[]) =>
     run(() =>
-      props.notebook.commit(
+      props.workshop.commit(
         [{ op: 'set_type_fields', type_id: props.type.page.id, base_revision: props.type.page.revision, fields }],
         'Change tag template',
       ),
@@ -162,10 +162,10 @@ export function TemplateEditor(props: {
   /** New entries take their template places among each member's field entries, ahead of its notes. */
   const fill = () =>
     run(async () => {
-      const pending = await templateGaps(props.notebook, props.type);
+      const pending = await templateGaps(props.workshop, props.type);
       const pages = new Map(
         await Promise.all(
-          [...new Set(pending.map(gap => gap.page))].map(async id => [id, await props.notebook.api.page(id)] as const),
+          [...new Set(pending.map(gap => gap.page))].map(async id => [id, await props.workshop.api.page(id)] as const),
         ),
       );
       const operations: Operation[] = [];
@@ -187,7 +187,7 @@ export function TemplateEditor(props: {
         }
       }
       if (!operations.length) return;
-      await props.notebook.commit(operations, 'Fill template fields');
+      await props.workshop.commit(operations, 'Fill template fields');
       setFilled({ entries, owners: pending.length });
       await refetch();
     });
@@ -197,7 +197,7 @@ export function TemplateEditor(props: {
       const done = filled();
       if (!done) return;
       const pages = await Promise.all(
-        [...new Set(done.entries.map(entry => entry.page))].map(id => props.notebook.api.page(id)),
+        [...new Set(done.entries.map(entry => entry.page))].map(id => props.workshop.api.page(id)),
       );
       const rows = new Map(pages.flatMap(page => page.rows.map(row => [row.block.id, row.block] as const)));
       const parents = new Set(pages.flatMap(page => page.rows.map(row => row.block.parent_id)));
@@ -207,7 +207,7 @@ export function TemplateEditor(props: {
           ? [{ op: 'delete' as const, id: entry.id, base_revision: block.revision }]
           : [];
       });
-      if (operations.length) await props.notebook.commit(operations, 'Undo fill template fields');
+      if (operations.length) await props.workshop.commit(operations, 'Undo fill template fields');
       setFilled(null);
       await refetch();
     });
@@ -270,7 +270,7 @@ export function TemplateEditor(props: {
             <div class="template-actions">
               <Button
                 disabled={busy()}
-                onClick={() => void run(() => props.notebook.api.startingTemplate(props.type.page.id))}
+                onClick={() => void run(() => props.workshop.api.startingTemplate(props.type.page.id))}
               >
                 Start from the {props.type.page.text} template
               </Button>
@@ -296,7 +296,7 @@ export function TemplateEditor(props: {
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">Format</th>
-                  <th scope="col" class="template-field-usage" title="Atoms using this field across the notebook">
+                  <th scope="col" class="template-field-usage" title="Atoms using this field across the workshop">
                     Uses
                   </th>
                   <th scope="col">
@@ -483,7 +483,7 @@ export function TemplateEditor(props: {
                 </>
               )}
             </Show>
-            <TypePresentation type={props.type} notebook={props.notebook} onError={props.onError} />
+            <TypePresentation type={props.type} workshop={props.workshop} onError={props.onError} />
           </div>
         </div>
       </Show>
@@ -546,7 +546,7 @@ export function TemplateEditor(props: {
             {field => (
               <LinksToPopup
                 anchor={menu().anchor}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 targets={field().targets}
                 disabled={busy()}
                 onDismiss={() => setLinksMenu(null)}
@@ -554,8 +554,8 @@ export function TemplateEditor(props: {
                   const current = field();
                   setLinksMenu(null);
                   void run(async () =>
-                    remember(`${fieldLabel(current)} links to ${linksToSummary(props.notebook, targets, 'any atom')}.`)(
-                      await setFieldTargets(props.notebook, current, targets),
+                    remember(`${fieldLabel(current)} links to ${linksToSummary(props.workshop, targets, 'any atom')}.`)(
+                      await setFieldTargets(props.workshop, current, targets),
                     ),
                   );
                 }}
@@ -577,7 +577,7 @@ export function TemplateEditor(props: {
             }}
             onCreate={(name, kind) => {
               setPicker(null);
-              void run(() => createTemplateField(props.notebook, props.type, name, kind));
+              void run(() => createTemplateField(props.workshop, props.type, name, kind));
             }}
             onDismiss={() => setPicker(null)}
           />

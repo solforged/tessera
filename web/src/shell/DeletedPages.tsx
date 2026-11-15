@@ -1,5 +1,5 @@
 import { createMemo, createResource, createSignal } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { civilDate, relativeDate } from '../tasks/relative-date';
 import { Picker } from '../ui/Picker';
@@ -8,15 +8,15 @@ import { Icon } from '../ui/Icon';
 /** Recovery reads retained deletion events, not a window-local undo stack. */
 export function DeletedPages(props: {
   anchor: HTMLElement;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onDismiss(): void;
   onRestored(id: string): void;
 }) {
-  const [pages] = createResource(() => props.notebook.api.deletedPages());
+  const [pages] = createResource(() => props.workshop.api.deletedPages());
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const title = (text: string) => displayTitle(text, props.notebook.lookup);
+  const title = (text: string) => displayTitle(text, props.workshop.lookup);
   const matches = createMemo(() => {
     if (pages.error) return [];
     const words = query().trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
@@ -44,7 +44,7 @@ export function DeletedPages(props: {
           <span class="picker-row-title">{title(page.block.text)}</span>
           <span class="muted">
             Deleted{' '}
-            {relativeDate(civilDate(page.deleted_at, props.notebook.settings()?.time_zone), props.notebook.todayDate())}
+            {relativeDate(civilDate(page.deleted_at, props.workshop.settings()?.time_zone), props.workshop.todayDate())}
           </span>
         </>
       )}
@@ -52,7 +52,7 @@ export function DeletedPages(props: {
         if (busy()) return;
         setBusy(true);
         setError('');
-        void props.notebook
+        void props.workshop
           .restorePage(page.block.id)
           .then(() => props.onRestored(page.block.id))
           .catch(reason => {

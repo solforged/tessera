@@ -1,6 +1,6 @@
 use tessera_core::{
-    Actor, Batch, ChangeStamp, Committed, DATABASE_FILE, Error, Notebook, Operation, TaskFilter,
-    TaskQuery, TaskSelection, TaskState, TaskStatus,
+    Actor, Batch, ChangeStamp, Committed, DATABASE_FILE, Error, Operation, TaskFilter, TaskQuery,
+    TaskSelection, TaskState, TaskStatus, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -16,13 +16,13 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![Operation::CreatePage {
@@ -43,7 +43,7 @@ fn insert(value: u128, text: &str) -> Operation {
     }
 }
 
-fn edit(nb: &Notebook, value: u128, text: &str) -> Operation {
+fn edit(nb: &Workshop, value: u128, text: &str) -> Operation {
     Operation::EditText {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,
@@ -51,7 +51,7 @@ fn edit(nb: &Notebook, value: u128, text: &str) -> Operation {
     }
 }
 
-fn set_task(nb: &Notebook, value: u128, task: Option<TaskState>) -> Operation {
+fn set_task(nb: &Workshop, value: u128, task: Option<TaskState>) -> Operation {
     Operation::SetTask {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,

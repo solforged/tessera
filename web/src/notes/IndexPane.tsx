@@ -27,7 +27,7 @@ import type {
 } from '../api/types';
 import { missingFilter } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../core/contract';
 import { displayTitle, plainText, readableText } from '../outline/names';
 import { titleKey } from '../document/title-key';
@@ -79,7 +79,7 @@ interface IndexPaneProps {
   kindKey: string;
   kind: NoteKind | IndexKind | undefined;
   view: IndexViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   neighbour?: boolean;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -121,8 +121,8 @@ const figured = (count: number, noun: string) => (
 /** Past this many rows a phone's list takes letter heads and the jump rail. */
 const phoneLetterRows = 30;
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
-const directoryReads = new WeakMap<NotebookClient, NoteIndex>();
-const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
+const directoryReads = new WeakMap<WorkshopClient, NoteIndex>();
+const kindReads = new WeakMap<WorkshopClient, Map<string, KindIndex>>();
 const noteAttributes = attributeDefinitions('notes');
 
 export function IndexPane(props: IndexPaneProps) {
@@ -133,7 +133,7 @@ export function IndexPane(props: IndexPaneProps) {
       </Match>
       <Match when={props.kindKey === 'question'}>
         <QuestionLedger
-          notebook={props.notebook}
+          workshop={props.workshop}
           onActivate={props.onActivate}
           onOpen={props.onOpen}
           newQuestion={members => <NewKindAction {...props} members={members} />}
@@ -148,13 +148,13 @@ export function IndexPane(props: IndexPaneProps) {
 
 /** A single register lists note kinds and tag-only types in the sidebar's order. */
 export function IndexDirectory(props: IndexPaneProps) {
-  const changes = createSettledChanges(props.notebook);
-  const cached = directoryReads.get(props.notebook);
+  const changes = createSettledChanges(props.workshop);
+  const cached = directoryReads.get(props.workshop);
   const [index] = createResource(
     changes,
     () =>
-      props.notebook.api.noteIndex().then(result => {
-        directoryReads.set(props.notebook, result);
+      props.workshop.api.noteIndex().then(result => {
+        directoryReads.set(props.workshop, result);
         return result;
       }),
     cached ? { initialValue: cached } : {},
@@ -287,7 +287,7 @@ const joinEtAl = (name: string) => name.replace(/\bet al\./g, 'et\u00A0al.');
 
 /** Finding aids share one batched read; Unfiled is a queue, Sources a bibliography. */
 function KindIndexPane(props: IndexPaneProps) {
-  const changes = createSettledChanges(props.notebook);
+  const changes = createSettledChanges(props.workshop);
   // Filing and merging refresh at once rather than after the settle delay.
   const [version, setVersion] = createSignal(0);
   const [letter, setLetter] = createSignal('');
@@ -310,13 +310,13 @@ function KindIndexPane(props: IndexPaneProps) {
     selectionAnchor = undefined;
     setFiled(undefined);
   });
-  const reads = kindReads.get(props.notebook) ?? new Map<string, KindIndex>();
-  kindReads.set(props.notebook, reads);
+  const reads = kindReads.get(props.workshop) ?? new Map<string, KindIndex>();
+  kindReads.set(props.workshop, reads);
   const cached = reads.get(props.kindKey);
   const [index] = createResource(
     () => [props.kindKey, changes(), version()] as const,
     ([key]) =>
-      props.notebook.api.kindNotes(key).then(result => {
+      props.workshop.api.kindNotes(key).then(result => {
         reads.set(key, result);
         return result;
       }),
@@ -325,14 +325,14 @@ function KindIndexPane(props: IndexPaneProps) {
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(
     () => (typeId() ? ([typeId()!, changes(), version()] as const) : false),
-    ([id]) => props.notebook.api.type(id),
+    ([id]) => props.workshop.api.type(id),
   );
   const isCollection = createMemo(() => titleKey(props.kind?.name ?? type()?.page.text ?? '') === 'collection');
   // The bibliography uses the same current-snapshot predicate as Library source menus.
   const [readableSources] = createResource(
     () => (props.kindKey === 'source' ? ([changes(), version()] as const) : false),
     async () => {
-      const result = await props.notebook.api.library({ limit: null });
+      const result = await props.workshop.api.library({ limit: null });
       return new Set(result.rows.filter(row => row.source.current_snapshot_id).map(row => row.page.id));
     },
   );
@@ -342,7 +342,7 @@ function KindIndexPane(props: IndexPaneProps) {
       new Map(
         await Promise.all(
           notes.map(async note => {
-            const result = await props.notebook.api.library({ collection_id: note.id, limit: 0 });
+            const result = await props.workshop.api.library({ collection_id: note.id, limit: 0 });
             return [note.id, result.total] as const;
           }),
         ),
@@ -378,7 +378,7 @@ function KindIndexPane(props: IndexPaneProps) {
   };
   const [definitions] = createResource(
     () => (noteMode() ? [changes()] : false),
-    () => props.notebook.api.fields(),
+    () => props.workshop.api.fields(),
   );
   // Notes lacking a required field: the type counts tagged blocks too, which this index does not list.
   const [incomplete] = createResource(
@@ -392,7 +392,7 @@ function KindIndexPane(props: IndexPaneProps) {
         value.required
           .filter(field => field.missing > 0)
           .map(async required => {
-            const result = await props.notebook.api.query({
+            const result = await props.workshop.api.query({
               type: value.page.id,
               text: null,
               filters: [missingFilter(required.field_id)],
@@ -429,9 +429,9 @@ function KindIndexPane(props: IndexPaneProps) {
         ? ([query(), changes(), version()] as const)
         : false,
     async ([value]) => {
-      const result = await props.notebook.api.query({ ...value, offset: 0, limit: 2000 });
+      const result = await props.workshop.api.query({ ...value, offset: 0, limit: 2000 });
       while (result.rows.length < result.total) {
-        const next = await props.notebook.api.query({ ...value, offset: result.rows.length, limit: 2000 });
+        const next = await props.workshop.api.query({ ...value, offset: result.rows.length, limit: 2000 });
         if (!next.rows.length) break;
         result.rows.push(...next.rows);
       }
@@ -441,12 +441,12 @@ function KindIndexPane(props: IndexPaneProps) {
   const [kindFields] = createResource(
     () => (noteMode() && (groupMenu() || filterMenu()) ? ([props.kindKey, changes()] as const) : false),
     async ([key]) =>
-      (await props.notebook.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields,
+      (await props.workshop.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields,
   );
   const savedViewId = createMemo(() => props.view.viewId);
   const [saved, { mutate: setSaved }] = createResource(
     () => (savedViewId() ? ([savedViewId()!, changes()] as const) : false),
-    ([id]) => props.notebook.api.view(id),
+    ([id]) => props.workshop.api.view(id),
   );
   let observedSaved: View | undefined;
   createEffect(() => {
@@ -466,7 +466,7 @@ function KindIndexPane(props: IndexPaneProps) {
       const next = removeQueryField(query(), id);
       const current = saved();
       if (current) {
-        await props.notebook.commit(
+        await props.workshop.commit(
           [{ op: 'save_view', id: current.id, base_revision: current.revision, name: current.name, query: next }],
           'Remove missing field from view',
         );
@@ -533,7 +533,7 @@ function KindIndexPane(props: IndexPaneProps) {
     setError('');
     try {
       const id = ulid();
-      await props.notebook.api.submit({
+      await props.workshop.api.submit({
         idempotency_key: ulid(),
         actor: { kind: 'client', name: 'tessera-web-index' },
         operations: [{ op: 'save_view', id, base_revision: null, name: viewName().trim(), query: copyQuery(query()) }],
@@ -557,7 +557,7 @@ function KindIndexPane(props: IndexPaneProps) {
   });
   const count = () => display()?.count;
   const summary = (note: NoteEntry) => shown()?.summaries[note.id];
-  const lookup = (id: string) => props.notebook.lookup(id);
+  const lookup = (id: string) => props.workshop.lookup(id);
   const preview = (note: NoteEntry) => readableText(summary(note)?.preview ?? '', lookup);
   // A page entry is titled as its page is; a tagged block entry keeps its tags as words.
   const entryTitle = (note: NoteEntry) =>
@@ -623,7 +623,7 @@ function KindIndexPane(props: IndexPaneProps) {
       return [ids, changes()] as const;
     },
     async ([ids]) =>
-      new Map(await Promise.all(ids.map(async id => [id, await props.notebook.api.capabilities(id)] as const))),
+      new Map(await Promise.all(ids.map(async id => [id, await props.workshop.api.capabilities(id)] as const))),
   );
   const actionReason = (note: NoteEntry, action: 'delete' | 'merge') => {
     const capabilities = actionCapabilities()?.get(note.id);
@@ -783,7 +783,7 @@ function KindIndexPane(props: IndexPaneProps) {
             anchor={anchor()}
             initialField=""
             fields={kindFields() ?? []}
-            notebook={props.notebook}
+            workshop={props.workshop}
             sheet={cover()}
             onDismiss={() => setFilterMenu(undefined)}
             onAdd={filter => {
@@ -892,7 +892,7 @@ function KindIndexPane(props: IndexPaneProps) {
           <NewKindAction
             kindKey={props.kindKey}
             kind={props.kind}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
             onNewAction={props.onNewAction}
             members={index.latest?.notes}
@@ -927,7 +927,7 @@ function KindIndexPane(props: IndexPaneProps) {
               </Button>
             </div>
           </Show>
-          <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery}>
+          <NoteFind query={query()} plural={title()} workshop={props.workshop} onChange={updateQuery}>
             <Button
               class="bordered index-desktop-control"
               aria-haspopup="menu"
@@ -965,7 +965,7 @@ function KindIndexPane(props: IndexPaneProps) {
                     {filterLabel(
                       filter,
                       [...noteAttributes, ...(definitions()?.fields ?? [])],
-                      props.notebook,
+                      props.workshop,
                       query().field_names,
                     )}
                     <Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>
@@ -1376,7 +1376,7 @@ function KindIndexPane(props: IndexPaneProps) {
                         <EmptyKind
                           kindKey={props.kindKey}
                           kind={props.kind}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           onOpen={props.onOpen}
                         />
                       }
@@ -1644,7 +1644,7 @@ function KindIndexPane(props: IndexPaneProps) {
             </Match>
             <Match when={state.kind === 'file'}>
               <FilingPicker
-                notebook={props.notebook}
+                workshop={props.workshop}
                 notes={state.notes ?? [state.note]}
                 anchor={state.anchor}
                 returnFocus={() => noteOpener(state)}
@@ -1654,7 +1654,7 @@ function KindIndexPane(props: IndexPaneProps) {
             </Match>
             <Match when={state.kind === 'rename'}>
               <RenameNote
-                notebook={props.notebook}
+                workshop={props.workshop}
                 note={state.note}
                 anchor={state.anchor}
                 returnFocus={() => noteOpener(state)}
@@ -1663,7 +1663,7 @@ function KindIndexPane(props: IndexPaneProps) {
             </Match>
             <Match when={state.kind === 'merge'}>
               <PageMergePicker
-                notebook={props.notebook}
+                workshop={props.workshop}
                 from={{ id: state.note.id, text: state.note.title }}
                 anchor={state.anchor}
                 returnFocus={() => noteOpener(state)}
@@ -1720,7 +1720,7 @@ function KindIndexPane(props: IndexPaneProps) {
 }
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
-function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'>) {
+function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'workshop' | 'onOpen'>) {
   const mode = () => (props.kind ? startableKinds[props.kindKey] : undefined);
   // A type that only tags blocks has members, just none of them notes; its table lists them.
   const tagged = () =>
@@ -1776,7 +1776,7 @@ function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' |
 }
 
 function NewKindAction(
-  props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen' | 'onNewAction'> & {
+  props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'workshop' | 'onOpen' | 'onNewAction'> & {
     members?: { id: string }[];
     visible?: boolean;
   },
@@ -1816,7 +1816,7 @@ function NewKindAction(
               lockKind: true,
             }}
             anchor={target()}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onDismiss={() => setAnchor(undefined)}
             defaultBeside={
               window.matchMedia('(pointer: coarse)').matches &&
@@ -1836,7 +1836,7 @@ interface FilingChoice {
   create: boolean;
 }
 function FilingPicker(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   notes: NoteEntry[];
   anchor: HTMLElement;
   returnFocus(): HTMLElement | null;
@@ -1846,7 +1846,7 @@ function FilingPicker(props: {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const [types] = createResource(() => props.notebook.api.types());
+  const [types] = createResource(() => props.workshop.api.types());
   const noteIds = new Set(props.notes.map(note => note.id));
   const heading = () =>
     `${props.notes
@@ -1860,7 +1860,7 @@ function FilingPicker(props: {
       .filter(type => !noteIds.has(type.page.id) && titleKey(type.page.text).includes(key))
       .map(type => ({ id: type.page.id, title: type.page.text, create: false }));
     if (text && !result.some(type => titleKey(type.title) === key)) {
-      const existing = props.notebook.roots().find(page => page.kind === 'page' && titleKey(page.text) === key);
+      const existing = props.workshop.roots().find(page => page.kind === 'page' && titleKey(page.text) === key);
       if ((!existing || !noteIds.has(existing.id)) && key !== 'fields')
         result.push({ id: existing?.id ?? 'create', title: existing?.text ?? text, create: !existing });
     }
@@ -1870,7 +1870,7 @@ function FilingPicker(props: {
     if (busy() || types.error) return;
     setBusy(true);
     setError('');
-    const docs = props.notes.map(note => props.notebook.open(note.id));
+    const docs = props.notes.map(note => props.workshop.open(note.id));
     try {
       await Promise.all(
         docs.map(async doc => {
@@ -1878,7 +1878,7 @@ function FilingPicker(props: {
           await doc.flush();
         }),
       );
-      const pages = await Promise.all(props.notes.map(note => props.notebook.api.page(note.id)));
+      const pages = await Promise.all(props.notes.map(note => props.workshop.api.page(note.id)));
       const key = titleKey(choice.title);
       const targets = pages.filter(page => !page.root_manual_types?.some(title => titleKey(title) === key));
       const operations = targets.flatMap((page, index) =>
@@ -1893,7 +1893,7 @@ function FilingPicker(props: {
         props.onDismiss();
         return;
       }
-      const receipt = await props.notebook.commit(
+      const receipt = await props.workshop.commit(
         operations,
         targets.length === 1 ? 'File atom under a tag' : 'File atoms under a tag',
       );
@@ -1907,7 +1907,7 @@ function FilingPicker(props: {
       props.onFiled({
         count: targets.length,
         undo: async () => {
-          await props.notebook.commit(inverse, 'Undo filing atoms');
+          await props.workshop.commit(inverse, 'Undo filing atoms');
         },
       });
     } catch (reason) {
@@ -1957,7 +1957,7 @@ function FilingPicker(props: {
 }
 
 function RenameNote(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   note: NoteEntry;
   anchor: HTMLElement;
   returnFocus(): HTMLElement | null;
@@ -1967,7 +1967,7 @@ function RenameNote(props: {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const collision = () =>
-    props.notebook
+    props.workshop
       .roots()
       .find(
         page => page.kind === 'page' && page.id !== props.note.id && titleKey(page.text) === titleKey(title().trim()),
@@ -1977,7 +1977,7 @@ function RenameNote(props: {
     if (!title().trim() || busy()) return;
     setBusy(true);
     setError('');
-    const doc = props.notebook.open(props.note.id);
+    const doc = props.workshop.open(props.note.id);
     try {
       await documentReady(doc);
       const result = doc.edit({ kind: 'text', id: props.note.id, text: title().trim() });
@@ -1996,7 +1996,7 @@ function RenameNote(props: {
       when={!merge()}
       fallback={
         <PageMergePicker
-          notebook={props.notebook}
+          workshop={props.workshop}
           from={{ id: props.note.id, text: props.note.title }}
           anchor={props.anchor}
           returnFocus={props.returnFocus}

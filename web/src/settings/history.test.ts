@@ -63,7 +63,7 @@ test('history passes the last sequence as an exclusive before cursor', async () 
   expect(String(fetchMock.mock.calls[0]![0])).toBe('http://history.test/api/history?limit=50&before=91');
 });
 
-test('undoChange attributes the undo to the notebook client window', async () => {
+test('undoChange attributes the undo to the workshop client window', async () => {
   const receipt = {
     undone: 91,
     kept_pages: [],

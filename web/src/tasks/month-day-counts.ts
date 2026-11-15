@@ -1,7 +1,7 @@
 import { createEffect, createSignal, onCleanup } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { TaskRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { plannedTaskCounts } from './task-labels';
 import { fetchWeekTaskRange, mondayWeekStart, shiftCalendarDate } from './week-calendar';
 
@@ -35,22 +35,22 @@ export function dayCounts(
   return counts;
 }
 
-const cache = new WeakMap<NotebookClient, Map<string, { sequence: number; today: string; counts: DayCounts }>>();
+const cache = new WeakMap<WorkshopClient, Map<string, { sequence: number; today: string; counts: DayCounts }>>();
 
-/** The visible month's counts: scheduled and deadline rows over the grid's range, shared by notebook revision. */
+/** The visible month's counts: scheduled and deadline rows over the grid's range, shared by workshop revision. */
 async function loadMonthDayCounts(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   month: string,
   today: string,
   signal: AbortSignal,
 ): Promise<DayCounts> {
   const range = monthGridRange(month);
-  const sequence = notebook.changeSequence();
-  const months = cache.get(notebook) ?? new Map();
-  cache.set(notebook, months);
+  const sequence = workshop.changeSequence();
+  const months = cache.get(workshop) ?? new Map();
+  cache.set(workshop, months);
   const kept = months.get(range.from);
   if (kept?.sequence === sequence && kept.today === today) return kept.counts;
-  const query = (value: Parameters<NotebookClient['api']['taskQuery']>[0]) => notebook.api.taskQuery(value, signal);
+  const query = (value: Parameters<WorkshopClient['api']['taskQuery']>[0]) => workshop.api.taskQuery(value, signal);
   const [scheduled, deadlines] = await Promise.all([
     fetchWeekTaskRange(query, 'scheduled', range.from, range.through),
     fetchWeekTaskRange(query, 'deadline', range.from, range.through),
@@ -61,13 +61,13 @@ async function loadMonthDayCounts(
 }
 
 /** Counts for the month a grid shows; the previous month's stay on screen while the next one loads. */
-export function createMonthDayCounts(notebook: Accessor<NotebookClient>, initialDate: string, today: Accessor<string>) {
+export function createMonthDayCounts(workshop: Accessor<WorkshopClient>, initialDate: string, today: Accessor<string>) {
   const [month, setMonth] = createSignal(`${initialDate.slice(0, 7)}-01`);
   const [counts, setCounts] = createSignal<DayCounts>({});
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal('');
   createEffect(() => {
-    const current = notebook(),
+    const current = workshop(),
       visible = month(),
       now = today();
     current.changeSequence();

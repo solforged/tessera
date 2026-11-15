@@ -1,11 +1,11 @@
-use tessera_core::{Actor, Batch, Committed, Notebook, Operation};
+use tessera_core::{Actor, Batch, Committed, Operation, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
 
-fn apply(notebook: &mut Notebook, operations: Vec<Operation>) -> Committed {
-    notebook
+fn apply(workshop: &mut Workshop, operations: Vec<Operation>) -> Committed {
+    workshop
         .apply(&Batch {
             actor: Actor::Person,
             reason: Some("discovery regression".into()),
@@ -32,18 +32,18 @@ fn insert(value: u128, parent: u128, text: &str) -> Operation {
     }
 }
 
-fn archive(notebook: &Notebook, value: u128, archived: bool) -> Operation {
+fn archive(workshop: &Workshop, value: u128, archived: bool) -> Operation {
     Operation::SetArchived {
         id: id(value),
-        base_revision: notebook.block(&id(value)).unwrap().revision,
+        base_revision: workshop.block(&id(value)).unwrap().revision,
         archived,
     }
 }
 
-fn assert_source_discovery(notebook: &Notebook, expected: &[u128], limit: usize) {
+fn assert_source_discovery(workshop: &Workshop, expected: &[u128], limit: usize) {
     let expected: Vec<_> = expected.iter().copied().map(id).collect();
     assert_eq!(
-        notebook
+        workshop
             .search("needle", limit)
             .unwrap()
             .into_iter()
@@ -53,7 +53,7 @@ fn assert_source_discovery(notebook: &Notebook, expected: &[u128], limit: usize)
         "search must filter effective archive state before ranking and limiting"
     );
     assert_eq!(
-        notebook
+        workshop
             .complete("needle", limit)
             .unwrap()
             .into_iter()
@@ -63,7 +63,7 @@ fn assert_source_discovery(notebook: &Notebook, expected: &[u128], limit: usize)
         "FTS completion must filter effective archive state before limiting"
     );
     assert_eq!(
-        notebook
+        workshop
             .members(&id(2), limit)
             .unwrap()
             .into_iter()
@@ -73,7 +73,7 @@ fn assert_source_discovery(notebook: &Notebook, expected: &[u128], limit: usize)
         "members must filter effective archive state before limiting"
     );
     assert_eq!(
-        notebook
+        workshop
             .backlinks(&id(3), limit)
             .unwrap()
             .into_iter()
@@ -87,10 +87,10 @@ fn assert_source_discovery(notebook: &Notebook, expected: &[u128], limit: usize)
 #[test]
 fn archived_leaves_and_ancestors_are_filtered_before_small_limits() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     let text = format!("needle #Marker [[{}]]", id(3));
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![
             page(1, "Notes"),
             page(2, "Marker"),
@@ -101,20 +101,20 @@ fn archived_leaves_and_ancestors_are_filtered_before_small_limits() {
             insert(20, 1, &text),
         ],
     );
-    let operations = vec![archive(&notebook, 10, true), archive(&notebook, 11, true)];
-    apply(&mut notebook, operations);
-    assert!(!notebook.block(&id(12)).unwrap().archived);
-    assert_source_discovery(&notebook, &[20], 1);
-    assert_source_discovery(&notebook, &[20], 100);
+    let operations = vec![archive(&workshop, 10, true), archive(&workshop, 11, true)];
+    apply(&mut workshop, operations);
+    assert!(!workshop.block(&id(12)).unwrap().archived);
+    assert_source_discovery(&workshop, &[20], 1);
+    assert_source_discovery(&workshop, &[20], 100);
 }
 
 #[test]
 fn archived_roots_are_hidden_from_roots_titles_and_source_discovery() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     let text = format!("needle #Marker [[{}]]", id(3));
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![
             page(1, "Prefix A hidden"),
             page(2, "Marker"),
@@ -124,22 +124,22 @@ fn archived_roots_are_hidden_from_roots_titles_and_source_discovery() {
             insert(20, 4, &text),
         ],
     );
-    let operation = archive(&notebook, 1, true);
-    apply(&mut notebook, vec![operation]);
+    let operation = archive(&workshop, 1, true);
+    apply(&mut workshop, vec![operation]);
     assert_eq!(
-        notebook
+        workshop
             .roots()
             .unwrap()
             .into_iter()
             .map(|block| block.id)
             .collect::<Vec<_>>(),
-        vec![notebook.fields().unwrap().page_id, id(2), id(4), id(3)]
+        vec![workshop.fields().unwrap().page_id, id(2), id(4), id(3)]
     );
-    assert_eq!(notebook.complete("prefix", 1).unwrap()[0].block.id, id(4));
-    assert_eq!(notebook.search("prefix", 1).unwrap()[0].block.id, id(4));
-    assert_source_discovery(&notebook, &[20], 1);
-    assert_source_discovery(&notebook, &[20], 100);
-    let view = notebook.page(&id(1)).unwrap();
+    assert_eq!(workshop.complete("prefix", 1).unwrap()[0].block.id, id(4));
+    assert_eq!(workshop.search("prefix", 1).unwrap()[0].block.id, id(4));
+    assert_source_discovery(&workshop, &[20], 1);
+    assert_source_discovery(&workshop, &[20], 100);
+    let view = workshop.page(&id(1)).unwrap();
     assert!(view.root.archived);
     assert_eq!(view.rows[0].block.id, id(10));
     assert!(!view.rows[0].block.archived);
@@ -148,10 +148,10 @@ fn archived_roots_are_hidden_from_roots_titles_and_source_discovery() {
 #[test]
 fn restoration_preserves_archive_and_unarchive_reveals_current_subtree() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     let text = format!("needle #Marker [[{}]]", id(3));
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![
             page(1, "Notes"),
             page(2, "Marker"),
@@ -160,44 +160,44 @@ fn restoration_preserves_archive_and_unarchive_reveals_current_subtree() {
             insert(11, 10, &text),
         ],
     );
-    let operation = archive(&notebook, 10, true);
-    apply(&mut notebook, vec![operation]);
+    let operation = archive(&workshop, 10, true);
+    apply(&mut workshop, vec![operation]);
     let deleted = apply(
-        &mut notebook,
+        &mut workshop,
         vec![Operation::Delete {
             id: id(10),
             base_revision: 2,
         }],
     );
-    assert_source_discovery(&notebook, &[], 1);
+    assert_source_discovery(&workshop, &[], 1);
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![Operation::Restore {
             id: id(10),
             revision: 3,
             deletion_id: deleted.deletions[0].clone(),
         }],
     );
-    assert!(notebook.block(&id(10)).unwrap().archived);
-    assert_source_discovery(&notebook, &[], 1);
-    let operation = archive(&notebook, 10, false);
-    apply(&mut notebook, vec![operation]);
-    assert_source_discovery(&notebook, &[11], 1);
-    let operation = archive(&notebook, 1, true);
-    apply(&mut notebook, vec![operation]);
-    assert_source_discovery(&notebook, &[], 1);
-    let operation = archive(&notebook, 1, false);
-    apply(&mut notebook, vec![operation]);
-    assert_source_discovery(&notebook, &[11], 1);
+    assert!(workshop.block(&id(10)).unwrap().archived);
+    assert_source_discovery(&workshop, &[], 1);
+    let operation = archive(&workshop, 10, false);
+    apply(&mut workshop, vec![operation]);
+    assert_source_discovery(&workshop, &[11], 1);
+    let operation = archive(&workshop, 1, true);
+    apply(&mut workshop, vec![operation]);
+    assert_source_discovery(&workshop, &[], 1);
+    let operation = archive(&workshop, 1, false);
+    apply(&mut workshop, vec![operation]);
+    assert_source_discovery(&workshop, &[11], 1);
 }
 
 #[test]
 fn archived_targets_are_not_discoverable_but_page_keeps_editing_rows_and_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     let text = format!("needle #Marker [[{}]]", id(3));
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![
             page(1, "Notes"),
             page(2, "Marker"),
@@ -207,13 +207,13 @@ fn archived_targets_are_not_discoverable_but_page_keeps_editing_rows_and_targets
             insert(11, 10, "unarchived child"),
         ],
     );
-    let operations = vec![archive(&notebook, 2, true), archive(&notebook, 4, true)];
-    apply(&mut notebook, operations);
-    assert!(notebook.members(&id(2), 1).unwrap().is_empty());
-    assert!(notebook.backlinks(&id(3), 1).unwrap().is_empty());
-    let operations = vec![archive(&notebook, 1, true), archive(&notebook, 10, true)];
-    apply(&mut notebook, operations);
-    let view = notebook.page(&id(1)).unwrap();
+    let operations = vec![archive(&workshop, 2, true), archive(&workshop, 4, true)];
+    apply(&mut workshop, operations);
+    assert!(workshop.members(&id(2), 1).unwrap().is_empty());
+    assert!(workshop.backlinks(&id(3), 1).unwrap().is_empty());
+    let operations = vec![archive(&workshop, 1, true), archive(&workshop, 10, true)];
+    apply(&mut workshop, operations);
+    let view = workshop.page(&id(1)).unwrap();
     assert!(view.root.archived);
     assert_eq!(
         view.rows
@@ -234,10 +234,10 @@ fn archived_targets_are_not_discoverable_but_page_keeps_editing_rows_and_targets
 #[test]
 fn canonical_reference_search_tracks_live_labels_without_rewriting_authored_text() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     let canonical = format!("Canonical [[{}]]", id(2));
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![
             page(1, "Notes"),
             page(2, "Ibn Khaldun"),
@@ -246,67 +246,67 @@ fn canonical_reference_search_tracks_live_labels_without_rewriting_authored_text
             insert(12, 1, &format!("Unresolved [[{}]]", id(3))),
         ],
     );
-    let hits = |notebook: &Notebook, query: &str| {
-        notebook
+    let hits = |workshop: &Workshop, query: &str| {
+        workshop
             .search(query, 100)
             .unwrap()
             .into_iter()
             .map(|row| row.block.id)
             .collect::<Vec<_>>()
     };
-    assert_eq!(hits(&notebook, "Canonical Ibn Khaldun"), [id(10)]);
-    assert!(hits(&notebook, "Aliased Ibn Khaldun").is_empty());
-    assert_eq!(hits(&notebook, "Aliased Historian"), [id(11)]);
+    assert_eq!(hits(&workshop, "Canonical Ibn Khaldun"), [id(10)]);
+    assert!(hits(&workshop, "Aliased Ibn Khaldun").is_empty());
+    assert_eq!(hits(&workshop, "Aliased Historian"), [id(11)]);
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![Operation::EditText {
             id: id(2),
             base_revision: 1,
             text: "Ibn Khaldūn renamed".into(),
         }],
     );
-    assert_eq!(hits(&notebook, "Canonical Ibn Khaldun renamed"), [id(10)]);
-    assert_eq!(notebook.block(&id(10)).unwrap().text, canonical);
-    apply(&mut notebook, vec![page(3, "Plato")]);
-    assert_eq!(hits(&notebook, "Unresolved Plato"), [id(12)]);
+    assert_eq!(hits(&workshop, "Canonical Ibn Khaldun renamed"), [id(10)]);
+    assert_eq!(workshop.block(&id(10)).unwrap().text, canonical);
+    apply(&mut workshop, vec![page(3, "Plato")]);
+    assert_eq!(hits(&workshop, "Unresolved Plato"), [id(12)]);
     let deleted = apply(
-        &mut notebook,
+        &mut workshop,
         vec![Operation::Delete {
             id: id(2),
             base_revision: 2,
         }],
     );
-    assert!(hits(&notebook, "Canonical Ibn").is_empty());
+    assert!(hits(&workshop, "Canonical Ibn").is_empty());
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![Operation::Restore {
             id: id(2),
             revision: 3,
             deletion_id: deleted.deletions[0].clone(),
         }],
     );
-    assert_eq!(hits(&notebook, "Canonical renamed"), [id(10)]);
+    assert_eq!(hits(&workshop, "Canonical renamed"), [id(10)]);
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![Operation::EditText {
             id: id(10),
             base_revision: 1,
             text: "Canonical without a link".into(),
         }],
     );
-    assert!(hits(&notebook, "Canonical renamed").is_empty());
-    drop(notebook);
-    let notebook = Notebook::open(directory.path()).unwrap();
-    assert_eq!(hits(&notebook, "Unresolved Plato"), [id(12)]);
-    assert_eq!(hits(&notebook, "Aliased Historian"), [id(11)]);
+    assert!(hits(&workshop, "Canonical renamed").is_empty());
+    drop(workshop);
+    let workshop = Workshop::open(directory.path()).unwrap();
+    assert_eq!(hits(&workshop, "Unresolved Plato"), [id(12)]);
+    assert_eq!(hits(&workshop, "Aliased Historian"), [id(11)]);
 }
 
 #[test]
 fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![
             page(1, "Notes"),
             page(2, "Other"),
@@ -315,14 +315,14 @@ fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
             insert(12, 1, "hidden 👩🏽‍💻"),
         ],
     );
-    notebook
+    workshop
         .add_alias(&id(2), "Unrelated", Actor::Person)
         .unwrap();
-    let operation = archive(&notebook, 12, true);
-    apply(&mut notebook, vec![operation]);
+    let operation = archive(&workshop, 12, true);
+    apply(&mut workshop, vec![operation]);
     for (query, expected) in [("👩🏽‍💻", 10), ("_", 11), ("*", 11), ("\\", 11)] {
         assert_eq!(
-            notebook
+            workshop
                 .search(query, 20)
                 .unwrap()
                 .iter()
@@ -331,7 +331,7 @@ fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
             vec![id(expected)]
         );
         assert_eq!(
-            notebook
+            workshop
                 .complete(query, 20)
                 .unwrap()
                 .iter()
@@ -340,15 +340,15 @@ fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
             vec![id(expected)]
         );
     }
-    assert!(notebook.search("🦊", 20).unwrap().is_empty());
-    assert!(notebook.complete("🦊", 20).unwrap().is_empty());
-    assert!(notebook.search("", 20).unwrap().is_empty());
+    assert!(workshop.search("🦊", 20).unwrap().is_empty());
+    assert!(workshop.complete("🦊", 20).unwrap().is_empty());
+    assert!(workshop.search("", 20).unwrap().is_empty());
 }
 
 #[test]
 fn page_identity_uses_canonical_unicode_case_folding_without_rewriting_titles() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
     for (index, (title, equivalent)) in [
         ("café", "cafe\u{301}"),
         ("ΟΣ", "οσ"),
@@ -359,18 +359,18 @@ fn page_identity_uses_canonical_unicode_case_folding_without_rewriting_titles() 
     .enumerate()
     {
         let value = index as u128 + 1;
-        apply(&mut notebook, vec![page(value, title)]);
+        apply(&mut workshop, vec![page(value, title)]);
         assert_eq!(
-            notebook.page_by_title(equivalent).unwrap().unwrap().id,
+            workshop.page_by_title(equivalent).unwrap().unwrap().id,
             id(value)
         );
         assert_eq!(
-            notebook.complete(equivalent, 20).unwrap()[0].block.id,
+            workshop.complete(equivalent, 20).unwrap()[0].block.id,
             id(value)
         );
-        assert_eq!(notebook.block(&id(value)).unwrap().text, title);
+        assert_eq!(workshop.block(&id(value)).unwrap().text, title);
         assert!(
-            notebook
+            workshop
                 .apply(&Batch {
                     actor: Actor::Person,
                     reason: None,
@@ -380,11 +380,11 @@ fn page_identity_uses_canonical_unicode_case_folding_without_rewriting_titles() 
                 .is_err()
         );
     }
-    assert!(notebook.page_by_title("cafe").unwrap().is_none());
-    assert_eq!(notebook.page_by_title("ος").unwrap().unwrap().id, id(2));
+    assert!(workshop.page_by_title("cafe").unwrap().is_none());
+    assert_eq!(workshop.page_by_title("ος").unwrap().unwrap().id, id(2));
     apply(
-        &mut notebook,
+        &mut workshop,
         vec![page(10, "Tags"), insert(11, 10, "member #[[οσ]]")],
     );
-    assert_eq!(notebook.members(&id(2), 20).unwrap()[0].block.id, id(11));
+    assert_eq!(workshop.members(&id(2), 20).unwrap()[0].block.id, id(11));
 }

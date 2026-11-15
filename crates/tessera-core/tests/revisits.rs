@@ -1,12 +1,12 @@
 use tessera_core::{
-    Actor, AgentEdit, AgentRequest, Batch, ChangeStamp, Notebook, Operation, QuestionState,
-    RevisitAction, RevisitSnapshot,
+    Actor, AgentEdit, AgentRequest, Batch, ChangeStamp, Operation, QuestionState, RevisitAction,
+    RevisitSnapshot, Workshop,
 };
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -15,9 +15,9 @@ fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
     })
     .unwrap();
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -41,7 +41,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     );
     (dir, nb)
 }
-fn request(nb: &Notebook, value: u128, action: RevisitAction, next: Option<&str>) -> AgentRequest {
+fn request(nb: &Workshop, value: u128, action: RevisitAction, next: Option<&str>) -> AgentRequest {
     AgentRequest {
         actor: Actor::Agent {
             name: "Researcher".into(),
@@ -56,7 +56,7 @@ fn request(nb: &Notebook, value: u128, action: RevisitAction, next: Option<&str>
     }
 }
 fn revisit(
-    nb: &mut Notebook,
+    nb: &mut Workshop,
     value: u128,
     action: RevisitAction,
     next: Option<&str>,
@@ -86,7 +86,7 @@ fn due_queue_orders_inline_questions_and_notes_and_survives_reopening() {
             .is_none()
     );
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(
         nb.revisits("2026-10-12", tessera_core::now_ms()).unwrap(),
         rows
@@ -325,7 +325,7 @@ fn ordinary_blocks_cannot_revisit_and_restore_is_revision_checked() {
 #[test]
 fn revisits_that_change_nothing_are_refused_without_a_history_entry() {
     let (_dir, mut nb) = fixture();
-    let refused = |nb: &mut Notebook, value, action, reason: &str| {
+    let refused = |nb: &mut Workshop, value, action, reason: &str| {
         let before = nb.history(500, None).unwrap().len();
         let ask = request(nb, value, action, None);
         match nb.agent_edit(&ask) {

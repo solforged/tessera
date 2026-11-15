@@ -1,4 +1,4 @@
-use tessera_core::{Actor, Batch, BlockKind, Committed, Error, Notebook, Operation};
+use tessera_core::{Actor, Batch, BlockKind, Committed, Error, Operation, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -11,8 +11,8 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(notebook: &mut Notebook, operations: Vec<Operation>) -> Committed {
-    notebook.apply(&batch(operations)).unwrap()
+fn apply(workshop: &mut Workshop, operations: Vec<Operation>) -> Committed {
+    workshop.apply(&batch(operations)).unwrap()
 }
 fn page(value: u128, title: &str) -> Operation {
     Operation::CreatePage {
@@ -57,13 +57,13 @@ fn restore(value: u128, revision: i64, deletion: &str) -> Operation {
         revision,
     }
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let notebook = Notebook::open(dir.path()).unwrap();
-    (dir, notebook)
+    let workshop = Workshop::open(dir.path()).unwrap();
+    (dir, workshop)
 }
-fn rows(notebook: &Notebook, root: u128) -> Vec<(String, u32, String)> {
-    notebook
+fn rows(workshop: &Workshop, root: u128) -> Vec<(String, u32, String)> {
+    workshop
         .page(&id(root))
         .unwrap()
         .rows
@@ -386,7 +386,7 @@ fn idempotent_replay_survives_reopen_and_mismatch_is_rejected() {
     request.idempotency_key = Some("request-1".into());
     let first = nb.apply(&request).unwrap();
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     request.actor = Actor::Agent {
         name: "retry".into(),
     };
@@ -847,7 +847,7 @@ fn written_journals_require_visible_nonempty_descendant_text() {
             insert(20, 2, None, " \t\n\u{2003} "),
         ],
     );
-    let written = |nb: &Notebook| {
+    let written = |nb: &Workshop| {
         nb.written_journal_dates("2026-10-01", "2026-10-31")
             .unwrap()
     };
@@ -926,7 +926,7 @@ fn written_journal_ranges_include_endpoints_and_reject_invalid_bounds() {
 #[test]
 fn a_stale_after_re_anchors_moves_and_inserts_instead_of_refusing() {
     let (_dir, mut nb) = fixture();
-    let ids = |nb: &Notebook, root: u128| -> Vec<(String, u32)> {
+    let ids = |nb: &Workshop, root: u128| -> Vec<(String, u32)> {
         rows(nb, root)
             .into_iter()
             .map(|row| (row.0, row.1))

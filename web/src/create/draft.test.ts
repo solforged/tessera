@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, FieldDefinition } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { draftFieldOperations, draftFieldRows } from './draft';
 
 const block = (id: string, parent_id: string, text: string, archived = false): Block => ({
@@ -16,7 +16,7 @@ const block = (id: string, parent_id: string, text: string, archived = false): B
   updated_at: 0,
 });
 const role: FieldDefinition = { id: 'role', name: 'Role', kind: 'text', revision: 1, options: [], targets: [] };
-const notebook = {} as NotebookClient;
+const workshop = {} as WorkshopClient;
 
 describe('creation field writes', () => {
   test('keeps existing values even when an earlier duplicate entry is empty', async () => {
@@ -27,12 +27,12 @@ describe('creation field writes', () => {
       block('value', 'entry', 'Researcher'),
     ];
     expect(draftFieldRows(rows, 'page', 'role').filled).toBe(true);
-    expect(await draftFieldOperations(notebook, 'page', rows, [role], { role: { text: 'Writer' } }, null)).toEqual([]);
+    expect(await draftFieldOperations(workshop, 'page', rows, [role], { role: { text: 'Writer' } }, null)).toEqual([]);
   });
 
   test('fills an empty value in place with its revision guard', async () => {
     const rows = [block('entry', 'page', '[[role]]'), block('blank', 'entry', '  ')];
-    expect(await draftFieldOperations(notebook, 'page', rows, [role], { role: { text: 'Writer' } }, 'entry')).toEqual([
+    expect(await draftFieldOperations(workshop, 'page', rows, [role], { role: { text: 'Writer' } }, 'entry')).toEqual([
       { op: 'edit_text', id: 'blank', base_revision: 3, text: 'Writer' },
     ]);
   });
@@ -40,7 +40,7 @@ describe('creation field writes', () => {
   test('does not revive or overwrite archived entries', async () => {
     const rows = [block('entry', 'page', '[[role]]', true), block('value', 'entry', 'Researcher')];
     const operations = await draftFieldOperations(
-      notebook,
+      workshop,
       'page',
       rows,
       [role],
@@ -55,7 +55,7 @@ describe('creation field writes', () => {
   test('creates a relation page and its type in the same batch as its value', async () => {
     const field = { ...role, kind: 'instance' as const };
     const operations = await draftFieldOperations(
-      notebook,
+      workshop,
       'page',
       [],
       [field],
@@ -77,7 +77,7 @@ describe('creation field writes', () => {
   test('reuses a choice option created after the draft was opened', async () => {
     const field = { ...role, kind: 'choice' as const, options: [{ id: 'option', text: 'Writer' }] };
     const operations = await draftFieldOperations(
-      notebook,
+      workshop,
       'page',
       [],
       [field],

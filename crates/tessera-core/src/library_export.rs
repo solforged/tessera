@@ -3,7 +3,7 @@ use crate::library::{
 };
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validation};
-use crate::{Notebook, Reading, ReadingValue, Result};
+use crate::{Reading, ReadingValue, Result, Workshop};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
@@ -42,7 +42,7 @@ pub(crate) fn field_readings_with_people(
             "author" => CreatorRole::Author,
             "editor" => CreatorRole::Editor,
             "translator" => CreatorRole::Translator,
-            // The notebook's own creator fields, such as director, read as authors here.
+            // The workshop's own creator fields, such as director, read as authors here.
             _ if tier == Some(crate::built_in::CreatorTier::Creator) => CreatorRole::Author,
             _ => return,
         };
@@ -280,7 +280,7 @@ fn markdown_notes(output: &mut String, block: &str, children: &NoteChildren) {
         }
     }
 }
-impl Notebook {
+impl Workshop {
     /// Export every matching source, independently of the query's display limit.
     pub fn export_query(
         &self,
@@ -316,7 +316,7 @@ impl Notebook {
         let mut bib = String::new();
         let mut csl = vec![];
         let mut readings_by_source = field_readings(&self.conn, ids)?;
-        // Fields of the notebook's own that count as creator or contributor, by the CSL role closest to their
+        // Fields of the workshop's own that count as creator or contributor, by the CSL role closest to their
         // name: a `director` exports as director, any other creator as author.
         let extra_roles: Vec<(String, &str)> = crate::fields::definitions(&self.conn)?
             .into_iter()
