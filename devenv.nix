@@ -36,11 +36,12 @@ let
     ];
   };
 
-  # Must match the major version of the Chrome for Testing build that
-  # ts-demo-test runs. CI passes the runner's own driver in CHROMEDRIVER.
+  # Must match the major version of the Chrome for Testing build that the
+  # locked playwright-core installs, which ts-demo-test runs. CI passes the
+  # runner's own driver in CHROMEDRIVER.
   chromedriver = pkgs.fetchzip {
-    url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/mac-arm64/chromedriver-mac-arm64.zip";
-    hash = "sha256-VumWeOfl/SEk8+SdS2WOXd6zh5vCyfHrKy2SRFzV/b0=";
+    url = "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/mac-arm64/chromedriver-mac-arm64.zip";
+    hash = "sha256-kOggEFoRpeWD7B7BBrS4AU5VUAe1VQ8ZbrHmO4kz67E=";
     postFetch = ''
       mkdir -p $out/bin
       mv $out/chromedriver $out/bin/

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { Block } from '../src/api/types';
 import { focus, load } from './correctness';
+import { chromePath } from './lib/chrome';
 
 interface Frame {
   functionName: string;
@@ -44,12 +45,7 @@ const root = import.meta.dir;
 const phase = process.env.PROFILE_PHASE ?? 'before';
 const url = process.env.OUTLINE_URL ?? 'http://127.0.0.1:4340';
 const service = process.env.TESSERA_SERVICE ?? 'http://127.0.0.1:4340';
-const chrome =
-  process.env.CHROME_PATH ??
-  join(
-    process.env.HOME!,
-    'Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
-  );
+const chrome = chromePath();
 const output = join(root, 'results');
 await mkdir(output, { recursive: true });
 if (phase === 'before')
