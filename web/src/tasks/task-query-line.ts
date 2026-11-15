@@ -79,8 +79,8 @@ function unquote(text: string): string {
   }
   return value;
 }
-const titleValue = (text: string) => text.slice(2, -2).replace(/\\([\\\[\]"])/g, '$1');
-const titleTerm = (title: string) => `[[${title.replace(/[\\\[\]]/g, '\\$&')}]]`;
+const titleValue = (text: string) => text.slice(2, -2).replace(/\\([\\[\]"])/g, '$1');
+const titleTerm = (title: string) => `[[${title.replace(/[\\[\]]/g, '\\$&')}]]`;
 
 function parseRange(text: string, contextDate: string): { range: DateRange | null; error?: string } {
   const edges = text.split('..');
@@ -201,7 +201,7 @@ export function formatTaskQueryLine(query: TaskQuery, ctx: TaskQueryLineContext)
   if (query.filter.priority) terms.push(`priority:${query.filter.priority}`);
   if (query.source?.type) {
     const title = ctx.typeTitle(query.source.type) ?? query.source.type;
-    terms.push(/[\[\]"\\\s]/.test(title) ? `#${titleTerm(title)}` : `#${title}`);
+    terms.push(/[[\]"\\\s]/.test(title) ? `#${titleTerm(title)}` : `#${title}`);
   }
   if (query.filter.project_id)
     terms.push(titleTerm(ctx.projectTitle(query.filter.project_id) ?? query.filter.project_id));

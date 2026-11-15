@@ -19,6 +19,29 @@ url = "https://dl.google.com/android/repository/commandlinetools-mac_arm64-16111
 [tools.android-sdk."platforms.macos-x64"]
 url = "https://dl.google.com/android/repository/commandlinetools-mac_x86_64-16111833_latest.zip"
 
+[[tools.biome]]
+version = "2.5.15"
+backend = "aqua:biomejs/biome"
+specifiers = ["2.5.15"]
+
+[tools.biome."platforms.linux-arm64"]
+checksum = "sha256:a56bcd73ddbfdb0f57a82bb67b7ea698eed4027aff602b95aa18fafe919d59e0"
+url = "https://github.com/biomejs/biome/releases/download/%40biomejs/biome%402.5.15/biome-linux-arm64"
+url_api = "https://api.github.com/repos/biomejs/biome/releases/assets/601227632"
+provenance = "github-attestations"
+
+[tools.biome."platforms.linux-x64"]
+checksum = "sha256:5d867a0b2ccea1755b7e508b01d836a8c64e31a1e4d11ec24b43b6b4eec8b3b6"
+url = "https://github.com/biomejs/biome/releases/download/%40biomejs/biome%402.5.15/biome-linux-x64"
+url_api = "https://api.github.com/repos/biomejs/biome/releases/assets/601227626"
+provenance = "github-attestations"
+
+[tools.biome."platforms.macos-arm64"]
+checksum = "sha256:3636796d8c78bfcfe0d45946dc93e21e12d27a49eba7401e18af1ea854d25503"
+url = "https://github.com/biomejs/biome/releases/download/%40biomejs/biome%402.5.15/biome-darwin-arm64"
+url_api = "https://api.github.com/repos/biomejs/biome/releases/assets/601227628"
+provenance = "github-attestations"
+
 [[tools.bun]]
 version = "1.4.3"
 backend = "core:bun"

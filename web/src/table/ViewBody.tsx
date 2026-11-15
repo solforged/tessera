@@ -2,7 +2,7 @@ import { opensBeside, listOpensBeside } from '../shell/beside';
 import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import { scrollBehavior } from '../shell/motion';
 import type { JSX } from 'solid-js';
-import type { FieldDefinition, PositionRow, Query, QueryGroup, QueryResult, QueryRow } from '../api/types';
+import type { PositionRow, Query, QueryGroup, QueryResult, QueryRow } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { CriteriaMatrix } from '../compare/CriteriaMatrix';

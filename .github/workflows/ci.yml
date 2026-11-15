@@ -137,8 +137,15 @@ jobs:
         with:
           version: 2026.10.1
 
+      - name: Format and lint
+        run: mise run web:lint
+
       - name: Typecheck and build
         run: mise run web:build
+
+      # Builds the debug service first: the document tests save through it.
+      - name: Test
+        run: mise run web:test
 
   # The rules' own tests, the prose in docs, skills and UI copy, and the
   # messages of the pull request's commits. Only Vale is installed.

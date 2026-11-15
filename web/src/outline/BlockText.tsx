@@ -345,9 +345,7 @@ function TokenText(props: Props) {
                     data-source-start={token.start}
                     data-source-end={token.end}
                     data-reference={isStableReference(token) ? token.id : undefined}
-                    data-citation={
-                      !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) ? '' : undefined
-                    }
+                    data-citation={citationSources()?.has(token.id!) && (token.alias || token.locator) ? '' : undefined}
                     data-locator={token.locator}
                     aria-label={token.matches ? `“${token.id}” names ${token.matches.length} atoms` : undefined}
                     aria-haspopup={token.matches ? 'menu' : undefined}

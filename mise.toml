@@ -11,6 +11,8 @@ bun = "1.4"
 "github:WebAssembly/binaryen" = { version = "133", version_prefix = "version_" }
 # Checks prose against .vale.ini; 3.25 reads JSX text for the UI copy check.
 vale = "3.25"
+# Formats and lints the editor by web/biome.json, whose $schema names this version.
+biome = "2.5.15"
 
 [tasks.deps]
 description = "Install the web dependencies"
@@ -28,8 +30,9 @@ sources = ["web/src/**/*", "web/public/**/*", "web/index.html", "web/package.jso
 outputs = ["web/dist/index.html"]
 run = "bun run --cwd web build"
 
-# The document tests drive a real service. They start target/debug/tessera, so
-# it is built first and never stale; TESSERA_TEST_BINARY names another build.
+# The document tests drive a real service. They start the debug tessera in
+# Cargo's target directory, so it is built first and never stale;
+# TESSERA_TEST_BINARY names another build.
 [tasks."web:test"]
 description = "Run the editor's tests against a freshly built service"
 depends = ["deps"]
@@ -60,8 +63,16 @@ depends = ["web:build"]
 run = "cargo run -p tessera-cli -- --workshop .tessera/dev serve --port 4320 --assets web/dist"
 
 [tasks.fmt]
-description = "Format the Rust code"
-run = "cargo fmt --all"
+description = "Format the Rust code and the editor"
+run = """
+cargo fmt --all
+cd web && biome format --write .
+"""
+
+[tasks."web:lint"]
+description = "Check the editor's formatting and lint rules with Biome"
+dir = "web"
+run = "biome ci ."
 
 [tasks.lint]
 description = "Check formatting and run Clippy on the workspace"
@@ -76,7 +87,7 @@ run = "cargo test --workspace --locked"
 
 [tasks.check]
 description = "Run the checks a change must pass"
-depends = ["lint", "test", "web:test", "web:build", "docs:test", "docs:lint"]
+depends = ["lint", "test", "web:lint", "web:test", "web:build", "docs:test", "docs:lint"]
 
 [tasks.bench]
 description = "Run the backend benchmarks; arguments go to tessera-bench"

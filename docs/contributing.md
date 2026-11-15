@@ -101,21 +101,27 @@ open.
 
 | Command                                                      | Check                                                                                       |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| `mise run check`                                             | Formatting, Clippy, Rust and editor tests, the editor build, and the two prose checks below. |
+| `mise run check`                                             | Formatting, Clippy and Biome, Rust and editor tests, the editor build, and the prose checks. |
 | `mise run docs:lint`                                         | Vale on `README.md`, `CHANGELOG.md`, `docs/`, `.agents/skills/` and the editor's UI copy.   |
 | `mise run docs:test`                                         | The Vale rules' own test cases, with every rule required to fire in at least one.          |
 | `mise run commit:lint`                                       | Commit messages from `origin/main` to `HEAD` against the commit convention.                 |
-| `mise run fmt`                                               | Formats Rust code.                                                                          |
+| `mise run web:lint`                                          | Biome's format check and lint rules on the editor, from `web/biome.json`.                   |
+| `mise run fmt`                                               | Formats the Rust code with `rustfmt` and the editor with Biome.                             |
 | `mise run wire`                                              | Rewrites `web/src/api/wire.ts` from the Rust wire types.                                    |
 | `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                         |
 
 [CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
-macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint`,
-`cli:test`, the prose checks and `commit:lint` over the pull request's commits.
-It does not run `web:test` yet: the document tests time out on its Linux
-runners. `web:test` builds the debug command line first, because those tests
-save through a real service. Set `TESSERA_TEST_BINARY` to test against another
-build. Its backend job runs 50,000-row correctness and scaling checks with
+macOS, plus `web:lint`, `web:build`, `web:test`, `demo:lint`, `demo:test`,
+`android:lint`, `cli:lint`, `cli:test`, the prose checks and `commit:lint` over
+the pull request's commits.
+
+`web:test` builds the debug command line first, because the document tests
+save through a real service. Each test file starts its own through
+`web/src/testing/service.ts`, on a free port and a temporary workshop, so two
+checkouts can run the tests at once. Set `TESSERA_TEST_BINARY` to test against
+another build.
+
+The backend job runs 50,000-row correctness and scaling checks with
 `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
 shared runners report them but gate only on correctness and no-per-row-work
 checks.

@@ -50,10 +50,10 @@ describe('slash completion tokens', () => {
   });
 
   test('caps the raw query at 24 characters including its trailing space', () => {
-    expect(atEnd('/' + 'a'.repeat(24))).toEqual({ from: 0, to: 25, query: 'a'.repeat(24) });
-    expect(atEnd('/' + 'a'.repeat(23) + ' ')?.query).toBe('a'.repeat(23) + ' ');
-    expect(atEnd('/' + 'a'.repeat(25))).toBeNull();
-    expect(atEnd('/' + 'a'.repeat(24) + ' ')).toBeNull();
+    expect(atEnd(`/${'a'.repeat(24)}`)).toEqual({ from: 0, to: 25, query: 'a'.repeat(24) });
+    expect(atEnd(`/${'a'.repeat(23)} `)?.query).toBe(`${'a'.repeat(23)} `);
+    expect(atEnd(`/${'a'.repeat(25)}`)).toBeNull();
+    expect(atEnd(`/${'a'.repeat(24)} `)).toBeNull();
   });
 
   test('leaves whole-block field shorthand ahead of completion but accepts card and cloze markup', () => {
@@ -182,7 +182,7 @@ describe('next cloze number', () => {
   });
 
   test('ignores escaped clozes and clozes inside references or code', () => {
-    const text = String.raw`\{{c90::escaped}} [[source|{{c80::reference}}]] ` + '`{{c70::code}}` {{c2::real}}';
+    const text = `${String.raw`\{{c90::escaped}} [[source|{{c80::reference}}]] `}\`{{c70::code}}\` {{c2::real}}`;
     expect(nextClozeNumber(text)).toBe(3);
     expect(nextClozeNumber('```md\n{{c50::code}}\n```\n{{c4::real}}')).toBe(5);
     expect(nextClozeNumber('~~~md\n{{c50::code}}\n~~~\n{{c4::real}}')).toBe(5);

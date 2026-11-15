@@ -26,7 +26,7 @@ export function quoteTarget(text: string): string | null {
 export function textTokens(text: string): Token[] {
   const result: Token[] = [];
   const pattern =
-    /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_/-])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
+    /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_/-])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^[\]\r\n]+)\]\((?=https?:\/\/)/giu;
   let offset = 0;
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     const start = match.index;
@@ -102,7 +102,7 @@ export function textTokens(text: string): Token[] {
     const view = match[1]?.match(/^view:([0-7][0-9A-HJKMNP-TV-Z]{25})$/);
     const title = match[3] ?? match[4] ?? '';
     const canonical = /^([0-7][0-9A-HJKMNP-TV-Z]{25})\|([\s\S]*)$/.exec(title);
-    const invalidTag = title.includes('[') || (!!canonical && /[\[\]|\r\n]/.test(canonical[2]!));
+    const invalidTag = title.includes('[') || (!!canonical && /[[\]|\r\n]/.test(canonical[2]!));
     result.push(
       match[1] !== undefined
         ? /^https?:\/\/[^\s<>"']+$/i.test(match[1]) && tail !== undefined

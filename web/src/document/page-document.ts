@@ -461,26 +461,24 @@ export class Document implements PageDocument {
     if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
     else
-      this.cells
-        .get(value.block_id)
-        ?.set({
-          task: value.task,
-          project: value.project,
-          position: value.position ?? null,
-          relation: value.relation ?? null,
-          spread: value.spread ?? false,
-          question: value.question ?? null,
-          quote: value.quote ?? null,
-          assessment: value.assessment ?? null,
-          source: value.source ?? null,
-          citations: value.citations ?? [],
-          history: value.history,
-          mergeProtected: value.merge_protected,
-          reviewedCards: value.reviewed_cards,
-          loggedWorkMs: value.logged_work_ms ?? 0,
-          templateCards: value.template_cards ?? 0,
-          pending: true,
-        });
+      this.cells.get(value.block_id)?.set({
+        task: value.task,
+        project: value.project,
+        position: value.position ?? null,
+        relation: value.relation ?? null,
+        spread: value.spread ?? false,
+        question: value.question ?? null,
+        quote: value.quote ?? null,
+        assessment: value.assessment ?? null,
+        source: value.source ?? null,
+        citations: value.citations ?? [],
+        history: value.history,
+        mergeProtected: value.merge_protected,
+        reviewedCards: value.reviewed_cards,
+        loggedWorkMs: value.logged_work_ms ?? 0,
+        templateCards: value.template_cards ?? 0,
+        pending: true,
+      });
     if (!base) this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
   }
   private guardMerge(id: string) {
@@ -514,25 +512,23 @@ export class Document implements PageDocument {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells
-        .get(value.block_id)
-        ?.set({
-          task: value.task,
-          project: value.project,
-          position: value.position ?? null,
-          relation: value.relation ?? null,
-          spread: value.spread ?? false,
-          question: value.question ?? null,
-          quote: value.quote ?? null,
-          assessment: value.assessment ?? null,
-          source: value.source ?? null,
-          citations: value.citations ?? [],
-          history: value.history,
-          mergeProtected: value.merge_protected,
-          reviewedCards: value.reviewed_cards,
-          loggedWorkMs: value.logged_work_ms ?? 0,
-          templateCards: value.template_cards ?? 0,
-        });
+      this.cells.get(value.block_id)?.set({
+        task: value.task,
+        project: value.project,
+        position: value.position ?? null,
+        relation: value.relation ?? null,
+        spread: value.spread ?? false,
+        question: value.question ?? null,
+        quote: value.quote ?? null,
+        assessment: value.assessment ?? null,
+        source: value.source ?? null,
+        citations: value.citations ?? [],
+        history: value.history,
+        mergeProtected: value.merge_protected,
+        reviewedCards: value.reviewed_cards,
+        loggedWorkMs: value.logged_work_ms ?? 0,
+        templateCards: value.template_cards ?? 0,
+      });
       this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
       this.trackInvestigation(value);
       received.add(value.block_id);
@@ -1726,13 +1722,11 @@ export class Document implements PageDocument {
     return {
       root: this.snapshot(this.pageId, true),
       root_manual_types: this.baseManualTypes.get(this.pageId) ?? [],
-      rows: this.baseOutline
-        .slice(0, this.baseOutline.size())
-        .map(row => ({
-          block: this.snapshot(row.id, true),
-          depth: row.depth,
-          manual_types: this.baseManualTypes.get(row.id) ?? [],
-        })),
+      rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({
+        block: this.snapshot(row.id, true),
+        depth: row.depth,
+        manual_types: this.baseManualTypes.get(row.id) ?? [],
+      })),
       targets: [],
       capabilities: [...this.baseCapabilities.values()],
     };
@@ -1807,7 +1801,7 @@ export class Document implements PageDocument {
     if (edit.tags !== undefined) {
       const previous = this.root()?.manual_types ?? [];
       for (const title of edit.tags)
-        if (!title || title.trim() !== title || /[\[\]\r\n]/.test(title)) throw new Error('Invalid tag title.');
+        if (!title || title.trim() !== title || /[[\]\r\n]/.test(title)) throw new Error('Invalid tag title.');
       // Replace in order: undo must recover the original spellings and ordering.
       if (!sameState(previous, edit.tags)) {
         for (const title of previous) actions.push({ kind: 'removeType', id: this.pageId, title });
@@ -2644,7 +2638,7 @@ export class Document implements PageDocument {
             if (!sameState(state.project, value))
               actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
           } else if (edit.kind === 'completeTask') {
-            let task = state.task;
+            const task = state.task;
             if (!task?.status) throw new Error('Add #task before completing.');
             if (task.status === 'done' && !task.repeater) break;
             if (edit.stopWork) {
@@ -2904,7 +2898,7 @@ export class Document implements PageDocument {
         case 'removeType': {
           const block = this.block(edit.id);
           if (!block) throw new Error('The atom no longer exists.');
-          if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title))
+          if (!edit.title || edit.title.trim() !== edit.title || /[[\]\r\n]/.test(edit.title))
             throw new Error('Invalid tag title.');
           const exists = block.manual_types.some(title => titleKey(title) === titleKey(edit.title));
           if (edit.kind === 'addType' && exists) break;

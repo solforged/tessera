@@ -475,13 +475,11 @@ export class Outbox {
       };
       view.root = latest(blocks.get(id)!);
       view.root_manual_types = manualTypes.get(id) ?? [];
-      view.rows = index
-        .slice(0, index.size())
-        .map(row => ({
-          block: latest(blocks.get(row.id)!),
-          depth: row.depth,
-          manual_types: manualTypes.get(row.id) ?? [],
-        }));
+      view.rows = index.slice(0, index.size()).map(row => ({
+        block: latest(blocks.get(row.id)!),
+        depth: row.depth,
+        manual_types: manualTypes.get(row.id) ?? [],
+      }));
       for (const row of await db.getAll('capabilities'))
         if (row.key.startsWith(`${this.notebookId}:`) && blocks.has(row.value.block_id))
           capabilities.set(row.value.block_id, row.value);

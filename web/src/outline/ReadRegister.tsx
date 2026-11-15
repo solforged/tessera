@@ -47,7 +47,7 @@ export function ReadRegister(props: {
         ? `Your answer · ${block.assessment!.state.assessed_on}`
         : `${block.assessment!.state.assessed_on} · ${assessmentStatus(props.doc, verdict.questionId, block.id, false)}`;
     return (
-      <div class="reading-verdict" classList={{ 'reading-verdict-current': !!shown()?.assessment!.accepted }}>
+      <div class="reading-verdict" classList={{ 'reading-verdict-current': !!shown()?.assessment?.accepted }}>
         <Show when={shown()}>
           {block => (
             <>

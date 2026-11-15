@@ -27,7 +27,7 @@ import type {
 } from '../api/types';
 import { missingFilter } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { NotebookClient } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { displayTitle, plainText, readableText } from '../outline/names';
 import { titleKey } from '../document/title-key';

@@ -65,7 +65,7 @@ function markdownLink(
     label: text
       .slice(labelStart + 1, opening - 1)
       .trim()
-      .replace(/\\([\[\]()\\])/g, '$1'),
+      .replace(/\\([[\]()\\])/g, '$1'),
   };
 }
 
