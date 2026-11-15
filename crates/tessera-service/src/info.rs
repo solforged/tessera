@@ -7,7 +7,7 @@ use crate::error::ApiError;
 use crate::state::{AppState, read};
 use crate::{BUILD, VERSION, launch_agent_path};
 
-#[derive(Serialize)]
+#[derive(Serialize, ts_rs::TS)]
 pub(crate) struct NotebookSize {
     size: u64,
 }
@@ -23,18 +23,19 @@ pub(crate) async fn notebook_size(
         .map(|size| Json(NotebookSize { size }))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ts_rs::TS)]
 pub(crate) struct LaunchAgentInfo {
     installed: bool,
     path: Option<PathBuf>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ts_rs::TS)]
 pub(crate) struct ServiceInfo {
     version: &'static str,
-    /// See [`BUILD`].
+    /// The commit a release or `ts-ship` built from; absent in development builds.
     build: Option<&'static str>,
     port: u16,
+    #[ts(type = "\"embedded\" | \"directory\" | \"none\"")]
     assets: &'static str,
     launch_agent: LaunchAgentInfo,
 }

@@ -25,8 +25,9 @@ pub(super) struct LinkPreview {
     title: Option<String>,
     site: Option<String>,
 }
-#[derive(Serialize)]
-pub(super) struct Preview {
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "LookupPreview")]
+pub struct Preview {
     metadata: ExtractedMetadata,
     cover_url: Option<String>,
     provider: &'static str,

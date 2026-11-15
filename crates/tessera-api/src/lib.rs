@@ -15,7 +15,7 @@ mod state;
 mod workshop;
 
 pub use changes::{CHANGES_PAGE_SIZE, ChangeSink, FollowError, StreamStop, follow_changes};
-pub use error::{ApiError, ApiFailure};
+pub use error::{ApiError, ApiFailure, ConflictDetails};
 pub use history::editor_receipt;
 pub use library::Library;
 pub use run::{Readers, read, run};

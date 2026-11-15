@@ -35,7 +35,7 @@ pub struct BackupManifest {
 }
 
 /// What a safety backup was taken before. Retention keeps these for a week.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "lowercase")]
 pub enum Safety {
     Update,

@@ -119,7 +119,7 @@ let
     };
     ts-wire = {
       description = "Rewrite web/src/api/wire.ts from the Rust wire types";
-      run = ''TESSERA_WRITE_WIRE=1 exec cargo test --locked -p tessera-core --test wire_types "$@"'';
+      run = ''TESSERA_WRITE_WIRE=1 exec cargo test --locked -p tessera-service --lib wire_types "$@"'';
     };
     ts-docs-lint = {
       description = "Check the prose in the docs, changelog, agent skills and UI copy with Vale";

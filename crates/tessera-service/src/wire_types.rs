@@ -1,6 +1,8 @@
 //! The TypeScript declarations of the wire types, written from the Rust
-//! types that serialize them. `ts-wire` rewrites `web/src/api/wire.ts`; the
-//! test fails when that file no longer matches.
+//! types that serialize them: the notebook's from `tessera-core`, the
+//! workshop routes' from `tessera-api` and the service's own. `ts-wire`
+//! rewrites `web/src/api/wire.ts`; the test fails when that file no longer
+//! matches. It lives here because this crate sees all three.
 
 use std::any::TypeId;
 use std::collections::{BTreeMap, HashSet};
@@ -219,6 +221,7 @@ fn declarations() -> String {
         tessera_core::FieldKind,
         tessera_core::FieldOwner,
         tessera_core::FieldOwnerValues,
+        tessera_core::FieldsView,
         tessera_core::FieldSummary,
         tessera_core::FieldValue,
         tessera_core::FieldValueUse,
@@ -236,6 +239,7 @@ fn declarations() -> String {
         tessera_core::library::IngestJob,
         tessera_core::library::IngestPlan,
         tessera_core::KeptCopy,
+        tessera_core::sync::KeptCopy,
         tessera_core::KindIndex,
         tessera_core::library::LibraryFacets,
         tessera_core::library::LibraryPerson,
@@ -349,6 +353,7 @@ fn declarations() -> String {
         tessera_core::Subtree,
         tessera_core::SummaryField,
         tessera_core::library::Surfacing,
+        tessera_core::sync::ReplicaConflicts,
         tessera_core::TagDeck,
         tessera_core::TaskFilter,
         tessera_core::TaskOccurrence,
@@ -363,10 +368,44 @@ fn declarations() -> String {
         tessera_core::TaskView,
         tessera_core::TextRewrite,
         tessera_core::library::TocEntry,
+        tessera_core::TypeInfo,
         tessera_core::UnlinkedMentions,
         tessera_core::View,
         tessera_core::WorkSession,
         tessera_core::YearSpan
+    );
+    roots!(collector:
+        tessera_api::ConflictDetails,
+        tessera_api::library::Preview,
+        tessera_api::library::SurfacingBody,
+        crate::SyncVersion,
+        crate::agent::ContextRef,
+        crate::agent::Event,
+        crate::agent::Events,
+        crate::agent::Start,
+        crate::agent::Started,
+        crate::agent::ThreadMessage,
+        crate::agent::store::ProviderInput,
+        crate::agent::store::ProviderView,
+        crate::agent::store::Providers,
+        crate::agent::store::SaveProviders,
+        crate::backups::BackupInfo,
+        crate::backups::Backups,
+        crate::backups::CreatedBackup,
+        crate::backups::OtherBackups,
+        crate::backups::RestoringBackup,
+        crate::info::NotebookSize,
+        crate::info::ServiceInfo,
+        crate::notebooks::Entry,
+        crate::notebooks::Notebooks,
+        crate::pairing::DeviceRecord,
+        crate::pairing::PairingCode,
+        crate::pairing::PairingStatus,
+        crate::pairing::SyncDevices,
+        crate::replica::ReplicaState,
+        crate::replica::SyncState,
+        crate::sharing::Sharing,
+        crate::sync::Attempt
     );
     let mut text = String::from(HEADER);
     for declaration in collector.declarations.values() {

@@ -43,6 +43,20 @@ export type AgendaReason =
   | "in_progress"
   | "recently_completed";
 
+export type AgentProviders = {
+  providers: Array<ProviderView>,
+  default: string | null,
+};
+
+export type AgentTurnEvents = {
+  events: Array<TurnEvent>,
+  done: boolean,
+};
+
+export type AgentTurnStarted = {
+  turn: string,
+};
+
 export type AssessmentInfo = {
   state: AssessmentState,
   question_id: string | null,
@@ -57,6 +71,33 @@ export type AssessmentState = {
 export type Backlink = {
   source: Block,
   page: Block,
+};
+
+export type BackupFailure = {
+  at: number,
+  message: string,
+};
+
+export type BackupInfo = {
+  path: string,
+  name: string,
+  created_at: number,
+  object_count: number,
+  size: number,
+  /**
+   * What an update or restore safety backup was taken before.
+   */
+  safety: Safety | null,
+};
+
+export type Backups = {
+  backups: Array<BackupInfo>,
+  store_size: number,
+  others: Array<OtherBackups>,
+  /**
+   * The latest automatic backup's failure, until a later backup succeeds.
+   */
+  automatic_failure: BackupFailure | null,
 };
 
 /**
@@ -430,9 +471,29 @@ export type Completion = {
 };
 
 /**
+ * `error.details` of a 409 response.
+ */
+export type ConflictDetails = {
+  op_index: number,
+  id: string,
+  expected: number,
+  found: number | null,
+};
+
+export type ContextRef = {
+  page_id: string,
+  block_id?: string | null,
+};
+
+/**
  * What a field's values count as, so readers find creators by meaning rather than by field name.
  */
 export type CountsAs = "creator" | "contributor" | "originator";
+
+export type CreatedBackup = {
+  created: boolean,
+  backups: Backups,
+};
 
 export type CreatorKind = "person" | "organisation";
 
@@ -695,6 +756,11 @@ export type FieldValueUse = {
   value: FieldValue,
 };
 
+export type Fields = {
+  page_id: string,
+  fields: Array<FieldSummary>,
+};
+
 export type Filter = {
   field: string,
   op: FilterOp,
@@ -856,6 +922,18 @@ export type KeptCopy = {
   mine: boolean,
 };
 
+export type KeptCopyRow = {
+  id: string,
+  of: string,
+  page_id: string,
+  page_title: string,
+  text: string,
+  origin: string,
+  origin_name: string | null,
+  mine: boolean,
+  created_at: number,
+};
+
 export type KindIndex = {
   notes: Array<NoteEntry>,
   see: Array<CrossReference>,
@@ -865,6 +943,37 @@ export type KindIndex = {
   summaries: {
     [key in string]: NoteSummary
   },
+};
+
+/**
+ * A workshop the switcher knows. `display_path` writes the home folder as `~`; `named` marks one
+ * made by name in the workshops folder.
+ */
+export type KnownNotebook = {
+  path: string,
+  name: string,
+  display_path: string,
+  named: boolean,
+  current: boolean,
+  default: boolean,
+  /**
+   * False when the folder no longer holds a notebook database.
+   */
+  available: boolean,
+};
+
+export type KnownNotebooks = {
+  notebooks: Array<KnownNotebook>,
+};
+
+export type LastError = {
+  code: string,
+  message: string,
+};
+
+export type LaunchAgentInfo = {
+  installed: boolean,
+  path: string | null,
 };
 
 export type LibraryCounts = {
@@ -975,6 +1084,12 @@ export type LibraryView = {
   revision: number,
   created_at: number,
   updated_at: number,
+};
+
+export type LookupPreview = {
+  metadata: ExtractedMetadata,
+  cover_url: string | null,
+  provider: string,
 };
 
 export type Mark = {
@@ -1111,6 +1226,10 @@ export type NotebookInfo = {
   sqlite_version: string,
 };
 
+export type NotebookSize = {
+  size: number,
+};
+
 export type Occlusion = {
   mode: OcclusionMode,
   groups: Array<OcclusionGroup>,
@@ -1135,6 +1254,11 @@ export type OcclusionMask = {
 };
 
 export type OcclusionMode = "hide_one" | "hide_all";
+
+export type OfflineFiles = {
+  books: number,
+  bytes: number,
+};
 
 /**
  * One outline operation. IDs of new blocks are chosen by the client (ULIDs),
@@ -1611,6 +1735,18 @@ export type Operation =
     base_revision: number,
   };
 
+export type OtherBackups = {
+  workshop_id: string,
+  /**
+   * The folder name recorded by its newest backup, when it recorded one.
+   */
+  name: string | null,
+  count: number,
+  size: number,
+  newest_at: number | null,
+  path: string,
+};
+
 export type PageReferences = {
   total: number,
   groups: Array<ReferenceGroup>,
@@ -1635,6 +1771,46 @@ export type PageView = {
    */
   targets: Array<Block>,
   capabilities?: Array<BlockCapabilities>,
+};
+
+/**
+ * A paired device as the Mac lists it: its pairing, whether it syncs, and how its last attempts went.
+ */
+export type PairedDevice = {
+  id: string,
+  name: string,
+  paired_at: number,
+  state: "active" | "retired" | "never_synced",
+  last_seen_at: number | null,
+  retired_at: number | null,
+  version: SyncVersion | null,
+  last_attempt_at: number | null,
+  refused: Refused | null,
+  attempts: Array<SyncAttempt>,
+};
+
+/**
+ * The code a new device types or scans to join, and when it stops working.
+ */
+export type PairingCode = {
+  code: string,
+  display: string,
+  expires_at: number,
+  url: string,
+  qr_svg: string,
+};
+
+/**
+ * The device a pairing code admitted.
+ */
+export type PairingDevice = {
+  id: string,
+  name: string,
+};
+
+export type PairingStatus = {
+  state: "none" | "waiting" | "paired" | "expired",
+  device: PairingDevice | null,
 };
 
 export type Passage = {
@@ -1737,6 +1913,26 @@ export type ProjectState = {
 };
 
 export type ProjectStatus = "active" | "done" | "cancelled";
+
+export type ProviderInput = {
+  id?: string | null,
+  name: string,
+  protocol: ProviderProtocol,
+  base_url: string,
+  model: string,
+  api_key?: string | null,
+};
+
+export type ProviderProtocol = "anthropic" | "openai";
+
+export type ProviderView = {
+  id: string,
+  name: string,
+  protocol: ProviderProtocol,
+  base_url: string,
+  model: string,
+  has_key: boolean,
+};
 
 /**
  * A provisional tag page removed by derivation, retained for exact history replay.
@@ -1962,6 +2158,13 @@ export type ReferenceSource = {
   targets: Array<string>,
 };
 
+export type Refused = {
+  code: string,
+  message: string,
+  since: number,
+  attempts: number,
+};
+
 export type RejectedChange = {
   id: string,
   change_id: string,
@@ -2024,12 +2227,45 @@ export type Repeater = {
   mode: RepeatMode,
 };
 
+/**
+ * Replica side: this device's copy of a hub's notebook.
+ */
+export type ReplicaState = {
+  hub_url: string,
+  hub_name: string | null,
+  device_name: string | null,
+  device_id: string,
+  pending: number,
+  unapplied: number,
+  synced_at: number | null,
+  syncing: boolean,
+  last_error: LastError | null,
+  retired: boolean,
+  hub_version: SyncVersion | null,
+  failing_since: number | null,
+  attempts: Array<SyncAttempt>,
+  kept_copies: number,
+  rejected: number,
+  offline: OfflineFiles,
+};
+
 export type RequiredField = {
   field_id: string,
   /**
    * Members with no nonblank value for the field.
    */
   missing: number,
+};
+
+export type RestoringBackup = {
+  restoring: true,
+  backup: BackupInfo,
+  safety: BackupInfo | null,
+};
+
+export type RetainedPatches = {
+  changes: number,
+  bytes: number,
 };
 
 export type ReviewEvent = {
@@ -2139,6 +2375,16 @@ export type Row = {
   manual_types: Array<string>,
 };
 
+/**
+ * What a safety backup was taken before. Retention keeps these for a week.
+ */
+export type Safety = "update" | "restore";
+
+export type SaveAgentProviders = {
+  providers: Array<ProviderInput>,
+  default: string | null,
+};
+
 export type SchedulingState = {
   stability: number | null,
   difficulty: number | null,
@@ -2155,6 +2401,17 @@ export type SchedulingState = {
 export type SeeTarget = {
   id: string,
   title: string,
+};
+
+export type ServiceInfo = {
+  version: string,
+  /**
+   * The commit a release or `ts-ship` built from; absent in development builds.
+   */
+  build: string | null,
+  port: number,
+  assets: "embedded" | "directory" | "none",
+  launch_agent: LaunchAgentInfo,
 };
 
 export type Setting = {
@@ -2318,6 +2575,13 @@ export type StagedSnapshot = {
   existing: boolean,
 };
 
+export type StartAgentTurn = {
+  provider: string,
+  prompt: string,
+  messages: Array<ThreadMessage>,
+  context: Array<ContextRef>,
+};
+
 export type StreamArrival = {
   block: Block,
   page: Block,
@@ -2353,6 +2617,59 @@ export type Surfacing = {
   color: Citation["color"],
   tags: Array<string>,
   created_at: number,
+};
+
+export type SurfacingBody = {
+  date: string,
+  action: "kept" | "opened" | "muted",
+};
+
+export type SyncAttempt = {
+  at: number,
+  first_at: number,
+  ok: boolean,
+  code: string | null,
+  message: string | null,
+  count: number,
+};
+
+export type SyncConflicts = {
+  kept: Array<KeptCopyRow>,
+  rejected: Array<RejectedChange>,
+};
+
+export type SyncDevices = {
+  this_device: SyncVersion,
+  sharing: SyncSharing,
+  hub_name: string,
+  devices: Array<PairedDevice>,
+  retained: RetainedPatches,
+};
+
+/**
+ * Hub side: Tailscale Serve publishing this Mac's sync listener.
+ */
+export type SyncSharing = {
+  available: boolean,
+  on: boolean,
+  url: string | null,
+  error: string | null,
+};
+
+export type SyncState = {
+  this_device: SyncVersion,
+  role: "hub" | "replica" | "none",
+  replica: ReplicaState | null,
+};
+
+/**
+ * What a device running Tessera reports about itself. A peer that reports only its schema
+ * leaves `version` and `build` null.
+ */
+export type SyncVersion = {
+  version: string | null,
+  build: string | null,
+  schema: number,
 };
 
 export type TagDeck = {
@@ -2460,6 +2777,13 @@ export type TextRewrite = {
   revision: number,
 };
 
+export type ThreadMessage = {
+  role: ThreadRole,
+  text: string,
+};
+
+export type ThreadRole = "user" | "assistant";
+
 export type TocEntry = {
   title: string,
   locator: string,
@@ -2476,6 +2800,48 @@ export type TocEntry = {
    * extraction and never stored.
    */
   start?: number,
+};
+
+export type TurnEvent = {
+  n: number,
+} & ({
+  "kind": "text",
+  delta: string,
+} | {
+  "kind": "tool",
+  name: string,
+  summary: string,
+} | {
+  "kind": "edit",
+  seq: number,
+  summary: string,
+  page: string | null,
+  blocks: Array<string>,
+} | {
+  "kind": "error",
+  message: string,
+} | {
+  "kind": "done",
+  stop: TurnStop,
+});
+
+export type TurnStop = "end" | "cancelled" | "limit" | "error";
+
+export type Type = {
+  page: Block,
+  plural: string | null,
+  icon: string | null,
+  fields: Array<string>,
+  members: number,
+  card_templates: number,
+  /**
+   * Template fields the type's built-in schema requires, in template order.
+   */
+  required: Array<RequiredField>,
+  /**
+   * Field names the built-in starting template would add to an empty template; empty otherwise.
+   */
+  starting: Array<string>,
 };
 
 export type UnlinkedMentions = {

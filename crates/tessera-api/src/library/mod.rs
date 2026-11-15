@@ -13,6 +13,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+pub use lookup::Preview;
 use parking_lot::Mutex;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -349,9 +350,10 @@ async fn resurfacing(
     .await
     .map(Json)
 }
-#[derive(Deserialize)]
-struct SurfacingBody {
+#[derive(Deserialize, ts_rs::TS)]
+pub struct SurfacingBody {
     date: String,
+    #[ts(type = "\"kept\" | \"opened\" | \"muted\"")]
     action: String,
 }
 async fn record_surfacing(

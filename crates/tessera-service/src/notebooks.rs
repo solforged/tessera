@@ -139,8 +139,11 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/notebooks/forget", post(forget))
 }
 
-#[derive(Serialize)]
-struct Entry {
+/// A workshop the switcher knows. `display_path` writes the home folder as `~`; `named` marks one
+/// made by name in the workshops folder.
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "KnownNotebook")]
+pub(crate) struct Entry {
     path: PathBuf,
     name: String,
     display_path: String,
@@ -151,8 +154,9 @@ struct Entry {
     available: bool,
 }
 
-#[derive(Serialize)]
-struct Notebooks {
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "KnownNotebooks")]
+pub(crate) struct Notebooks {
     notebooks: Vec<Entry>,
 }
 
