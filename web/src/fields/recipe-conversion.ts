@@ -9,8 +9,8 @@ import type {
   Type,
 } from '../api/types';
 import type { DocumentChange, NotebookClient } from '../document/contract';
-import { cardMarks, parseCardText } from '../review/card-text';
-import { fieldEntryId } from '../table/query';
+import { cardMarks, parseCardText } from '../core/card-text';
+import { fieldEntryId } from '../core/field-entry';
 import { textTokens } from '../document/text-tokens';
 
 export interface SyntaxAtom {

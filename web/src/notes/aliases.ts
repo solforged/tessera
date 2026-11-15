@@ -1,6 +1,6 @@
 import type { PageDocument } from '../document/contract';
 import { foldName } from '../outline/names';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 
 type AliasDocument = Pick<PageDocument, 'pageId' | 'outline' | 'block'>;
 

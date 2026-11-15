@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createSignal } from 'solid-js';
 import type { TaskRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Icon } from '../ui/Icon';
 import { isPhone } from '../ui/phone';
 import { TaskSourceRows } from './JournalAgenda';

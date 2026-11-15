@@ -1,11 +1,16 @@
 /**
  * Seams between the shell (sidebar, panes, history, palettes) and the
- * outline view. The shell implements `CommandRegistry`; the outline view
- * implements `OutlinePane` in `web/src/outline/OutlinePane.tsx`.
+ * views it hosts. The shell implements `CommandRegistry`; each view reads
+ * the pane and view state declared here.
  */
 
-import type { Caret, NotebookClient } from '../document/contract';
-import type { CardSelection, FieldKind, LibraryFilters, NoteKind, Query, ReadingState, TaskQuery } from '../api/types';
+import type { CardSelection, FieldKind, LibraryFilters, Query, ReadingState, TaskQuery } from '../api/types';
+
+/** A position in a block's text, in UTF-16 code units. */
+export interface Caret {
+  id: string;
+  offset: number;
+}
 
 /** A pane in the workspace row; ids are stable while the pane stays open and persist across reloads. */
 export type PaneId = string;
@@ -225,32 +230,4 @@ export interface PaneSession extends PaneHistory {
   tab?: PhoneTab;
   /** Inactive stacks; the active tab always uses the live entries/index above. */
   tabs?: Partial<Record<PhoneTab, PaneHistory>>;
-}
-
-export interface OutlinePaneProps {
-  pane: PaneId;
-  pageId: string;
-  /** One-time request to open a journal ledger on arrival. */
-  journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod'];
-  /** Initial view; the pane reports changes through `onViewChange`. */
-  view: ViewState;
-  projection?: PageProjection;
-  onProjection?(projection: PageProjection): void;
-  projectionReason?(projection: PageProjection): string | undefined;
-  onViewChange(view: ViewState): void;
-  onDelete?(anchor: HTMLElement): void;
-  /** Reuses the outline's loaded kind metadata for the pane header. */
-  onNoteKinds?(kinds: NoteKind[] | undefined): void;
-  /** Open a page or block, here or in the other pane. */
-  onOpen(target: OpenTarget, beside: boolean): void;
-  /** Why opening beside is unavailable at the current pane width. */
-  besideReason?: string;
-  /** This pane holds keyboard focus. */
-  active: boolean;
-  onActivate(): void;
-  vim: boolean;
-  /** Vim mode indicator for the header, or null when Vim is off. */
-  onVimMode(mode: 'insert' | 'normal' | 'visual' | 'outline' | null): void;
-  commands: CommandRegistry;
-  notebook: NotebookClient;
 }

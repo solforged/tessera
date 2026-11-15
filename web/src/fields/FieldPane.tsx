@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { FieldViewState, OpenTarget } from '../shell/contract';
+import type { FieldViewState, OpenTarget } from '../core/contract';
 import { FieldDetails } from './FieldDetails';
 
 export function FieldPane(props: {

@@ -1,9 +1,9 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Query, QuestionFilter, QuestionRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { BlockText } from '../outline/BlockText';
 import { questionLabels } from '../outline/Questions';
 import { Button } from '../ui/Button';

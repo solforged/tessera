@@ -1,4 +1,4 @@
-import { motionMilliseconds } from './motion';
+import { motionMilliseconds } from '../core/motion';
 
 /**
  * Disclosures glide open and closed. Browsers with `interpolate-size` animate `details::details-content` from CSS;

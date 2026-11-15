@@ -8,7 +8,6 @@ import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite,
 import type {
   BlockClipboard,
   BlockState,
-  Caret,
   DocumentChange,
   Edit,
   EditResult,
@@ -18,6 +17,7 @@ import type {
   SaveState,
   SourceDetailsEdit,
 } from './contract';
+import type { Caret } from '../core/contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';

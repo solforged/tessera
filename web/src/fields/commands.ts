@@ -13,7 +13,8 @@ import type {
   View,
 } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
-import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
 import { fieldNameProblem } from './kinds';
 import { SOURCE_TARGET, sourceOperation } from './targets';

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { fieldEntryId } from '../core/field-entry';
 import {
   addFilter,
   chooseSort,
   copyQuery,
-  fieldEntryId,
   fieldEntryText,
   filterLabel,
   filterOperatorLabel,

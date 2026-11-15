@@ -1,11 +1,11 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { createEffect, onCleanup } from 'solid-js';
 import { plainText } from './names';
 import { entityKinds, entityLabel, fileAsEntity } from './holders';
 import type { Edit } from '../document/contract';
-import { depthStops } from '../shell/contract';
-import type { Command } from '../shell/contract';
-import { parseCardText } from '../review/card-text';
+import { depthStops } from '../core/contract';
+import type { Command } from '../core/contract';
+import { parseCardText } from '../core/card-text';
 import { statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
 import type { MenuItem, MenuPaletteButton } from '../ui/Menu';

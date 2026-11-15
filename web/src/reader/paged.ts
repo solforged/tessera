@@ -1,4 +1,4 @@
-import { chapterEntries } from '../ui/book-map';
+import { chapterEntries } from './book-map';
 
 /** Passages laid out together in paged reading; a chunk always starts on a fresh page. */
 export interface PageChunk {

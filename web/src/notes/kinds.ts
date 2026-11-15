@@ -5,7 +5,7 @@ import type { NotebookClient } from '../document/contract';
 import type { Token } from '../document/text-tokens';
 import { foldName } from '../outline/names';
 import { paths, type IconName } from '../ui/glyphs';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { typeQuery } from '../table/query';
 
 /** One glyph per registry kind, with shell-only kinds and page capabilities resolved here. */

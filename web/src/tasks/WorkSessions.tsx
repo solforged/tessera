@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, untrack }
 import type { WorkSession } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { localDate } from '../ui/MonthGrid';
+import { localDate } from './MonthGrid';
 import { relativeDate } from './relative-date';
 import './work-sessions.css';
 

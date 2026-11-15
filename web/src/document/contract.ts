@@ -33,7 +33,7 @@ import type {
   WorkSession,
 } from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
-import type { FieldHide } from '../fields/hide';
+import type { FieldHide } from '../core/hide';
 import type { CountsAs } from '../fields/counts';
 import type { FieldRole } from '../fields/roles';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';
@@ -42,12 +42,8 @@ import type { CardTemplate, CardTemplateState } from '../api/types';
 import type { BlockCapabilities } from '../api/types';
 import type { ImageRef, Occlusion } from '../api/types';
 
+import type { Caret } from '../core/contract';
 import type { LiveSubtree } from './subtrees';
-/** A position in a block's text, in UTF-16 code units. */
-export interface Caret {
-  id: string;
-  offset: number;
-}
 
 /** A text selection that may span blocks; anchor and head in any order. */
 export interface TextRange {

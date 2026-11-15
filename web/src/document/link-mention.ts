@@ -1,6 +1,6 @@
 import type { Edit } from './contract';
 import { textTokens } from './text-tokens';
-import { protectedEnd } from '../review/card-text';
+import { protectedEnd } from '../core/card-text';
 
 /** Link the first whole-word spelling outside references, tags, URLs and code. */
 export function linkMentionEdit(id: string, text: string, pageId: string, term: string): Edit | null {

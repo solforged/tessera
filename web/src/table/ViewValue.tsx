@@ -8,7 +8,7 @@ import { checkboxValue, fieldLabel } from '../fields/kinds';
 import { createOptionValue } from '../fields/commands';
 import { BlockText } from '../outline/BlockText';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
-import { fieldEntryId } from './query';
+import { fieldEntryId } from '../core/field-entry';
 import { TaskFieldEditor } from '../tasks/TaskFieldEditor';
 import { taskFieldName } from '../tasks/task-fields';
 

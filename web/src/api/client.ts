@@ -1,5 +1,5 @@
 import { ulid } from 'ulid';
-import { DEMO, EMBEDDED } from '../demo/mode';
+import { DEMO, EMBEDDED } from '../core/mode';
 import type {
   HistoryEntry,
   ImageRef,

@@ -3,7 +3,7 @@ import type { NoteKind } from '../api/types';
 import type { CreateRequest } from '../create/request';
 import type { NotebookClient } from '../document/contract';
 import type { PopupAnchor } from '../ui/Popup';
-import type { CommandRegistry, PagePresentation } from './contract';
+import type { CommandRegistry, PagePresentation } from '../core/contract';
 
 /**
  * Values every pane shares. Getters keep Solid's prop reactivity: a read

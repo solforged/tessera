@@ -1,7 +1,8 @@
 import { EditorSelection } from '@codemirror/state';
 import { Direction } from '@codemirror/view';
 import type { EditorView } from '@codemirror/view';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry } from '../table/query';
 import type { PageDocument } from '../document/contract';
 import { tokenBeside } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';

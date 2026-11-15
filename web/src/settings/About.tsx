@@ -1,7 +1,7 @@
 import { Show, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { NotebookInfo, ServiceInfo } from '../api/types';
-import { MOBILE } from '../demo/mode';
+import { MOBILE } from '../core/mode';
 import { size } from '../sync/state';
 import { Button } from '../ui/Button';
 import { haptic } from '../ui/haptics';

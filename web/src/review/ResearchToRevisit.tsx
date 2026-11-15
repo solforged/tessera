@@ -1,8 +1,8 @@
 import { For, Show } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
-import type { OpenTarget } from '../shell/contract';
-import { opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
 import { SectionHead } from '../ui/SectionHead';
 import { createRevisits, revisitKind } from './revisits';

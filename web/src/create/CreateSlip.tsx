@@ -14,7 +14,7 @@ import {
 } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { NotebookClient, CaptureReceipt } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { noteIndex, noteKindIcon } from '../notes/kinds';
 import { completeNames, displayTitle } from '../outline/names';
 import { createClock } from '../tasks/clock';

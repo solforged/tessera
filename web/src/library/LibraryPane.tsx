@@ -1,4 +1,4 @@
-import { opensBeside, listOpensBeside } from '../shell/beside';
+import { opensBeside, listOpensBeside } from '../core/beside';
 import {
   For,
   Show,
@@ -29,9 +29,9 @@ import type {
   ReadingState,
 } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { EMBEDDED } from '../demo/mode';
+import { EMBEDDED } from '../core/mode';
 import { BlockText } from '../outline/BlockText';
-import type { LibraryGroup, LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
+import type { LibraryGroup, LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';

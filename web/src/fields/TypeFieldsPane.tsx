@@ -1,7 +1,7 @@
 import { Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
-import type { FieldsViewState, OpenTarget } from '../shell/contract';
-import { opensBeside } from '../shell/beside';
+import type { FieldsViewState, OpenTarget } from '../core/contract';
+import { opensBeside } from '../core/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';

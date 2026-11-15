@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { forwardCardText, parseCardText } from './card-text';
+import { forwardCardText, parseCardText } from '../core/card-text';
 
 test('the composer produces one real forward card and preserves authored line breaks', () => {
   const text = forwardCardText('  What is\nremembered?  ', '  A source\nand its answer.  ');

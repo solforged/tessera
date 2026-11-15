@@ -2,10 +2,10 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onMo
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
 import type { Backups, NotebookInfo } from '../api/types';
-import { DEMO, EMBEDDED, MOBILE } from '../demo/mode';
+import { DEMO, EMBEDDED, MOBILE } from '../core/mode';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
-import { besideHint, opensBeside } from '../shell/beside';
+import type { OpenTarget, PaneId, SettingsViewState } from '../core/contract';
+import { besideHint, opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';

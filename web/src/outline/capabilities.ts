@@ -1,8 +1,8 @@
 import { createSignal } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { TaskStatus, WorkSession } from '../api/types';
-import type { Caret, Edit, NotebookClient, PageDocument } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { Edit, NotebookClient, PageDocument } from '../document/contract';
+import type { Caret, OpenTarget } from '../core/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
 import { isFinished } from '../tasks/task-labels';

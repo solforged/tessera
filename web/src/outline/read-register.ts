@@ -1,7 +1,8 @@
 import type { FieldDefinition, PositionQuestion } from '../api/types';
 import type { PageDocument } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry } from '../table/query';
 import { positionFields, positionRelations, readingPassages } from './perspectives';
 import { earlierKey, verdictAssessments } from './assessments';
 import { isCatalogueField } from '../library/details';

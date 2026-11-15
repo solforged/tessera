@@ -1,14 +1,14 @@
-import { opensBeside, besideHint } from '../shell/beside';
+import { opensBeside, besideHint } from '../core/beside';
 import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore, reconcile, unwrap } from 'solid-js/store';
 import { ulid } from 'ulid';
 import type { CardUnit } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { ParsedCard } from '../review/card-text';
-import { cardKindLabel, clozeSegments, occlusionSubject } from '../review/card-text';
+import type { ParsedCard } from '../core/card-text';
+import { cardKindLabel, clozeSegments, occlusionSubject } from '../core/card-text';
 import { CardBack, ClozeText } from '../review/CardSides';
 import { formatInterval } from '../review/query';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';

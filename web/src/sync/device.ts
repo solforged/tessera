@@ -1,5 +1,5 @@
 import { Format, checkPermissions, requestPermissions, scan } from '@tauri-apps/plugin-barcode-scanner';
-import { MOBILE } from '../demo/mode';
+import { MOBILE } from '../core/mode';
 
 export interface PairingTarget {
   url: string;

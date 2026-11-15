@@ -2,8 +2,9 @@ import { For, Show, createEffect, createMemo, createResource, createSignal } fro
 import type { EditorView } from '@codemirror/view';
 import type { Block, Completion as NameCompletion, FieldDefinition, RelationKind, TaskStatus } from '../api/types';
 import { api } from '../api/client';
-import type { BlockState, Caret } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import type { BlockState } from '../document/contract';
+import type { Caret } from '../core/contract';
+import { fieldEntryId } from '../core/field-entry';
 import { textTokens } from '../document/text-tokens';
 import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';

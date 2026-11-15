@@ -2,7 +2,7 @@ import { For, Show, createMemo, createResource, createSignal, createUniqueId, on
 import type { NoteKind } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { pendingCaretInput } from '../shell/pending-caret';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import type { CreateKind } from './request';
 import { DraftFields } from './DraftFields';

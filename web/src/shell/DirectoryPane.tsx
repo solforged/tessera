@@ -1,6 +1,6 @@
 import { createEffect, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { DirectoryViewState } from './contract';
+import type { DirectoryViewState } from '../core/contract';
 
 export function DirectoryPane(props: {
   view: DirectoryViewState;

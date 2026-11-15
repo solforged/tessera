@@ -4,7 +4,8 @@ import type { IconName } from '../ui/Icon';
 import type { BlockState, NotebookClient } from '../document/contract';
 import { plainText, referenceValue } from './names';
 import { textTokens } from '../document/text-tokens';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry } from '../table/query';
 import { isoLanguageNames } from '../library/languages';
 
 export function sourceFieldName(text: string, definitions: ReadonlyMap<string, FieldDefinition>): string | undefined {

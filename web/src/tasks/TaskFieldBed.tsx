@@ -9,7 +9,7 @@ import { hasValueEditor } from '../fields/value-options';
 import { BlockText } from '../outline/BlockText';
 import { plainText } from '../outline/names';
 import { createTaskProjects } from '../projects/task-project';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { InlinePopups, Popup } from '../ui/Popup';

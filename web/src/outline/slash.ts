@@ -1,4 +1,4 @@
-import { parseCardText } from '../review/card-text';
+import { parseCardText } from '../core/card-text';
 import { matchFieldEntry } from '../table/query';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 

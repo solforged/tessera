@@ -2,7 +2,7 @@ import { createResource, splitProps } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { ImageRef } from '../api/types';
 import type { ApiClient } from '../api/client';
-import { EMBEDDED } from '../demo/mode';
+import { EMBEDDED } from '../core/mode';
 
 const caches = new WeakMap<ApiClient, Map<string, Promise<string | undefined>>>();
 function objectUrl(api: ApiClient, sha: string) {

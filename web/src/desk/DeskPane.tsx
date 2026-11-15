@@ -1,4 +1,4 @@
-import { opensBeside, listOpensBeside } from '../shell/beside';
+import { opensBeside, listOpensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import type { FieldDefinition, Filter, Operation, Query, QueryResult, QueryRow, View } from '../api/types';

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { isValid, ulid } from 'ulid';
 import type { Operation, Passage } from '../api/types';
-import { parseCardText } from '../review/card-text';
+import { parseCardText } from '../core/card-text';
 import { bookHighlights, localToday, locateHighlights, seedBatch } from './seed';
 
 test('the demo date uses the visitor’s local civil day', () => {

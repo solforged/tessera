@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js';
-import type { Command, CommandRegistry } from './contract';
+import type { Command, CommandRegistry } from '../core/contract';
 
 /** Registrations are owned by mounted panes and replaced atomically on cleanup. */
 export function createCommandRegistry(): CommandRegistry {

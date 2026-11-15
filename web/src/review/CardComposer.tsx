@@ -2,7 +2,7 @@ import { Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
-import { forwardCardText, parseCardText } from './card-text';
+import { forwardCardText, parseCardText } from '../core/card-text';
 import './card-composer.css';
 
 export interface CardComposerProps {

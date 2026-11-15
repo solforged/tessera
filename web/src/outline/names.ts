@@ -4,7 +4,7 @@ import type { Token } from '../document/text-tokens';
 import { inlineTokens, isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
-import { cardMarks, cardOperators } from '../review/card-text';
+import { cardMarks, cardOperators } from '../core/card-text';
 import { titleKey } from '../document/title-key';
 import { identityName } from '../document/title-name';
 

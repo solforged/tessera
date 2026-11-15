@@ -1,5 +1,5 @@
 import type { TocEntry } from '../api/types';
-import { chapterEntries } from '../ui/book-map';
+import { chapterEntries } from './book-map';
 
 /**
  * A contents entry drawn as a chapter opening: a rubric label over the title in display type. The reader composes it

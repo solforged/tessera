@@ -1,8 +1,9 @@
 import { ulid } from 'ulid';
 import type { Block, QuoteState } from '../../api/types';
 import { markdownPasteRows } from '../clipboard';
-import type { Caret, HistoryCaret, PasteRow, TextRange } from '../contract';
-import { parseCardText } from '../../review/card-text';
+import type { HistoryCaret, PasteRow, TextRange } from '../contract';
+import type { Caret } from '../../core/contract';
+import { parseCardText } from '../../core/card-text';
 import { newTask } from '../../tasks/quick-date';
 import { quoteTarget, textTokens } from '../text-tokens';
 import { titleKey } from '../title-key';

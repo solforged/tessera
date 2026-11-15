@@ -1,6 +1,6 @@
 import { For, Show } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { BlockText } from './BlockText';
 import './block-tree.css';
 

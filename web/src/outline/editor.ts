@@ -1,16 +1,17 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { cursorCharLeft, cursorCharRight, selectCharLeft, selectCharRight, standardKeymap } from '@codemirror/commands';
 import { Compartment, EditorSelection, EditorState, Facet, Prec, StateEffect, StateField } from '@codemirror/state';
 import type { ChangeDesc, Extension } from '@codemirror/state';
 import { Decoration, drawSelection, EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import type * as VimModule from '@replit/codemirror-vim';
-import type { Caret } from '../document/contract';
+import type { Caret } from '../core/contract';
 import { textTokens } from '../document/text-tokens';
 import type { FieldKind, NameMatch } from '../api/types';
 import { kindLabels, kindNoun } from '../fields/kinds';
 import { guessFieldKind } from '../fields/value-reading';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry } from '../table/query';
 import { glyphElement, type IconName } from '../ui/glyphs';
 import type { Token } from '../document/text-tokens';
 

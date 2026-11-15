@@ -2,7 +2,7 @@ import { ulid } from 'ulid';
 import type { ApiClient } from '../api/client';
 import type { Block, Committed, Fields, Operation, PageView } from '../api/types';
 import type { NotebookClient } from './contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import { titleKey } from './title-key';
 
 export interface CollectionChange {

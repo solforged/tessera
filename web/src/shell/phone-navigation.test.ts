@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { HistoryEntry, PaneSession } from './contract';
+import type { HistoryEntry, PaneSession } from '../core/contract';
 import {
   activatePhoneTab,
   adoptPhoneTab,

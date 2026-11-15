@@ -12,7 +12,7 @@ import type {
 import type { NotebookClient } from '../document/contract';
 import { plainText } from '../outline/names';
 import { Calendar } from '../shell/Calendar';
-import type { AgendaViewState, OpenTarget, PaneId } from '../shell/contract';
+import type { AgendaViewState, OpenTarget, PaneId } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';

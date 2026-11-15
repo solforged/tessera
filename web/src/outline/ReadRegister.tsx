@@ -1,4 +1,4 @@
-import { opensBeside, besideHint } from '../shell/beside';
+import { opensBeside, besideHint } from '../core/beside';
 import { For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { BlockState, PageDocument, NotebookClient } from '../document/contract';

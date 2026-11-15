@@ -5,7 +5,7 @@ import { resolveRelationPick } from '../fields/instances';
 import { filingOperations } from '../notes/finding-aid';
 import type { EntityKind } from '../outline/holders';
 import { documentReady, ensureField } from '../outline/source-fields';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import type { CreateKind } from './request';
 
 export interface DraftValue {

@@ -1,6 +1,6 @@
 import { createEffect, onCleanup, onMount } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 
 /** Navigation identity excludes presentation, scroll and caret state. */
 export function paneTargetIdentity(target: OpenTarget): string {

@@ -5,7 +5,7 @@ import type { ImageRef, Occlusion, OcclusionMask } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { Button } from '../ui/Button';
 import { NotebookImage } from '../ui/NotebookImage';
-import { groupLetter } from './card-text';
+import { groupLetter } from '../core/card-text';
 import { MaskShape } from './OcclusionFigure';
 import { prepareOcclusionDraft } from './occlusion-draft';
 import { retireDialog } from './dialog-motion';

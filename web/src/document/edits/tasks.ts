@@ -1,5 +1,5 @@
 import { ulid } from 'ulid';
-import { fieldEntryId } from '../../table/query';
+import { fieldEntryId } from '../../core/field-entry';
 import { sameState } from '../types';
 import type { Edit } from '../contract';
 import type { DocumentInternals } from './internals';

@@ -40,6 +40,48 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["src/api/**", "src/core/**", "!**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**", "!../api/**", "!../core/**"],
+                    "message": "api and core are the base layer: they import only each other. Move the shared code down here instead."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/ui/**", "!**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**", "!../api/**", "!../core/**"],
+                    "message": "ui imports only api and core. Move a feature's component into that feature instead."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "assist": {
     "actions": {
       "source": {

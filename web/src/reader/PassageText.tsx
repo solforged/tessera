@@ -1,4 +1,4 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { For, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Citation, HighlightRow, Mark, Passage } from '../api/types';

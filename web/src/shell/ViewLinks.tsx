@@ -1,7 +1,7 @@
 import { For } from 'solid-js';
 import type { View } from '../api/types';
 import { Button } from '../ui/Button';
-import { opensBeside } from './beside';
+import { opensBeside } from '../core/beside';
 
 export function ViewLinks(props: {
   views: View[];

@@ -1,8 +1,8 @@
 import { For, Show } from 'solid-js';
 import type { ApiClient } from '../api/client';
 import type { Backlink, LibraryPerson, LibraryRow, ReadingState } from '../api/types';
-import type { OpenTarget } from '../shell/contract';
-import { opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
 import { formatProgress } from './query';
 import { SourceCover } from './SourceCover';
