@@ -152,8 +152,8 @@ For a running workshop without installation, open the
   on a phone with USB debugging enabled.
 - **iOS app:** [build and install a development IPA](docs/usage.md#ios-app) on
   an iPhone with Developer Mode on.
-- **Command line:** [build with `mise`](docs/usage.md#command-line), then run
-  `tessera install` on macOS or `tessera serve` on Linux.
+- **Command line:** [build in the devenv shell](docs/usage.md#command-line),
+  then run `tessera install` on macOS or `tessera serve` on Linux.
 
 ## Acknowledgments
 

@@ -386,8 +386,8 @@ see [sync](sync.md).
   workshop. `sqlite-wasm-vfs` is vendored with a fix that lets SQLite roll back
   a hot journal left by a browser killed mid-save.
 
-  On macOS, build with `AR_wasm32_unknown_unknown` pointing at rustup's
-  `llvm-ar`; Apple's `ar` cannot index the bundled SQLite.
+  On macOS, `ts-demo-wasm` points `AR_wasm32_unknown_unknown` at the Rust
+  toolchain's own `llvm-ar`; Apple's `ar` cannot index the bundled SQLite.
 - **React:** the larger ecosystem, but its list reconciliation added about 7 ms
   per structural edit at 10,000 mounted rows in spike 2, against about 1 ms for
   Solid, for the same correctness.
