@@ -5439,7 +5439,7 @@ dependencies = [
 name = "tessera-core"
 version = "0.5.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "caseless",
  "deunicode",
  "dirs",
@@ -5506,7 +5506,7 @@ name = "tessera-mobile"
 version = "0.5.1"
 dependencies = [
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "parking_lot",
  "percent-encoding",
  "serde",
@@ -5527,7 +5527,7 @@ version = "0.5.1"
 dependencies = [
  "anyhow",
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "dirs",
  "futures-util",
  "getrandom 0.4.3",
