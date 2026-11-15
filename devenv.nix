@@ -106,9 +106,9 @@ let
         bun run --cwd web build
       '';
     };
-    # The document tests drive a real service. They start target/debug/tessera,
-    # so it is built first and never stale; TESSERA_TEST_BINARY names another
-    # build.
+    # The document tests drive a real service. They start the debug tessera in
+    # Cargo's target directory, so it is built first and never stale;
+    # TESSERA_TEST_BINARY names another build.
     ts-web-test = {
       description = "Run the editor's tests against a freshly built service";
       run = ''
@@ -150,8 +150,15 @@ let
       '';
     };
     ts-fmt = {
-      description = "Format the Rust code";
-      run = ''exec cargo fmt --all "$@"'';
+      description = "Format the Rust code and the editor";
+      run = ''
+        cargo fmt --all "$@"
+        cd web && exec biome format --write .
+      '';
+    };
+    ts-web-lint = {
+      description = "Check the editor's formatting and lint rules with Biome";
+      run = ''cd web && exec biome ci . "$@"'';
     };
     ts-lint = {
       description = "Check formatting and run Clippy on the workspace";
@@ -169,6 +176,7 @@ let
       run = ''
         ts-lint
         ts-test
+        ts-web-lint
         ts-web-test
         ts-web-build
         ts-docs-test
@@ -348,6 +356,8 @@ in
     pkgs.binaryen
     # Checks prose against .vale.ini; 3.25 reads JSX text for the UI copy check.
     pkgs.vale
+    # Formats and lints the editor by web/biome.json, whose $schema names this version.
+    pkgs.biome
   ];
 
   scripts = lib.mapAttrs (name: command: {
