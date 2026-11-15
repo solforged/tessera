@@ -1,0 +1,42 @@
+[package]
+name = "tessera-api"
+description = "Portable workshop HTTP API shared by the service and the browser worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tessera-core.workspace = true
+tessera-ingest.workspace = true
+futures-util = { workspace = true, default-features = false, features = ["std"] }
+parking_lot.workspace = true
+percent-encoding.workspace = true
+roxmltree.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+axum.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+# Cargo cannot inherit these under another name, and the workspace axum/tokio
+# feature sets do not build for wasm32-unknown-unknown.
+axum = { version = "0.8", default-features = false, features = ["json", "query", "matched-path", "original-uri"] }
+tokio = { version = "1", default-features = false, features = ["sync"] }
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dev-dependencies]
+rusqlite.workspace = true
+tempfile.workspace = true
+ulid.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
+tower.workspace = true
+
+[build-dependencies]
+cfg_aliases.workspace = true
+
+[lints]
+workspace = true

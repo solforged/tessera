@@ -1,5 +1,7 @@
 use super::invalid;
-use crate::{AppState, error::ApiError, run};
+use crate::error::ApiError;
+use crate::run::run;
+use crate::state::WorkshopState;
 use axum::{
     Json,
     body::Bytes,
@@ -36,10 +38,7 @@ pub(super) async fn link(Json(body): Json<LinkRequest>) -> Result<Json<LinkPrevi
     if !(address.starts_with("http://") || address.starts_with("https://")) {
         return Err(invalid("Enter a web address."));
     }
-    #[cfg(not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    )))]
+    #[cfg(fetch_urls)]
     {
         let metadata = native_link(address).await?;
         Ok(Json(LinkPreview {
@@ -47,17 +46,11 @@ pub(super) async fn link(Json(body): Json<LinkRequest>) -> Result<Json<LinkPrevi
             site: metadata.site,
         }))
     }
-    #[cfg(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    ))]
+    #[cfg(not(fetch_urls))]
     Err(invalid("Link titles are read by the desktop service."))
 }
 
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
+#[cfg(fetch_urls)]
 async fn native_link(address: &str) -> Result<ExtractedMetadata, ApiError> {
     let unreadable = || failed("the page could not be read");
     let client = reqwest::Client::builder()
@@ -92,15 +85,12 @@ async fn native_link(address: &str) -> Result<ExtractedMetadata, ApiError> {
 }
 
 pub(super) async fn lookup(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     Json(body): Json<LookupRequest>,
 ) -> Result<Json<Preview>, ApiError> {
     let id = Notebook::normalize_identifier(&body.query)
         .ok_or_else(|| invalid("Enter a valid ISBN, DOI or arXiv ID."))?;
-    #[cfg(not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    )))]
+    #[cfg(fetch_urls)]
     let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
         let mut preview = native_lookup(&id).await?;
         // The app deliberately permits only same-origin images. Fetch cover bytes only
@@ -112,10 +102,7 @@ pub(super) async fn lookup(
     })
     .await
     .map_err(|_| failed("request timed out"))?;
-    #[cfg(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    ))]
+    #[cfg(not(fetch_urls))]
     let result = {
         let _ = state;
         native_lookup(&id).await
@@ -123,10 +110,7 @@ pub(super) async fn lookup(
     result.map(Json)
 }
 
-#[cfg(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-))]
+#[cfg(not(fetch_urls))]
 async fn native_lookup(_: &str) -> Result<Preview, ApiError> {
     Err(ApiError::new(
         StatusCode::NOT_IMPLEMENTED,
@@ -135,10 +119,7 @@ async fn native_lookup(_: &str) -> Result<Preview, ApiError> {
     ))
 }
 
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
+#[cfg(fetch_urls)]
 async fn native_lookup(id: &str) -> Result<Preview, ApiError> {
     let (kind, value) = id.split_once(':').expect("normalized identifier");
     let client = client()?;
@@ -198,10 +179,7 @@ async fn native_lookup(id: &str) -> Result<Preview, ApiError> {
     }
 }
 
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
+#[cfg(fetch_urls)]
 fn client() -> Result<reqwest::Client, ApiError> {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -209,10 +187,7 @@ fn client() -> Result<reqwest::Client, ApiError> {
         .build()
         .map_err(network_error)
 }
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
+#[cfg(fetch_urls)]
 fn network_error(error: reqwest::Error) -> ApiError {
     failed(if error.is_timeout() {
         "request timed out"
@@ -220,34 +195,16 @@ fn network_error(error: reqwest::Error) -> ApiError {
         "provider could not be reached"
     })
 }
-#[cfg(any(
-    test,
-    not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    ))
-))]
+#[cfg(any(test, fetch_urls))]
 fn failed(message: &str) -> ApiError {
     ApiError::new(StatusCode::BAD_GATEWAY, "lookup_failed", message)
 }
-#[cfg(any(
-    test,
-    not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    ))
-))]
+#[cfg(any(test, fetch_urls))]
 fn not_found() -> ApiError {
     ApiError::new(StatusCode::NOT_FOUND, "not_found", "Nothing found")
 }
 
-#[cfg(any(
-    test,
-    not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    ))
-))]
+#[cfg(any(test, fetch_urls))]
 mod mapping {
     use super::*;
     use serde_json::Value;
@@ -472,13 +429,7 @@ mod mapping {
         })
     }
 }
-#[cfg(any(
-    test,
-    not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    ))
-))]
+#[cfg(any(test, fetch_urls))]
 use mapping::*;
 
 #[derive(Deserialize)]
@@ -487,7 +438,7 @@ pub(super) struct RecordRequest {
     cover_url: Option<String>,
 }
 pub(super) async fn record_plan(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     Json(mut body): Json<RecordRequest>,
 ) -> Result<Json<IngestPlan>, ApiError> {
     normalize(&mut body.metadata)?;
@@ -498,9 +449,11 @@ pub(super) async fn record_plan(
             download_cover(&state, &url).await?
         });
     }
-    run(&state, move |n| n.plan_source_record(&body.metadata))
-        .await
-        .map(Json)
+    run(&state.notebook, move |n| {
+        n.plan_source_record(&body.metadata)
+    })
+    .await
+    .map(Json)
 }
 pub(super) async fn normalize_metadata(
     Json(mut metadata): Json<ExtractedMetadata>,
@@ -532,21 +485,21 @@ fn normalize(metadata: &mut ExtractedMetadata) -> Result<(), ApiError> {
     Ok(())
 }
 pub(super) async fn upload_cover(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     body: Bytes,
 ) -> Result<Json<String>, ApiError> {
     store_cover(&state, body).await.map(Json)
 }
-async fn store_cover(state: &AppState, body: Bytes) -> Result<String, ApiError> {
+async fn store_cover(state: &WorkshopState, body: Bytes) -> Result<String, ApiError> {
     if image_type(&body).is_none() {
         return Err(invalid("Choose a PNG, JPEG or WebP image."));
     }
-    run(state, move |n| n.put_object(&body))
+    run(&state.notebook, move |n| n.put_object(&body))
         .await
         .map(|sha| format!("/api/library/covers/{sha}"))
 }
 pub(super) async fn cover(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     Path(sha): Path<String>,
 ) -> Result<Response, ApiError> {
     let bytes = super::object(&state, sha).await?;
@@ -560,22 +513,16 @@ pub(super) async fn cover(
     )
         .into_response())
 }
-#[cfg(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-))]
-async fn download_cover(_: &AppState, _: &str) -> Result<String, ApiError> {
+#[cfg(not(fetch_urls))]
+async fn download_cover(_: &WorkshopState, _: &str) -> Result<String, ApiError> {
     Err(ApiError::new(
         StatusCode::NOT_IMPLEMENTED,
         "unavailable",
         "Online covers are unavailable on this device.",
     ))
 }
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
-async fn download_cover(state: &AppState, url: &str) -> Result<String, ApiError> {
+#[cfg(fetch_urls)]
+async fn download_cover(state: &WorkshopState, url: &str) -> Result<String, ApiError> {
     let url = reqwest::Url::parse(url).map_err(|_| invalid("Invalid cover URL."))?;
     if !matches!(url.scheme(), "https" | "http") {
         return Err(invalid("Invalid cover URL."));
@@ -632,10 +579,11 @@ mod tests {
     #[test]
     fn map_open_library() {
         let mut book: serde_json::Value =
-            serde_json::from_str(include_str!("../tests/fixtures/open-library.json")).unwrap();
-        let edition: serde_json::Value =
-            serde_json::from_str(include_str!("../tests/fixtures/open-library-edition.json"))
-                .unwrap();
+            serde_json::from_str(include_str!("../../tests/fixtures/open-library.json")).unwrap();
+        let edition: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/open-library-edition.json"
+        ))
+        .unwrap();
         book["ISBN:9780141439518"]["languages"] = edition["languages"].clone();
         let preview = open_library(&book, "9780141439518").unwrap_or_else(|_| panic!("fixture"));
         assert_eq!(
@@ -652,7 +600,7 @@ mod tests {
     #[test]
     fn map_crossref() {
         let preview = crossref(
-            &serde_json::from_str(include_str!("../tests/fixtures/crossref.json")).unwrap(),
+            &serde_json::from_str(include_str!("../../tests/fixtures/crossref.json")).unwrap(),
         )
         .unwrap_or_else(|_| panic!("fixture"));
         assert_eq!(preview.metadata.title.as_deref(), Some("Deep learning"));
@@ -669,7 +617,7 @@ mod tests {
     }
     #[test]
     fn map_arxiv() {
-        let preview = arxiv(include_str!("../tests/fixtures/arxiv.xml"))
+        let preview = arxiv(include_str!("../../tests/fixtures/arxiv.xml"))
             .unwrap_or_else(|_| panic!("fixture"));
         assert_eq!(
             preview.metadata.title.as_deref(),

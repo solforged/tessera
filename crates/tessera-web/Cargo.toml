@@ -12,7 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 tessera-core.workspace = true
-tessera-service.workspace = true
+tessera-api.workspace = true
 axum = { version = "0.8", default-features = false }
 tower.workspace = true
 tokio = { version = "1", default-features = false, features = ["sync"] }

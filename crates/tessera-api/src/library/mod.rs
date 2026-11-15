@@ -1,6 +1,7 @@
-#[path = "library_lookup.rs"]
 mod lookup;
-use crate::{AppState, error::ApiError, run};
+use crate::error::ApiError;
+use crate::run::run;
+use crate::state::WorkshopState;
 use axum::{
     Json, Router,
     body::Bytes,
@@ -15,21 +16,22 @@ use axum::{
 use parking_lot::Mutex;
 use serde::Deserialize;
 use std::sync::Arc;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[cfg(native)]
 use std::time::Duration;
 use tessera_core::{Actor, Batch, Notebook, library::*};
 use tokio::sync::broadcast;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[cfg(native)]
 use {tessera_core::now_ms, tokio::sync::Notify};
 
-pub(crate) fn routes() -> Router<AppState> {
+pub fn routes<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+    WorkshopState: axum::extract::FromRef<S>,
+{
     let job_list = get(jobs);
     // Browsers cannot download arbitrary articles across origins, and Android's
     // TLS verifier needs JNI setup that the Android app does not do yet.
-    #[cfg(not(any(
-        all(target_arch = "wasm32", target_os = "unknown"),
-        target_os = "android"
-    )))]
+    #[cfg(fetch_urls)]
     let job_list = job_list.post(queue);
     Router::new()
         .route("/api/library/jobs", job_list)
@@ -75,7 +77,7 @@ struct UploadQuery {
     target_source: Option<String>,
 }
 async fn upload(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     query: Result<Query<UploadQuery>, QueryRejection>,
     headers: HeaderMap,
     body: Bytes,
@@ -107,7 +109,7 @@ async fn upload(
         .decode_utf8()
         .map_err(|_| invalid("The filename is not valid UTF-8."))?
         .into_owned();
-    let job = run(&state, move |n| {
+    let job = run(&state.notebook, move |n| {
         let sha = n.put_object(&body)?;
         n.queue_ingest(
             IngestInput::File,
@@ -120,21 +122,15 @@ async fn upload(
     state.library.kick();
     Ok((StatusCode::CREATED, Json(job)))
 }
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
+#[cfg(fetch_urls)]
 #[derive(Deserialize)]
 struct UrlJob {
     url: String,
     target_source: Option<String>,
 }
-#[cfg(not(any(
-    all(target_arch = "wasm32", target_os = "unknown"),
-    target_os = "android"
-)))]
+#[cfg(fetch_urls)]
 async fn queue(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     body: Result<Json<UrlJob>, JsonRejection>,
 ) -> Result<(StatusCode, Json<IngestJob>), ApiError> {
     let Json(body) = body.map_err(ApiError::from)?;
@@ -143,7 +139,7 @@ async fn queue(
     if !matches!(url.scheme(), "http" | "https") {
         return Err(invalid("Only HTTP and HTTPS source URLs are accepted."));
     }
-    let job = run(&state, move |n| {
+    let job = run(&state.notebook, move |n| {
         n.queue_ingest(
             IngestInput::Url,
             url.as_str(),
@@ -156,60 +152,66 @@ async fn queue(
     Ok((StatusCode::CREATED, Json(job)))
 }
 async fn jobs(
-    State(state): State<AppState>,
-    query: Result<Query<crate::Limit>, QueryRejection>,
+    State(state): State<WorkshopState>,
+    query: Result<Query<crate::limits::Limit>, QueryRejection>,
 ) -> Result<Json<Vec<IngestJob>>, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state, move |n| n.ingest_jobs(q.limit)).await.map(Json)
+    run(&state.notebook, move |n| n.ingest_jobs(q.limit))
+        .await
+        .map(Json)
 }
 async fn job(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<IngestJob>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |n| n.ingest_job(&id)).await.map(Json)
+    run(&state.notebook, move |n| n.ingest_job(&id))
+        .await
+        .map(Json)
 }
 async fn retry(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<IngestJob>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    let job = run(&state, move |n| n.retry_ingest(&id)).await?;
+    let job = run(&state.notebook, move |n| n.retry_ingest(&id)).await?;
     state.library.kick();
     Ok(Json(job))
 }
 async fn query(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     body: Result<Json<LibraryQuery>, JsonRejection>,
 ) -> Result<Json<LibraryResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
-    run(&state, move |n| n.library(&q)).await.map(Json)
+    run(&state.notebook, move |n| n.library(&q)).await.map(Json)
 }
-async fn views(State(state): State<AppState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
-    run(&state, move |n| n.library_views()).await.map(Json)
+async fn views(State(state): State<WorkshopState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
+    run(&state.notebook, move |n| n.library_views())
+        .await
+        .map(Json)
 }
 async fn collection_values(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::Block>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |n| n.collection_values(&id))
+    run(&state.notebook, move |n| n.collection_values(&id))
         .await
         .map(Json)
 }
 async fn source(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<SourceView>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |n| n.source(&id)).await.map(Json)
+    run(&state.notebook, move |n| n.source(&id)).await.map(Json)
 }
 async fn extracted(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<(String, Vec<String>)>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |n| n.extracted_values(&id))
+    run(&state.notebook, move |n| n.extracted_values(&id))
         .await
         .map(Json)
 }
@@ -217,17 +219,17 @@ async fn extracted(
 struct PassageQuery {
     #[serde(default)]
     from: i64,
-    #[serde(default = "crate::default_limit")]
+    #[serde(default = "crate::limits::default_limit")]
     limit: usize,
 }
 async fn passages(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
     query: Result<Query<PassageQuery>, QueryRejection>,
 ) -> Result<Json<PassagePage>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state, move |n| n.passages(&id, q.from, q.limit))
+    run(&state.notebook, move |n| n.passages(&id, q.from, q.limit))
         .await
         .map(Json)
 }
@@ -236,20 +238,22 @@ struct LocateQuery {
     at: String,
 }
 async fn locate(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
     query: Result<Query<LocateQuery>, QueryRejection>,
 ) -> Result<Json<Option<i64>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state, move |n| n.locate(&id, &q.at)).await.map(Json)
+    run(&state.notebook, move |n| n.locate(&id, &q.at))
+        .await
+        .map(Json)
 }
 async fn resource(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<(String, String)>, PathRejection>,
 ) -> Result<Response, ApiError> {
     let Path((id, href)) = path.map_err(ApiError::from)?;
-    let data = run(&state, move |n| {
+    let data = run(&state.notebook, move |n| {
         let (sha, media_type) = n.snapshot_resource(&id, &href)?;
         Ok(media_type
             .starts_with("image/")
@@ -279,11 +283,8 @@ async fn resource(
 }
 
 /// A stored file; a replica fetches one it lacks from its hub.
-pub(crate) async fn object(state: &AppState, sha: String) -> Result<Vec<u8>, ApiError> {
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    return crate::sync::object_or_fetch(state, sha).await;
-    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-    return run(state, move |n| n.read_object(&sha)).await;
+pub(crate) async fn object(state: &WorkshopState, sha: String) -> Result<Vec<u8>, ApiError> {
+    state.read_stored(sha).await
 }
 
 #[derive(Deserialize)]
@@ -291,14 +292,14 @@ struct PositionBody {
     ordinal: i64,
 }
 async fn position(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
     body: Result<Json<PositionBody>, JsonRejection>,
 ) -> Result<Json<ReadingProgress>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Json(body) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state, move |n| {
+    run(&state.notebook, move |n| {
         let mut result = n.set_reading_position(&id, body.ordinal)?;
         if let Some(seq) = result.seq {
             result.seq = Some(n.editor_change_cursor(seq)?);
@@ -313,28 +314,30 @@ async fn position(
 struct SearchQuery {
     q: String,
     source: Option<String>,
-    #[serde(default = "crate::default_limit")]
+    #[serde(default = "crate::limits::default_limit")]
     limit: usize,
     #[serde(default)]
     offset: usize,
 }
 async fn search(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     query: Result<Query<SearchQuery>, QueryRejection>,
 ) -> Result<Json<Vec<PassageHit>>, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state, move |n| {
+    run(&state.notebook, move |n| {
         n.search_passages(&q.q, q.source.as_deref(), q.limit, q.offset)
     })
     .await
     .map(Json)
 }
 async fn highlights(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     body: Result<Json<HighlightQuery>, JsonRejection>,
 ) -> Result<Json<HighlightResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
-    run(&state, move |n| n.highlights(&q)).await.map(Json)
+    run(&state.notebook, move |n| n.highlights(&q))
+        .await
+        .map(Json)
 }
 #[derive(Deserialize)]
 struct ResurfaceQuery {
@@ -342,11 +345,11 @@ struct ResurfaceQuery {
     limit: Option<usize>,
 }
 async fn resurfacing(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     query: Result<Query<ResurfaceQuery>, QueryRejection>,
 ) -> Result<Json<Vec<Surfacing>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |n| {
+    run(&state.notebook, move |n| {
         n.resurfacing(&query.date, query.limit.unwrap_or(3))
     })
     .await
@@ -358,14 +361,14 @@ struct SurfacingBody {
     action: String,
 }
 async fn record_surfacing(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
     body: Result<Json<SurfacingBody>, JsonRejection>,
 ) -> Result<Json<()>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Json(body) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state, move |n| {
+    run(&state.notebook, move |n| {
         n.record_surfacing(&id, &body.date, &body.action)?;
         let _ = changes.send(n.editor_cursor()?);
         Ok(())
@@ -379,7 +382,7 @@ struct ExportQuery {
     ids: Option<String>,
 }
 async fn export(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     query: Result<Query<ExportQuery>, QueryRejection>,
 ) -> Result<Response, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
@@ -392,7 +395,7 @@ async fn export(
                 .collect()
         })
         .unwrap_or_default();
-    let output = run(&state, move |n| n.export(&ids, q.format)).await?;
+    let output = run(&state.notebook, move |n| n.export(&ids, q.format)).await?;
     Ok(export_response(q.format, output))
 }
 #[derive(Deserialize)]
@@ -401,11 +404,14 @@ struct ExportBody {
     query: LibraryQuery,
 }
 async fn export_query(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     body: Result<Json<ExportBody>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     let Json(body) = body.map_err(ApiError::from)?;
-    let output = run(&state, move |n| n.export_query(&body.query, body.format)).await?;
+    let output = run(&state.notebook, move |n| {
+        n.export_query(&body.query, body.format)
+    })
+    .await?;
     Ok(export_response(body.format, output))
 }
 fn export_response(format: ExportFormat, output: String) -> Response {
@@ -429,7 +435,7 @@ fn export_response(format: ExportFormat, output: String) -> Response {
 
 /// Extracts `bytes` named `name`; `url` is where they were fetched from, absent for an uploaded file.
 type Extractor = fn(&[u8], Option<&str>, &str, Option<&str>) -> Result<ExtractedDocument, String>;
-pub(crate) fn extract(
+pub fn extract(
     bytes: &[u8],
     media: Option<&str>,
     name: &str,
@@ -484,301 +490,10 @@ fn commit(
     n.finish_ingest(&job.id, &plan.source_id, &snapshot.id)
 }
 
-/// Ingests uploads inline: a browser worker has no background runtime, and
-/// its requests are already serialized around the one notebook connection.
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-#[derive(Clone)]
-pub struct Library {
-    notebook: Arc<Mutex<Notebook>>,
-    changes: broadcast::Sender<i64>,
-    extractor: Extractor,
-}
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-impl Library {
-    /// Run every due job to completion before returning.
-    pub fn kick(&self) {
-        let mut n = self.notebook.lock();
-        loop {
-            let job = match n.claim_ingest() {
-                Ok(Some(job)) => job,
-                Ok(None) => return,
-                Err(error) => {
-                    tracing::error!(%error, "ingest could not claim a job");
-                    return;
-                }
-            };
-            if let Err(message) = self.process(&mut n, &job) {
-                tracing::warn!(job_id = %job.id, error = %message, "ingest job failed");
-                if let Err(error) = n.fail_ingest(&job.id, &message, None) {
-                    tracing::error!(%error, "ingest could not record failure");
-                    return;
-                }
-            }
-        }
-    }
-    fn process(&self, n: &mut Notebook, job: &IngestJob) -> Result<(), String> {
-        if job.input_kind != IngestInput::File {
-            return Err("The browser demo can only add uploaded EPUB files.".to_owned());
-        }
-        let bytes = n.read_object(&job.input).map_err(|e| e.to_string())?;
-        let doc = (self.extractor)(&bytes, None, &job.name, None)?;
-        commit(n, job, &doc, &job.input, Vec::new(), &self.changes).map_err(|e| e.to_string())
-    }
-    pub(crate) fn start(
-        notebook: Arc<Mutex<Notebook>>,
-        changes: broadcast::Sender<i64>,
-        extractor: Extractor,
-    ) -> Result<Self, String> {
-        notebook.lock().resume_ingest().map_err(|e| e.to_string())?;
-        let library = Self {
-            notebook,
-            changes,
-            extractor,
-        };
-        library.kick();
-        Ok(library)
-    }
-}
-
-/// Wakes the single persistent ingestion worker. Dropping its last handle stops it.
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-#[derive(Clone)]
-pub struct Library(Arc<Control>);
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-struct Control {
-    notify: Arc<Notify>,
-    abort: tokio::task::AbortHandle,
-}
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-impl Drop for Control {
-    fn drop(&mut self) {
-        self.abort.abort();
-    }
-}
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-impl Library {
-    pub fn kick(&self) {
-        self.0.notify.notify_one();
-    }
-    pub(crate) fn start(
-        notebook: Arc<Mutex<Notebook>>,
-        changes: broadcast::Sender<i64>,
-        extractor: Extractor,
-    ) -> Result<Self, String> {
-        notebook.lock().resume_ingest().map_err(|e| e.to_string())?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .redirect(reqwest::redirect::Policy::limited(5))
-            .user_agent(concat!("Tessera/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| e.to_string())?;
-        let notify = Arc::new(Notify::new());
-        let worker = Worker {
-            notebook,
-            changes,
-            notify: notify.clone(),
-            client,
-            extractor,
-        };
-        let task = tokio::spawn(worker.run());
-        Ok(Self(Arc::new(Control {
-            notify,
-            abort: task.abort_handle(),
-        })))
-    }
-}
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-struct Worker {
-    notebook: Arc<Mutex<Notebook>>,
-    changes: broadcast::Sender<i64>,
-    notify: Arc<Notify>,
-    client: reqwest::Client,
-    extractor: Extractor,
-}
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-struct Failure {
-    message: String,
-    retryable: bool,
-}
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-impl From<String> for Failure {
-    fn from(message: String) -> Self {
-        Self {
-            message,
-            retryable: false,
-        }
-    }
-}
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-impl Worker {
-    async fn access<T: Send + 'static>(
-        &self,
-        f: impl FnOnce(&mut Notebook) -> tessera_core::Result<T> + Send + 'static,
-    ) -> Result<T, String> {
-        let notebook = self.notebook.clone();
-        tokio::task::spawn_blocking(move || {
-            let mut n = notebook.lock();
-            f(&mut n).map_err(|e| e.to_string())
-        })
-        .await
-        .map_err(|e| format!("The ingestion task stopped: {e}."))?
-    }
-    async fn run(self) {
-        loop {
-            // A Notify permit is retained if a request arrives while a job is running.
-            let job = match self.access(|n| n.claim_ingest()).await {
-                Ok(job) => job,
-                Err(error) => {
-                    tracing::error!(%error, "ingest worker could not claim a job");
-                    return;
-                }
-            };
-            if let Some(job) = job {
-                tracing::info!(job_id = %job.id, attempt = job.attempts, "ingest job started");
-                if let Err(error) = self.process(&job).await {
-                    tracing::warn!(job_id = %job.id, error = %error.message, "ingest job failed");
-                    let delay = if error.retryable {
-                        match job.attempts {
-                            1 => Some(30_000),
-                            2 => Some(120_000),
-                            3 => Some(600_000),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
-                    let retry_at = delay.map(|delay| now_ms() + delay);
-                    if let Err(error) = self
-                        .access(move |n| n.fail_ingest(&job.id, &error.message, retry_at))
-                        .await
-                    {
-                        tracing::error!(%error, "ingest worker could not record failure");
-                        return;
-                    }
-                } else {
-                    tracing::info!(job_id = %job.id, "ingest job finished");
-                }
-                continue;
-            }
-            let next = match self.access(|n| n.next_ingest_at()).await {
-                Ok(next) => next,
-                Err(error) => {
-                    tracing::error!(%error, "ingest worker could not schedule next job");
-                    return;
-                }
-            };
-            let delay = next
-                .map(|next| Duration::from_millis((next - now_ms()).max(0) as u64))
-                .unwrap_or(Duration::from_secs(86400));
-            tokio::select! {_=self.notify.notified()=>{},_=tokio::time::sleep(delay)=>{}}
-        }
-    }
-    async fn fetch(
-        &self,
-        url: &str,
-        cap: usize,
-        image: bool,
-    ) -> Result<(Vec<u8>, String), Failure> {
-        let url = reqwest::Url::parse(url)
-            .map_err(|_| Failure::from("The source URL is not valid.".to_owned()))?;
-        if !matches!(url.scheme(), "http" | "https") {
-            return Err(Failure::from(
-                "Only HTTP and HTTPS resources are accepted.".to_owned(),
-            ));
-        }
-        let network = |error: reqwest::Error| Failure {
-            message: format!("The source could not be downloaded: {error}."),
-            retryable: true,
-        };
-        let mut response = self.client.get(url).send().await.map_err(network)?;
-        let status = response.status();
-        if !status.is_success() {
-            return Err(Failure {
-                message: format!("The source server returned HTTP {status}."),
-                retryable: status.is_server_error(),
-            });
-        }
-        let media = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|h| h.to_str().ok())
-            .unwrap_or("application/octet-stream")
-            .split(';')
-            .next()
-            .unwrap_or("")
-            .trim()
-            .to_owned();
-        if image && !media.starts_with("image/") {
-            return Err(Failure::from("The resource is not an image.".to_owned()));
-        }
-        if response
-            .content_length()
-            .is_some_and(|length| length > cap as u64)
-        {
-            return Err(Failure::from(
-                "The source exceeds the download size limit.".to_owned(),
-            ));
-        }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(network)? {
-            if bytes.len() + chunk.len() > cap {
-                return Err(Failure::from(
-                    "The source exceeds the download size limit.".to_owned(),
-                ));
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok((bytes, media))
-    }
-    async fn process(&self, job: &IngestJob) -> Result<(), Failure> {
-        let (bytes, media) = match job.input_kind {
-            IngestInput::Url => self.fetch(&job.input, 32 * 1024 * 1024, false).await?,
-            IngestInput::File => {
-                let hash = job.input.clone();
-                (
-                    self.access(move |n| n.read_object(&hash)).await?,
-                    String::new(),
-                )
-            }
-        };
-        let extractor = self.extractor;
-        let name = job.name.clone();
-        let url = (job.input_kind == IngestInput::Url).then(|| job.input.clone());
-        let notebook = self.notebook.clone();
-        let (doc, sha) = tokio::task::spawn_blocking(move || {
-            let sha = notebook
-                .lock()
-                .put_object(&bytes)
-                .map_err(|e| e.to_string())?;
-            let doc = extractor(&bytes, Some(&media), &name, url.as_deref())?;
-            Ok::<_, String>((doc, sha))
-        })
-        .await
-        .map_err(|e| format!("The source parser stopped: {e}."))??;
-        let mut resources = Vec::new();
-        if doc.format == SourceFormat::Article {
-            let mut seen = std::collections::HashSet::new();
-            for href in doc
-                .passages
-                .iter()
-                .filter(|p| p.kind == PassageKind::Image)
-                .filter_map(|p| p.resource.as_deref())
-                .filter(|href| seen.insert(*href))
-                .take(60)
-            {
-                if let Ok((bytes, media)) = self.fetch(href, 10 * 1024 * 1024, true).await {
-                    let hash = self.access(move |n| n.put_object(&bytes)).await?;
-                    resources.push((href.to_owned(), hash, media));
-                }
-            }
-        }
-        let job = job.clone();
-        let changes = self.changes.clone();
-        self.access(move |n| commit(n, &job, &doc, &sha, resources, &changes))
-            .await?;
-        Ok(())
-    }
-}
+#[cfg(browser)]
+include!("inline.rs");
+#[cfg(native)]
+include!("worker.rs");
 
 #[cfg(test)]
 mod tests {
@@ -876,26 +591,11 @@ mod tests {
     ) -> Result<ExtractedDocument, String> {
         Err("The file could not be extracted.".into())
     }
-    fn state(notebook: Notebook, extractor: Extractor) -> AppState {
+    fn state(notebook: Notebook, extractor: Extractor) -> WorkshopState {
         let notebook = Arc::new(Mutex::new(notebook));
         let changes = broadcast::channel(32).0;
         let library = Library::start(notebook.clone(), changes.clone(), extractor).unwrap();
-        AppState {
-            notebook,
-            changes,
-            assets: None,
-            library,
-            port: crate::DEFAULT_PORT,
-            backup: Arc::new(tokio::sync::Mutex::new(None)),
-            backup_store: None,
-            sync_port: 4501,
-            pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
-            sharing: Arc::new(tokio::sync::Mutex::new(())),
-            replica: Arc::default(),
-            sync_health: Arc::default(),
-            switcher: None,
-            agent: Arc::new(crate::agent::Runtime::new(None).unwrap()),
-        }
+        WorkshopState::from_parts(notebook, changes, library)
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {
         app.clone()
@@ -914,7 +614,7 @@ mod tests {
     async fn value(response: Response) -> serde_json::Value {
         serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap()
     }
-    async fn done(state: &AppState, id: &str) -> IngestJob {
+    async fn done(state: &WorkshopState, id: &str) -> IngestJob {
         tokio::time::timeout(Duration::from_secs(10), async {
             loop {
                 let job = state.notebook.lock().ingest_job(id).unwrap();
@@ -1303,24 +1003,11 @@ mod resurface_tests {
         let changes = broadcast::channel(32).0;
         let mut events = changes.subscribe();
         let library = Library::start(notebook.clone(), changes.clone(), extract).unwrap();
-        let app = routes().with_state(AppState {
+        let app = routes().with_state(WorkshopState::from_parts(
             notebook,
-            changes,
+            changes.clone(),
             library,
-            assets: None,
-            port: crate::DEFAULT_PORT,
-            backup: Arc::new(tokio::sync::Mutex::new(None)),
-            backup_store: None,
-            sync_port: 4501,
-            pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
-            sharing: Arc::new(tokio::sync::Mutex::new(())),
-            replica: Arc::default(),
-            sync_health: Arc::default(),
-            switcher: None,
-            agent: Arc::new(
-                crate::agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap(),
-            ),
-        });
+        ));
         let get = app
             .clone()
             .oneshot(

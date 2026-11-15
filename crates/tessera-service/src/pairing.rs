@@ -393,6 +393,7 @@ mod tests {
                 crate::library::extract,
             )
             .unwrap(),
+            objects: crate::hub_objects(),
             notebook,
             changes,
             assets: None,
