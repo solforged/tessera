@@ -30,7 +30,7 @@ const BREAKS: [char; 4] = ['\n', '\r', '\u{2028}', '\u{2029}'];
 /// under an item continue it, and every other line is a block of its own; a
 /// fenced code block stays one block. The escapes `tessera_read_page` writes
 /// read back as the text they stand for.
-pub(super) fn outline(markdown: &str) -> anyhow::Result<Vec<NoteBlock>> {
+pub fn outline(markdown: &str) -> anyhow::Result<Vec<NoteBlock>> {
     let markdown = markdown.strip_prefix('\u{feff}').unwrap_or(markdown);
     let mut parser = Parser::default();
     let mut lines = markdown.lines().peekable();
@@ -43,7 +43,7 @@ pub(super) fn outline(markdown: &str) -> anyhow::Result<Vec<NoteBlock>> {
 /// One block's text as `tessera_read_page` shows it, read back as stored:
 /// the escapes on each line are undone, except inside a fenced code block,
 /// where only `--\>` is.
-pub(super) fn block_text(text: &str) -> String {
+pub fn block_text(text: &str) -> String {
     if text.split('\n').next().and_then(fence).is_some() {
         return text.replace("--\\>", "-->");
     }
@@ -229,7 +229,7 @@ fn depth(depth: usize) -> anyhow::Result<usize> {
 /// editor's `matchFieldEntry` read it: a name of 1 to 60 UTF-16 units
 /// without `\`, backticks, brackets, `#`, `:` or line breaks that is not
 /// itself card syntax.
-pub(super) fn shorthand_value(text: &str) -> Option<&str> {
+pub fn shorthand_value(text: &str) -> Option<&str> {
     let (name, value) = text.split_once("::")?;
     if !(1..=60).contains(&name.encode_utf16().count())
         || name.trim().is_empty()
@@ -248,7 +248,7 @@ pub(super) fn shorthand_value(text: &str) -> Option<&str> {
 
 /// The [`text_problems`] of every block in a note. Field shorthand is
 /// checked by its value, the block that holds the card.
-pub(super) fn note_problems(blocks: &[NoteBlock]) -> Vec<(String, String)> {
+pub fn note_problems(blocks: &[NoteBlock]) -> Vec<(String, String)> {
     let mut problems = Vec::new();
     for block in blocks {
         problems.extend(text_problems(&block.text));
@@ -260,7 +260,7 @@ pub(super) fn note_problems(blocks: &[NoteBlock]) -> Vec<(String, String)> {
 /// Problems in one block's text, each paired with the text it is about:
 /// card syntax that made no card, and field shorthand on one line of a
 /// longer block, which stays text since only a whole block is an entry.
-pub(super) fn text_problems(text: &str) -> Vec<(String, String)> {
+pub fn text_problems(text: &str) -> Vec<(String, String)> {
     let fenced = text.trim_start().starts_with(['`', '~']);
     let mut found: Vec<_> = text
         .lines()
@@ -849,9 +849,9 @@ mod tests {
 
     #[test]
     fn what_read_page_shows_reads_back_as_the_same_blocks() {
+        use crate::agent_render::{Clock, Fields, PageContext, render};
         use std::collections::HashMap;
         use tessera_core::{Actor, Batch, Notebook, Operation};
-        use tessera_service::agent_render::{Clock, Fields, PageContext, render};
 
         // Text, heading and depth, in outline order.
         let rows: [(&str, Option<u8>, usize); 14] = [
@@ -951,8 +951,8 @@ mod tests {
 
     #[test]
     fn a_choice_value_read_page_shows_by_name_reads_back_as_its_option() {
+        use crate::agent_render::{Clock, Fields, PageContext, render};
         use tessera_core::{Actor, AgentEdit, AgentRequest, NoteTarget, Notebook};
-        use tessera_service::agent_render::{Clock, Fields, PageContext, render};
 
         fn add(nb: &mut Notebook, title: &str, markdown: &str) -> String {
             nb.agent_edit(&AgentRequest {
