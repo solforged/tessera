@@ -1,7 +1,11 @@
 import { createSignal } from 'solid-js';
 import type { OutlineReader } from './contract';
 
-export interface OutlineRow { id: string; parentId: string; depth: number }
+export interface OutlineRow {
+  id: string;
+  parentId: string;
+  depth: number;
+}
 interface Item {
   row: OutlineRow;
   priority: number;
@@ -13,11 +17,21 @@ interface Item {
 }
 function update(item: Item) {
   item.size = 1 + (item.left?.size ?? 0) + (item.right?.size ?? 0);
-  item.minimumDepth = Math.min(item.row.depth, item.left?.minimumDepth ?? Infinity, item.right?.minimumDepth ?? Infinity);
+  item.minimumDepth = Math.min(
+    item.row.depth,
+    item.left?.minimumDepth ?? Infinity,
+    item.right?.minimumDepth ?? Infinity,
+  );
 }
 function merge(left: Item | null, right: Item | null): Item | null {
-  if (!left) { if (right) right.parent = null; return right; }
-  if (!right) { left.parent = null; return left; }
+  if (!left) {
+    if (right) right.parent = null;
+    return right;
+  }
+  if (!right) {
+    left.parent = null;
+    return left;
+  }
   if (left.priority < right.priority) {
     left.right = merge(left.right, right);
     if (left.right) left.right.parent = left;
@@ -70,18 +84,36 @@ export class OutlineIndex implements OutlineReader {
   private change = createSignal(0);
   version = this.change[0];
   constructor(private rootId: string) {}
-  size() { this.version(); return this.tree?.size ?? 0; }
-  idAt(index: number) { this.version(); return this.at(index).id; }
-  depth(id: string) { this.version(); return this.byId.get(id)?.row.depth ?? -1; }
-  parentOf(id: string) { this.version(); return this.byId.get(id)?.row.parentId ?? this.rootId; }
-  children(id: string): readonly string[] { this.version(); return this.childIds.get(id) ?? []; }
+  size() {
+    this.version();
+    return this.tree?.size ?? 0;
+  }
+  idAt(index: number) {
+    this.version();
+    return this.at(index).id;
+  }
+  depth(id: string) {
+    this.version();
+    return this.byId.get(id)?.row.depth ?? -1;
+  }
+  parentOf(id: string) {
+    this.version();
+    return this.byId.get(id)?.row.parentId ?? this.rootId;
+  }
+  children(id: string): readonly string[] {
+    this.version();
+    return this.childIds.get(id) ?? [];
+  }
   at(index: number): OutlineRow {
     let item = this.tree;
     while (item) {
       const left = item.left?.size ?? 0;
       if (index === left) return item.row;
       if (index < left) item = item.left;
-      else { index -= left + 1; item = item.right; }
+      else {
+        index -= left + 1;
+        item = item.right;
+      }
     }
     throw new RangeError('Outline index is out of range');
   }
@@ -140,7 +172,13 @@ export class OutlineIndex implements OutlineReader {
   }
   replace(rows: OutlineRow[]) {
     const old = this.slice(0, this.size());
-    if (old.length === rows.length && old.every((row, i) => row.id === rows[i]!.id && row.parentId === rows[i]!.parentId && row.depth === rows[i]!.depth)) return;
+    if (
+      old.length === rows.length &&
+      old.every(
+        (row, i) => row.id === rows[i]!.id && row.parentId === rows[i]!.parentId && row.depth === rows[i]!.depth,
+      )
+    )
+      return;
     this.byId.clear();
     this.childIds.clear();
     this.tree = this.build(rows);
@@ -170,7 +208,9 @@ export class OutlineIndex implements OutlineReader {
     const to = after ? this.subtreeEnd(this.indexOf(after)) : parentId === this.rootId ? 0 : this.indexOf(parentId) + 1;
     this.splice(to, 0, rows);
   }
-  private changed() { this.change[1](value => value + 1); }
+  private changed() {
+    this.change[1](value => value + 1);
+  }
   private reorderParents(parents: Set<string>) {
     for (const parent of parents) this.childIds.get(parent)?.sort((a, b) => this.indexOf(a) - this.indexOf(b));
   }
@@ -184,11 +224,14 @@ export class OutlineIndex implements OutlineReader {
       priority = Math.imul(priority, 0x7feb352d);
       priority ^= priority >>> 15;
       priority = Math.imul(priority, 0x846ca68b);
-      priority = (priority ^ priority >>> 16) >>> 0;
+      priority = (priority ^ (priority >>> 16)) >>> 0;
       const item: Item = { row, priority, left: null, right: null, parent: null, size: 1, minimumDepth: row.depth };
       let last: Item | null = null;
       while (stack.length && stack[stack.length - 1]!.priority > priority) last = stack.pop()!;
-      if (last) { item.left = last; last.parent = item; }
+      if (last) {
+        item.left = last;
+        last.parent = item;
+      }
       if (stack.length) {
         const parent = stack[stack.length - 1]!;
         parent.right = item;

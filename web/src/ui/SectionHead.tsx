@@ -23,18 +23,47 @@ export function SectionHead(props: {
   /** At most one bordered button or menu trigger. */
   children?: JSX.Element;
 }) {
-  const title = () => <span class="section-head-name" classList={{ 'section-head-danger': props.tone === 'danger' }}>{props.name}</span>;
-  return <h2 id={props.id} class={`section-head${props.class ? ` ${props.class}` : ''}`} classList={{ 'section-head-folded': !!props.onToggle && !props.open }}>
-    <Show when={props.onToggle} fallback={title()}>
-      <Button class="section-head-toggle" aria-expanded={!!props.open} aria-controls={props.controls} onClick={() => props.onToggle?.()}><Icon name="down" />{title()}</Button>
-    </Show>
-    <span class="section-rule" />
-    <Show when={props.count !== undefined && props.count !== ''}><span class="section-head-count">{props.count}</span></Show>
-    <Show when={props.children}><span class="section-head-action">{props.children}</span></Show>
-  </h2>;
+  const title = () => (
+    <span class="section-head-name" classList={{ 'section-head-danger': props.tone === 'danger' }}>
+      {props.name}
+    </span>
+  );
+  return (
+    <h2
+      id={props.id}
+      class={`section-head${props.class ? ` ${props.class}` : ''}`}
+      classList={{ 'section-head-folded': !!props.onToggle && !props.open }}
+    >
+      <Show when={props.onToggle} fallback={title()}>
+        <Button
+          class="section-head-toggle"
+          aria-expanded={!!props.open}
+          aria-controls={props.controls}
+          onClick={() => props.onToggle?.()}
+        >
+          <Icon name="down" />
+          {title()}
+        </Button>
+      </Show>
+      <span class="section-rule" />
+      <Show when={props.count !== undefined && props.count !== ''}>
+        <span class="section-head-count">{props.count}</span>
+      </Show>
+      <Show when={props.children}>
+        <span class="section-head-action">{props.children}</span>
+      </Show>
+    </h2>
+  );
 }
 
 /** A group inside a section, such as one of Upcoming's days: a sans name and a faint qualifier, without a rule. */
 export function SectionSubhead(props: { name: JSX.Element; detail?: JSX.Element }) {
-  return <h3 class="section-subhead"><span>{props.name}</span><Show when={props.detail}><span class="section-subhead-detail">{props.detail}</span></Show></h3>;
+  return (
+    <h3 class="section-subhead">
+      <span>{props.name}</span>
+      <Show when={props.detail}>
+        <span class="section-subhead-detail">{props.detail}</span>
+      </Show>
+    </h3>
+  );
 }

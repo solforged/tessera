@@ -30,7 +30,19 @@ describe('slash completion tokens', () => {
   });
 
   test('requires words separated by single spaces with at most one trailing space', () => {
-    for (const text of ['/ x', '/ ', '/foo  ', '/foo  bar', '/foo\tbar', '/foo\nbar', '/foo\rbar', '/clock-in', '/foo_bar', '/task!', '/😀']) {
+    for (const text of [
+      '/ x',
+      '/ ',
+      '/foo  ',
+      '/foo  bar',
+      '/foo\tbar',
+      '/foo\nbar',
+      '/foo\rbar',
+      '/clock-in',
+      '/foo_bar',
+      '/task!',
+      '/😀',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     expect(atEnd('/clock in ')?.query).toBe('clock in ');
@@ -53,7 +65,14 @@ describe('slash completion tokens', () => {
   });
 
   test('protects complete and unfinished references and inline code', () => {
-    for (const text of ['Read [[source| /task]]', 'Read [[ /task', 'Read #[[ /task', 'Read ` /task`', 'Read ` /task', 'Read ``literal ` /task']) {
+    for (const text of [
+      'Read [[source| /task]]',
+      'Read [[ /task',
+      'Read #[[ /task',
+      'Read ` /task`',
+      'Read ` /task',
+      'Read ``literal ` /task',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     const reference = 'Read [[source| /task]]';
@@ -75,7 +94,10 @@ describe('slash completion tokens', () => {
 
 describe('slash command ranking', () => {
   test('keeps the original order and entry values for an empty or whitespace-only query', () => {
-    const entries = [{ id: 'due', title: 'Due date', payload: 7 }, { id: 'task', title: 'Task', payload: 8 }];
+    const entries = [
+      { id: 'due', title: 'Due date', payload: 7 },
+      { id: 'task', title: 'Task', payload: 8 },
+    ];
     expect(rankSlash(entries, '')).toEqual(entries);
     expect(rankSlash(entries, ' \t\n ')).toEqual(entries);
     expect(rankSlash(entries, '')[0]).toBe(entries[0]);
@@ -91,8 +113,23 @@ describe('slash command ranking', () => {
       { id: 'title2', title: 'Headings' },
       { id: 'word2', title: 'Large / Heading' },
     ];
-    expect(rankSlash(entries, ' HeAd ').map(entry => entry.id)).toEqual(['title1', 'title2', 'word1', 'word2', 'substring1', 'substring2']);
-    expect(entries.map(entry => entry.id)).toEqual(['substring1', 'word1', 'title1', 'substring2', 'miss', 'title2', 'word2']);
+    expect(rankSlash(entries, ' HeAd ').map(entry => entry.id)).toEqual([
+      'title1',
+      'title2',
+      'word1',
+      'word2',
+      'substring1',
+      'substring2',
+    ]);
+    expect(entries.map(entry => entry.id)).toEqual([
+      'substring1',
+      'word1',
+      'title1',
+      'substring2',
+      'miss',
+      'title2',
+      'word2',
+    ]);
     expect(rankSlash(entries, 'missing')).toEqual([]);
   });
 
@@ -122,7 +159,10 @@ describe('slash command ranking', () => {
   });
 
   test('matches Unicode title and alias words case-insensitively', () => {
-    const entries = [{ id: 'one', title: '見出し １' }, { id: 'two', title: 'Other', aliases: ['Échéance'] }];
+    const entries = [
+      { id: 'one', title: '見出し １' },
+      { id: 'two', title: 'Other', aliases: ['Échéance'] },
+    ];
     expect(rankSlash(entries, '見 １').map(entry => entry.id)).toEqual(['one']);
     expect(rankSlash(entries, 'ÉCH').map(entry => entry.id)).toEqual(['two']);
   });

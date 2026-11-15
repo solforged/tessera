@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { ACTION_GAP, ACTION_INSET, ACTION_WIDTH, AXIS_LOCK, actionsWidth, commitAt, lockAxis, releaseSwipe, swipeOffset } from './row-swipe';
+import {
+  ACTION_GAP,
+  ACTION_INSET,
+  ACTION_WIDTH,
+  AXIS_LOCK,
+  actionsWidth,
+  commitAt,
+  lockAxis,
+  releaseSwipe,
+  swipeOffset,
+} from './row-swipe';
 import type { SwipeLayout } from './row-swipe';
 
 const width = 402;

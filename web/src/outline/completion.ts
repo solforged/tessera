@@ -4,10 +4,16 @@ import { insideProtectedSyntax } from '../tasks/quick-date';
 import { titleKey } from '../document/title-key';
 import { mapTextOffset } from '../document/text-patch';
 
-export interface CapturedQuoteCompletion { text: string; quote: QuoteState }
+export interface CapturedQuoteCompletion {
+  text: string;
+  quote: QuoteState;
+}
 
 /** Whole-block quote choices share their frozen payload and authored token across projections. */
-export async function captureQuoteCompletion(notebook: NotebookClient, target: string): Promise<CapturedQuoteCompletion> {
+export async function captureQuoteCompletion(
+  notebook: NotebookClient,
+  target: string,
+): Promise<CapturedQuoteCompletion> {
   const quote = await notebook.api.quoteSnapshot(target);
   return { text: `((${target}))`, quote };
 }
@@ -23,9 +29,15 @@ function completedPrefix(pattern: RegExp, previous: string, text: string, caret:
 }
 
 /** `# `, `## ` or `### ` typed at the start of a block makes it a heading; the caret keeps its place in the rest. */
-export function headingPrefix(previous: string, text: string, caret: number): { text: string; heading: 1 | 2 | 3; caret: number } | null {
+export function headingPrefix(
+  previous: string,
+  text: string,
+  caret: number,
+): { text: string; heading: 1 | 2 | 3; caret: number } | null {
   const prefix = completedPrefix(/^(#{1,3}) /, previous, text, caret);
-  return prefix ? { text: text.slice(prefix[0].length), heading: prefix[1]!.length as 1 | 2 | 3, caret: caret - prefix[0].length } : null;
+  return prefix
+    ? { text: text.slice(prefix[0].length), heading: prefix[1]!.length as 1 | 2 | 3, caret: caret - prefix[0].length }
+    : null;
 }
 
 /** `[] ` or `[ ] ` typed at the start of a block makes it a task; the caret keeps its place in the rest. */
@@ -35,19 +47,37 @@ export function taskPrefixInput(previous: string, text: string, caret: number): 
 }
 
 /** Only unmodified Enter or Tab accepts a completion; editing chords retain their own meaning. */
-export function completionPickKey(event: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
-  return (event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
+export function completionPickKey(
+  event: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'metaKey' | 'ctrlKey' | 'altKey'>,
+): boolean {
+  return (
+    (event.key === 'Enter' || event.key === 'Tab') &&
+    !event.shiftKey &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  );
 }
 
-export interface CompletionToken { id: string; from: number; query: string }
+export interface CompletionToken {
+  id: string;
+  from: number;
+  query: string;
+}
 /**
  * Typing engages a completion's token. A caret that only lands in a token (a click, End, undo) offers its picker
  * without engaging it, and the token stays engaged while the caret moves within it unchanged.
  */
-export function engagedToken(previous: CompletionToken | null, next: CompletionToken | null, typed: boolean): CompletionToken | null {
+export function engagedToken(
+  previous: CompletionToken | null,
+  next: CompletionToken | null,
+  typed: boolean,
+): CompletionToken | null {
   if (!next) return null;
   if (typed) return next;
-  return previous && previous.id === next.id && previous.from === next.from && previous.query === next.query ? previous : null;
+  return previous && previous.id === next.id && previous.from === next.from && previous.query === next.query
+    ? previous
+    : null;
 }
 
 /** An offered completion leaves every key but Escape to the editor, so Enter still splits and Tab still indents. */
@@ -56,9 +86,16 @@ export function completionTakesKey(event: Pick<KeyboardEvent, 'key'>, engaged: b
 }
 
 /** Completion-owned boundaries follow saved-text rewrites without changing the query or chosen row. */
-export function mapCompletionRange<T extends { from: number; to?: number }>(before: string, after: string, token: T): T {
-  return { ...token, from: mapTextOffset(before, after, token.from),
-    ...token.to === undefined ? {} : { to: mapTextOffset(before, after, token.to) } };
+export function mapCompletionRange<T extends { from: number; to?: number }>(
+  before: string,
+  after: string,
+  token: T,
+): T {
+  return {
+    ...token,
+    from: mapTextOffset(before, after, token.from),
+    ...(token.to === undefined ? {} : { to: mapTextOffset(before, after, token.to) }),
+  };
 }
 
 /** ISO date references name existing journals, never newly created ordinary pages. */
@@ -66,14 +103,29 @@ export function isJournalReference(query: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(query.trim());
 }
 
-export interface ReferenceCompletion { from: number; to: number; query: string; blocks: boolean }
+export interface ReferenceCompletion {
+  from: number;
+  to: number;
+  query: string;
+  blocks: boolean;
+}
 /** Find the active opening pair only in authored prose, outside code and references. */
 export function referenceCompletionAt(text: string, caret: number): ReferenceCompletion | null {
   const prefix = text.slice(0, caret);
-  const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
-  const blocks = block > page, from = Math.max(page, block);
+  const page = prefix.lastIndexOf('[['),
+    block = prefix.lastIndexOf('((');
+  const blocks = block > page,
+    from = Math.max(page, block);
   const typed = prefix.slice(from + 2);
-  if (from < 0 || typed.includes(blocks ? ')' : ']') || !blocks && typed.includes('|') || typed.includes('\n') || !blocks && prefix[from - 1] === '#' || insideProtectedSyntax(text, from)) return null;
+  if (
+    from < 0 ||
+    typed.includes(blocks ? ')' : ']') ||
+    (!blocks && typed.includes('|')) ||
+    typed.includes('\n') ||
+    (!blocks && prefix[from - 1] === '#') ||
+    insideProtectedSyntax(text, from)
+  )
+    return null;
   return { from, to: caret, query: openReferenceRange(text, from, caret, blocks).query, blocks };
 }
 
@@ -82,7 +134,12 @@ export function referenceCompletionAt(text: string, caret: number): ReferenceCom
  * brackets to the caret, and on through the rest of the query and its closing pair when one follows, so a
  * caret moved back into `[[Stoicism]]` still searches `Stoicism` and a choice leaves no tail behind.
  */
-export function openReferenceRange(text: string, from: number, caret: number, blocks: boolean): { from: number; to: number; query: string } {
+export function openReferenceRange(
+  text: string,
+  from: number,
+  caret: number,
+  blocks: boolean,
+): { from: number; to: number; query: string } {
   const stops = blocks ? '()\r\n' : '[]\r\n';
   let end = caret;
   while (end < text.length && !stops.includes(text[end]!)) end++;
@@ -99,10 +156,20 @@ export function completedReference(text: string, from: number, to: number, id: s
 }
 
 /** `|` finishes the target and leaves the caret in the label, before the paired closer. */
-export function referenceAliasInput(text: string, from: number, caret: number, target?: string): { from: number; to: number; insert: string; caret: number } {
+export function referenceAliasInput(
+  text: string,
+  from: number,
+  caret: number,
+  target?: string,
+): { from: number; to: number; insert: string; caret: number } {
   const range = openReferenceRange(text, from, caret, false);
   // An accepted ID already fixes the target; search hits for its mentions must not retarget it.
-  const reference = completedReference(text, range.from, range.to, /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(range.query) ? range.query : target ?? range.query);
+  const reference = completedReference(
+    text,
+    range.from,
+    range.to,
+    /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(range.query) ? range.query : (target ?? range.query),
+  );
   const separator = reference.indexOf('|');
   const insert = separator < 0 ? `${reference.slice(0, -2)}|]]` : reference;
   return { from: range.from, to: range.to, insert, caret: range.from + insert.indexOf('|') + 1 };
@@ -158,4 +225,3 @@ export function cachedExactPage(notebook: NotebookClient, query: string): Block 
   const block = liveRoot(notebook, candidate.id, index);
   return block?.kind === 'page' && titleKey(block.text) === key ? block : null;
 }
-

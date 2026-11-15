@@ -3,14 +3,47 @@ import type { Block, TaskRow, TaskState } from '../api/types';
 import { agendaTaskTime } from './task-labels';
 import { weekLedgerCounts, weekLedgerDays, weekLedgerOverdue, weekLedgerSummary } from './week-ledger';
 
-const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Notes', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+const page: Block = {
+  id: 'page',
+  kind: 'page',
+  parent_id: null,
+  page_id: 'page',
+  text: 'Notes',
+  heading: null,
+  archived: false,
+  revision: 1,
+  created_at: 0,
+  updated_at: 0,
+};
 function row(id: string, task: Partial<TaskState>): TaskRow {
-  return { source: { block: { ...page, id, kind: 'block', parent_id: page.id, text: id }, page }, task: { status: 'todo', scheduled: '2026-10-13', scheduled_time: null, deadline: null, deadline_time: null, warning_days: 0, priority: null, repeater: null, completed_on: null, ...task }, project_id: null, section_id: null, section_text: null };
+  return {
+    source: { block: { ...page, id, kind: 'block', parent_id: page.id, text: id }, page },
+    task: {
+      status: 'todo',
+      scheduled: '2026-10-13',
+      scheduled_time: null,
+      deadline: null,
+      deadline_time: null,
+      warning_days: 0,
+      priority: null,
+      repeater: null,
+      completed_on: null,
+      ...task,
+    },
+    project_id: null,
+    section_id: null,
+    section_text: null,
+  };
 }
 
 test('ledger deduplicates coincident plans and counts distinct open sources and deadlines', () => {
   const both = row('both', { deadline: '2026-10-13' });
-  const rows = [both, both, row('done', { status: 'done', scheduled: '2026-10-12' }), row('later', { scheduled: '2026-10-15', deadline: '2026-10-16' })];
+  const rows = [
+    both,
+    both,
+    row('done', { status: 'done', scheduled: '2026-10-12' }),
+    row('later', { scheduled: '2026-10-15', deadline: '2026-10-16' }),
+  ];
   const days = weekLedgerDays(rows, '2026-10-13');
   expect(days).toHaveLength(7);
   expect(days[0]).toMatchObject({ done: 1, open: 0 });
@@ -19,14 +52,29 @@ test('ledger deduplicates coincident plans and counts distinct open sources and 
 });
 
 test('untimed work leads each day before chronological clocks regardless of status', () => {
-  const rows = [row('untimed', {}), row('future', { scheduled_time: '14:00' }), row('doing', { status: 'doing', scheduled_time: '08:00' }), row('past', { scheduled_time: '09:00' })];
-  expect(weekLedgerDays(rows, '2026-10-13')[1]!.rows.map(row => row.source.block.id)).toEqual(['untimed', 'doing', 'past', 'future']);
+  const rows = [
+    row('untimed', {}),
+    row('future', { scheduled_time: '14:00' }),
+    row('doing', { status: 'doing', scheduled_time: '08:00' }),
+    row('past', { scheduled_time: '09:00' }),
+  ];
+  expect(weekLedgerDays(rows, '2026-10-13')[1]!.rows.map(row => row.source.block.id)).toEqual([
+    'untimed',
+    'doing',
+    'past',
+    'future',
+  ]);
   expect(weekLedgerSummary([], '2026-12-31')).toBe('0 open · 0 due');
   expect(weekLedgerDays([], 'invalid')).toEqual([]);
 });
 
 test('deadline day uses its own clock rather than carrying another scheduled day', () => {
-  const task = row('deadline', { scheduled: '2026-10-12', scheduled_time: '09:00', deadline: '2026-10-13', deadline_time: '16:00' });
+  const task = row('deadline', {
+    scheduled: '2026-10-12',
+    scheduled_time: '09:00',
+    deadline: '2026-10-13',
+    deadline_time: '16:00',
+  });
   expect(agendaTaskTime(task, '2026-10-13', false)).toBe('16:00');
   expect(agendaTaskTime(task, '2026-10-13')).toBe('09:00');
   expect(agendaTaskTime({ ...task, task: { ...task.task, deadline_time: null } }, '2026-10-13', false)).toBeNull();
@@ -65,7 +113,14 @@ test('canceled work is not listed, as Day leaves it off the agenda', () => {
 
 test('week counts: each open source once, overdue among the week plus work missed before it', () => {
   const both = row('both', { scheduled: '2026-10-12', deadline: '2026-10-13' });
-  const rows = [both, row('past', { scheduled: '2026-10-12' }), row('today', { scheduled: '2026-10-13' }), row('later', { scheduled: '2026-10-15' }), row('done', { status: 'done', scheduled: '2026-10-12' }), row('outside', { scheduled: '2026-10-20' })];
+  const rows = [
+    both,
+    row('past', { scheduled: '2026-10-12' }),
+    row('today', { scheduled: '2026-10-13' }),
+    row('later', { scheduled: '2026-10-15' }),
+    row('done', { status: 'done', scheduled: '2026-10-12' }),
+    row('outside', { scheduled: '2026-10-20' }),
+  ];
   expect(weekLedgerCounts(rows, '2026-10-13', '2026-10-13')).toEqual({ open: 4, overdue: 2 });
   const missed = row('missed', { scheduled: '2026-10-01' });
   expect(weekLedgerCounts(rows, '2026-10-13', '2026-10-13', [missed, both])).toEqual({ open: 5, overdue: 3 });

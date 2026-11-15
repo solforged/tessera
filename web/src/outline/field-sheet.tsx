@@ -1,4 +1,15 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, on, onCleanup, untrack } from 'solid-js';
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  mapArray,
+  on,
+  onCleanup,
+  untrack,
+} from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 import type { ChangeEvent, FieldDefinition, FieldKind, SubjectCriteria } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
@@ -28,7 +39,10 @@ interface SheetState {
   /** Missing fields the owner's types require, shown whatever their Hide setting and even at rest. */
   required: ReadonlySet<string>;
 }
-interface PlacedSheet extends SheetState { anchor: string; depth: number }
+interface PlacedSheet extends SheetState {
+  anchor: string;
+  depth: number;
+}
 
 export interface FieldSheet {
   FieldSlots(props: { id: string }): JSX.Element;
@@ -52,10 +66,16 @@ function createSubjectCriteria(
 ) {
   const resources = mapArray(subjects, subject => {
     const [criteria, { refetch }] = createResource(() => subject, load);
-    createEffect(on(lastChange, change => {
-      if (change?.blocks.some(block => block.id === subject) || change?.removed.includes(subject)) void refetch();
-    }, { defer: true }));
-    const fields = createMemo(() => !criteria.error ? criteria()?.fields ?? [] : [], undefined, {
+    createEffect(
+      on(
+        lastChange,
+        change => {
+          if (change?.blocks.some(block => block.id === subject) || change?.removed.includes(subject)) void refetch();
+        },
+        { defer: true },
+      ),
+    );
+    const fields = createMemo(() => (!criteria.error ? (criteria()?.fields ?? []) : []), undefined, {
       equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]),
     });
     return [subject, fields] as const;
@@ -64,25 +84,63 @@ function createSubjectCriteria(
 }
 
 /** Every eligible owner has one stable field area, independent of selection and editing. */
-export function createFieldSheet(context: Pick<OutlineContext,
-  | 'doc' | 'props' | 'fields' | 'disposed' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing' | 'zoom'
-  | 'folds' | 'apply' | 'setMessage' | 'showNotice' | 'templateFor' | 'requiredFor' | 'baseDepth' | 'setSelected' | 'editAt' | 'rowFocus'
->, options: {
-  offerValue(id: string, field: FieldDefinition): void;
-  controlledId(): string | undefined;
-  closeControlled(): void;
-  onField(field: FieldDefinition): void;
-  hiddenCounts: Accessor<ReadonlyMap<string, number>>;
-  revealed: Accessor<ReadonlySet<string>>;
-  reveal(owner: string): void;
-}): FieldSheet {
-  const { doc, props, definitionsById, definitions, indices, selected, editing, zoom, folds, apply, setMessage, templateFor, baseDepth } = context;
+export function createFieldSheet(
+  context: Pick<
+    OutlineContext,
+    | 'doc'
+    | 'props'
+    | 'fields'
+    | 'disposed'
+    | 'definitionsById'
+    | 'definitions'
+    | 'indices'
+    | 'selected'
+    | 'editing'
+    | 'zoom'
+    | 'folds'
+    | 'apply'
+    | 'setMessage'
+    | 'showNotice'
+    | 'templateFor'
+    | 'requiredFor'
+    | 'baseDepth'
+    | 'setSelected'
+    | 'editAt'
+    | 'rowFocus'
+  >,
+  options: {
+    offerValue(id: string, field: FieldDefinition): void;
+    controlledId(): string | undefined;
+    closeControlled(): void;
+    onField(field: FieldDefinition): void;
+    hiddenCounts: Accessor<ReadonlyMap<string, number>>;
+    revealed: Accessor<ReadonlySet<string>>;
+    reveal(owner: string): void;
+  },
+): FieldSheet {
+  const {
+    doc,
+    props,
+    definitionsById,
+    definitions,
+    indices,
+    selected,
+    editing,
+    zoom,
+    folds,
+    apply,
+    setMessage,
+    templateFor,
+    baseDepth,
+  } = context;
   const [taskRequest, setTaskRequest] = createSignal<{ owner: string; field?: TaskFieldName; opener?: HTMLElement }>();
   const [dismissedTask, setDismissedTask] = createSignal<string>();
-  createEffect(on(selected, owner => {
-    setDismissedTask(undefined);
-    if (taskRequest()?.owner !== owner) setTaskRequest(undefined);
-  }));
+  createEffect(
+    on(selected, owner => {
+      setDismissedTask(undefined);
+      if (taskRequest()?.owner !== owner) setTaskRequest(undefined);
+    }),
+  );
   function openTask(owner: string, field?: TaskFieldName, opener?: HTMLElement) {
     context.setSelected(owner);
     setDismissedTask(undefined);
@@ -92,25 +150,31 @@ export function createFieldSheet(context: Pick<OutlineContext,
   const memberships = new Map<string, readonly string[]>();
   const [membershipVersion, setMembershipVersion] = createSignal(0);
   // Inspect only committed changed blocks for tag changes; ordinary value typing never invalidates the owner scan.
-  createEffect(on(props.notebook.lastChange, change => {
-    let changed = false;
-    for (const block of change?.blocks ?? []) {
-      const previous = memberships.get(block.id);
-      if (!previous) continue;
-      const next = typeKeys(block.text, []);
-      if (previous.length !== next.length || previous.some((key, index) => key !== next[index])) changed = true;
-    }
-    if (changed) setMembershipVersion(value => value + 1);
-  }));
+  createEffect(
+    on(props.notebook.lastChange, change => {
+      let changed = false;
+      for (const block of change?.blocks ?? []) {
+        const previous = memberships.get(block.id);
+        if (!previous) continue;
+        const next = typeKeys(block.text, []);
+        if (previous.length !== next.length || previous.some((key, index) => key !== next[index])) changed = true;
+      }
+      if (changed) setMembershipVersion(value => value + 1);
+    }),
+  );
   // Only blocks with entries, type memberships or apparatus get per-owner memos/resources.
   const candidates = createMemo(() => {
-    doc.outline.version(); doc.archivedVersion(); membershipVersion();
-    const known = definitionsById(), owners = new Set<string>();
+    doc.outline.version();
+    doc.archivedVersion();
+    membershipVersion();
+    const known = definitionsById(),
+      owners = new Set<string>();
     memberships.clear();
     const consider = (id: string) => {
       const block = doc.block(id);
       if (!block || doc.isArchived(id)) return;
-      const text = untrack(() => block.text), keys = typeKeys(text, []);
+      const text = untrack(() => block.text),
+        keys = typeKeys(text, []);
       memberships.set(id, keys);
       if (block.task || block.position || block.manual_types.length || keys.length) owners.add(id);
       if (known.has(fieldEntryId(text) ?? '')) owners.add(doc.outline.parentOf(id));
@@ -120,46 +184,85 @@ export function createFieldSheet(context: Pick<OutlineContext,
     return [...owners];
   });
   function stateFor(owner: string, subjects: readonly string[] = []): SheetState {
-    const known = definitionsById(), block = doc.block(owner);
-    const entries = untrack(() => doc.outline.children(owner).flatMap(id => {
-      const field = doc.isArchived(id) ? null : fieldEntryId(doc.block(id)?.text ?? '');
-      return field && known.has(field) ? [{ id, field }] : [];
-    }));
+    const known = definitionsById(),
+      block = doc.block(owner);
+    const entries = untrack(() =>
+      doc.outline.children(owner).flatMap(id => {
+        const field = doc.isArchived(id) ? null : fieldEntryId(doc.block(id)?.text ?? '');
+        return field && known.has(field) ? [{ id, field }] : [];
+      }),
+    );
     const present = new Set(entries.map(entry => entry.field));
-    const keys = [...typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []), ...(block?.task?.status ? ['task'] : [])];
-    const apparatus = block?.position ? definitions().filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase())).sort((a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work')).map(field => field.id) : [];
-    const template = [...new Set([...apparatus, ...subjects, ...templateFor(keys),
-      ...(block?.task && !block.task.status ? definitions().filter(field => field.built_in && field.name === 'scheduled').map(field => field.id) : [])])]
-      .filter(id => known.has(id) && !(block?.source && isCatalogueField(known.get(id)!.name)));
+    const keys = [
+      ...typeKeys(
+        untrack(() => block?.text ?? ''),
+        block?.manual_types ?? [],
+      ),
+      ...(block?.task?.status ? ['task'] : []),
+    ];
+    const apparatus = block?.position
+      ? definitions()
+          .filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase()))
+          .sort(
+            (a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work'),
+          )
+          .map(field => field.id)
+      : [];
+    const template = [
+      ...new Set([
+        ...apparatus,
+        ...subjects,
+        ...templateFor(keys),
+        ...(block?.task && !block.task.status
+          ? definitions()
+              .filter(field => field.built_in && field.name === 'scheduled')
+              .map(field => field.id)
+          : []),
+      ]),
+    ].filter(id => known.has(id) && !(block?.source && isCatalogueField(known.get(id)!.name)));
     const missing = template.filter(id => !present.has(id));
     const required = context.requiredFor(keys);
     return { owner, entries, template, present, missing, required: new Set(missing.filter(id => required.has(id))) };
   }
-  const subjects = createMemo(() => {
-    const visible = indices(), result = new Set<string>();
-    for (const owner of candidates()) {
-      if (!visible.has(owner) && !(owner === props.pageId && !zoom())) continue;
+  const subjects = createMemo(
+    () => {
+      const visible = indices(),
+        result = new Set<string>();
+      for (const owner of candidates()) {
+        if (!visible.has(owner) && !(owner === props.pageId && !zoom())) continue;
+        const subject = doc.block(owner)?.position?.subject_id;
+        if (subject) result.add(subject);
+      }
+      return [...result];
+    },
+    undefined,
+    { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) },
+  );
+  const criteria = createSubjectCriteria(
+    subjects,
+    props.notebook.lastChange,
+    async subject => (await props.notebook.api.positions({ subject, limit: 0 })).criteria,
+  );
+  const owners = mapArray(candidates, owner =>
+    createMemo(() => {
+      doc.outline.version();
+      doc.archivedVersion();
+      membershipVersion();
       const subject = doc.block(owner)?.position?.subject_id;
-      if (subject) result.add(subject);
-    }
-    return [...result];
-  }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
-  const criteria = createSubjectCriteria(subjects, props.notebook.lastChange, async subject =>
-    (await props.notebook.api.positions({ subject, limit: 0 })).criteria);
-  const owners = mapArray(candidates, owner => createMemo(() => {
-    doc.outline.version(); doc.archivedVersion(); membershipVersion();
-    const subject = doc.block(owner)?.position?.subject_id;
-    return stateFor(owner, subject ? criteria().get(subject)?.() : undefined);
-  }));
+      return stateFor(owner, subject ? criteria().get(subject)?.() : undefined);
+    }),
+  );
   const states = createMemo(() => new Map(owners().map(state => [state().owner, state()])));
   // One pass over visible rows places every area; never re-scan a 1k-row page for each owner.
   const placed = createMemo(() => {
-    const all = states(), rows = indices(), closed = folds();
+    const all = states(),
+      rows = indices(),
+      closed = folds();
     const entries = new Map<string, string>();
     for (const state of all.values()) for (const entry of state.entries) entries.set(entry.id, state.owner);
     const anchors = new Map<string, string>();
     for (const row of rows.keys()) {
-      for (let id = row; id !== props.pageId;) {
+      for (let id = row; id !== props.pageId; ) {
         const owner = entries.get(id);
         if (owner) anchors.set(owner, row);
         const parent = doc.outline.parentOf(id);
@@ -169,12 +272,13 @@ export function createFieldSheet(context: Pick<OutlineContext,
     }
     const byAnchor = new Map<string, PlacedSheet[]>();
     for (const state of all.values()) {
-      if (closed.has(state.owner) || !state.entries.length && !state.template.length) continue;
+      if (closed.has(state.owner) || (!state.entries.length && !state.template.length)) continue;
       if (!rows.has(state.owner) && !(state.owner === props.pageId && !zoom())) continue;
       const anchor = anchors.get(state.owner) ?? state.owner;
       const value = { ...state, anchor, depth: doc.outline.depth(state.owner) + 1 - baseDepth() };
       const group = byAnchor.get(anchor);
-      if (group) group.unshift(value); else byAnchor.set(anchor, [value]);
+      if (group) group.unshift(value);
+      else byAnchor.set(anchor, [value]);
     }
     return byAnchor;
   });
@@ -184,7 +288,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
   function belongs(id: string | null, owner: string): boolean {
     if (!id) return false;
     if (id === owner) return true;
-    for (let child = id; child !== props.pageId;) {
+    for (let child = id; child !== props.pageId; ) {
       const parent = doc.outline.parentOf(child);
       if (parent === owner) return !!fieldOf(child);
       if (parent === child) break;
@@ -193,11 +297,18 @@ export function createFieldSheet(context: Pick<OutlineContext,
     return false;
   }
   const [picker, setPicker] = createSignal<{ owner: string; anchor: HTMLElement } | null>(null);
-  const [instance, setInstance] = createSignal<{ owner: string; anchor: HTMLElement; field: FieldDefinition } | null>(null);
-  function pick(owner: string, anchor: HTMLElement) { setPicker({ owner, anchor }); }
+  const [instance, setInstance] = createSignal<{ owner: string; anchor: HTMLElement; field: FieldDefinition } | null>(
+    null,
+  );
+  function pick(owner: string, anchor: HTMLElement) {
+    setPicker({ owner, anchor });
+  }
   function start(id: string): boolean {
     const field = fieldOf(id);
-    if (field) { openField(doc.outline.parentOf(id), field.id); return true; }
+    if (field) {
+      openField(doc.outline.parentOf(id), field.id);
+      return true;
+    }
     const entry = doc.outline.parentOf(id);
     setFilling(fieldOf(entry) ? doc.outline.parentOf(entry) : null);
     return false;
@@ -208,13 +319,17 @@ export function createFieldSheet(context: Pick<OutlineContext,
     setFilling(owner);
     const state = states().get(owner) ?? stateFor(owner);
     const entry = state.entries.find(entry => entry.field === fieldId);
-    if (!entry) { add(owner, field); return; }
+    if (!entry) {
+      add(owner, field);
+      return;
+    }
     const value = doc.outline.children(entry.id).find(id => !doc.isArchived(id));
     if (!value) fill(entry.id);
     else context.editAt(value, doc.block(value)?.text.length ?? 0, true);
   }
   function advance(id: string, backward = false) {
-    const owner = filling(), field = fieldOf(doc.outline.parentOf(id));
+    const owner = filling(),
+      field = fieldOf(doc.outline.parentOf(id));
     if (!owner || !field) return;
     const state = states().get(owner) ?? stateFor(owner);
     const order = [...new Set([...state.template, ...state.entries.map(entry => entry.field)])];
@@ -226,20 +341,30 @@ export function createFieldSheet(context: Pick<OutlineContext,
   function key(event: KeyboardEvent, id: string): boolean {
     const owner = filling();
     const root = zoom();
-    if (root && owner && doc.outline.indexOf(owner) < doc.outline.indexOf(root)) { setFilling(null); return false; }
+    if (root && owner && doc.outline.indexOf(owner) < doc.outline.indexOf(root)) {
+      setFilling(null);
+      return false;
+    }
     if (!owner || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return false;
     const entry = doc.outline.parentOf(id);
     const field = fieldOf(entry);
-    if (!field || doc.outline.parentOf(entry) !== owner) { setFilling(null); return false; }
+    if (!field || doc.outline.parentOf(entry) !== owner) {
+      setFilling(null);
+      return false;
+    }
     if (event.key === 'Tab') {
       advance(id, event.shiftKey);
       return true;
     }
     if (event.key === 'Escape') {
-      setFilling(null); options.closeControlled(); context.rowFocus(id); return true;
+      setFilling(null);
+      options.closeControlled();
+      context.rowFocus(id);
+      return true;
     }
     if (event.key !== 'Enter' || event.shiftKey || doc.block(id)?.text.trim()) return false;
-    setFilling(null); options.closeControlled();
+    setFilling(null);
+    options.closeControlled();
     const createdEntry = emptySlots.get(id);
     if (createdEntry && doc.outline.children(createdEntry).length === 1 && !doc.outline.children(id).length) {
       apply({ kind: 'delete', ids: [createdEntry] }, false);
@@ -260,10 +385,14 @@ export function createFieldSheet(context: Pick<OutlineContext,
     if (!id) return;
     // The date editor validates and commits its draft before advancing the owner's slots.
     if (event.key === 'Tab' && event.target instanceof Element && event.target.closest('.date-picker')) return;
-    const query = event.target instanceof HTMLInputElement && event.target.classList.contains('picker-input') ? event.target : null;
+    const query =
+      event.target instanceof HTMLInputElement && event.target.classList.contains('picker-input') ? event.target : null;
     if (query && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) engaged = id;
     if (event.key === 'Enter' && query && (query.value.trim() || engaged === id)) return;
-    if (key(event, id)) { event.preventDefault(); event.stopImmediatePropagation(); }
+    if (key(event, id)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
   };
   document.addEventListener('keydown', controlledKey, true);
   onCleanup(() => document.removeEventListener('keydown', controlledKey, true));
@@ -274,7 +403,10 @@ export function createFieldSheet(context: Pick<OutlineContext,
         const value = newTask();
         if (name === 'status') value.status = 'todo';
         const result = doc.edit({ kind: 'task', id: owner, value });
-        if (!result.ok) { setMessage(result.reason); return; }
+        if (!result.ok) {
+          setMessage(result.reason);
+          return;
+        }
       }
       openTask(owner, name);
       return;
@@ -285,7 +417,15 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const checkbox = field.kind === 'checkbox';
     const result = relationPick
       ? writeFieldValue(doc, { field, ownerId: owner, after }, valueText ?? '', undefined, relationPick)
-      : apply({ kind: 'addFieldEntries', parentId: owner, after, entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }] }, !checkbox && !valueText);
+      : apply(
+          {
+            kind: 'addFieldEntries',
+            parentId: owner,
+            after,
+            entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }],
+          },
+          !checkbox && !valueText,
+        );
     const value = result?.ok ? result.caret?.id : undefined;
     if (value && !checkbox && !valueText) emptySlots.set(value, doc.outline.parentOf(value));
     // Retain a newly chosen hidden field before the queued structural caret restore checks visible rows.
@@ -301,20 +441,42 @@ export function createFieldSheet(context: Pick<OutlineContext,
   onCleanup(() => cancelCreationInput?.());
   // A source's catalogue fields belong to its header and card, so its own Add field never offers or creates them.
   async function create(owner: string, name: string, kind: FieldKind) {
-    if (doc.block(owner)?.source && isCatalogueField(name)) { context.showNotice(`Edit ${name.trim()} in the source's details.`); return; }
+    if (doc.block(owner)?.source && isCatalogueField(name)) {
+      context.showNotice(`Edit ${name.trim()} in the source's details.`);
+      return;
+    }
     const register = context.fields.error ? undefined : context.fields();
-    if (!register) { setMessage('Field definitions are unavailable. Try again when connected.'); return; }
-    let createdValue!: string, left = false, write: Promise<void> | undefined;
-    const pending = ['text', 'number', 'span', 'url', 'identifier'].includes(kind) ? pendingCaretInput.prepare({
-      onText: text => {
-        write = props.notebook.queueCreatedValueText(createdValue, doc.pageId, text);
-        void write.catch(error => setMessage(error instanceof Error ? error.message : String(error)));
-      },
-      onLeave: () => { left = true; },
-    }) : undefined;
+    if (!register) {
+      setMessage('Field definitions are unavailable. Try again when connected.');
+      return;
+    }
+    let createdValue!: string,
+      left = false,
+      write: Promise<void> | undefined;
+    const pending = ['text', 'number', 'span', 'url', 'identifier'].includes(kind)
+      ? pendingCaretInput.prepare({
+          onText: text => {
+            write = props.notebook.queueCreatedValueText(createdValue, doc.pageId, text);
+            void write.catch(error => setMessage(error instanceof Error ? error.message : String(error)));
+          },
+          onLeave: () => {
+            left = true;
+          },
+        })
+      : undefined;
     cancelCreationInput = pending;
     try {
-      const { field, value, change } = await createFieldEntry(props.notebook, doc, register, owner, name, kind, valueId => { createdValue = valueId; });
+      const { field, value, change } = await createFieldEntry(
+        props.notebook,
+        doc,
+        register,
+        owner,
+        name,
+        kind,
+        valueId => {
+          createdValue = valueId;
+        },
+      );
       // New input can extend a write already in flight. Hand off only after the latest accepted prefix is committed.
       for (let current = write; current; current = write !== current ? write : undefined) await current;
       if (context.disposed) return;
@@ -327,7 +489,11 @@ export function createFieldSheet(context: Pick<OutlineContext,
           await doc.flush();
           const block = doc.block(value);
           if (!block || block.text !== expected) throw new Error('The field value changed. Nothing was overwritten.');
-          await props.notebook.commit([{ op: 'edit_text', id: value, base_revision: block.revision, text }], 'Edit new field value', [doc.pageId]);
+          await props.notebook.commit(
+            [{ op: 'edit_text', id: value, base_revision: block.revision, text }],
+            'Edit new field value',
+            [doc.pageId],
+          );
           expected = text;
         };
         doc.rememberChange({ undo: () => replace(''), redo: () => replace(bufferedText) });
@@ -338,7 +504,10 @@ export function createFieldSheet(context: Pick<OutlineContext,
       if (kind === 'checkbox' || left) context.rowFocus(value);
       else context.editAt(value, doc.block(value)?.text.length ?? 0, true);
       context.showNotice(`Created field “${field.name}”`, bufferedText ? undefined : change.undo);
-    } catch (error) { pending?.(); setMessage(error instanceof Error ? error.message : String(error)); }
+    } catch (error) {
+      pending?.();
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
   }
   function fill(entry: string) {
     const field = fieldOf(entry);
@@ -355,60 +524,188 @@ export function createFieldSheet(context: Pick<OutlineContext,
   }
   function Area(area: { state: PlacedSheet }) {
     if (doc.block(area.state.owner)?.task) {
-      const focused = () => dismissedTask() !== area.state.owner && (taskRequest()?.owner === area.state.owner
-        || !window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches && (area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner));
-      return <Show when={focused()}><div class="field-slots task-field-slots" style={{ '--slot-depth': area.state.depth }} data-field-owner={area.state.owner}>
-        <TaskFieldBed notebook={props.notebook} doc={doc} id={area.state.owner} fields={definitions()} template={area.state.template}
-          contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate()} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}
-          initialField={taskRequest()?.owner === area.state.owner ? taskRequest()?.field : undefined}
-          opener={taskRequest()?.owner === area.state.owner ? taskRequest()?.opener : undefined}
-          onFieldOpened={() => setTaskRequest(request => request?.owner === area.state.owner ? { owner: request.owner, opener: request.opener } : request)}
-          onDismiss={() => { setTaskRequest(undefined); context.rowFocus(area.state.owner); setDismissedTask(area.state.owner); }} />
-      </div></Show>;
+      const focused = () =>
+        dismissedTask() !== area.state.owner &&
+        (taskRequest()?.owner === area.state.owner ||
+          (!window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches &&
+            (area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner)));
+      return (
+        <Show when={focused()}>
+          <div
+            class="field-slots task-field-slots"
+            style={{ '--slot-depth': area.state.depth }}
+            data-field-owner={area.state.owner}
+          >
+            <TaskFieldBed
+              notebook={props.notebook}
+              doc={doc}
+              id={area.state.owner}
+              fields={definitions()}
+              template={area.state.template}
+              contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate()}
+              sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}
+              initialField={taskRequest()?.owner === area.state.owner ? taskRequest()?.field : undefined}
+              opener={taskRequest()?.owner === area.state.owner ? taskRequest()?.opener : undefined}
+              onFieldOpened={() =>
+                setTaskRequest(request =>
+                  request?.owner === area.state.owner ? { owner: request.owner, opener: request.opener } : request,
+                )
+              }
+              onDismiss={() => {
+                setTaskRequest(undefined);
+                context.rowFocus(area.state.owner);
+                setDismissedTask(area.state.owner);
+              }}
+            />
+          </div>
+        </Show>
+      );
     }
     const root = () => area.state.owner === props.pageId;
     // A page owner is never selected or edited itself, so its slots stay at rest; nested owners show them only while focused.
-    const focused = () => root() || filling() === area.state.owner || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
+    const focused = () =>
+      root() ||
+      filling() === area.state.owner ||
+      belongs(selected(), area.state.owner) ||
+      belongs(editing(), area.state.owner);
     const shown = (id: string) => area.state.required.has(id) || fieldHide(definitionsById().get(id)) === 'never';
-    const missing = createMemo(() => focused() ? area.state.missing.filter(id => options.revealed().has(area.state.owner) || shown(id)) : area.state.missing.filter(id => area.state.required.has(id)));
-    const hidden = () => (options.hiddenCounts().get(area.state.owner) ?? 0) + area.state.missing.filter(id => !shown(id)).length;
-    const active = () => belongs(hovered(), area.state.owner) || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
-    const Controls = () => <div class="field-area-controls" classList={{ 'field-area-active': active(), 'field-area-root': root() }}>
-      <button type="button" class="field-area-add" aria-haspopup="dialog" aria-expanded={picker()?.owner === area.state.owner} onClick={event => pick(area.state.owner, event.currentTarget)}><Icon name="plus" />{root() ? 'Add field' : 'Field'}</button>
-      <Show when={hidden()}><button type="button" class="field-area-hidden" aria-expanded={options.revealed().has(area.state.owner)} onClick={() => options.reveal(area.state.owner)}>{hidden()} hidden</button></Show>
-    </div>;
-    return <Show when={root() || missing().length} fallback={<Controls />}><div class="field-slots" classList={{ 'field-slots-root': root() }} data-field-owner={area.state.owner} style={{ '--slot-depth': area.state.depth }} onPointerEnter={() => setHovered(area.state.owner)} onPointerLeave={() => setHovered(null)}>
-      <For each={missing()}>{id => <Show when={definitionsById().get(id)}>{field => <button type="button" class="field-slot" aria-label={`Add ${fieldLabel(field())} value`} onClick={event => choose(area.state.owner, event.currentTarget, field())}>
-        <span class="field-slot-label"><Icon name="field" /><span>{fieldLabel(field())}</span></span>
-        <span class="field-slot-value"><span class="field-slot-add" aria-hidden="true">Add…</span></span>
-      </button>}</Show>}</For>
-      <Controls />
-    </div></Show>;
+    const missing = createMemo(() =>
+      focused()
+        ? area.state.missing.filter(id => options.revealed().has(area.state.owner) || shown(id))
+        : area.state.missing.filter(id => area.state.required.has(id)),
+    );
+    const hidden = () =>
+      (options.hiddenCounts().get(area.state.owner) ?? 0) + area.state.missing.filter(id => !shown(id)).length;
+    const active = () =>
+      belongs(hovered(), area.state.owner) ||
+      belongs(selected(), area.state.owner) ||
+      belongs(editing(), area.state.owner);
+    const Controls = () => (
+      <div class="field-area-controls" classList={{ 'field-area-active': active(), 'field-area-root': root() }}>
+        <button
+          type="button"
+          class="field-area-add"
+          aria-haspopup="dialog"
+          aria-expanded={picker()?.owner === area.state.owner}
+          onClick={event => pick(area.state.owner, event.currentTarget)}
+        >
+          <Icon name="plus" />
+          {root() ? 'Add field' : 'Field'}
+        </button>
+        <Show when={hidden()}>
+          <button
+            type="button"
+            class="field-area-hidden"
+            aria-expanded={options.revealed().has(area.state.owner)}
+            onClick={() => options.reveal(area.state.owner)}
+          >
+            {hidden()} hidden
+          </button>
+        </Show>
+      </div>
+    );
+    return (
+      <Show when={root() || missing().length} fallback={<Controls />}>
+        <div
+          class="field-slots"
+          classList={{ 'field-slots-root': root() }}
+          data-field-owner={area.state.owner}
+          style={{ '--slot-depth': area.state.depth }}
+          onPointerEnter={() => setHovered(area.state.owner)}
+          onPointerLeave={() => setHovered(null)}
+        >
+          <For each={missing()}>
+            {id => (
+              <Show when={definitionsById().get(id)}>
+                {field => (
+                  <button
+                    type="button"
+                    class="field-slot"
+                    aria-label={`Add ${fieldLabel(field())} value`}
+                    onClick={event => choose(area.state.owner, event.currentTarget, field())}
+                  >
+                    <span class="field-slot-label">
+                      <Icon name="field" />
+                      <span>{fieldLabel(field())}</span>
+                    </span>
+                    <span class="field-slot-value">
+                      <span class="field-slot-add" aria-hidden="true">
+                        Add…
+                      </span>
+                    </span>
+                  </button>
+                )}
+              </Show>
+            )}
+          </For>
+          <Controls />
+        </div>
+      </Show>
+    );
   }
   function FieldSlots(slotProps: { id: string }) {
     return <For each={placed().get(slotProps.id)}>{state => <Area state={state} />}</For>;
   }
   function pickerFields(owner: string) {
     const block = doc.block(owner);
-    return definitions().filter(field => (!block?.source || !isCatalogueField(field.name)) && (!!block?.task || !taskFieldName(field)));
+    return definitions().filter(
+      field => (!block?.source || !isCatalogueField(field.name)) && (!!block?.task || !taskFieldName(field)),
+    );
   }
   function pickerTemplateLabel(owner: string) {
     const block = doc.block(owner);
     if (block?.position) return 'From this recipe';
     const keys = [...typeKeys(block?.text ?? '', block?.manual_types ?? []), ...(block?.task?.status ? ['task'] : [])];
     const names = new Map<string, string>();
-    for (const field of context.fields.error ? [] : context.fields()?.fields ?? []) for (const type of field.types) {
-      names.set(type.id.toLowerCase(), type.name);
-      names.set(titleKey(type.name), type.name);
-    }
+    for (const field of context.fields.error ? [] : (context.fields()?.fields ?? []))
+      for (const type of field.types) {
+        names.set(type.id.toLowerCase(), type.name);
+        names.set(titleKey(type.name), type.name);
+      }
     return [...new Set(keys.flatMap(key => names.get(key) ?? []))].join(' · ') || 'Template';
   }
   function Popups() {
-    return <>
-      <Show keyed when={picker()}>{value => <FieldPicker anchor={value.anchor} label="Add field" fields={pickerFields(value.owner)} template={(states().get(value.owner) ?? stateFor(value.owner)).template} templateLabel={pickerTemplateLabel(value.owner)} exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
-        onPick={field => { setPicker(null); choose(value.owner, value.anchor, field); }} onCreate={(name, kind) => { setPicker(null); void create(value.owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
-      <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={intent => { add(value().owner, value().field, `[[${intent.targetId ?? intent.query.trim()}]]`, intent); setInstance(null); }} />}</Show>
-    </>;
+    return (
+      <>
+        <Show keyed when={picker()}>
+          {value => (
+            <FieldPicker
+              anchor={value.anchor}
+              label="Add field"
+              fields={pickerFields(value.owner)}
+              template={(states().get(value.owner) ?? stateFor(value.owner)).template}
+              templateLabel={pickerTemplateLabel(value.owner)}
+              exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
+              onPick={field => {
+                setPicker(null);
+                choose(value.owner, value.anchor, field);
+              }}
+              onCreate={(name, kind) => {
+                setPicker(null);
+                void create(value.owner, name, kind);
+              }}
+              onDismiss={() => setPicker(null)}
+            />
+          )}
+        </Show>
+        <Show when={instance()}>
+          {value => (
+            <RelationPicker
+              anchor={value().anchor}
+              field={value().field}
+              notebook={props.notebook}
+              owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }}
+              onDismiss={() => setInstance(null)}
+              onError={setMessage}
+              onPick={intent => {
+                add(value().owner, value().field, `[[${intent.targetId ?? intent.query.trim()}]]`, intent);
+                setInstance(null);
+              }}
+            />
+          )}
+        </Show>
+      </>
+    );
   }
   return { FieldSlots, Popups, pick, openTask, hover: setHovered, fill, toggle, start, key, advance };
 }

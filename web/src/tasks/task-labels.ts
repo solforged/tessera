@@ -31,20 +31,35 @@ export interface FactContext {
   timeShown?: boolean;
 }
 
-const clock = (time: string | null) => time ? ` ${time}` : '';
+const clock = (time: string | null) => (time ? ` ${time}` : '');
 /** The full date spelled out, with its 24-hour time: `Tuesday, October 6, 2026 at 19:00`. Tooltips and accessible labels use it, since the row's own words are relative. */
-export const spelledDate = (date: string, time: string | null) => `${journalDayLabel(date)}${time ? ` at ${time}` : ''}`;
+export const spelledDate = (date: string, time: string | null) =>
+  `${journalDayLabel(date)}${time ? ` at ${time}` : ''}`;
 export const isFinished = (task: TaskState) => task.status === 'done' || task.status === 'cancelled';
 
 /** Planning facts in reading order. Finished tasks report only when they were done; status itself is the glyph's job. */
 export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
   if (task.status === 'cancelled') return [];
-  if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${spelledDate(task.completed_on, null)}` }] : [];
+  if (task.status === 'done')
+    return task.completed_on
+      ? [
+          {
+            field: 'status',
+            text: `done ${relativeDate(task.completed_on, context.today)}`,
+            label: `Done ${spelledDate(task.completed_on, null)}`,
+          },
+        ]
+      : [];
   const facts: TaskFact[] = [];
   if (task.scheduled && !(context.listed && task.scheduled === context.date)) {
     const late = task.scheduled < context.date && task.scheduled < context.today;
     const time = context.timeShown ? '' : clock(task.scheduled_time);
-    facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${spelledDate(task.scheduled, task.scheduled_time)}`, late });
+    facts.push({
+      field: 'schedule',
+      text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`,
+      label: `Scheduled ${spelledDate(task.scheduled, task.scheduled_time)}`,
+      late,
+    });
   }
   if (task.deadline) {
     const late = task.deadline < context.date && task.deadline < context.today;
@@ -52,9 +67,21 @@ export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
     const warning = !late && task.warning_days !== null && remaining >= 0 && remaining <= task.warning_days;
     const listedDay = context.listed && task.deadline === context.date;
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
-    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${spelledDate(task.deadline, task.deadline_time)}`, late, warning });
+    facts.push({
+      field: 'deadline',
+      text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`,
+      label: `Deadline ${spelledDate(task.deadline, task.deadline_time)}`,
+      late,
+      warning,
+    });
   }
-  if (task.priority) facts.push({ field: 'priority', text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
+  if (task.priority)
+    facts.push({
+      field: 'priority',
+      text: priorityNames[task.priority],
+      label: `${priorityNames[task.priority]} priority`,
+      priority: task.priority,
+    });
   if (task.repeater) {
     const { every, unit, mode } = task.repeater;
     const span = every === 1 ? unit : `${every} ${unit}s`;
@@ -73,7 +100,12 @@ export function planTask(task: TaskState, patch: Partial<TaskState>, contextDate
   return 'repeater' in patch ? { ...next, scheduled: contextDate } : { ...next, repeater: null };
 }
 
-export interface AgendaGroups { overdue: AgendaItem[]; planned: AgendaItem[]; unplanned: AgendaItem[]; done: AgendaItem[] }
+export interface AgendaGroups {
+  overdue: AgendaItem[];
+  planned: AgendaItem[];
+  unplanned: AgendaItem[];
+  done: AgendaItem[];
+}
 
 /** Sorts the service's agenda by its reasons: missed plans, the day's plans and work in progress, undated open tasks, then what was finished. */
 export function groupAgenda(items: readonly AgendaItem[], date: string, skipPage?: string): AgendaGroups {
@@ -81,20 +113,32 @@ export function groupAgenda(items: readonly AgendaItem[], date: string, skipPage
   for (const item of items) {
     if (item.source.page.id === skipPage) continue;
     if (item.reasons.includes('recently_completed') || isFinished(item.task)) groups.done.push(item);
-    else if (item.reasons.includes('overdue') || !!item.task.scheduled && item.task.scheduled < date) groups.overdue.push(item);
-    else if (item.reasons.every(reason => reason === 'unplanned') && item.task.status !== 'doing') groups.unplanned.push(item);
+    else if (item.reasons.includes('overdue') || (!!item.task.scheduled && item.task.scheduled < date))
+      groups.overdue.push(item);
+    else if (item.reasons.every(reason => reason === 'unplanned') && item.task.status !== 'doing')
+      groups.unplanned.push(item);
     else groups.planned.push(item);
   }
   return groups;
 }
 
-export interface AgendaDayGroup { date: string; rows: (TaskRow | AgendaItem)[] }
+export interface AgendaDayGroup {
+  date: string;
+  rows: (TaskRow | AgendaItem)[];
+}
 
 /** A day keeps carried work separate and lists each future task once, on its first plan in the next seven days. */
-export function groupDayAgenda(items: readonly AgendaItem[], futureRows: readonly TaskRow[], date: string): AgendaGroups & { upcoming: AgendaDayGroup[] } {
+export function groupDayAgenda(
+  items: readonly AgendaItem[],
+  futureRows: readonly TaskRow[],
+  date: string,
+): AgendaGroups & { upcoming: AgendaDayGroup[] } {
   const groups = groupAgenda(items, date);
-  const future = (row: TaskRow | AgendaItem) => !isFinished(row.task) && row.task.status !== 'doing'
-    && (!row.task.scheduled || row.task.scheduled > date) && (!row.task.deadline || row.task.deadline > date);
+  const future = (row: TaskRow | AgendaItem) =>
+    !isFinished(row.task) &&
+    row.task.status !== 'doing' &&
+    (!row.task.scheduled || row.task.scheduled > date) &&
+    (!row.task.deadline || row.task.deadline > date);
   const planned = groups.planned.filter(row => !future(row));
   // A completed occurrence must not suppress the same source's next live plan.
   const listed = new Set([...groups.overdue, ...planned].map(row => row.source.block.id));
@@ -105,27 +149,44 @@ export function groupDayAgenda(items: readonly AgendaItem[], futureRows: readonl
   const days = new Map<string, (TaskRow | AgendaItem)[]>();
   for (const row of upcoming.values()) {
     const next = [row.task.scheduled, row.task.deadline]
-      .filter((plan): plan is string => !!plan && plan > date && daysBetween(date, plan) <= 7).sort()[0];
+      .filter((plan): plan is string => !!plan && plan > date && daysBetween(date, plan) <= 7)
+      .sort()[0];
     if (!next) continue;
     const rows = days.get(next) ?? [];
     rows.push(row);
     days.set(next, rows);
   }
   return {
-    ...groups, planned,
-    upcoming: [...days].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => ({
-      date, rows: rows.sort((left, right) => (agendaTaskTime(left, date) ?? '').localeCompare(agendaTaskTime(right, date) ?? '')
-        || left.source.block.text.localeCompare(right.source.block.text)),
-    })),
+    ...groups,
+    planned,
+    upcoming: [...days]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, rows]) => ({
+        date,
+        rows: rows.sort(
+          (left, right) =>
+            (agendaTaskTime(left, date) ?? '').localeCompare(agendaTaskTime(right, date) ?? '') ||
+            left.source.block.text.localeCompare(right.source.block.text),
+        ),
+      })),
   };
 }
 
 /** Time belongs to the visible plan, not another scheduled day; carried agenda rows retain their original clock. */
 export function agendaTaskTime(row: TaskRow | AgendaItem, date: string, carried = true): string | null {
-  if (isFinished(row.task) || 'reasons' in row && row.reasons.includes('recently_completed')) return null;
-  if ('time' in row && row.time && ('reasons' in row && !row.task.scheduled || row.task.scheduled === date || carried && !!row.task.scheduled && row.task.scheduled < date)) return row.time;
-  if (row.task.scheduled === date || carried && !!row.task.scheduled && row.task.scheduled < date) return row.task.scheduled_time;
-  if (row.task.deadline === date || carried && !!row.task.deadline && row.task.deadline < date) return row.task.deadline_time;
+  if (isFinished(row.task) || ('reasons' in row && row.reasons.includes('recently_completed'))) return null;
+  if (
+    'time' in row &&
+    row.time &&
+    (('reasons' in row && !row.task.scheduled) ||
+      row.task.scheduled === date ||
+      (carried && !!row.task.scheduled && row.task.scheduled < date))
+  )
+    return row.time;
+  if (row.task.scheduled === date || (carried && !!row.task.scheduled && row.task.scheduled < date))
+    return row.task.scheduled_time;
+  if (row.task.deadline === date || (carried && !!row.task.deadline && row.task.deadline < date))
+    return row.task.deadline_time;
   return null;
 }
 
@@ -143,7 +204,11 @@ export function plannedTaskCounts(rows: readonly TaskRow[]): Map<string, number>
   return counts;
 }
 
-export interface StripDay { open: number; overdue: number; warning: number }
+export interface StripDay {
+  open: number;
+  overdue: number;
+  warning: number;
+}
 
 /**
  * The week strip's dots: each open task once per civil day it is planned on, with today's carried work counted as
@@ -161,12 +226,19 @@ export function stripDays(rows: readonly TaskRow[], today: string, overdueToday 
     const remaining = daysBetween(today, deadline);
     if (remaining >= 0 && remaining <= warning_days) day(deadline).warning += 1;
   }
-  if (overdueToday) { const current = day(today); current.overdue = overdueToday; current.open += overdueToday; }
+  if (overdueToday) {
+    const current = day(today);
+    current.overdue = overdueToday;
+    current.open += overdueToday;
+  }
   return days;
 }
 
 /** Upcoming's day subheads: Tomorrow or the weekday, then the month and day, never ISO. */
 export function upcomingDayLabel(date: string, today: string): { name: string; detail: string } {
-  const name = daysBetween(today, date) === 1 ? 'Tomorrow' : new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  const name =
+    daysBetween(today, date) === 1
+      ? 'Tomorrow'
+      : new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   return { name, detail: calendarDate(date, today) };
 }

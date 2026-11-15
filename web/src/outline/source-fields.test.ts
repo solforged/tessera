@@ -22,10 +22,19 @@ test('ensureField returns the definition the service created, which for a built-
   const { baseUrl, api } = service;
   let notebook: Notebook | undefined;
   try {
-    notebook = createNotebookClient({ baseUrl, notebookId: service.workshopId, sessionId: ulid(), databaseName: `ensure-field-${ulid()}` });
+    notebook = createNotebookClient({
+      baseUrl,
+      notebookId: service.workshopId,
+      sessionId: ulid(),
+      databaseName: `ensure-field-${ulid()}`,
+    });
     await notebook.ready;
-    const person = ulid(), group = ulid();
-    await notebook.commit([{ op: 'create_page', id: person, title: 'Person' }, { op: 'create_page', id: group, title: 'Group' }]);
+    const person = ulid(),
+      group = ulid();
+    await notebook.commit([
+      { op: 'create_page', id: person, title: 'Person' },
+      { op: 'create_page', id: group, title: 'Group' },
+    ]);
     const fieldsDoc = notebook.open((await api.fields()).page_id);
     try {
       await ready(fieldsDoc);
@@ -37,12 +46,28 @@ test('ensureField returns the definition the service created, which for a built-
 
       // A built-in field's kind is the core's, so it never waits for a first value to guess one.
       const author = await ensureField(notebook, 'Author', 'text', 'attribute', true);
-      expect(author).toMatchObject({ name: 'author', kind: 'instance', targets: [person, group], counts_as: 'creator', built_in: true });
+      expect(author).toMatchObject({
+        name: 'author',
+        kind: 'instance',
+        targets: [person, group],
+        counts_as: 'creator',
+        built_in: true,
+      });
       expect(isFreshField(notebook, author.id)).toBe(false);
       expect((await ensureField(notebook, 'Published', 'number')).kind).toBe('date');
       const form = await ensureField(notebook, 'Form');
       expect(form.kind).toBe('choice');
-      expect(form.options.map(option => option.text)).toEqual(['book', 'chapter', 'article', 'paper', 'report', 'post', 'thread', 'video', 'web page']);
+      expect(form.options.map(option => option.text)).toEqual([
+        'book',
+        'chapter',
+        'article',
+        'paper',
+        'report',
+        'post',
+        'thread',
+        'video',
+        'web page',
+      ]);
 
       // A name of the workshop's own keeps what was asked for.
       const mood = await ensureField(notebook, 'Mood', 'number', 'attribute', true);
@@ -50,8 +75,11 @@ test('ensureField returns the definition the service created, which for a built-
       expect(mood.built_in).toBeFalsy();
       expect(isFreshField(notebook, mood.id)).toBe(true);
       expect((await ensureField(notebook, 'mood')).id).toBe(mood.id);
-    } finally { fieldsDoc.release(); }
+    } finally {
+      fieldsDoc.release();
+    }
   } finally {
-    await notebook?.dispose(); await service.stop();
+    await notebook?.dispose();
+    await service.stop();
   }
 }, 60000);

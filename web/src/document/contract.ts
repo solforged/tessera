@@ -15,7 +15,23 @@
 
 import type { SectionTarget, TodayTemplate } from '../tasks/today-template';
 import type { Accessor } from 'solid-js';
-import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
+import type {
+  Block,
+  BlockKind,
+  ChangeEvent,
+  Citation,
+  Committed,
+  FieldDefinition,
+  FieldKind,
+  Operation,
+  PassagePoint,
+  ProjectState,
+  SettingsView,
+  SourceRecord,
+  SourceState,
+  TaskState,
+  WorkSession,
+} from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
 import type { FieldHide } from '../fields/hide';
 import type { CountsAs } from '../fields/counts';
@@ -154,7 +170,15 @@ export type Edit =
    * block coalesce into one undo step. `heading`, when present, sets the
    * heading in the same undo step (the `# ` input rule).
    */
-  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number; group?: number; relationPick?: RelationPickIntent }
+  | {
+      kind: 'text';
+      id: string;
+      text: string;
+      heading?: 1 | 2 | 3 | null;
+      caret?: number;
+      group?: number;
+      relationPick?: RelationPickIntent;
+    }
   /** An explicit holder/subject change never coalesces with typing or another picker choice. */
   | { kind: 'positionLinks'; id: string; text: string }
   /** Resolve a version kept beside its original, in one batch and undo step. */
@@ -196,9 +220,21 @@ export type Edit =
    * Append a block with `text` under `parentId` (after `after`, or last when
    * omitted) that cites `citation`; one undo step. `created[0]` is its ID.
    */
-  | { kind: 'highlight'; parentId: string; after?: string | null; text: string; citation: NewCitation; color?: Citation['color']; note?: boolean }
+  | {
+      kind: 'highlight';
+      parentId: string;
+      after?: string | null;
+      text: string;
+      citation: NewCitation;
+      color?: Citation['color'];
+      note?: boolean;
+    }
   /** Update evidence and absorb unreferenced source-page highlights in one undo step. */
-  | { kind: 'mergeHighlights'; merges: { citation: Citation; removeIds: string[]; removeCitationIds?: string[] }[]; note?: boolean }
+  | {
+      kind: 'mergeHighlights';
+      merges: { citation: Citation; removeIds: string[]; removeCitationIds?: string[] }[];
+      note?: boolean;
+    }
   /**
    * Enter at the start inserts an empty block above and keeps the original.
    * At a parent's end, insert its first child; otherwise insert a sibling.
@@ -256,9 +292,23 @@ export type Edit =
   /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
   | { kind: 'paste'; at: Caret; text: string }
   /** Converted external content; a row selection replaces its complete subtrees. */
-  | { kind: 'pasteRows'; range: TextRange; between: string[]; rows: PasteRow[]; replaceRoots?: string[]; zoomRoot?: string | null }
+  | {
+      kind: 'pasteRows';
+      range: TextRange;
+      between: string[];
+      rows: PasteRow[];
+      replaceRoots?: string[];
+      zoomRoot?: string | null;
+    }
   /** Insert copied subtrees, or restore and move cut subtrees, without merging their identities into text. */
-  | { kind: 'pasteBlocks'; range: TextRange; between: string[]; content: BlockClipboard; replaceRoots?: string[]; zoomRoot?: string | null }
+  | {
+      kind: 'pasteBlocks';
+      range: TextRange;
+      between: string[];
+      content: BlockClipboard;
+      replaceRoots?: string[];
+      zoomRoot?: string | null;
+    }
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
   /** Append a definition to the Fields page with its kind in one undo step. */
   | { kind: 'addField'; name: string; value: FieldKind; role?: FieldRole }
@@ -270,12 +320,27 @@ export type Edit =
   | { kind: 'fieldTargets'; definition: FieldDefinition; targets: string[] }
   /** Replace the subject's explicit criteria; an empty previous list restores derivation on undo. */
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }
-  | { kind: 'typePresentation'; id: string; revision: number; value: { plural: string | null; icon: string | null }; previous: { plural: string | null; icon: string | null } }
+  | {
+      kind: 'typePresentation';
+      id: string;
+      revision: number;
+      value: { plural: string | null; icon: string | null };
+      previous: { plural: string | null; icon: string | null };
+    }
   | { kind: 'cardTemplate'; id: string; previous: CardTemplate | null; value: CardTemplateState | null }
   /** Hold or release the supplied current card snapshots as one undo step. */
-  | { kind: 'cardHeld'; cards: { id: string; source_block_id: string; revision: number; held: boolean; active: boolean }[]; held: boolean }
+  | {
+      kind: 'cardHeld';
+      cards: { id: string; source_block_id: string; revision: number; held: boolean; active: boolean }[];
+      held: boolean;
+    }
   /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
-  | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string; quote?: QuoteState }[] }
+  | {
+      kind: 'addFieldEntries';
+      parentId: string;
+      after: string | null;
+      entries: { fieldId: string; value: string; quote?: QuoteState }[];
+    }
   /** Convert a block to a field entry, keeping the text after `from` in its first value; one undo step. */
   | { kind: 'fieldEntry'; id: string; fieldId: string; from: number }
   | { kind: 'archive'; id: string; archived: boolean }
@@ -294,9 +359,7 @@ export interface NewCitation {
   ordinal: number;
 }
 
-export type EditResult =
-  | { ok: true; caret: Caret | null; created: string[] }
-  | { ok: false; reason: string };
+export type EditResult = { ok: true; caret: Caret | null; created: string[] } | { ok: false; reason: string };
 
 /** A cell accepted before async name resolution: each replacement uses the normal durable outbox and one history entry. */
 export interface PendingTextCommit {
@@ -398,7 +461,11 @@ export interface CaptureReceipt {
 }
 
 /** A type page created by this window's own edit, with the change sequence that created it. */
-export interface DerivedType { id: string; title: string; sequence: number }
+export interface DerivedType {
+  id: string;
+  title: string;
+  sequence: number;
+}
 
 /** The notebook-wide client. One per window. */
 export interface NotebookClient {
@@ -408,7 +475,12 @@ export interface NotebookClient {
   /** Keep text for a value whose creation is already queued, before its editor can mount. */
   queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void>;
   /** Resolves once the capture is in the outbox, not when the service acknowledges it. */
-  appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][], options?: Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>): Promise<CaptureReceipt>;
+  appendCapture(
+    text: string,
+    task: TaskState | null,
+    picked?: readonly [string, string][],
+    options?: Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>,
+  ): Promise<CaptureReceipt>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   /** Move a journal subtree and leave a live reference, in one transaction with undo/redo. */

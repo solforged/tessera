@@ -8,20 +8,29 @@ export function embedTarget(text: string): string | undefined {
 }
 
 export function createAddedTargets(doc: PageDocument) {
-  const rows = mapArray(() => {
-    doc.outline.version();
-    return Array.from({ length: doc.outline.size() }, (_, index) => doc.outline.idAt(index));
-  }, id => createMemo(() => embedTarget(doc.block(id)?.text ?? '')));
-  return createMemo(() => new Set(rows().flatMap(target => {
-    const id = target();
-    return id ? [id] : [];
-  })));
+  const rows = mapArray(
+    () => {
+      doc.outline.version();
+      return Array.from({ length: doc.outline.size() }, (_, index) => doc.outline.idAt(index));
+    },
+    id => createMemo(() => embedTarget(doc.block(id)?.text ?? '')),
+  );
+  return createMemo(
+    () =>
+      new Set(
+        rows().flatMap(target => {
+          const id = target();
+          return id ? [id] : [];
+        }),
+      ),
+  );
 }
 
 /** Adding uses ordinary outline insertion, so order and undo need no sidecar; like Add to today, it fills a trailing empty block first. */
 export function addArrival(doc: PageDocument, id: string) {
   const last = doc.outline.children(doc.pageId).at(-1);
-  if (last && !doc.block(last)?.text && !doc.outline.children(last).length) return doc.edit({ kind: 'text', id: last, text: `[[${id}]]` });
+  if (last && !doc.block(last)?.text && !doc.outline.children(last).length)
+    return doc.edit({ kind: 'text', id: last, text: `[[${id}]]` });
   return doc.edit({ kind: 'insert', parentId: doc.pageId, after: last ?? null, text: `[[${id}]]` });
 }
 

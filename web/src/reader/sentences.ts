@@ -1,7 +1,13 @@
 import type { Passage, PassagePoint } from '../api/types';
 
-export interface SentenceRange { start: number; end: number }
-export interface SentenceSelection { start: PassagePoint; end: PassagePoint }
+export interface SentenceRange {
+  start: number;
+  end: number;
+}
+export interface SentenceSelection {
+  start: PassagePoint;
+  end: PassagePoint;
+}
 export type SelectionUnit = 'sentence' | 'passage';
 
 let segmenter: Intl.Segmenter | undefined;
@@ -10,7 +16,8 @@ let segmenter: Intl.Segmenter | undefined;
 export function sentenceRanges(text: string): SentenceRange[] {
   const ranges: SentenceRange[] = [];
   const append = (start: number, end: number) => {
-    const value = text.slice(start, end), trimmed = value.trim();
+    const value = text.slice(start, end),
+      trimmed = value.trim();
     if (trimmed) {
       start += value.length - value.trimStart().length;
       ranges.push({ start, end: start + trimmed.length });
@@ -65,11 +72,16 @@ export function followOn(text: string): string {
 }
 
 /** Complete the current unit, or add the next nonempty unit at its boundary. */
-export function extendSelection(selection: SentenceSelection, passages: readonly Passage[], unit: SelectionUnit = 'sentence'): SentenceSelection {
+export function extendSelection(
+  selection: SentenceSelection,
+  passages: readonly Passage[],
+  unit: SelectionUnit = 'sentence',
+): SentenceSelection {
   const last = passages.findIndex(passage => passage.id === selection.end.passage_id);
   if (last < 0) return selection;
   for (let index = last; index < passages.length; index++) {
-    const passage = passages[index]!, ranges = sentenceRanges(passage.text);
+    const passage = passages[index]!,
+      ranges = sentenceRanges(passage.text);
     const candidates = unit === 'sentence' ? ranges : ranges.slice(-1);
     const next = candidates.find(range => index > last || range.end > selection.end.offset);
     if (next) return { start: selection.start, end: { passage_id: passage.id, offset: next.end } };
@@ -78,14 +90,19 @@ export function extendSelection(selection: SentenceSelection, passages: readonly
 }
 
 /** Keep at least the sentence containing the selection's start. */
-export function shrinkSelection(selection: SentenceSelection, passages: readonly Passage[], unit: SelectionUnit = 'sentence'): SentenceSelection {
+export function shrinkSelection(
+  selection: SentenceSelection,
+  passages: readonly Passage[],
+  unit: SelectionUnit = 'sentence',
+): SentenceSelection {
   const first = passages.findIndex(passage => passage.id === selection.start.passage_id);
   const last = passages.findIndex(passage => passage.id === selection.end.passage_id);
   if (first < 0 || last < first) return selection;
   const minimum = sentenceAt(passages[first]!.text, selection.start.offset);
   if (!minimum) return selection;
   for (let index = last; index >= first; index--) {
-    const passage = passages[index]!, ranges = sentenceRanges(passage.text);
+    const passage = passages[index]!,
+      ranges = sentenceRanges(passage.text);
     const candidates = unit === 'sentence' ? ranges : ranges.slice(-1);
     for (let at = candidates.length - 1; at >= 0; at--) {
       const end = candidates[at]!.end;

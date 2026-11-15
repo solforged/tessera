@@ -16,7 +16,11 @@ export function besideSlot(order: readonly PaneId[], owner: PaneId): { index: nu
 }
 
 /** Inserts a pane at `index`. Past the limit, the pane farthest from the new one closes. */
-export function insertPane(order: readonly PaneId[], index: number, id: PaneId): { order: PaneId[]; closed: PaneId | null } {
+export function insertPane(
+  order: readonly PaneId[],
+  index: number,
+  id: PaneId,
+): { order: PaneId[]; closed: PaneId | null } {
   const next = [...order.slice(0, index), id, ...order.slice(index)];
   if (next.length <= MAX_PANES) return { order: next, closed: null };
   const closed = index < next.length / 2 ? next[next.length - 1]! : next[0]!;
@@ -43,7 +47,13 @@ export function windowStart(count: number, fit: number, start: number, focus: nu
  * The first shown pane after `pane` is revealed, and `keep` too where it can stay in view. Opening and switching only
  * need a row transition when this moves the window.
  */
-export function revealedStart(order: readonly PaneId[], fit: number, start: number, pane: PaneId, keep?: PaneId): number {
+export function revealedStart(
+  order: readonly PaneId[],
+  fit: number,
+  start: number,
+  pane: PaneId,
+  keep?: PaneId,
+): number {
   let next = windowStart(order.length, fit, start, order.indexOf(pane));
   if (keep) next = windowStart(order.length, fit, next, order.indexOf(keep));
   return next;
@@ -54,7 +64,11 @@ export function journalTurn(showing: string | undefined, day: string): 'forward'
   return showing !== undefined && day < showing ? 'back' : 'forward';
 }
 
-const snaps = [[1 / 3, '⅓'], [1 / 2, '½'], [2 / 3, '⅔']] as const;
+const snaps = [
+  [1 / 3, '⅓'],
+  [1 / 2, '½'],
+  [2 / 3, '⅔'],
+] as const;
 /**
  * The left pane's share of a pair being resized, kept above both panes' minimum width and pulled to a third, a half or
  * two thirds within `tolerance` pixels.
@@ -62,6 +76,8 @@ const snaps = [[1 / 3, '⅓'], [1 / 2, '½'], [2 / 3, '⅔']] as const;
 export function dividerRatio(ratio: number, pairWidth: number, tolerance = 12): { ratio: number; snap: string | null } {
   const least = Math.min(0.5, MIN_PANE_WIDTH / pairWidth);
   const clamped = Math.max(least, Math.min(1 - least, ratio));
-  for (const [stop, label] of snaps) if (Math.abs(clamped - stop) * pairWidth <= tolerance && stop >= least && stop <= 1 - least) return { ratio: stop, snap: label };
+  for (const [stop, label] of snaps)
+    if (Math.abs(clamped - stop) * pairWidth <= tolerance && stop >= least && stop <= 1 - least)
+      return { ratio: stop, snap: label };
   return { ratio: clamped, snap: null };
 }

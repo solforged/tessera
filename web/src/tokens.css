@@ -6,21 +6,25 @@
   color-scheme: dark;
 
   /* Orrery: a midnight desk around an ink-blue canvas. */
-  --shell: #0a0d13;     /* global rail and sidebar */
-  --surface: #080b10;   /* table headers and banners */
-  --canvas: #0e121a;    /* panes */
-  --raised: #151b26;    /* popups, pills, chips */
+  --shell: #0a0d13; /* global rail and sidebar */
+  --surface: #080b10; /* table headers and banners */
+  --canvas: #0e121a; /* panes */
+  --raised: #151b26; /* popups, pills, chips */
   --hover: #131823;
   --selection: #19202e; /* rows add a 2 px gilt bar at the left */
   --text-selection: #d8aa553d; /* selected text: the gilt accent at 24% */
-  --line: #232c3b;      /* dividers */
+  --line: #232c3b; /* dividers */
   --control-border: #48546b;
 
   --glass-fill: color-mix(in srgb, var(--raised) 62%, transparent);
   --glass-edge: color-mix(in srgb, var(--text) 12%, transparent);
   --glass-blur: 20px;
   --glass-shadow: 0 8px 28px #00000040;
-  --ink-wash: color-mix(in srgb, var(--text) 8%, transparent); /* a faint ink over the canvas: the tint capsule and the chosen tab */
+  --ink-wash: color-mix(
+    in srgb,
+    var(--text) 8%,
+    transparent
+  ); /* a faint ink over the canvas: the tint capsule and the chosen tab */
   /* Text. */
   --text: #e6e1d6;
   --muted: #a4a9b4;
@@ -33,12 +37,16 @@
   --warning: #e09a5d;
   --focus-ring: 2px solid var(--accent);
   --focus-offset: 2px;
-  --disabled-opacity: .6; /* a control that cannot act: lighter than its neighbours, its label still legible */
+  --disabled-opacity: 0.6; /* a control that cannot act: lighter than its neighbours, its label still legible */
 
   /* Type hues colour pills only, as a 12% tint behind the hue, never bullets.
      They never reuse a status hue. */
-  --type-1: #8ea6e6; --type-2: #cf9fc4; --type-3: #86b6c9;
-  --type-4: #b5c19b; --type-5: #b4a5e2; --type-6: #a6adbb;
+  --type-1: #8ea6e6;
+  --type-2: #cf9fc4;
+  --type-3: #86b6c9;
+  --type-4: #b5c19b;
+  --type-5: #b4a5e2;
+  --type-6: #a6adbb;
 
   /* Task and status hues, reserved for stage 3. */
   --status-todo: var(--muted);
@@ -46,9 +54,9 @@
   --status-waiting: var(--warning);
   --status-done: #8fb59a;
   --status-cancelled: var(--faint);
-  --agree: #7f9de0;          /* blued steel: inquiry links and unsettled questions */
+  --agree: #7f9de0; /* blued steel: inquiry links and unsettled questions */
   --status-overdue: var(--danger);
-  --agent: var(--agree);     /* the agent's glyph and the rows it changed share inquiry's steel, never the gilt */
+  --agent: var(--agree); /* the agent's glyph and the rows it changed share inquiry's steel, never the gilt */
 
   /* Calendar planning marks distinguish dates without relying on hue alone. */
   --calendar-scheduled: #7f9de0;
@@ -58,9 +66,14 @@
   /* Highlight hues are labels: dots, chips and map marks at full strength,
      distinct from the accent and status hues. Reader ink lifts the same hue
      so a band under the line can be named on midnight and stays a wash on vellum. */
-  --highlight-yellow: #d8b24a; --highlight-green: #62ad85; --highlight-blue: #6f95e0;
-  --highlight-red: #d86b6f; --highlight-purple: #ae8ad8;
-  --highlight-ink-l: 0.54; --highlight-ink-deep: 0.60; --highlight-ink-chroma: 1.25;
+  --highlight-yellow: #d8b24a;
+  --highlight-green: #62ad85;
+  --highlight-blue: #6f95e0;
+  --highlight-red: #d86b6f;
+  --highlight-purple: #ae8ad8;
+  --highlight-ink-l: 0.54;
+  --highlight-ink-deep: 0.6;
+  --highlight-ink-chroma: 1.25;
 
   /* Three voices: writing, publication and apparatus. Only the first two are bundled. */
   --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -68,73 +81,96 @@
   --font-reading-serif: var(--font-display);
   /* Monaco draws glyphs Berkeley Mono and Menlo lack, such as ‖, before the system's serif fallback would. */
   --font-mono: "Berkeley Mono Variable", "Berkeley Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-  --text-apparatus: 11.5px; --line-apparatus: 16px;
+  --text-apparatus: 11.5px;
+  --line-apparatus: 16px;
   /* The apparatus labels in small Plex; only figures (counts, dates, times, sigla) are mono. */
-  --apparatus: var(--weight-body) var(--text-meta)/var(--line-apparatus) var(--font-body);
-  --figures: var(--weight-body) var(--text-apparatus)/var(--line-apparatus) var(--font-mono);
-  --caps: var(--weight-control) var(--text-caps)/var(--line-apparatus) var(--font-body); /* with --tracking-caps and uppercase */
-  --tracking-apparatus: .01em;
-  --tracking-notebook: .14em;
-  --tracking-caps: .09em; /* uppercase labels in Plex: survey lettering */
+  --apparatus: var(--weight-body) var(--text-meta) / var(--line-apparatus) var(--font-body);
+  --figures: var(--weight-body) var(--text-apparatus) / var(--line-apparatus) var(--font-mono);
+  --caps:
+    var(--weight-control) var(--text-caps) / var(--line-apparatus) var(--font-body); /* with --tracking-caps and uppercase */
+  --tracking-apparatus: 0.01em;
+  --tracking-notebook: 0.14em;
+  --tracking-caps: 0.09em; /* uppercase labels in Plex: survey lettering */
   /* One step per level, never a pixel apart: 11.5 · 12 · 13 · 15 · 17 · 20 · 26 · 36. */
-  --text-meta: 12px; --line-meta: 16px;       /* pills and labels */
-  --text-caps: 11px;                          /* uppercase labels, which read larger than their size */
-  --text-control: 13px; --line-control: 18px; /* buttons, menus, sidebar, tables */
-  --text-body: 15px; --line-body: 24px;       /* block text, inputs */
-  --text-h3: 17px; --line-h3: 24px;
-  --text-h2: 20px; --line-h2: 28px;           /* also section and pane titles */
+  --text-meta: 12px;
+  --line-meta: 16px; /* pills and labels */
+  --text-caps: 11px; /* uppercase labels, which read larger than their size */
+  --text-control: 13px;
+  --line-control: 18px; /* buttons, menus, sidebar, tables */
+  --text-body: 15px;
+  --line-body: 24px; /* block text, inputs */
+  --text-h3: 17px;
+  --line-h3: 24px;
+  --text-h2: 20px;
+  --line-h2: 28px; /* also section and pane titles */
   --text-outline-h2: 20px;
-  --text-h1: 26px; --line-h1: 32px;           /* also dialog and view headings */
-  --text-title: 36px; --line-title: 42px;     /* page titles */
-  --text-figure: 64px; --line-figure: 64px;   /* a serif count set as a title figure, as Review's due count */
-  --text-quote: 17px; --line-quote: 26px;
-  --text-gloss: 17px; --line-gloss: 26px;     /* a page's gloss under its title */
+  --text-h1: 26px;
+  --line-h1: 32px; /* also dialog and view headings */
+  --text-title: 36px;
+  --line-title: 42px; /* page titles */
+  --text-figure: 64px;
+  --line-figure: 64px; /* a serif count set as a title figure, as Review's due count */
+  --text-quote: 17px;
+  --line-quote: 26px;
+  --text-gloss: 17px;
+  --line-gloss: 26px; /* a page's gloss under its title */
   --text-library-title: var(--text-body);
   --line-source-title: 22px;
   /* Piazzolla takes its optical size from the font size (font-optical-sizing: auto). */
-  --weight-body: 400; --weight-control: 500; --weight-heading: 600;
-  --weight-title: 430; --weight-display-heading: 460; --weight-source-title: 530;
+  --weight-body: 400;
+  --weight-control: 500;
+  --weight-heading: 600;
+  --weight-title: 430;
+  --weight-display-heading: 460;
+  --weight-source-title: 530;
 
   /* Spacing and size. */
-  --space-2: 2px; --space-4: 4px; --space-8: 8px;
-  --space-12: 12px; --space-16: 16px; --space-24: 24px;
-  --space-32: 32px; --space-48: 48px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
   --row-height: 28px;
   --indent-width: 24px;
-  --measure: 760px;          /* widest text column */
+  --measure: 760px; /* widest text column */
   --gutter: calc(2 * var(--target-size)); /* handle and fold, left of the measure */
-  --apparatus-width: 240px;  /* the margin beside the measure on wide concept pages */
+  --apparatus-width: 240px; /* the margin beside the measure on wide concept pages */
   --siglum-width: calc(5ch + var(--space-8) + 2 * var(--rule-width)); /* five mono letters with box padding */
   --shelf-cover-width: 112px; /* narrowest cover in the Library shelf; columns share any spare width */
   --resume-cover-width: 36px; /* covers in the Library's Continue reading strip */
-  --work-cover-width: 72px;   /* covers in the Works shelf on a person's page */
+  --work-cover-width: 72px; /* covers in the Works shelf on a person's page */
   --reading-cover-width: 56px; /* covers on Reading now cards, leaving three cards across room for three-line titles */
   --sidebar-width: 208px;
-  --dock-width: 360px;       /* the agent dock right of the pane row */
+  --dock-width: 360px; /* the agent dock right of the pane row */
   --rail-height: 48px;
   --window-controls-width: 84px; /* the macOS window buttons over the rail's left end in the desktop app */
   --pane-header-height: 36px;
   --search-width: 400px;
   --preview-body-height: 320px; /* reference hover card body before it clips */
-  --target-size: 24px;       /* pointer targets; coarse pointers get larger ones below */
-  --touch-target: 44px;      /* a fingertip's reach where reading controls sit under the thumb */
+  --target-size: 24px; /* pointer targets; coarse pointers get larger ones below */
+  --touch-target: 44px; /* a fingertip's reach where reading controls sit under the thumb */
   --icon-size: 16px;
   --icon-size-small: 14px;
-  --switch-width: 32px; --switch-height: 18px; --switch-inset: 2px; /* the knob fills the height inside the inset */
+  --switch-width: 32px;
+  --switch-height: 18px;
+  --switch-inset: 2px; /* the knob fills the height inside the inset */
 
   /* Page rhythm. Every screen composes its spacing from these, so moving between screens
      never shifts the title or the text column. Reader, live review and Find keep their own. */
-  --pane-inset: var(--space-24);          /* pane edge to the title and text column */
-  --page-top-space: var(--space-24);      /* pane header to the first line of the page */
-  --page-eyebrow-gap: var(--space-4);     /* eyebrow line to the title */
-  --page-title-gap: var(--space-8);       /* title to its metadata or modes */
-  --page-head-gap: var(--space-16);       /* the whole heading block to the body */
-  --section-gap: var(--space-24);         /* one section's last item to the next section head */
-  --section-item-gap: var(--space-8);     /* section head to its first item */
-  --card-padding: var(--space-16);        /* inside a boxed tile or card */
-  --card-gap: var(--space-16);            /* between boxed cards */
-  --page-bottom-space: var(--space-48);   /* after the last item; fixed docks add their own clearance */
-  --page-title-font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display);
+  --pane-inset: var(--space-24); /* pane edge to the title and text column */
+  --page-top-space: var(--space-24); /* pane header to the first line of the page */
+  --page-eyebrow-gap: var(--space-4); /* eyebrow line to the title */
+  --page-title-gap: var(--space-8); /* title to its metadata or modes */
+  --page-head-gap: var(--space-16); /* the whole heading block to the body */
+  --section-gap: var(--space-24); /* one section's last item to the next section head */
+  --section-item-gap: var(--space-8); /* section head to its first item */
+  --card-padding: var(--space-16); /* inside a boxed tile or card */
+  --card-gap: var(--space-16); /* between boxed cards */
+  --page-bottom-space: var(--space-48); /* after the last item; fixed docks add their own clearance */
+  --page-title-font: var(--weight-title) var(--text-title) / var(--line-title) var(--font-display);
 
   /* Week planning has a half-hour card and a readable column at narrow widths. */
   --week-measure: 1200px;
@@ -149,20 +185,26 @@
   --week-drag-threshold: var(--space-4);
 
   /* Shape and elevation. Only floating layers cast deep shadows; a leaf on the page only touches it. */
-  --radius-control: 2px; --radius-popup: 3px; --radius-workspace: 0; --radius-pill: 999px;
-  --leaf-radius: 14px; --sheet-radius: 34px; /* the phone's leaf and floating sheet; desktop keeps the square control radii above */
-  --registration-size: 9px; --rule-width: 1px;
-  --rubric-width: 24px; --rubric-height: 2px;
+  --radius-control: 2px;
+  --radius-popup: 3px;
+  --radius-workspace: 0;
+  --radius-pill: 999px;
+  --leaf-radius: 14px;
+  --sheet-radius: 34px; /* the phone's leaf and floating sheet; desktop keeps the square control radii above */
+  --registration-size: 9px;
+  --rule-width: 1px;
+  --rubric-width: 24px;
+  --rubric-height: 2px;
   --oculus-gap: 6px;
   --popup-shadow: 0 12px 32px #0008;
   --dialog-shadow: 0 24px 64px #000a;
   --mask-opaque: #000;
-  --image-filter: brightness(.85); /* figures dimmed so white pages do not glare on the dark canvas */
+  --image-filter: brightness(0.85); /* figures dimmed so white pages do not glare on the dark canvas */
 
   /* Material. A pane is a sheet with a grain; a tile or slip is a leaf laid on it, lit along its
      top edge and touching the sheet beneath; a field is a well pressed into it. By night the
      layers are cyanotype and stay cool, so nothing warm floats over the ink-blue and greys it. */
-  --lit-edge: #d4e0ff12;       /* light caught along a sheet's top edge */
+  --lit-edge: #d4e0ff12; /* light caught along a sheet's top edge */
   --contact-shadow: #00000080; /* where a leaf meets what lies beneath */
   --leaf: color-mix(in srgb, var(--canvas), #a9bff0 4.5%);
   --well: color-mix(in srgb, var(--canvas), #000 35%);
@@ -174,15 +216,15 @@
   /* Motion acknowledges input without delaying the action. */
   --motion-fast: 90ms;
   --motion-ui: 140ms;
-  --motion-ease: cubic-bezier(.2, .8, .2, 1);
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-distance: var(--space-4);
-  --motion-page: 220ms;      /* a page sliding across the reader */
-  --motion-ink: 420ms;       /* a new highlight drawn under its words */
+  --motion-page: 220ms; /* a page sliding across the reader */
+  --motion-ink: 420ms; /* a new highlight drawn under its words */
   --motion-leaf: calc(3 * var(--motion-distance)); /* a pane's leaf settling from the side it lies on */
   --icon-hover-scale: 1.08;
-  --icon-press-scale: .94;
+  --icon-press-scale: 0.94;
 
-  font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body);
+  font: var(--weight-body) var(--text-body) / var(--line-body) var(--font-body);
   font-optical-sizing: auto;
   background: var(--canvas);
   color: var(--text);
@@ -218,17 +260,26 @@
   --danger: #ad3a2b;
   --warning: #94510f;
 
-  --type-1: #3f5fae; --type-2: #9a4886; --type-3: #2d7590;
-  --type-4: #5f7233; --type-5: #6650b0; --type-6: #5e6674;
+  --type-1: #3f5fae;
+  --type-2: #9a4886;
+  --type-3: #2d7590;
+  --type-4: #5f7233;
+  --type-5: #6650b0;
+  --type-6: #5e6674;
 
   --status-doing: #3b5fb0;
   --status-done: #3b7a4f;
   --agree: #3b5fb0;
   --calendar-scheduled: #3b5fb0;
 
-  --highlight-yellow: #d6a21f; --highlight-green: #3c9564; --highlight-blue: #4b7bd4;
-  --highlight-red: #cf4f55; --highlight-purple: #9566cc;
-  --highlight-ink-l: 0.90; --highlight-ink-deep: 0.84; --highlight-ink-chroma: 1;
+  --highlight-yellow: #d6a21f;
+  --highlight-green: #3c9564;
+  --highlight-blue: #4b7bd4;
+  --highlight-red: #cf4f55;
+  --highlight-purple: #9566cc;
+  --highlight-ink-l: 0.9;
+  --highlight-ink-deep: 0.84;
+  --highlight-ink-chroma: 1;
 
   --popup-shadow: 0 12px 32px #3b2c1426;
   --lit-edge: #ffffffe6;
@@ -236,7 +287,8 @@
   --leaf: var(--raised);
   --well: color-mix(in srgb, var(--canvas), #6b5a3a 7%);
   --well-shade: inset 0 1px 2px #3b2c1424, inset 0 0 0 1px #3b2c1414;
-  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .1 .09 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+  --paper-grain:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .1 .09 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .42 0 0 0 0 .2 .08 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"); /* vellum: a fine fibre and a slow mottle */
   --dialog-shadow: 0 24px 64px #3b2c1438;
   --image-filter: none;
@@ -259,7 +311,9 @@
   :root {
     --target-size: 32px;
     --row-height: 36px;
-    --switch-width: 40px; --switch-height: 24px; --switch-inset: 3px;
+    --switch-width: 40px;
+    --switch-height: 24px;
+    --switch-inset: 3px;
   }
 }
 
@@ -268,7 +322,7 @@
   :root {
     --pane-inset: var(--space-16);
     --page-top-space: var(--space-16);
-    --page-title-font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display);
+    --page-title-font: var(--weight-title) var(--text-h1) / var(--line-h1) var(--font-display);
   }
 }
 
@@ -279,8 +333,9 @@
     --glass-blur: 22px;
     --glass-fill: color-mix(in srgb, var(--raised) 52%, transparent);
     --glass-shadow: 0 8px 28px #00000040, 0 1px 2px #0000002a;
-    --glass-ring: var(--glass-shadow), inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--lit-edge); /* a glass control's whole shadow */
-    --phone-gutter: 20px;                    /* the one left edge for text; --gutter stays the desktop's handle column */
+    --glass-ring:
+      var(--glass-shadow), inset 0 0 0 0.5px var(--glass-edge), inset 0 1px 0 var(--lit-edge); /* a glass control's whole shadow */
+    --phone-gutter: 20px; /* the one left edge for text; --gutter stays the desktop's handle column */
     --pane-inset: var(--phone-gutter);
     --phone-bar-top: max(var(--top-inset), var(--space-8)); /* the nav bar's top: clear of the status bar and island */
     --phone-bar-height: 52px;
@@ -290,7 +345,8 @@
     --phone-tabbar-top: calc(var(--phone-tabbar-bottom) + var(--phone-tabbar-height));
     --page-top-space: calc(var(--phone-top) + var(--space-12));
     --page-bottom-space: calc(var(--phone-tabbar-top) + var(--space-32));
-    --phone-title-font: var(--weight-title) 34px/40px var(--font-display); /* a large title on a phone: the plates' 34 pt Piazzolla */
+    --phone-title-font:
+      var(--weight-title) 34px / 40px var(--font-display); /* a large title on a phone: the plates' 34 pt Piazzolla */
   }
   :root[data-theme="light"] {
     --glass-fill: color-mix(in srgb, var(--raised) 60%, transparent);

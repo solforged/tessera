@@ -4,29 +4,46 @@ import { cardKindLabel, cardMarks, cardSubject, clozeSegments, parseCardText } f
 describe('card text', () => {
   test('ordinary prose, fields, and shielded syntax do not create cards', () => {
     for (const text of [
-      '', 'ordinary prose', 'Author:: Frank Herbert', 'Author::', 'x > y < z',
-      String.raw`front\>>back`, String.raw`front\<<back`, String.raw`front\<>back`,
-      String.raw`\{{c1::answer}}`, '`a >> b {{c1::answer}}`', '``a ` >> b {{c1::answer}}``',
-      '[[id|a >> b {{c1::answer}}]]', '#[[a << b]]',
-      '```txt\na >> b {{c1::answer}}\n```', '~~~\na <> b\n~~~',
-      '`unfinished >> {{c1::answer}}', '[[unfinished >> {{c1::answer}}',
-      '```\nunfinished >> {{c1::answer}}', '~~~\nunfinished >> {{c1::answer}}',
-    ]) expect(parseCardText(text)).toEqual({ cards: [], problems: [] });
+      '',
+      'ordinary prose',
+      'Author:: Frank Herbert',
+      'Author::',
+      'x > y < z',
+      String.raw`front\>>back`,
+      String.raw`front\<<back`,
+      String.raw`front\<>back`,
+      String.raw`\{{c1::answer}}`,
+      '`a >> b {{c1::answer}}`',
+      '``a ` >> b {{c1::answer}}``',
+      '[[id|a >> b {{c1::answer}}]]',
+      '#[[a << b]]',
+      '```txt\na >> b {{c1::answer}}\n```',
+      '~~~\na <> b\n~~~',
+      '`unfinished >> {{c1::answer}}',
+      '[[unfinished >> {{c1::answer}}',
+      '```\nunfinished >> {{c1::answer}}',
+      '~~~\nunfinished >> {{c1::answer}}',
+    ])
+      expect(parseCardText(text)).toEqual({ cards: [], problems: [] });
   });
 
   test('directions produce stable roles and trimmed sides without requiring spaces', () => {
     const cases = [
       [' front>>back ', [{ key: 'forward', kind: 'forward', front: 'front', back: 'back' }]],
       ['front<<back', [{ key: 'reverse', kind: 'reverse', front: 'back', back: 'front' }]],
-      ['front<>back', [
-        { key: 'forward', kind: 'forward', front: 'front', back: 'back' },
-        { key: 'reverse', kind: 'reverse', front: 'back', back: 'front' },
-      ]],
+      [
+        'front<>back',
+        [
+          { key: 'forward', kind: 'forward', front: 'front', back: 'back' },
+          { key: 'reverse', kind: 'reverse', front: 'back', back: 'front' },
+        ],
+      ],
       ['🧠 café>>答🙂', [{ key: 'forward', kind: 'forward', front: '🧠 café', back: '答🙂' }]],
     ] as const;
     for (const [text, cards] of cases) expect(parseCardText(text)).toEqual({ cards: [...cards], problems: [] });
     expect(parseCardText('updated question<>updated answer').cards.map(card => [card.key, card.kind])).toEqual([
-      ['forward', 'forward'], ['reverse', 'reverse'],
+      ['forward', 'forward'],
+      ['reverse', 'reverse'],
     ]);
     expect(parseCardText('updated question<<updated answer').cards).toEqual([
       { key: 'reverse', kind: 'reverse', front: 'updated answer', back: 'updated question' },
@@ -34,11 +51,20 @@ describe('card text', () => {
   });
 
   test('child-answer syntax is terminal, distinct, and protected like other operators', () => {
-    for (const [op, kind] of [['>>>', 'multiline'], ['>>1.', 'list']] as const) {
+    for (const [op, kind] of [
+      ['>>>', 'multiline'],
+      ['>>1.', 'list'],
+    ] as const) {
       const text = `  Front ${op}\u0085`;
       expect(parseCardText(text)).toEqual({ cards: [{ key: kind, kind, front: 'Front', back: '' }], problems: [] });
       expect(cardMarks(text)).toEqual([{ kind: 'operator', start: 8, end: 8 + op.length, op }]);
-      for (const invalid of [`${op}`, `Front ${op} answer`, `Front >> answer ${op}`, `Front ${op} ${op}`, `{{c1::answer}} ${op}`]) {
+      for (const invalid of [
+        `${op}`,
+        `Front ${op} answer`,
+        `Front >> answer ${op}`,
+        `Front ${op} ${op}`,
+        `{{c1::answer}} ${op}`,
+      ]) {
         expect(parseCardText(invalid).cards).toEqual([]);
         expect(parseCardText(invalid).problems.length).toBeGreaterThan(0);
       }
@@ -51,7 +77,10 @@ describe('card text', () => {
 
   test('descriptors need both sides and name their parent subject as Rust does', () => {
     const text = ' Function ;; makes [[ATP]] ';
-    expect(parseCardText(text)).toEqual({ cards: [{ key: 'descriptor', kind: 'descriptor', front: 'Function', back: 'makes [[ATP]]' }], problems: [] });
+    expect(parseCardText(text)).toEqual({
+      cards: [{ key: 'descriptor', kind: 'descriptor', front: 'Function', back: 'makes [[ATP]]' }],
+      problems: [],
+    });
     expect(cardMarks(text)).toEqual([{ kind: 'operator', start: 10, end: 12, op: ';;' }]);
     for (const invalid of ['Function ;;', ';; answer', 'a ;; b >> c', '{{c1::a}} ;; b']) {
       expect(parseCardText(invalid).cards).toEqual([]);
@@ -61,10 +90,16 @@ describe('card text', () => {
       expect(parseCardText(shielded)).toEqual({ cards: [], problems: [] });
     }
     for (const [parent, subject] of [
-      ['  Mitochondria  ', 'Mitochondria'], ['Mitochondria <> organelle', 'Mitochondria'],
-      ['Mitochondria << organelle', 'Mitochondria'], ['Structure ;; two membranes', 'Structure'],
-      ['The {{c1::cell}} wall', 'The cell wall'], [String.raw`a \>> b`, 'a >> b'], ['a >> b >> c', 'a >> b >> c'], [' ', ''],
-    ]) expect(cardSubject(parent!)).toBe(subject!);
+      ['  Mitochondria  ', 'Mitochondria'],
+      ['Mitochondria <> organelle', 'Mitochondria'],
+      ['Mitochondria << organelle', 'Mitochondria'],
+      ['Structure ;; two membranes', 'Structure'],
+      ['The {{c1::cell}} wall', 'The cell wall'],
+      [String.raw`a \>> b`, 'a >> b'],
+      ['a >> b >> c', 'a >> b >> c'],
+      [' ', ''],
+    ])
+      expect(cardSubject(parent!)).toBe(subject!);
   });
 
   test('a cloze is numbered only beside another cloze from the same block', () => {
@@ -85,9 +120,11 @@ describe('card text', () => {
       [String.raw`C:\notes>>a\::b`, String.raw`C:\notes`, 'a::b'],
       [String.raw`a\{{c1::x}}>>b`, 'a{{c1::x}}', 'b'],
     ];
-    for (const [text, front, back] of cases) expect(parseCardText(text)).toEqual({
-      cards: [{ key: 'forward', kind: 'forward', front, back }], problems: [],
-    });
+    for (const [text, front, back] of cases)
+      expect(parseCardText(text)).toEqual({
+        cards: [{ key: 'forward', kind: 'forward', front, back }],
+        problems: [],
+      });
     expect(parseCardText(String.raw`a\>>>b`)).toEqual({ cards: [], problems: [] });
   });
 
@@ -103,14 +140,18 @@ describe('card text', () => {
       ['Q>>```x```' + String.raw` \>>`, 'Q', '```x``` >>'],
       ['Q>>`' + String.raw`x\>>y` + '`', 'Q', '`' + String.raw`x\>>y` + '`'],
     ];
-    for (const [text, front, back] of cases) expect(parseCardText(text)).toEqual({
-      cards: [{ key: 'forward', kind: 'forward', front, back }], problems: [],
-    });
+    for (const [text, front, back] of cases)
+      expect(parseCardText(text)).toEqual({
+        cards: [{ key: 'forward', kind: 'forward', front, back }],
+        problems: [],
+      });
     expect(parseCardText('{{c1::`a::b >> {{c2::x}}`::code}}')).toEqual({
-      cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'code', back: '`a::b >> {{c2::x}}`' }], problems: [],
+      cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'code', back: '`a::b >> {{c2::x}}`' }],
+      problems: [],
     });
     expect(parseCardText('{{c1::[[id|a::b {{c2::x}}]]}}')).toEqual({
-      cards: [{ key: 'cloze:c1', kind: 'cloze', front: '[…]', back: '[[id|a::b {{c2::x}}]]' }], problems: [],
+      cards: [{ key: 'cloze:c1', kind: 'cloze', front: '[…]', back: '[[id|a::b {{c2::x}}]]' }],
+      problems: [],
     });
   });
 
@@ -119,22 +160,27 @@ describe('card text', () => {
       cards: [
         { key: 'cloze:c1', kind: 'cloze', front: '🧠 飲 + 答🙂', back: '🧠 café + 答🙂' },
         { key: 'cloze:c2', kind: 'cloze', front: '🧠 café + […]', back: '🧠 café + 答🙂' },
-      ], problems: [],
+      ],
+      problems: [],
     });
     expect(parseCardText('{{c1::```x``` ' + String.raw`\>>` + '::hint}}')).toEqual({
-      cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'hint', back: '```x``` >>' }], problems: [],
+      cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'hint', back: '```x``` >>' }],
+      problems: [],
     });
     expect(parseCardText('A {{c1::one}} B {{c2::two::number}} C {{c01::uno::hint}}.')).toEqual({
       cards: [
         { key: 'cloze:c1', kind: 'cloze', front: 'A […] B two C hint.', back: 'A one B two C uno.' },
         { key: 'cloze:c2', kind: 'cloze', front: 'A one B number C uno.', back: 'A one B two C uno.' },
-      ], problems: [],
+      ],
+      problems: [],
     });
     expect(parseCardText(String.raw`{{c1::a\::b\}}c::h\::i}}`)).toEqual({
-      cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'h::i', back: 'a::b}}c' }], problems: [],
+      cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'h::i', back: 'a::b}}c' }],
+      problems: [],
     });
     expect(parseCardText('{{c1::a>>b}}')).toEqual({
-      cards: [{ key: 'cloze:c1', kind: 'cloze', front: '[…]', back: 'a>>b' }], problems: [],
+      cards: [{ key: 'cloze:c1', kind: 'cloze', front: '[…]', back: 'a>>b' }],
+      problems: [],
     });
   });
 
@@ -153,26 +199,51 @@ describe('card text', () => {
 
   test('cloze segments mark only their own gaps and rejoin into the derived sides', () => {
     for (const text of [
-      ' A {{c1::one}} B {{c2::two::number}} C {{c01::uno::hint}}. ', '{{c1::a>>b}}', '🧠 {{c1::café::飲}} + {{c2::答🙂}}',
-      String.raw`{{c1::a\::b\}}c::h\::i}} tail`, '\u2003{{c3::lead}} and {{c3::again}}\u0085',
+      ' A {{c1::one}} B {{c2::two::number}} C {{c01::uno::hint}}. ',
+      '{{c1::a>>b}}',
+      '🧠 {{c1::café::飲}} + {{c2::答🙂}}',
+      String.raw`{{c1::a\::b\}}c::h\::i}} tail`,
+      '\u2003{{c3::lead}} and {{c3::again}}\u0085',
     ]) {
       for (const card of parseCardText(text).cards) {
         const segments = clozeSegments(text, card.key)!;
-        const join = (side: 'front' | 'back') => segments.map(segment => 'text' in segment ? segment.text : side === 'back' ? segment.answer : segment.hint ?? '[…]').join('');
+        const join = (side: 'front' | 'back') =>
+          segments
+            .map(segment =>
+              'text' in segment ? segment.text : side === 'back' ? segment.answer : (segment.hint ?? '[…]'),
+            )
+            .join('');
         expect([join('front'), join('back')]).toEqual([card.front, card.back]);
       }
     }
-    expect(clozeSegments('A {{c1::one}} B {{c2::two::number}}', 'cloze:c2')).toEqual([{ text: 'A one B ' }, { answer: 'two', hint: 'number' }]);
+    expect(clozeSegments('A {{c1::one}} B {{c2::two::number}}', 'cloze:c2')).toEqual([
+      { text: 'A one B ' },
+      { answer: 'two', hint: 'number' },
+    ]);
     expect(clozeSegments('A {{c1::one}}', 'cloze:c2')).toBeNull();
     expect(clozeSegments('A >> B', 'forward')).toBeNull();
   });
 
   test('malformed clozes suppress all units rather than returning partial groups', () => {
     for (const text of [
-      '{{c0::answer}}', '{{c000::answer}}', '{{c-1::answer}}', '{{c1.5::answer}}', '{{c١::answer}}',
-      '{{c::answer}}', '{{C1::answer}}', '{{c1 answer}}', '{{answer}}', '{{c1::}}', '{{c1:: \n }}',
-      '{{c1::answer::}}', '{{c1::answer::hint::extra}}', '{{c1::answer}', '{{c1::answer',
-      '{{c1::outer {{c2::inner}}}}', '{{c1::`unclosed}}', '{{c1::[[unclosed}}',
+      '{{c0::answer}}',
+      '{{c000::answer}}',
+      '{{c-1::answer}}',
+      '{{c1.5::answer}}',
+      '{{c١::answer}}',
+      '{{c::answer}}',
+      '{{C1::answer}}',
+      '{{c1 answer}}',
+      '{{answer}}',
+      '{{c1::}}',
+      '{{c1:: \n }}',
+      '{{c1::answer::}}',
+      '{{c1::answer::hint::extra}}',
+      '{{c1::answer}',
+      '{{c1::answer',
+      '{{c1::outer {{c2::inner}}}}',
+      '{{c1::`unclosed}}',
+      '{{c1::[[unclosed}}',
     ]) {
       const parsed = parseCardText(text);
       expect(parsed.cards).toEqual([]);
@@ -183,8 +254,11 @@ describe('card text', () => {
 
   test('mixed, overlapping, and empty operator cards have actionable ranges', () => {
     const ambiguous: [string, number, number][] = [
-      ['a >> b << c', 2, 9], ['a >> b >> c', 2, 9],
-      ['a>>>b', 1, 5], ['a<>>b', 1, 4], ['a<<<b', 1, 4],
+      ['a >> b << c', 2, 9],
+      ['a >> b >> c', 2, 9],
+      ['a>>>b', 1, 5],
+      ['a<>>b', 1, 4],
+      ['a<<<b', 1, 4],
     ];
     for (const [text, start, end] of ambiguous) {
       const parsed = parseCardText(text);
@@ -199,7 +273,9 @@ describe('card text', () => {
     for (const text of ['{{c1::answer}} >> back', 'front << {{c2::answer}}', '{{c0::bad}} <> back']) {
       const parsed = parseCardText(text);
       expect(parsed.cards).toEqual([]);
-      expect(parsed.problems.some(({ start, end }) => end === text.length && start === (text.startsWith('{{') ? 0 : 6))).toBe(true);
+      expect(
+        parsed.problems.some(({ start, end }) => end === text.length && start === (text.startsWith('{{') ? 0 : 6)),
+      ).toBe(true);
     }
   });
 
@@ -210,9 +286,7 @@ describe('card text', () => {
       { key: 'forward', kind: 'forward', front: 'Q', back: 'A' },
     ]);
     expect(parseCardText('\u0085>>A').cards).toEqual([]);
-    expect(parseCardText('\ufeff>>A').cards).toEqual([
-      { key: 'forward', kind: 'forward', front: '\ufeff', back: 'A' },
-    ]);
+    expect(parseCardText('\ufeff>>A').cards).toEqual([{ key: 'forward', kind: 'forward', front: '\ufeff', back: 'A' }]);
   });
 });
 
@@ -234,15 +308,36 @@ describe('card marks', () => {
   test('escaped, referenced, and code operators stay literal while real syntax is marked', () => {
     for (const shielded of [String.raw`a \>> b`, '[[ref|a >> b]]', '`a >> b`']) {
       expect(cardMarks(shielded)).toEqual([]);
-      expect(cardMarks(`${shielded} >> answer`)).toEqual([{ kind: 'operator', start: shielded.length + 1, end: shielded.length + 3, op: '>>' }]);
+      expect(cardMarks(`${shielded} >> answer`)).toEqual([
+        { kind: 'operator', start: shielded.length + 1, end: shielded.length + 3, op: '>>' },
+      ]);
     }
     const source = '{{c1::[[ref|a >> b]] and `c >> d`::hint}}';
     const [mark] = cardMarks(source);
-    expect(mark).toEqual({ kind: 'cloze', start: 0, end: source.length, id: '1', answerStart: 6, answerEnd: source.indexOf('::hint'), hintStart: source.indexOf('hint'), hintEnd: source.length - 2 });
+    expect(mark).toEqual({
+      kind: 'cloze',
+      start: 0,
+      end: source.length,
+      id: '1',
+      answerStart: 6,
+      answerEnd: source.indexOf('::hint'),
+      hintStart: source.indexOf('hint'),
+      hintEnd: source.length - 2,
+    });
   });
 
   test('malformed syntax never produces partial quiet marks', () => {
-    for (const text of ['front >>', '>> back', 'a >>> b', 'a <> b >> c', '{{c1::answer', '{{c0::answer}}', '{{c1::answer::}}', '{{c1::answer}} {{bad}}', '{{c1::answer}} >> back']) {
+    for (const text of [
+      'front >>',
+      '>> back',
+      'a >>> b',
+      'a <> b >> c',
+      '{{c1::answer',
+      '{{c0::answer}}',
+      '{{c1::answer::}}',
+      '{{c1::answer}} {{bad}}',
+      '{{c1::answer}} >> back',
+    ]) {
       expect(parseCardText(text).problems.length).toBeGreaterThan(0);
       expect(cardMarks(text)).toEqual([]);
     }

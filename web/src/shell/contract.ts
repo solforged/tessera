@@ -17,9 +17,17 @@ export type PaneId = string;
  */
 export type Depth = 'gloss' | 'opening' | 'perspectives' | 'full';
 export const depthStops: readonly Depth[] = ['gloss', 'opening', 'perspectives', 'full'];
-export const depthLabels: Record<Depth, string> = { gloss: 'Gloss', opening: 'Opening', perspectives: 'Perspectives', full: 'Full' };
+export const depthLabels: Record<Depth, string> = {
+  gloss: 'Gloss',
+  opening: 'Opening',
+  perspectives: 'Perspectives',
+  full: 'Full',
+};
 export type PageProjection = 'read' | 'outline' | 'compare';
-export interface PagePresentation { projection?: PageProjection; bullets?: boolean }
+export interface PagePresentation {
+  projection?: PageProjection;
+  bullets?: boolean;
+}
 
 /**
  * One action. Every action appears in the command palette with its shortcut,
@@ -80,7 +88,17 @@ export interface ViewState {
 
 export type OpenTarget =
   /** `blockId` zooms; `caretId` starts editing in Outline at `caretOffset` (default 0), unzoomed without `blockId`. A lone `blockId` selects that block. `readAt` opens unzoomed in Read; `revealId` reveals an outline row without selecting or editing it. */
-  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; revealId?: string; editOcclusion?: boolean; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
+  | {
+      kind: 'page';
+      pageId: string;
+      blockId?: string;
+      caretId?: string;
+      caretOffset?: number;
+      readAt?: string;
+      revealId?: string;
+      editOcclusion?: boolean;
+      journalPeriod?: 'week' | 'month' | 'quarter' | 'year';
+    }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
   /** `blockId` starts a review of that block's cards; `start` starts the due queue once. */
@@ -106,31 +124,102 @@ export type OpenTarget =
 export type LibraryTab = ReadingState | 'all' | 'collections' | 'highlights';
 
 export interface TableViewState {
-  query: Query; scroll: number;
+  query: Query;
+  scroll: number;
   /** Scroll stays pane-local; legacy visibility and title width apply until a query recipe is chosen. */
-  hiddenFields?: string[]; titleWidth?: number; horizontalScroll?: number;
+  hiddenFields?: string[];
+  titleWidth?: number;
+  horizontalScroll?: number;
   desk?: { question: string | null; position: string | null; source: string | null; column: 0 | 1 | 2 };
 }
-export interface FieldsViewState { scroll: number }
-export interface FieldViewState { scroll: number }
-export interface SettingsViewState { scroll: number }
-export interface DirectoryViewState { scroll: number }
-export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null; focusedQuestion?: string | null }
-export interface IndexViewState { scroll: number; noteQuery?: Query; viewId?: string | null }
-export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
+export interface FieldsViewState {
+  scroll: number;
+}
+export interface FieldViewState {
+  scroll: number;
+}
+export interface SettingsViewState {
+  scroll: number;
+}
+export interface DirectoryViewState {
+  scroll: number;
+}
+export interface CompareViewState {
+  scroll: number;
+  comparison?: 'readings' | 'criteria';
+  chosen?: string[] | null;
+  focusedQuestion?: string | null;
+}
+export interface IndexViewState {
+  scroll: number;
+  noteQuery?: Query;
+  viewId?: string | null;
+}
+export interface AgendaViewState {
+  date: string;
+  mode: 'agenda' | 'week' | 'tasks';
+  query: TaskQuery;
+  viewId: string | null;
+  scroll: number;
+}
 /** `blockId` and `start` are one-shot review requests; the pane drops them once handled. */
-export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number; blockId?: string; start?: true }
-export interface RevisitsViewState { scroll: number; revisitId?: string }
+export interface ReviewViewState {
+  deckId: string | null;
+  sessionId: string | null;
+  selection: CardSelection | null;
+  scroll: number;
+  blockId?: string;
+  start?: true;
+}
+export interface RevisitsViewState {
+  scroll: number;
+  revisitId?: string;
+}
 export type LibraryGroup = 'none' | 'author' | 'year' | 'decade' | 'publisher' | 'language';
-export interface LibraryViewState { view: string | null; collection?: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
+export interface LibraryViewState {
+  view: string | null;
+  collection?: string | null;
+  tab: LibraryTab;
+  text: string;
+  sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress';
+  filters: LibraryFilters;
+  group: LibraryGroup;
+  unprocessedOnly: boolean;
+  colors: string[];
+  tags: string[];
+  scroll: number;
+}
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
-export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }
+export interface ReaderViewState {
+  snapshotId: string | null;
+  ordinal: number;
+  offset: number;
+}
 
 /** Phone tabs retain independent, JSON-serializable histories in each working pane. */
 export type PhoneTab = 'today' | 'agenda' | 'review' | 'library';
-export type PaneView = ViewState | TableViewState | DirectoryViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | RevisitsViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
-export interface HistoryEntry { target: OpenTarget; view: PaneView }
-export interface PaneHistory { entries: HistoryEntry[]; index: number }
+export type PaneView =
+  | ViewState
+  | TableViewState
+  | DirectoryViewState
+  | FieldsViewState
+  | FieldViewState
+  | SettingsViewState
+  | AgendaViewState
+  | ReviewViewState
+  | RevisitsViewState
+  | LibraryViewState
+  | ReaderViewState
+  | CompareViewState
+  | IndexViewState;
+export interface HistoryEntry {
+  target: OpenTarget;
+  view: PaneView;
+}
+export interface PaneHistory {
+  entries: HistoryEntry[];
+  index: number;
+}
 export interface PaneSession extends PaneHistory {
   generation: number;
   tab?: PhoneTab;

@@ -14,7 +14,13 @@ export function foldName(value: string): string {
 }
 
 function foldWords(value: string): string {
-  return titleKey(value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{Alphabetic}\p{N}]+/gu, ' ').trim());
+  return titleKey(
+    value
+      .normalize('NFD')
+      .replace(/\p{M}|['’]/gu, '')
+      .replace(/[^\p{Alphabetic}\p{N}]+/gu, ' ')
+      .trim(),
+  );
 }
 
 const highlightGraphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -43,7 +49,8 @@ export function foldedHighlights(value: string, query: string): [number, number]
       if (at > 0 && folded[at - 1] !== ' ') continue;
       let last = at + term.length - 1;
       while (last + 1 < folded.length && folded[last + 1] !== ' ') last++;
-      const start = offsets[at], end = offsets[last];
+      const start = offsets[at],
+        end = offsets[last];
       if (start && end) ranges.push([start[0], end[1]]);
     }
   }
@@ -57,7 +64,10 @@ export function foldedHighlights(value: string, query: string): [number, number]
   return merged;
 }
 
-interface Resolutions { sequence: number; names: Map<string, Promise<NameMatch[]>> }
+interface Resolutions {
+  sequence: number;
+  names: Map<string, Promise<NameMatch[]>>;
+}
 const resolutions = new WeakMap<NotebookClient, Resolutions>();
 
 /** Share one request per folded name until an acknowledged local or remote change. */
@@ -74,12 +84,18 @@ export function resolveName(notebook: NotebookClient, name: string): Promise<Nam
   const request = notebook.api.resolveName(name.trim());
   cache.names.set(key, request);
   const names = cache.names;
-  void request.catch(() => { if (names.get(key) === request) names.delete(key); });
+  void request.catch(() => {
+    if (names.get(key) === request) names.delete(key);
+  });
   return request;
 }
 
 /** Completion and exact identity share the same folding and aliases, within the caller's allowed pages. */
-export async function completeNames(notebook: NotebookClient, query: string, pages: readonly Block[]): Promise<{ rows: NameMatch[]; canCreate: boolean }> {
+export async function completeNames(
+  notebook: NotebookClient,
+  query: string,
+  pages: readonly Block[],
+): Promise<{ rows: NameMatch[]; canCreate: boolean }> {
   const title = query.trim();
   const allowed = new Map(pages.filter(page => page.kind === 'page' && !page.archived).map(page => [page.id, page]));
   if (!title) return { rows: [...allowed.values()].map(page => ({ page, alias: null })), canCreate: false };
@@ -100,11 +116,19 @@ export function referenceValue(text: string): { id: string | null; name: string 
   const value = text.trim();
   const tokens = textTokens(value);
   const token = tokens.length === 1 && tokens[0]?.kind === 'reference' ? tokens[0] : undefined;
-  return token ? { id: isStableReference(token) ? token.id! : null, name: token.alias ?? token.id!.trim() } : { id: null, name: value };
+  return token
+    ? { id: isStableReference(token) ? token.id! : null, name: token.alias ?? token.id!.trim() }
+    : { id: null, name: value };
 }
 
 /** References to reference-bearing blocks read their live labels, with cycles bounded by target identity. */
-export function referenceLabel(token: Token, target: Block | null | undefined, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set(), unavailableLabel?: string): string {
+export function referenceLabel(
+  token: Token,
+  target: Block | null | undefined,
+  lookup: NotebookClient['lookup'],
+  seen: ReadonlySet<string> = new Set(),
+  unavailableLabel?: string,
+): string {
   if (isViewReference(token)) return token.alias || 'Saved view';
   if (!isStableReference(token)) return token.value;
   if (target == null && unavailableLabel) return unavailableLabel;
@@ -126,11 +150,22 @@ export function deletedHolderLabel(holder: { text: string }): string {
 }
 
 /** What a reference or relation calls its target, as the core labels it: the first line, its trailing tags dropped and inner tags read as words. */
-export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
+export function targetLabel(
+  text: string,
+  lookup: NotebookClient['lookup'],
+  seen: ReadonlySet<string> = new Set(),
+): string {
   if (quoteTarget(text)) return plainText(text, lookup, seen);
   const tokens = textTokens(text.trim().split('\n', 1)[0] ?? '');
-  while (tokens.length && (tokens.at(-1)!.kind === 'tag' || (tokens.at(-1)!.kind === 'text' && !tokens.at(-1)!.value.trim()))) tokens.pop();
-  return tokens.map(token => token.kind === 'tag' ? tagLabel(token, lookup) : plainToken(token, lookup, seen)).join('').trim();
+  while (
+    tokens.length &&
+    (tokens.at(-1)!.kind === 'tag' || (tokens.at(-1)!.kind === 'text' && !tokens.at(-1)!.value.trim()))
+  )
+    tokens.pop();
+  return tokens
+    .map(token => (token.kind === 'tag' ? tagLabel(token, lookup) : plainToken(token, lookup, seen)))
+    .join('')
+    .trim();
 }
 
 /** Display the identity name, rendering tag-only titles with live tag labels. */
@@ -139,44 +174,94 @@ export function displayTitle(text: string, lookup: NotebookClient['lookup'] = ()
   return name === text && textTokens(text).some(token => token.kind === 'tag') ? plainText(text, lookup) : name;
 }
 
-function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>, deletedHolder?: { id: string; text: string } | null): string {
-  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen, deletedHolder && deletedHolder.id === token.id ? deletedHolderLabel(deletedHolder) : undefined) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${tagLabel(token, lookup)}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
+function plainToken(
+  token: Token,
+  lookup: NotebookClient['lookup'],
+  seen: ReadonlySet<string>,
+  deletedHolder?: { id: string; text: string } | null,
+): string {
+  return isViewReference(token)
+    ? token.alias || 'Saved view'
+    : isStableReference(token)
+      ? referenceLabel(
+          token,
+          lookup(token.id!)(),
+          lookup,
+          seen,
+          deletedHolder && deletedHolder.id === token.id ? deletedHolderLabel(deletedHolder) : undefined,
+        ) + (token.locator ? `\u2009${token.locator}` : '')
+      : token.kind === 'tag'
+        ? `#${tagLabel(token, lookup)}`
+        : token.kind === 'url'
+          ? (token.alias ?? token.value)
+          : token.value;
 }
 
 /** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */
-export function plainText(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set(), deletedHolder?: { id: string; text: string } | null): string {
+export function plainText(
+  text: string,
+  lookup: NotebookClient['lookup'],
+  seen: ReadonlySet<string> = new Set(),
+  deletedHolder?: { id: string; text: string } | null,
+): string {
   const quoted = quoteTarget(text);
-  if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen, deletedHolder && deletedHolder.id === quoted ? deletedHolderLabel(deletedHolder) : undefined)}”`;
-  return textTokens(text).map(token => plainToken(token, lookup, seen, deletedHolder)).join('');
+  if (quoted)
+    return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen, deletedHolder && deletedHolder.id === quoted ? deletedHolderLabel(deletedHolder) : undefined)}”`;
+  return textTokens(text)
+    .map(token => plainToken(token, lookup, seen, deletedHolder))
+    .join('');
 }
 /** Plain text as a reader sees it: card operators as their arrows, clozes as their answers, and inline code, bold and italic without their markers, as block text renders them. Never use it for text that is written back. */
-export function readableText(text: string, lookup: NotebookClient['lookup'], deletedHolder?: { id: string; text: string } | null): string {
+export function readableText(
+  text: string,
+  lookup: NotebookClient['lookup'],
+  deletedHolder?: { id: string; text: string } | null,
+): string {
   if (quoteTarget(text)) return plainText(text, lookup, undefined, deletedHolder);
   const seen = new Set<string>();
-  const shown = (start: number, end: number) => inlineTokens(text.slice(start, end)).map(token => token.kind === 'text' ? token.value : plainToken(token, lookup, seen, deletedHolder)).join('');
-  let result = '', offset = 0;
+  const shown = (start: number, end: number) =>
+    inlineTokens(text.slice(start, end))
+      .map(token => (token.kind === 'text' ? token.value : plainToken(token, lookup, seen, deletedHolder)))
+      .join('');
+  let result = '',
+    offset = 0;
   for (const mark of cardMarks(text)) {
-    result += shown(offset, mark.start) + (mark.kind === 'cloze' ? shown(mark.answerStart, mark.answerEnd) : cardOperators[mark.op].text);
+    result +=
+      shown(offset, mark.start) +
+      (mark.kind === 'cloze' ? shown(mark.answerStart, mark.answerEnd) : cardOperators[mark.op].text);
     offset = mark.end;
   }
   return result + shown(offset, text.length);
 }
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */
 export function resolvedReferenceText(text: string, token: Token, target: string): string | null {
-  const current = textTokens(text).find(value => value.start === token.start && value.end === token.end && value.kind === 'reference' && value.id === token.id && value.alias === token.alias && value.locator === token.locator);
+  const current = textTokens(text).find(
+    value =>
+      value.start === token.start &&
+      value.end === token.end &&
+      value.kind === 'reference' &&
+      value.id === token.id &&
+      value.alias === token.alias &&
+      value.locator === token.locator,
+  );
   if (!current) return null;
   return `${text.slice(0, token.start)}[[${target}|${token.alias ?? token.id!.trim()}${token.locator === undefined ? '' : `|${token.locator}`}]]${text.slice(token.end)}`;
 }
 
-export async function chooseName(notebook: NotebookClient, blockId: string, token: Token, target?: string): Promise<void> {
-  const block = notebook.lookup(blockId)() ?? await notebook.api.block(blockId);
+export async function chooseName(
+  notebook: NotebookClient,
+  blockId: string,
+  token: Token,
+  target?: string,
+): Promise<void> {
+  const block = notebook.lookup(blockId)() ?? (await notebook.api.block(blockId));
   const doc = notebook.open(block.page_id);
   try {
     await documentReady(doc);
     const current = doc.block(blockId)?.text;
     if (current === undefined || resolvedReferenceText(current, token, '') === null) return;
     const name = token.id!.trim();
-    const id = target ?? await notebook.createPage(name);
+    const id = target ?? (await notebook.createPage(name));
     const latest = doc.block(blockId)?.text;
     if (latest === undefined) return;
     const text = resolvedReferenceText(latest, token, id);
@@ -185,11 +270,23 @@ export async function chooseName(notebook: NotebookClient, blockId: string, toke
     if (!result.ok) throw new Error(result.reason);
     await doc.flush();
     await notebook.api.addAlias(id, name);
-  } finally { doc.release(); }
+  } finally {
+    doc.release();
+  }
 }
 
-export function nameMenuItems(notebook: NotebookClient, blockId: string, token: Token, matches: NameMatch[], onError: (message: string) => void): MenuItem[] {
-  const choose = (id?: string) => { void chooseName(notebook, blockId, token, id).catch(error => onError(error instanceof Error ? error.message : String(error))); };
+export function nameMenuItems(
+  notebook: NotebookClient,
+  blockId: string,
+  token: Token,
+  matches: NameMatch[],
+  onError: (message: string) => void,
+): MenuItem[] {
+  const choose = (id?: string) => {
+    void chooseName(notebook, blockId, token, id).catch(error =>
+      onError(error instanceof Error ? error.message : String(error)),
+    );
+  };
   return [
     ...matches.map(match => ({ label: match.page.text, action: () => choose(match.page.id) })),
     { label: `Create atom “${token.id!.trim()}”`, action: () => choose() },

@@ -6,7 +6,10 @@ test('field labels cover the ordered kind contract', () => {
 });
 
 test('creation and rename refuse another definition with the same name', () => {
-  const fields = [{ id: 'gloss', name: 'Gloss' }, { id: 'gist', name: 'Gist' }];
+  const fields = [
+    { id: 'gloss', name: 'Gloss' },
+    { id: 'gist', name: 'Gist' },
+  ];
   expect(fieldNameProblem('Gloss', fields)).toBe('A field named Gloss already exists.');
   expect(fieldNameProblem(' gloss ', fields, 'gist')).toBe('A field named gloss already exists.');
   expect(fieldNameProblem('Gloss', fields, 'gloss')).toBeNull();

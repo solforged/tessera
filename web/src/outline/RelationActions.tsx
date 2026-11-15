@@ -13,29 +13,82 @@ import { createEntity, entityKinds, entityLabel, fileAsEntity } from './holders'
 import type { EntityKind } from './holders';
 
 type RelationAction = 'holder' | 'subject' | 'integrate' | 'reading';
-export interface HolderChoice { block: Block; section: string; alias?: string | null; create?: EntityKind; file?: EntityKind }
+export interface HolderChoice {
+  block: Block;
+  section: string;
+  alias?: string | null;
+  create?: EntityKind;
+  file?: EntityKind;
+}
 type Choice = HolderChoice;
-const labels: Record<RelationAction, string> = { holder: 'Change holder', subject: 'File under', integrate: 'Integrate', reading: 'Who holds this?' };
+const labels: Record<RelationAction, string> = {
+  holder: 'Change holder',
+  subject: 'File under',
+  integrate: 'Integrate',
+  reading: 'Who holds this?',
+};
 
 /** The same people, groups, filing and creation choices in a perspective and a question draft. */
-export async function holderChoices(notebook: NotebookClient, text: string, preferred?: { ids: Set<string>; types: Set<string> }, roots = notebook.roots()): Promise<HolderChoice[]> {
+export async function holderChoices(
+  notebook: NotebookClient,
+  text: string,
+  preferred?: { ids: Set<string>; types: Set<string> },
+  roots = notebook.roots(),
+): Promise<HolderChoice[]> {
   if (!preferred) {
     const [entities, types] = await Promise.all([notebook.api.entities(), notebook.api.types()]);
     preferred = { ids: new Set(entities), types: new Set(types.map(type => type.page.id)) };
   }
   const names = await completeNames(notebook, text, roots);
-  const people: HolderChoice[] = names.rows.filter(({ page }) => preferred.ids.has(page.id)).map(({ page, alias }) => ({ block: page, alias, section: 'People and groups' }));
-  const others = text.trim() ? names.rows.filter(({ page }) => !preferred.ids.has(page.id) && !preferred.types.has(page.id)).slice(0, 3) : [];
-  const filing: HolderChoice[] = others.flatMap(({ page, alias }) => entityKinds.map(kind => ({ block: page, alias, file: kind, section: 'File as a person or group' })));
-  const creating: HolderChoice[] = names.canCreate && text.trim() ? entityKinds.map(kind => ({ create: kind, section: 'Create', block: { id: `create-${kind}`, kind: 'page', parent_id: null, page_id: `create-${kind}`, text: text.trim(), heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0, kept_copy: null } })) : [];
+  const people: HolderChoice[] = names.rows
+    .filter(({ page }) => preferred.ids.has(page.id))
+    .map(({ page, alias }) => ({ block: page, alias, section: 'People and groups' }));
+  const others = text.trim()
+    ? names.rows.filter(({ page }) => !preferred.ids.has(page.id) && !preferred.types.has(page.id)).slice(0, 3)
+    : [];
+  const filing: HolderChoice[] = others.flatMap(({ page, alias }) =>
+    entityKinds.map(kind => ({ block: page, alias, file: kind, section: 'File as a person or group' })),
+  );
+  const creating: HolderChoice[] =
+    names.canCreate && text.trim()
+      ? entityKinds.map(kind => ({
+          create: kind,
+          section: 'Create',
+          block: {
+            id: `create-${kind}`,
+            kind: 'page',
+            parent_id: null,
+            page_id: `create-${kind}`,
+            text: text.trim(),
+            heading: null,
+            archived: false,
+            revision: 0,
+            created_at: 0,
+            updated_at: 0,
+            kept_copy: null,
+          },
+        }))
+      : [];
   return [...people, ...filing, ...creating];
 }
 
 /** The existing picker serves authored links and journal destinations; none are inferred from prose. */
-export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'props' | 'rowAnchor' | 'setMessage' | 'restoreFocus' | 'editor' | 'showNotice' | 'scheduleReport'>, onAddReading?: (holderId: string) => Promise<void>) {
+export function createRelationActions(
+  context: Pick<
+    OutlineContext,
+    'doc' | 'props' | 'rowAnchor' | 'setMessage' | 'restoreFocus' | 'editor' | 'showNotice' | 'scheduleReport'
+  >,
+  onAddReading?: (holderId: string) => Promise<void>,
+) {
   const { doc, props, rowAnchor, setMessage, restoreFocus, showNotice, scheduleReport } = context;
   // File all walks `queue` one row at a time; `done` counts the rows already filed or skipped.
-  const [state, setState] = createSignal<{ kind: RelationAction; id: string; anchor: PopupAnchor; queue?: string[]; done?: number }>();
+  const [state, setState] = createSignal<{
+    kind: RelationAction;
+    id: string;
+    anchor: PopupAnchor;
+    queue?: string[];
+    done?: number;
+  }>();
   function openRelation(id: string, kind: RelationAction, anchor = rowAnchor(id)) {
     if (anchor) setState({ id, kind, anchor });
   }
@@ -47,10 +100,20 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
   /** The next row in File all, or the end of the walk. */
   function advance(current: { anchor: PopupAnchor; queue?: string[]; done?: number }) {
     const [next, ...queue] = current.queue ?? [];
-    if (!next) { setState(undefined); restoreFocus(); return; }
-    setState({ id: next, kind: 'integrate', anchor: rowAnchor(next) ?? current.anchor, queue, done: (current.done ?? 0) + 1 });
+    if (!next) {
+      setState(undefined);
+      restoreFocus();
+      return;
+    }
+    setState({
+      id: next,
+      kind: 'integrate',
+      anchor: rowAnchor(next) ?? current.anchor,
+      queue,
+      done: (current.done ?? 0) + 1,
+    });
   }
-  const positionReason = (id: string) => !doc.block(id)?.position ? 'Select a perspective.' : undefined;
+  const positionReason = (id: string) => (!doc.block(id)?.position ? 'Select a perspective.' : undefined);
   const placeReason = (id: string) => positionReason(id) ?? usePlaceReason(doc.block(id)?.text ?? '');
   const write = async (id: string, text: string) => {
     const result = doc.edit({ kind: 'positionLinks', id, text });
@@ -60,100 +123,236 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
     scheduleReport();
   };
   function usePlace(id: string) {
-    void write(id, usePlaceText(doc.block(id)?.text ?? '')).catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
+    void write(id, usePlaceText(doc.block(id)?.text ?? '')).catch(reason =>
+      setMessage(reason instanceof Error ? reason.message : String(reason)),
+    );
   }
   function RelationPopups() {
-    return <Show keyed when={state()}>{current => {
-      const [query, setQuery] = createSignal('');
-      const [busy, setBusy] = createSignal(false);
-      const [error, setError] = createSignal('');
-      const holding = current.kind === 'holder' || current.kind === 'reading';
-      const [preferred] = createResource(async () => {
-        if (current.kind === 'integrate') return { ids: new Set<string>(), questions: [] as Block[], types: new Set<string>() };
-        // Holders are people and groups, refined types included, in one read. Type pages are never offered for filing.
-        if (holding) {
-          const [entities, types] = await Promise.all([props.notebook.api.entities(), props.notebook.api.types()]);
-          return { ids: new Set(entities), questions: [] as Block[], types: new Set(types.map(type => type.page.id)) };
-        }
-        const [index, questions, directory, types] = await Promise.all([
-          props.notebook.api.kindNotes('concept'),
-          props.notebook.api.questions({}),
-          props.notebook.api.noteIndex(),
-          props.notebook.api.types(),
-        ]);
-        const ids = new Set(index.notes.map(note => note.id));
-        const typeIds = new Set(types.map(type => type.page.id));
-        const pending = directory.kinds.filter(kind => kind.key === 'concept').flatMap(kind => kind.type_id ? [kind.type_id] : []);
-        const visited = new Set<string>();
-        while (pending.length) {
-          const typeId = pending.pop()!;
-          if (visited.has(typeId)) continue;
-          visited.add(typeId);
-          for (const row of await props.notebook.api.members(typeId, 100000)) {
-            if (row.block.kind !== 'page' || row.block.archived) continue;
-            ids.add(row.block.id);
-            if (typeIds.has(row.block.id)) pending.push(row.block.id);
-          }
-        }
-        return { ids, questions: questions.map(row => row.block.block), types: typeIds };
-      });
-      const [choices] = createResource(() => [query(), preferred(), props.notebook.roots()] as const, async ([text, preferred, roots]): Promise<Choice[]> => {
-        if (!preferred) return [];
-        if (holding) return holderChoices(props.notebook, text, preferred, roots);
-        const names = await completeNames(props.notebook, text, roots);
-        const result: Choice[] = names.rows.map(({ page, alias }) => ({ block: page, alias, section: current.kind === 'integrate' ? 'Atoms' : preferred.ids.has(page.id) ? 'Questions and concepts' : 'Atoms' }));
-        if (current.kind === 'subject') {
-          // Question pages use the shared name resolver; inline questions use reference search below.
-          const questions = new Set(preferred.questions.map(block => block.id));
-          for (const choice of result) if (questions.has(choice.block.id)) choice.section = 'Questions and concepts';
-          const matches = text.trim() ? await props.notebook.api.search(text, 100) : null;
-          const ids = matches && new Set(matches.map(row => row.block.id));
-          for (const block of preferred.questions) if (block.kind === 'block' && (!ids || ids.has(block.id))) result.push({ block, section: 'Questions and concepts' });
-        } else if (current.kind === 'integrate' && text.trim()) {
-          const found = await props.notebook.api.search(text, 100);
-          for (const row of found) if (row.block.kind === 'block' && !row.block.archived) result.push({ block: row.block, section: 'Atoms' });
-        }
-        const sorted = result.sort((a, b) => Number(a.section === 'Atoms') - Number(b.section === 'Atoms') || Number(a.section === 'Atoms' && a.block.kind === 'block') - Number(b.section === 'Atoms' && b.block.kind === 'block'));
-        return sorted;
-      });
-      const dismiss = () => { if (!busy()) { setState(undefined); restoreFocus(); } };
-      const pick = async (choice: Choice) => {
-        if (busy() || choices.loading || preferred.loading) return;
-        setBusy(true); setError('');
-        try {
-          const holderId = !holding ? choice.block.id : choice.create ? await createEntity(props.notebook, choice.block.text, choice.create) : choice.block.id;
-          if (choice.file) await fileAsEntity(props.notebook, holderId, choice.file);
-          if (current.kind === 'reading') {
-            await onAddReading?.(holderId);
-            setState(undefined);
-            return;
-          }
-          if (current.kind === 'integrate') {
-            const change = await props.notebook.integrateBlock(current.id, choice.block.id);
-            if (current.queue) advance(current); else setState(undefined);
-            showNotice(`Integrated into ${plainText(choice.block.text, target => props.notebook.lookup(target))}.`, change.undo);
-          } else {
-            if (!doc.block(current.id)?.position) throw new Error('This atom is no longer a perspective.');
-            let text = doc.block(current.id)!.text;
-            if (current.kind === 'holder') {
-              const alias = positionLinks(text)[0]?.alias;
-              const keep = alias && (await resolveName(props.notebook, alias)).some(match => match.page.id === holderId);
-              const latest = doc.block(current.id)!.text;
-              text = changeHolderText(latest, holderId, keep && positionLinks(latest)[0]?.alias === alias ? alias : undefined);
-            } else text = fileUnderText(text, choice.block.id);
-            await write(current.id, text);
-            setState(undefined); restoreFocus();
-          }
-        } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-        finally { setBusy(false); }
-      };
-      const walking = current.queue !== undefined;
-      const total = (current.done ?? 0) + 1 + (current.queue?.length ?? 0);
-      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={walking ? `File to, ${(current.done ?? 0) + 1} of ${total}` : labels[current.kind]}
-        status={walking ? <p class="file-all-status"><span class="file-all-count">{(current.done ?? 0) + 1} of {total}</span><span class="file-all-text"><BlockText text={doc.block(current.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></span></p> : undefined}
-        queryActions={walking ? <Button disabled={busy()} onClick={() => advance(current)}>Skip</Button> : undefined} query={query()} onQuery={setQuery} placeholder={holding ? 'Find a person or group' : current.kind === 'subject' ? 'Find a question, concept or atom' : 'Find an atom'} items={choices() ?? []} key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'An atom cannot move into itself.' : undefined}
-        row={choice => <><Icon name={choice.create || choice.file ? 'plus' : choice.block.kind === 'block' ? 'bullet' : 'note'} /><span class="picker-text"><Show when={choice.create}>{kind => <>Create {entityLabel(kind())} “</>}</Show><Show when={choice.file}>File “</Show><BlockText text={choice.block.text} notebook={props.notebook} interactive={false} /><Show when={choice.create}>”</Show><Show when={choice.file}>{kind => <>” as {entityLabel(kind())}</>}</Show></span><Show when={choice.alias}><span class="reference-via">via {choice.alias}</span></Show><Show when={choice.block.kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={choice.block} notebook={props.notebook} /></span></Show></>} />;
-    }}</Show>;
+    return (
+      <Show keyed when={state()}>
+        {current => {
+          const [query, setQuery] = createSignal('');
+          const [busy, setBusy] = createSignal(false);
+          const [error, setError] = createSignal('');
+          const holding = current.kind === 'holder' || current.kind === 'reading';
+          const [preferred] = createResource(async () => {
+            if (current.kind === 'integrate')
+              return { ids: new Set<string>(), questions: [] as Block[], types: new Set<string>() };
+            // Holders are people and groups, refined types included, in one read. Type pages are never offered for filing.
+            if (holding) {
+              const [entities, types] = await Promise.all([props.notebook.api.entities(), props.notebook.api.types()]);
+              return {
+                ids: new Set(entities),
+                questions: [] as Block[],
+                types: new Set(types.map(type => type.page.id)),
+              };
+            }
+            const [index, questions, directory, types] = await Promise.all([
+              props.notebook.api.kindNotes('concept'),
+              props.notebook.api.questions({}),
+              props.notebook.api.noteIndex(),
+              props.notebook.api.types(),
+            ]);
+            const ids = new Set(index.notes.map(note => note.id));
+            const typeIds = new Set(types.map(type => type.page.id));
+            const pending = directory.kinds
+              .filter(kind => kind.key === 'concept')
+              .flatMap(kind => (kind.type_id ? [kind.type_id] : []));
+            const visited = new Set<string>();
+            while (pending.length) {
+              const typeId = pending.pop()!;
+              if (visited.has(typeId)) continue;
+              visited.add(typeId);
+              for (const row of await props.notebook.api.members(typeId, 100000)) {
+                if (row.block.kind !== 'page' || row.block.archived) continue;
+                ids.add(row.block.id);
+                if (typeIds.has(row.block.id)) pending.push(row.block.id);
+              }
+            }
+            return { ids, questions: questions.map(row => row.block.block), types: typeIds };
+          });
+          const [choices] = createResource(
+            () => [query(), preferred(), props.notebook.roots()] as const,
+            async ([text, preferred, roots]): Promise<Choice[]> => {
+              if (!preferred) return [];
+              if (holding) return holderChoices(props.notebook, text, preferred, roots);
+              const names = await completeNames(props.notebook, text, roots);
+              const result: Choice[] = names.rows.map(({ page, alias }) => ({
+                block: page,
+                alias,
+                section:
+                  current.kind === 'integrate'
+                    ? 'Atoms'
+                    : preferred.ids.has(page.id)
+                      ? 'Questions and concepts'
+                      : 'Atoms',
+              }));
+              if (current.kind === 'subject') {
+                // Question pages use the shared name resolver; inline questions use reference search below.
+                const questions = new Set(preferred.questions.map(block => block.id));
+                for (const choice of result)
+                  if (questions.has(choice.block.id)) choice.section = 'Questions and concepts';
+                const matches = text.trim() ? await props.notebook.api.search(text, 100) : null;
+                const ids = matches && new Set(matches.map(row => row.block.id));
+                for (const block of preferred.questions)
+                  if (block.kind === 'block' && (!ids || ids.has(block.id)))
+                    result.push({ block, section: 'Questions and concepts' });
+              } else if (current.kind === 'integrate' && text.trim()) {
+                const found = await props.notebook.api.search(text, 100);
+                for (const row of found)
+                  if (row.block.kind === 'block' && !row.block.archived)
+                    result.push({ block: row.block, section: 'Atoms' });
+              }
+              const sorted = result.sort(
+                (a, b) =>
+                  Number(a.section === 'Atoms') - Number(b.section === 'Atoms') ||
+                  Number(a.section === 'Atoms' && a.block.kind === 'block') -
+                    Number(b.section === 'Atoms' && b.block.kind === 'block'),
+              );
+              return sorted;
+            },
+          );
+          const dismiss = () => {
+            if (!busy()) {
+              setState(undefined);
+              restoreFocus();
+            }
+          };
+          const pick = async (choice: Choice) => {
+            if (busy() || choices.loading || preferred.loading) return;
+            setBusy(true);
+            setError('');
+            try {
+              const holderId = !holding
+                ? choice.block.id
+                : choice.create
+                  ? await createEntity(props.notebook, choice.block.text, choice.create)
+                  : choice.block.id;
+              if (choice.file) await fileAsEntity(props.notebook, holderId, choice.file);
+              if (current.kind === 'reading') {
+                await onAddReading?.(holderId);
+                setState(undefined);
+                return;
+              }
+              if (current.kind === 'integrate') {
+                const change = await props.notebook.integrateBlock(current.id, choice.block.id);
+                if (current.queue) advance(current);
+                else setState(undefined);
+                showNotice(
+                  `Integrated into ${plainText(choice.block.text, target => props.notebook.lookup(target))}.`,
+                  change.undo,
+                );
+              } else {
+                if (!doc.block(current.id)?.position) throw new Error('This atom is no longer a perspective.');
+                let text = doc.block(current.id)!.text;
+                if (current.kind === 'holder') {
+                  const alias = positionLinks(text)[0]?.alias;
+                  const keep =
+                    alias && (await resolveName(props.notebook, alias)).some(match => match.page.id === holderId);
+                  const latest = doc.block(current.id)!.text;
+                  text = changeHolderText(
+                    latest,
+                    holderId,
+                    keep && positionLinks(latest)[0]?.alias === alias ? alias : undefined,
+                  );
+                } else text = fileUnderText(text, choice.block.id);
+                await write(current.id, text);
+                setState(undefined);
+                restoreFocus();
+              }
+            } catch (reason) {
+              setError(reason instanceof Error ? reason.message : String(reason));
+            } finally {
+              setBusy(false);
+            }
+          };
+          const walking = current.queue !== undefined;
+          const total = (current.done ?? 0) + 1 + (current.queue?.length ?? 0);
+          return (
+            <Picker<Choice>
+              anchor={current.anchor}
+              placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'}
+              label={walking ? `File to, ${(current.done ?? 0) + 1} of ${total}` : labels[current.kind]}
+              status={
+                walking ? (
+                  <p class="file-all-status">
+                    <span class="file-all-count">
+                      {(current.done ?? 0) + 1} of {total}
+                    </span>
+                    <span class="file-all-text">
+                      <BlockText
+                        text={doc.block(current.id)?.text ?? ''}
+                        notebook={props.notebook}
+                        interactive={false}
+                      />
+                    </span>
+                  </p>
+                ) : undefined
+              }
+              queryActions={
+                walking ? (
+                  <Button disabled={busy()} onClick={() => advance(current)}>
+                    Skip
+                  </Button>
+                ) : undefined
+              }
+              query={query()}
+              onQuery={setQuery}
+              placeholder={
+                holding
+                  ? 'Find a person or group'
+                  : current.kind === 'subject'
+                    ? 'Find a question, concept or atom'
+                    : 'Find an atom'
+              }
+              items={choices() ?? []}
+              key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`}
+              section={choice => choice.section}
+              onDismiss={dismiss}
+              onPick={choice => {
+                void pick(choice);
+              }}
+              busy={choices.loading || preferred.loading || busy()}
+              error={
+                error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)
+              }
+              empty="No matching destinations."
+              disabledReason={choice =>
+                busy()
+                  ? 'Saving…'
+                  : choices.loading || preferred.loading
+                    ? 'Loading destinations…'
+                    : current.kind === 'integrate' && choice.block.id === current.id
+                      ? 'An atom cannot move into itself.'
+                      : undefined
+              }
+              row={choice => (
+                <>
+                  <Icon
+                    name={choice.create || choice.file ? 'plus' : choice.block.kind === 'block' ? 'bullet' : 'note'}
+                  />
+                  <span class="picker-text">
+                    <Show when={choice.create}>{kind => <>Create {entityLabel(kind())} “</>}</Show>
+                    <Show when={choice.file}>File “</Show>
+                    <BlockText text={choice.block.text} notebook={props.notebook} interactive={false} />
+                    <Show when={choice.create}>”</Show>
+                    <Show when={choice.file}>{kind => <>” as {entityLabel(kind())}</>}</Show>
+                  </span>
+                  <Show when={choice.alias}>
+                    <span class="reference-via">via {choice.alias}</span>
+                  </Show>
+                  <Show when={choice.block.kind === 'block'}>
+                    <span class="picker-meta">
+                      <BlockBreadcrumb block={choice.block} notebook={props.notebook} />
+                    </span>
+                  </Show>
+                </>
+              )}
+            />
+          );
+        }}
+      </Show>
+    );
   }
   return { openRelation, fileAll, positionReason, placeReason, usePlace, RelationPopups };
 }

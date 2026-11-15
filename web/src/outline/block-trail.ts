@@ -4,7 +4,8 @@ import { displayTitle, readableText } from './names';
 
 /** Where a block sits: its root's tagless title, then its ancestors as a reader sees them. A descriptor card already names its parent, so it can omit it. */
 export function blockTrail(block: Block, lookup: NotebookClient['lookup'], omitParent = false): string {
-  if (block.kind !== 'block') return displayTitle(block.text, lookup) || (block.kind === 'journal' ? 'Journal' : 'Untitled atom');
+  if (block.kind !== 'block')
+    return displayTitle(block.text, lookup) || (block.kind === 'journal' ? 'Journal' : 'Untitled atom');
   const ancestors: string[] = [];
   const seen = new Set<string>();
   let parent = block.parent_id;

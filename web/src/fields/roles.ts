@@ -5,7 +5,12 @@ import { fieldEntryId } from '../table/query';
 
 export const fieldRoles = ['standfirst', 'attribute', 'prose', 'citation'] as const satisfies readonly FieldRole[];
 export type { FieldRole };
-export const roleLabels: Record<FieldRole, string> = { standfirst: 'Standfirst', attribute: 'Attribute', prose: 'Prose', citation: 'Citation' };
+export const roleLabels: Record<FieldRole, string> = {
+  standfirst: 'Standfirst',
+  attribute: 'Attribute',
+  prose: 'Prose',
+  citation: 'Citation',
+};
 export const roleDescriptions: Record<FieldRole, string> = {
   standfirst: 'A sentence below the atom, without a label.',
   attribute: 'A compact label and value in the field bed.',
@@ -15,8 +20,14 @@ export const roleDescriptions: Record<FieldRole, string> = {
 export const fieldRole = (field: { role?: FieldRole } | undefined): FieldRole => field?.role ?? 'attribute';
 
 /** Project each owner's standfirst, compact bed and prose before its ordinary children. */
-export function fieldBedRows(doc: PageDocument, visible: readonly string[], definitions: Pick<ReadonlyMap<string, FieldDefinition>, 'get'>, root: string): string[] {
-  const shown = new Set(visible), result: string[] = [];
+export function fieldBedRows(
+  doc: PageDocument,
+  visible: readonly string[],
+  definitions: Pick<ReadonlyMap<string, FieldDefinition>, 'get'>,
+  root: string,
+): string[] {
+  const shown = new Set(visible),
+    result: string[] = [];
   const rank: Record<FieldRole, number> = { standfirst: 0, attribute: 1, citation: 1, prose: 2 };
   const visit = (parent: string) => {
     const children = doc.outline.children(parent);

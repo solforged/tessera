@@ -7,7 +7,9 @@ afterEach(() => {
   fetchMock.mockReset();
   setTransport((url, init) => fetch(url, init));
 });
-afterAll(() => { fetchMock.mockRestore(); });
+afterAll(() => {
+  fetchMock.mockRestore();
+});
 
 const entry: HistoryEntry = {
   seq: 91,
@@ -17,7 +19,18 @@ const entry: HistoryEntry = {
   reason: 'Revised a note',
   created_at: Date.UTC(2026, 9, 22, 12, 30),
   summary: 'Changed a block',
-  page: { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'A note', heading: null, archived: false, revision: 1, created_at: 1, updated_at: 1 },
+  page: {
+    id: 'page',
+    kind: 'page',
+    parent_id: null,
+    page_id: 'page',
+    text: 'A note',
+    heading: null,
+    archived: false,
+    revision: 1,
+    created_at: 1,
+    updated_at: 1,
+  },
   undoable: true,
   undone_by: null,
   undoes: null,
@@ -33,7 +46,17 @@ test('history reads the entries envelope and defaults to the newest 50', async (
 });
 
 test('history passes the last sequence as an exclusive before cursor', async () => {
-  const earlier: HistoryEntry = { ...entry, seq: 90, change_id: null, origin: null, actor: { kind: 'person' }, page: null, undoable: false, undone_by: 91, undoes: 75 };
+  const earlier: HistoryEntry = {
+    ...entry,
+    seq: 90,
+    change_id: null,
+    origin: null,
+    actor: { kind: 'person' },
+    page: null,
+    undoable: false,
+    undone_by: 91,
+    undoes: 75,
+  };
   fetchMock.mockResolvedValueOnce(Response.json({ entries: [earlier] }));
   const client = createApi('http://history.test');
   expect(await client.history(50, 91)).toEqual([earlier]);
@@ -41,7 +64,11 @@ test('history passes the last sequence as an exclusive before cursor', async () 
 });
 
 test('undoChange attributes the undo to the notebook client window', async () => {
-  const receipt = { undone: 91, kept_pages: [], committed: { seq: 92, revisions: [], settings: [], deletions: [], replayed: false, text_rewrites: [] } };
+  const receipt = {
+    undone: 91,
+    kept_pages: [],
+    committed: { seq: 92, revisions: [], settings: [], deletions: [], replayed: false, text_rewrites: [] },
+  };
   fetchMock.mockResolvedValueOnce(Response.json(receipt));
   const client = createApi('http://history.test', 'tessera-web:window-identity');
   expect(await client.undoChange(91)).toEqual(receipt);
@@ -67,11 +94,15 @@ test('a refused undo preserves the service message for inline display', async ()
 
 test('history names who made each change without showing raw device ids', async () => {
   const { historyActor } = await import('./history');
-  const names = (id: string) => ({ 'phone-device': 'Pixel', 'unnamed-device': '' } as Record<string, string>)[id];
+  const names = (id: string) => (({ 'phone-device': 'Pixel', 'unnamed-device': '' }) as Record<string, string>)[id];
   expect(historyActor(entry, 'mac-device', names)).toBe('Pixel');
   expect(historyActor({ ...entry, origin: 'unnamed-device' }, 'mac-device', names)).toBe('Phone');
   expect(historyActor({ ...entry, origin: '01JUNKNOWN' }, 'mac-device', names)).toBe('Another device');
   expect(historyActor({ ...entry, origin: 'mac-device' }, 'mac-device', names)).toBe('You');
-  expect(historyActor({ ...entry, origin: null, actor: { kind: 'agent' } as HistoryEntry['actor'] }, null, names)).toBe('Agent');
-  expect(historyActor({ ...entry, origin: null, actor: { kind: 'client', name: 'tessera-cli' } }, null, names)).toBe('tessera-cli');
+  expect(historyActor({ ...entry, origin: null, actor: { kind: 'agent' } as HistoryEntry['actor'] }, null, names)).toBe(
+    'Agent',
+  );
+  expect(historyActor({ ...entry, origin: null, actor: { kind: 'client', name: 'tessera-cli' } }, null, names)).toBe(
+    'tessera-cli',
+  );
 });

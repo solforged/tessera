@@ -3,16 +3,31 @@ import type { Block, PageView, QueryRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { attributeDefinitions } from '../table/attributes';
 import { copyQuery, queriesEqual, queryFieldIds, remapQueryField, removeQueryField } from '../table/query';
-import { columnQuery, deskConditionLabel, deskQuery, initialSelection, linkedQuery, positionLocators, updateColumn } from './query';
+import {
+  columnQuery,
+  deskConditionLabel,
+  deskQuery,
+  initialSelection,
+  linkedQuery,
+  positionLocators,
+  updateColumn,
+} from './query';
 
 test('desk edits and linking preserve the other columns and copy nested recipes', () => {
   const query = deskQuery('question');
-  const next = updateColumn(query, 1, { ...columnQuery(query, 1), text: 'Aristotle', filters: [...columnQuery(query, 1).filters, { field: 'gist', op: 'set', value: null }] });
+  const next = updateColumn(query, 1, {
+    ...columnQuery(query, 1),
+    text: 'Aristotle',
+    filters: [...columnQuery(query, 1).filters, { field: 'gist', op: 'set', value: null }],
+  });
   expect(next.filters).toEqual(query.filters);
   expect(next.desk!.sources).toEqual(query.desk!.sources);
   expect(initialSelection(next).question).toBe('question');
   const moved = linkedQuery(next.desk!.positions, '@question', 'branch');
-  expect(moved.filters).toEqual([{ field: '@question', op: 'is', value: 'branch' }, { field: 'gist', op: 'set', value: null }]);
+  expect(moved.filters).toEqual([
+    { field: '@question', op: 'is', value: 'branch' },
+    { field: 'gist', op: 'set', value: null },
+  ]);
   const copied = copyQuery(next);
   expect(queriesEqual(copied, next)).toBe(true);
   copied.desk!.positions.filters[0]!.value = 'other';
@@ -30,7 +45,10 @@ test('restored cited-in labels resolve reference titles before and after positio
   const position = { id: positionId, text: `[[${holderId}]]` } as Block;
   const holder = { id: holderId, text: 'Sylvia Scribner' } as Block;
   const cached = {
-    cache: new Map([[positionId, position], [holderId, holder]]),
+    cache: new Map([
+      [positionId, position],
+      [holderId, holder],
+    ]),
     lookup(id: string) {
       const block = this.cache.get(id);
       return () => block;
@@ -48,14 +66,31 @@ test('restored cited-in labels resolve reference titles before and after positio
 
 test('a linked question reads as its title without the trailing type tag', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-  const notebook = { lookup: (value: string) => () => value === id ? { id, kind: 'page', text: 'Are abilities real? #Question' } as Block : undefined } as unknown as NotebookClient;
-  expect(deskConditionLabel({ field: '@question', op: 'is', value: id }, attributeDefinitions('positions'), notebook, [])).toBe('Question is Are abilities real?');
+  const notebook = {
+    lookup: (value: string) => () =>
+      value === id ? ({ id, kind: 'page', text: 'Are abilities real? #Question' } as Block) : undefined,
+  } as unknown as NotebookClient;
+  expect(
+    deskConditionLabel({ field: '@question', op: 'is', value: id }, attributeDefinitions('positions'), notebook, []),
+  ).toBe('Question is Are abilities real?');
 });
 
 test('locators include only the selected position subtree and exclude archived branches', () => {
-  const block = (id: string, parent_id: string | null, text: string, archived = false) => ({ id, parent_id, text, archived }) as Block;
+  const block = (id: string, parent_id: string | null, text: string, archived = false) =>
+    ({ id, parent_id, text, archived }) as Block;
   const source = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-  const blocks = [block('position', 'page', ''), block('work', 'position', `[[${source}||p. 12]] [[${source}||p. 12]]`), block('hidden', 'position', '', true), block('hidden-value', 'hidden', `[[${source}||p. 99]]`), block('sibling', 'page', `[[${source}||p. 88]]`)];
-  const page = { root: block('page', null, ''), rows: blocks.map(block => ({ block, depth: 1, manual_types: [] })), targets: [], capabilities: [] } satisfies PageView;
+  const blocks = [
+    block('position', 'page', ''),
+    block('work', 'position', `[[${source}||p. 12]] [[${source}||p. 12]]`),
+    block('hidden', 'position', '', true),
+    block('hidden-value', 'hidden', `[[${source}||p. 99]]`),
+    block('sibling', 'page', `[[${source}||p. 88]]`),
+  ];
+  const page = {
+    root: block('page', null, ''),
+    rows: blocks.map(block => ({ block, depth: 1, manual_types: [] })),
+    targets: [],
+    capabilities: [],
+  } satisfies PageView;
   expect(positionLocators(page, 'position').get(source)).toEqual(['p. 12']);
 });

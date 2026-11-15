@@ -1,17 +1,35 @@
 import { describe, expect, test } from 'bun:test';
 import type { KindIndex, NoteEntry, NoteSummary, Query, QueryResult, QueryRow } from '../api/types';
-import { filingGroups, filingOperations, groupKindIndex, parseNoteFind, settleFindingAid, wholeKindIndex } from './finding-aid';
+import {
+  filingGroups,
+  filingOperations,
+  groupKindIndex,
+  parseNoteFind,
+  settleFindingAid,
+  wholeKindIndex,
+} from './finding-aid';
 
-const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, page_id: id, title, sort_as, created_at: 0 });
+const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({
+  id,
+  page_id: id,
+  title,
+  sort_as,
+  created_at: 0,
+});
 
 describe('finding aid loading', () => {
   const index: KindIndex = {
-    notes: [note('a', 'Asabiyya'), note('b', 'Badawa')], summaries: {},
+    notes: [note('a', 'Asabiyya'), note('b', 'Badawa')],
+    summaries: {},
     see: [{ alias: 'Desert life', targets: [{ id: 'b', title: 'Badawa' }] }],
   };
   const query: Query = { type: null, note_kind: 'concept', text: null, filters: [], sort: [], limit: null };
   const result = (ids: string[], note_groups?: QueryResult['note_groups']): QueryResult => ({
-    fields: [], columns: [], rows: ids.map(id => ({ block: { block: { id } } } as QueryRow)), total: ids.length, note_groups,
+    fields: [],
+    columns: [],
+    rows: ids.map(id => ({ block: { block: { id } } }) as QueryRow),
+    total: ids.length,
+    note_groups,
   });
 
   test('keeps the complete index through the first search, then replaces rows, aliases and count together', () => {
@@ -34,7 +52,11 @@ describe('finding aid loading', () => {
     expect(previous.grouping).toBe('letter');
     expect(previous.groups.map(group => group.letter)).toEqual(['B', 'D']);
     const next = settleFindingAid(previous, index, grouped, false, {
-      query: grouped, result: result(['a', 'b'], [{ key: '2026-10', title: '2026-10', target: null, siglum: null, note_ids: ['a', 'b'] }]),
+      query: grouped,
+      result: result(
+        ['a', 'b'],
+        [{ key: '2026-10', title: '2026-10', target: null, siglum: null, note_ids: ['a', 'b'] }],
+      ),
     })!;
     expect(next.grouping).toBe('created');
     expect(next.count).toBe(2);
@@ -71,11 +93,23 @@ describe('finding aid groups', () => {
       see: [
         { alias: '  Báb  ', targets: [{ id: 'a', title: 'Émile' }] },
         { alias: 'Basil', targets: [{ id: 'b', title: 'Beryl' }] },
-        { alias: 'Tully', targets: [{ id: 'a', title: 'Émile' }, { id: 'b', title: 'Beryl' }] },
+        {
+          alias: 'Tully',
+          targets: [
+            { id: 'a', title: 'Émile' },
+            { id: 'b', title: 'Beryl' },
+          ],
+        },
       ],
     });
-    expect(groups.map(group => [group.letter, group.noteCount])).toEqual([['B', 2], ['T', 0], ['Z', 1]]);
-    expect(groups[0]!.entries.map(entry => entry.kind === 'note' ? entry.note.title : entry.reference.alias)).toEqual(['  Báb  ', 'Émile', 'Basil', 'Beryl']);
+    expect(groups.map(group => [group.letter, group.noteCount])).toEqual([
+      ['B', 2],
+      ['T', 0],
+      ['Z', 1],
+    ]);
+    expect(groups[0]!.entries.map(entry => (entry.kind === 'note' ? entry.note.title : entry.reference.alias))).toEqual(
+      ['  Báb  ', 'Émile', 'Basil', 'Beryl'],
+    );
     expect(groups.reduce((sum, group) => sum + group.noteCount, 0)).toBe(3);
     const shared = groups[1]!.entries[0]!;
     expect(shared.kind === 'see' && shared.reference.targets.map(target => target.id)).toEqual(['a', 'b']);
@@ -86,7 +120,11 @@ describe('finding aid groups', () => {
       notes: [note('e', '  Émile'), note('number', '100 questions'), note('non-latin', '哲学')],
       see: [{ alias: ' Åufhebung', targets: [{ id: 'e', title: '  Émile' }] }],
     });
-    expect(groups.map(group => [group.letter, group.noteCount])).toEqual([['A', 0], ['E', 1], ['#', 2]]);
+    expect(groups.map(group => [group.letter, group.noteCount])).toEqual([
+      ['A', 0],
+      ['E', 1],
+      ['#', 2],
+    ]);
   });
 
   test('breaks equal folded note sort keys by id without mutating the API result', () => {
@@ -104,11 +142,32 @@ describe('finding aid groups', () => {
 
 test('blank filing rows can have blocks and backlinks without having text', () => {
   const summaries: Record<string, NoteSummary> = {
-    a: { preview: null, field: null, block_count: 0, text_blocks: 0, prose_excerpt: [], backlinks: 3, referenced_from: [], source: null },
-    b: { preview: 'Prose', field: null, block_count: 1, text_blocks: 1, prose_excerpt: ['Prose'], backlinks: 0, referenced_from: [], source: null },
+    a: {
+      preview: null,
+      field: null,
+      block_count: 0,
+      text_blocks: 0,
+      prose_excerpt: [],
+      backlinks: 3,
+      referenced_from: [],
+      source: null,
+    },
+    b: {
+      preview: 'Prose',
+      field: null,
+      block_count: 1,
+      text_blocks: 1,
+      prose_excerpt: ['Prose'],
+      backlinks: 0,
+      referenced_from: [],
+      source: null,
+    },
   };
   const groups = filingGroups([note('a', 'Referenced blank'), note('b', 'With prose'), note('c', 'Empty')], summaries);
-  expect(groups.map(group => [group.key, group.notes.map(note => note.id)])).toEqual([['text', ['b']], ['blank', ['a', 'c']]]);
+  expect(groups.map(group => [group.key, group.notes.map(note => note.id)])).toEqual([
+    ['text', ['b']],
+    ['blank', ['a', 'c']],
+  ]);
 });
 
 test('create type and file is one ordered batch while an existing type only adds membership', () => {
@@ -116,18 +175,27 @@ test('create type and file is one ordered batch while an existing type only adds
     { op: 'create_page', id: 'new-type', title: 'Concept' },
     { op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' },
   ]);
-  expect(filingOperations('note', 7, 'Concept')).toEqual([{ op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' }]);
+  expect(filingOperations('note', 7, 'Concept')).toEqual([
+    { op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' },
+  ]);
 });
 
 test('note Find preserves quoted names, repeated predicates and plain words', () => {
   const parsed = parseNoteFind('dynasty links:"Three generations of a dynasty" from:Asabiyya cites:IK links:Mulk');
   expect(parsed.text).toBe('dynasty');
-  expect(parsed.terms.map(({ key, value }) => [key, value])).toEqual([['links', 'Three generations of a dynasty'], ['from', 'Asabiyya'], ['cites', 'IK'], ['links', 'Mulk']]);
+  expect(parsed.terms.map(({ key, value }) => [key, value])).toEqual([
+    ['links', 'Three generations of a dynasty'],
+    ['from', 'Asabiyya'],
+    ['cites', 'IK'],
+    ['links', 'Mulk'],
+  ]);
   expect(parseNoteFind('links:"unfinished name').terms).toEqual([]);
   expect(parseNoteFind('is:settled revisit:due').text).toBe('is:settled');
   expect(parseNoteFind('is:resolved revisit:due revisit:set revisit:none').filters.map(term => term.filter)).toEqual([
-    { field: '@resolved', op: 'is', value: 'true' }, { field: '@revisit', op: 'lte', value: 'today' },
-    { field: '@revisit', op: 'set', value: null }, { field: '@revisit', op: 'empty', value: null },
+    { field: '@resolved', op: 'is', value: 'true' },
+    { field: '@revisit', op: 'lte', value: 'today' },
+    { field: '@revisit', op: 'set', value: null },
+    { field: '@revisit', op: 'empty', value: null },
   ]);
 });
 
@@ -135,10 +203,17 @@ test('whole-kind reads never bypass a query restriction or another grouping', ()
   const query: Query = { type: 'person-type', note_kind: 'person', text: null, filters: [], sort: [], limit: null };
   expect(wholeKindIndex(query, 'person', 'person-type')).toBe(true);
   const restrictions: Partial<Query>[] = [
-    { source: 'sources' }, { note_kind: 'concept' }, { type: 'other-type' },
-    { text: 'Ada' }, { filters: [{ field: '@resolved', op: 'is', value: 'true' }] },
-    { sort: [{ by: 'title', field: null, direction: 'desc' }] }, { links: ['ada'] }, { from: ['ada'] }, { cites: ['work'] },
+    { source: 'sources' },
+    { note_kind: 'concept' },
+    { type: 'other-type' },
+    { text: 'Ada' },
+    { filters: [{ field: '@resolved', op: 'is', value: 'true' }] },
+    { sort: [{ by: 'title', field: null, direction: 'desc' }] },
+    { links: ['ada'] },
+    { from: ['ada'] },
+    { cites: ['work'] },
     { note_view: { layout: 'index', grouping: 'created' } },
   ];
-  for (const restriction of restrictions) expect(wholeKindIndex({ ...query, ...restriction }, 'person', 'person-type')).toBe(false);
+  for (const restriction of restrictions)
+    expect(wholeKindIndex({ ...query, ...restriction }, 'person', 'person-type')).toBe(false);
 });

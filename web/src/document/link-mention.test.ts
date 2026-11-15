@@ -10,10 +10,14 @@ function linked(text: string, term: string): string | null {
 
 describe('linking an unlinked mention', () => {
   test('links the first whole-word occurrence and retains authored case', () => {
-    expect(linked('Planets _Planet Planet2 (pLaNeT), Planet.', 'Planet')).toBe(`Planets _Planet Planet2 ([[${page}|pLaNeT]]), Planet.`);
+    expect(linked('Planets _Planet Planet2 (pLaNeT), Planet.', 'Planet')).toBe(
+      `Planets _Planet Planet2 ([[${page}|pLaNeT]]), Planet.`,
+    );
   });
   test('does not link inside references or either tag spelling', () => {
-    expect(linked('[[Planet]] [[other|Planet]] #Planet #[[Planet]] Planet', 'Planet')).toBe(`[[Planet]] [[other|Planet]] #Planet #[[Planet]] [[${page}|Planet]]`);
+    expect(linked('[[Planet]] [[other|Planet]] #Planet #[[Planet]] Planet', 'Planet')).toBe(
+      `[[Planet]] [[other|Planet]] #Planet #[[Planet]] [[${page}|Planet]]`,
+    );
     expect(linked('[[Planet]] #Planet #[[Planet]]', 'Planet')).toBeNull();
   });
   test('never rewrites URL hosts, paths, query values or fragments', () => {

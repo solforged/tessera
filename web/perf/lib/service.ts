@@ -21,14 +21,24 @@ export class Service {
   private child?: Subprocess;
   private running = false;
   readonly base: string;
-  private constructor(readonly workshop: string, readonly port: number) { this.base = `http://127.0.0.1:${port}`; }
-  get pid() { return this.child?.pid ?? null; }
+  private constructor(
+    readonly workshop: string,
+    readonly port: number,
+  ) {
+    this.base = `http://127.0.0.1:${port}`;
+  }
+  get pid() {
+    return this.child?.pid ?? null;
+  }
   static preflight() {
     const missing = [
       [join(root, 'target/release/tessera'), 'cargo build --release -p tessera-cli'],
       [join(root, 'web/dist/index.html'), 'bun run --cwd web build'],
     ].filter(([path]) => !existsSync(path!));
-    if (missing.length) throw new Error(`Build prerequisites first, from the repo root:\n${missing.map(([, command]) => command).join('\n')}`);
+    if (missing.length)
+      throw new Error(
+        `Build prerequisites first, from the repo root:\n${missing.map(([, command]) => command).join('\n')}`,
+      );
   }
   static async start(workshop: string) {
     Service.preflight();
@@ -43,28 +53,60 @@ export class Service {
     if (this.running) throw new Error('Stop the previous service before restarting it.');
     mkdirSync(this.workshop, { recursive: true });
     const { TESSERA_WORKSHOP: _, ...env } = process.env;
-    this.child = Bun.spawn([
-      join(root, 'target/release/tessera'), '--workshop', this.workshop, 'serve',
-      '--port', String(this.port), '--sync-port', '0', '--assets', join(root, 'web/dist'),
-    ], { cwd: root, env, stdout: Bun.file(join(this.workshop, 'perf-service.log')), stderr: Bun.file(join(this.workshop, 'perf-service-error.log')) });
+    this.child = Bun.spawn(
+      [
+        join(root, 'target/release/tessera'),
+        '--workshop',
+        this.workshop,
+        'serve',
+        '--port',
+        String(this.port),
+        '--sync-port',
+        '0',
+        '--assets',
+        join(root, 'web/dist'),
+      ],
+      {
+        cwd: root,
+        env,
+        stdout: Bun.file(join(this.workshop, 'perf-service.log')),
+        stderr: Bun.file(join(this.workshop, 'perf-service-error.log')),
+      },
+    );
     this.running = true;
     const child = this.child;
-    void child.exited.then(() => { if (this.child === child) this.running = false; });
+    void child.exited.then(() => {
+      if (this.child === child) this.running = false;
+    });
     try {
       const deadline = Date.now() + 30_000;
       while (Date.now() < deadline) {
-        if (!this.running) throw new Error(`Service exited ${this.child.exitCode ?? this.child.signalCode}. See ${this.workshop}/perf-service-error.log`);
-        try { await api(this.base, '/api/notebook'); return; } catch { await sleep(50); }
+        if (!this.running)
+          throw new Error(
+            `Service exited ${this.child.exitCode ?? this.child.signalCode}. See ${this.workshop}/perf-service-error.log`,
+          );
+        try {
+          await api(this.base, '/api/notebook');
+          return;
+        } catch {
+          await sleep(50);
+        }
       }
       throw new Error(`Service did not start in 30 s. See ${this.workshop}/perf-service-error.log`);
-    } catch (error) { await this.kill('SIGKILL'); throw error; }
+    } catch (error) {
+      await this.kill('SIGKILL');
+      throw error;
+    }
   }
   async kill(signal: 'SIGINT' | 'SIGTERM' | 'SIGKILL' = 'SIGINT') {
     const child = this.child;
     if (!child || !this.running) return;
     child.kill(signal);
     const exited = await Promise.race([child.exited.then(() => true), sleep(10_000).then(() => false)]);
-    if (!exited) { child.kill('SIGKILL'); await child.exited; }
+    if (!exited) {
+      child.kill('SIGKILL');
+      await child.exited;
+    }
     this.running = false;
   }
   walBytes() {

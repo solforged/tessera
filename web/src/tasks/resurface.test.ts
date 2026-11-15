@@ -7,7 +7,11 @@ test('resurfacing client encodes dates, limits and citation actions', async () =
     port: 0,
     async fetch(request) {
       const url = new URL(request.url);
-      requests.push({ method: request.method, path: url.pathname + url.search, body: request.method === 'POST' ? await request.json() : null });
+      requests.push({
+        method: request.method,
+        path: url.pathname + url.search,
+        body: request.method === 'POST' ? await request.json() : null,
+      });
       return Response.json(request.method === 'POST' ? null : []);
     },
   });
@@ -21,19 +25,29 @@ test('resurfacing client encodes dates, limits and citation actions', async () =
     expect(requests).toEqual([
       { method: 'GET', path: '/api/highlights/resurface?date=2020-01-01&limit=3', body: null },
       { method: 'GET', path: '/api/highlights/resurface?date=2020-01-02&limit=2', body: null },
-      ...['kept', 'opened', 'muted'].map(action => ({ method: 'POST', path: '/api/highlights/citation%2Fid/resurface', body: { date: '2020-01-01', action } })),
+      ...['kept', 'opened', 'muted'].map(action => ({
+        method: 'POST',
+        path: '/api/highlights/citation%2Fid/resurface',
+        body: { date: '2020-01-01', action },
+      })),
     ]);
-  } finally { await server.stop(true); }
+  } finally {
+    await server.stop(true);
+  }
 });
 
 test('resurfacing client preserves validation errors for journal Retry', async () => {
   const server = Bun.serve({
     port: 0,
-    fetch() { return Response.json({ error: { code: 'validation', message: 'Invalid date' } }, { status: 422 }); },
+    fetch() {
+      return Response.json({ error: { code: 'validation', message: 'Invalid date' } }, { status: 422 });
+    },
   });
   try {
     const api = createApi(server.url.origin);
     await expect(api.resurfacing('invalid')).rejects.toBeInstanceOf(ApiError);
     await expect(api.recordSurfacing('citation', 'invalid', 'kept')).rejects.toThrow('Invalid date');
-  } finally { await server.stop(true); }
+  } finally {
+    await server.stop(true);
+  }
 });

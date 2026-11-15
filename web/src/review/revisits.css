@@ -1,45 +1,192 @@
-.notes-review { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
-.notes-review > :not(.revisit-outlines) { width: 100%; max-width: var(--measure); margin-inline: auto; }
-.revisit-empty .empty-state { margin-block: 0 var(--space-8); }
-.revisit-empty > .button { color: var(--muted); }
-.revisit-empty > .button:hover { color: var(--accent); }
-.notes-review-heading { display: flex; align-items: flex-end; gap: var(--space-8); padding: var(--page-top-space) 0 var(--page-head-gap); }
-.notes-review-heading h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); margin: 0; font: var(--page-title-font); }
-.revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.revisit-meta { display: block; }
+.notes-review {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 0 var(--pane-inset) var(--page-bottom-space);
+}
+.notes-review > :not(.revisit-outlines) {
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+.revisit-empty .empty-state {
+  margin-block: 0 var(--space-8);
+}
+.revisit-empty > .button {
+  color: var(--muted);
+}
+.revisit-empty > .button:hover {
+  color: var(--accent);
+}
+.notes-review-heading {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+  padding: var(--page-top-space) 0 var(--page-head-gap);
+}
+.notes-review-heading h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-12);
+  margin: 0;
+  font: var(--page-title-font);
+}
+.revisit-meta,
+.note-revisit > span {
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.revisit-meta {
+  display: block;
+}
 /* The tally is a count read whole, `3 due`, in the figures' voice like People's `0 atoms`. */
-.notes-review-heading h1 > .revisit-tally { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-.revisit-queue { display: flex; flex-direction: column; flex: none; gap: var(--section-gap); }
-.revisit-section-head { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.revisit-group-date, .revisit-group-count { font: var(--figures); font-variant-numeric: tabular-nums; }
-.revisit-group-count { color: var(--faint); }
-.revisit-date-group > .button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; white-space: normal; text-align: left; }
-.revisit-date-group > [aria-pressed="true"] { color: var(--accent); }
-.revisit-action-bar, .note-revisit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
-.revisit-action-bar { padding-block: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.notes-review-heading h1 > .revisit-tally {
+  color: var(--muted);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+  white-space: nowrap;
+}
+.revisit-queue {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: var(--section-gap);
+}
+.revisit-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-8);
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.revisit-group-date,
+.revisit-group-count {
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+}
+.revisit-group-count {
+  color: var(--faint);
+}
+.revisit-date-group > .button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+.revisit-date-group > [aria-pressed="true"] {
+  color: var(--accent);
+}
+.revisit-action-bar,
+.note-revisit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+.revisit-action-bar {
+  padding-block: var(--space-12);
+  border-bottom: var(--rule-width) solid var(--line);
+}
 /* The note's outline keeps the pane's full width and its own insets. The next note's outline loads in the same cell, hidden, then replaces the old one in a single frame. */
-.revisit-outlines { display: grid; flex: 1; min-height: calc(var(--space-48) * 6); margin-inline: calc(-1 * var(--pane-inset)); }
-.revisit-outline { grid-area: 1 / 1; min-width: 0; }
-.revisit-outline-entering { visibility: hidden; pointer-events: none; }
-.revisit-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); }
+.revisit-outlines {
+  display: grid;
+  flex: 1;
+  min-height: calc(var(--space-48) * 6);
+  margin-inline: calc(-1 * var(--pane-inset));
+}
+.revisit-outline {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.revisit-outline-entering {
+  visibility: hidden;
+  pointer-events: none;
+}
+.revisit-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
 /* In a note's apparatus line Revisit is one more mono item: muted, gilt on hover and once its date is due. */
-.note-line .note-revisit { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-8); }
+.note-line .note-revisit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-8);
+}
 /* The line's `·` separator is this flex row's first item, so the row's gap already spaces it. */
-.note-line .note-revisit::before { margin-right: 0; }
-.note-line .note-revisit > .button { min-height: 0; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; letter-spacing: inherit; }
-.note-line .note-revisit > .button:is(:hover, [data-due]) { color: var(--accent); background: none; }
+.note-line .note-revisit::before {
+  margin-right: 0;
+}
+.note-line .note-revisit > .button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  letter-spacing: inherit;
+}
+.note-line .note-revisit > .button:is(:hover, [data-due]) {
+  color: var(--accent);
+  background: none;
+}
 @media (pointer: coarse) {
-  .note-line { align-items: center; }
-  .note-line .note-revisit > .button, .revisit-empty > .button { min-height: var(--touch-target); }
+  .note-line {
+    align-items: center;
+  }
+  .note-line .note-revisit > .button,
+  .revisit-empty > .button {
+    min-height: var(--touch-target);
+  }
 }
 /* The pane already owns the page inset; empty-state and button defaults must not add another. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .notes-review { scrollbar-gutter: auto; }
-  .revisit-empty .empty-state { margin-inline: 0; }
-  .revisit-empty > .button, .revisit-date-group > .button { padding-inline: 0; }
+  .notes-review {
+    scrollbar-gutter: auto;
+  }
+  .revisit-empty .empty-state {
+    margin-inline: 0;
+  }
+  .revisit-empty > .button,
+  .revisit-date-group > .button {
+    padding-inline: 0;
+  }
 }
-.research-revisits { margin-bottom: var(--section-gap); }
-.research-revisits > header { display: flex; align-items: baseline; gap: var(--space-12); color: var(--muted); font: var(--apparatus); }
-.research-revisits h2 { font: inherit; }
-.research-revisit-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
-.research-revisit-row > div { flex: 1; min-width: 50%; overflow-wrap: anywhere; }
+.research-revisits {
+  margin-bottom: var(--section-gap);
+}
+.research-revisits > header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-12);
+  color: var(--muted);
+  font: var(--apparatus);
+}
+.research-revisits h2 {
+  font: inherit;
+}
+.research-revisit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  padding-block: var(--space-8);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+.research-revisit-row > div {
+  flex: 1;
+  min-width: 50%;
+  overflow-wrap: anywhere;
+}

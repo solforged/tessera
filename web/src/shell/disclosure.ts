@@ -22,7 +22,11 @@ export function installDisclosureMotion() {
     // A click mid-glide turns around from where the element is now.
     const from = details.getBoundingClientRect().height;
     const previous = running.get(details);
-    if (previous) { running.delete(details); previous.onfinish = previous.oncancel = null; previous.cancel(); }
+    if (previous) {
+      running.delete(details);
+      previous.onfinish = previous.oncancel = null;
+      previous.cancel();
+    }
     const opening = !details.open || details.dataset.closing !== undefined;
     delete details.dataset.closing;
     // Measure the target state, then put the element back: nothing paints in between.
@@ -30,13 +34,18 @@ export function installDisclosureMotion() {
     const to = details.offsetHeight;
     details.open = true;
     if (!opening) details.dataset.closing = '';
-    const animation = details.animate({ height: [`${from}px`, `${to}px`] }, { duration, easing: getComputedStyle(document.documentElement).getPropertyValue('--motion-ease').trim() });
-    details.style.overflow = 'clip'; details.style.boxSizing = 'border-box';
+    const animation = details.animate(
+      { height: [`${from}px`, `${to}px`] },
+      { duration, easing: getComputedStyle(document.documentElement).getPropertyValue('--motion-ease').trim() },
+    );
+    details.style.overflow = 'clip';
+    details.style.boxSizing = 'border-box';
     running.set(details, animation);
     const settle = () => {
       if (running.get(details) !== animation) return;
       running.delete(details);
-      details.style.removeProperty('overflow'); details.style.removeProperty('box-sizing');
+      details.style.removeProperty('overflow');
+      details.style.removeProperty('box-sizing');
       delete details.dataset.closing;
       details.open = opening;
     };

@@ -27,7 +27,11 @@ interface FieldsPaneProps {
 }
 
 export function FieldsPane(props: FieldsPaneProps) {
-  return <Show when={props.typeId} fallback={<DefinitionsPane {...props} />}>{id => <TypeFieldsPane {...props} typeId={id()} />}</Show>;
+  return (
+    <Show when={props.typeId} fallback={<DefinitionsPane {...props} />}>
+      {id => <TypeFieldsPane {...props} typeId={id()} />}
+    </Show>
+  );
 }
 
 function DefinitionsPane(props: FieldsPaneProps) {
@@ -51,17 +55,24 @@ function DefinitionsPane(props: FieldsPaneProps) {
   const documentError = createMemo(() => {
     const document = doc();
     if (!document) return '';
-    if (document.status() === 'error' || document.status() === 'missing') return document.statusMessage() || 'Field definitions are unavailable.';
-    if (document.saveState() === 'error' || document.saveState() === 'conflict' || document.saveState() === 'offline') return document.saveMessage() || 'Field changes have not been saved.';
+    if (document.status() === 'error' || document.status() === 'missing')
+      return document.statusMessage() || 'Field definitions are unavailable.';
+    if (document.saveState() === 'error' || document.saveState() === 'conflict' || document.saveState() === 'offline')
+      return document.saveMessage() || 'Field changes have not been saved.';
     return '';
   });
-  const fields = createMemo(() => [...(data()?.fields ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)));
+  const fields = createMemo(() =>
+    [...(data()?.fields ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+  );
   const visibleFields = createMemo(() => {
     const needle = search().trim().toLocaleLowerCase();
     return fields().filter(field => field.name.toLocaleLowerCase().includes(needle));
   });
   const pageFields = createMemo(() => visibleFields().slice(page() * 100, (page() + 1) * 100));
-  createEffect(() => { search(); setPage(0); });
+  createEffect(() => {
+    search();
+    setPage(0);
+  });
   const pageId = createMemo(() => data()?.page_id);
   let pane!: HTMLDivElement;
   let scroll!: HTMLDivElement;
@@ -76,113 +87,490 @@ function DefinitionsPane(props: FieldsPaneProps) {
     if (!id) return;
     const document = props.notebook.open(id);
     setDoc(document);
-    onCleanup(() => { setDoc(undefined); document.release(); });
+    onCleanup(() => {
+      setDoc(undefined);
+      document.release();
+    });
   });
   createEffect(() => {
-    props.notebook.changeSequence(); retry();
+    props.notebook.changeSequence();
+    retry();
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true);
-      void api.fields(controller.signal).then(value => {
-        if (controller.signal.aborted) return;
-        setData(value); setError(''); setLoading(false);
-        if (!restoredScroll) {
-          restoredScroll = true;
-          requestAnimationFrame(() => { if (scroll) scroll.scrollTop = props.view.scroll; });
-        }
-      }).catch(reason => {
-        if (!controller.signal.aborted) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
-      });
+      void api
+        .fields(controller.signal)
+        .then(value => {
+          if (controller.signal.aborted) return;
+          setData(value);
+          setError('');
+          setLoading(false);
+          if (!restoredScroll) {
+            restoredScroll = true;
+            requestAnimationFrame(() => {
+              if (scroll) scroll.scrollTop = props.view.scroll;
+            });
+          }
+        })
+        .catch(reason => {
+          if (!controller.signal.aborted) {
+            setError(reason instanceof Error ? reason.message : String(reason));
+            setLoading(false);
+          }
+        });
     }, 150);
-    onCleanup(() => { clearTimeout(timer); controller.abort(); });
+    onCleanup(() => {
+      clearTimeout(timer);
+      controller.abort();
+    });
   });
-  const openDefinition = (field: FieldSummary, beside: boolean) => props.onOpen({ kind: 'field', fieldId: field.id }, beside);
+  const openDefinition = (field: FieldSummary, beside: boolean) =>
+    props.onOpen({ kind: 'field', fieldId: field.id }, beside);
   const selectDefinition = (field: FieldSummary, beside: boolean, keyboard = false) => {
-    if (beside || keyboard || !wide()) { openDefinition(field, beside); return; }
-    setSelected(field.id); setPreviewKind(undefined);
+    if (beside || keyboard || !wide()) {
+      openDefinition(field, beside);
+      return;
+    }
+    setSelected(field.id);
+    setPreviewKind(undefined);
   };
   const changeKind = (field: FieldSummary, value: FieldKind) => {
     if (field.kind === value) return;
-    if (!wide()) { props.onOpen({ kind: 'field', fieldId: field.id, previewKind: value }, false); return; }
-    setSelected(field.id); setPreviewKind(value);
+    if (!wide()) {
+      props.onOpen({ kind: 'field', fieldId: field.id, previewKind: value }, false);
+      return;
+    }
+    setSelected(field.id);
+    setPreviewKind(value);
   };
-  const closeCreation = () => { setNewKindMenu(null); setCreating(null); };
+  const closeCreation = () => {
+    setNewKindMenu(null);
+    setCreating(null);
+  };
   const closeInspector = () => {
     const id = selected();
     if (!id) return;
     const inInspector = pane.querySelector('.field-inspector')?.contains(document.activeElement);
-    setSelected(undefined); setPreviewKind(undefined);
-    if (inInspector || document.activeElement === document.body) pane.querySelector<HTMLElement>(`tr[data-field-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+    setSelected(undefined);
+    setPreviewKind(undefined);
+    if (inInspector || document.activeElement === document.body)
+      pane.querySelector<HTMLElement>(`tr[data-field-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
   };
   const addField = () => {
     const document = doc();
-    if (!document || !ready()) { setCreateError(document?.statusMessage() || document?.saveMessage() || 'Wait for field definitions to finish loading or saving.'); return; }
+    if (!document || !ready()) {
+      setCreateError(
+        document?.statusMessage() ||
+          document?.saveMessage() ||
+          'Wait for field definitions to finish loading or saving.',
+      );
+      return;
+    }
     const name = newName().trim();
     const problem = fieldNameProblem(name, fields());
-    if (problem) { setCreateError(problem); return; }
-    const result = document.edit({ kind: 'addField', name, value: newKind() });
-    if (!result.ok) { setCreateError(result.reason); return; }
-    closeCreation(); setNewName(''); setCreateError(''); setSearch('');
-  };
-  return <div ref={pane} class="fields-pane" data-inspector={wide() && selected() ? '' : undefined} role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
-    if (event.key === 'Escape' && selected() && !event.defaultPrevented && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement)) { event.preventDefault(); event.stopPropagation(); closeInspector(); return; }
-    if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
-      event.preventDefault(); event.stopPropagation();
-      if (event.shiftKey) doc()?.redo(); else doc()?.undo();
+    if (problem) {
+      setCreateError(problem);
+      return;
     }
-  }}>
-    <header class="fields-heading">
-      <h1 class="fields-title">Fields</h1>
-    </header>
-    <div class="fields-toolbar">
-      <Show when={isPhone()} fallback={<input class="input fields-search" type="search" aria-label="Filter fields" placeholder="Filter fields…" value={search()} onInput={event => setSearch(event.currentTarget.value)} />}>
-        <SearchWell class="fields-search-well" label="Filter fields" placeholder="Filter fields…" value={search()} onInput={event => setSearch(event.currentTarget.value)} />
-      </Show>
-      <Button class="bordered" icon="plus" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!creating()} onClick={event => { setNewName(search().trim()); setNewKind('text'); setNewKindMenu(null); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
-      <div class="fields-actions"><Button icon="undo" label="Undo field changes" disabled={!doc()?.canUndo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.undo(); }} /><Button icon="redo" label="Redo field changes" disabled={!doc()?.canRedo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.redo(); }} /></div>
-    </div>
-    <Show when={error()}><div class="pane-error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></div></Show>
-    <Show when={documentError()}><div class="pane-error" role="alert">{documentError()}</div></Show>
-    <Show when={loading() && !data()}><p class="empty-state" role="status">Loading fields…</p></Show>
-    <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
-      <div class="fields-master-detail"><div class="fields-master">
-      <Show when={data()}>
-        <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Task and source fields appear when you add your first task or source. Use New field, or type <code>name::</code> in an atom.</p>}>
-          <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
-            <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Format</th><th scope="col" class="fields-count">Atoms</th><th scope="col">Templates</th></tr></thead><tbody>
-              <For each={pageFields()}>{field => <tr data-field-id={field.id} tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === 'Enter') { event.preventDefault(); openDefinition(field, opensBeside(event)); }
-                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                  event.preventDefault();
-                  const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
-                  if (next instanceof HTMLElement) { next.focus(); const index = pageFields().indexOf(field) + (event.key === 'ArrowDown' ? 1 : -1); const item = pageFields()[index]; if (item && wide()) { setSelected(item.id); setPreviewKind(undefined); } }
-                }
-              }}>
-                <td data-label="Name"><Button class="field-name" title={`Open ${fieldLabel(field)} · ${besideHint}`} onClick={event => selectDefinition(field, opensBeside(event), event.detail === 0)}>{fieldLabel(field)}</Button></td>
-                <td data-label="Format"><Button class="fields-kind-button" aria-label={`Format for ${fieldLabel(field)}: ${taskFieldFormat(field) ?? kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{taskFieldFormat(field) ?? kindLabels[field.kind]} <Icon name="down" /></Button></td>
-                <td data-label="Atoms" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No atom uses this field yet">0</span>}><Button label={`Show atoms with ${fieldLabel(field)}`} title={`Atoms using ${fieldLabel(field)}: ${field.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{field.owners}</Button></Show></td>
-                <td data-label="Templates" class="fields-templates" data-empty={!field.types.length ? '' : undefined}><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, opensBeside(event))}>#{type.name}</button>}</For></div></td>
-              </tr>}</For>
-            </tbody></table>
-          </Show>
+    const result = document.edit({ kind: 'addField', name, value: newKind() });
+    if (!result.ok) {
+      setCreateError(result.reason);
+      return;
+    }
+    closeCreation();
+    setNewName('');
+    setCreateError('');
+    setSearch('');
+  };
+  return (
+    <div
+      ref={pane}
+      class="fields-pane"
+      data-inspector={wide() && selected() ? '' : undefined}
+      role="region"
+      tabIndex={0}
+      aria-label="Fields"
+      onFocusIn={props.onActivate}
+      onKeyDown={event => {
+        if (
+          event.key === 'Escape' &&
+          selected() &&
+          !event.defaultPrevented &&
+          !(
+            event.target instanceof HTMLInputElement ||
+            event.target instanceof HTMLTextAreaElement ||
+            event.target instanceof HTMLSelectElement
+          )
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeInspector();
+          return;
+        }
+        if (
+          !(event.target instanceof HTMLInputElement) &&
+          (event.metaKey || event.ctrlKey) &&
+          !event.altKey &&
+          event.key.toLowerCase() === 'z'
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.shiftKey) doc()?.redo();
+          else doc()?.undo();
+        }
+      }}
+    >
+      <header class="fields-heading">
+        <h1 class="fields-title">Fields</h1>
+      </header>
+      <div class="fields-toolbar">
+        <Show
+          when={isPhone()}
+          fallback={
+            <input
+              class="input fields-search"
+              type="search"
+              aria-label="Filter fields"
+              placeholder="Filter fields…"
+              value={search()}
+              onInput={event => setSearch(event.currentTarget.value)}
+            />
+          }
+        >
+          <SearchWell
+            class="fields-search-well"
+            label="Filter fields"
+            placeholder="Filter fields…"
+            value={search()}
+            onInput={event => setSearch(event.currentTarget.value)}
+          />
         </Show>
-      </Show>
-      </div><Show when={wide() && selected()}>{id => <FieldDetails fieldId={id()} previewKind={previewKind()} inspector notebook={props.notebook} document={doc()} onPreview={setPreviewKind} onOpen={props.onOpen} onClose={closeInspector} />}</Show></div>
-    </div>
-    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><Show when={visibleFields().length > 100}><div><Button disabled={!page()} onClick={() => setPage(value => value - 1)}>Previous</Button><span>Page {page() + 1}</span><Button disabled={(page() + 1) * 100 >= visibleFields().length} onClick={() => setPage(value => value + 1)}>Next</Button></div></Show></footer>
-    <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Format for ${fieldLabel(state.field)}`} header={taskFieldName(state.field) ? undefined : <p class="menu-note">{formatMenuNote}</p>} onDismiss={() => setKindMenu(null)} items={formatMenuItems(state.field.kind, kind => changeKind(state.field, kind), taskFieldName(state.field) ? taskFormatReason : undefined)} />}</Show>
-    <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" fitContent dirty={() => newName().trim() !== search().trim() || newKind() !== 'text'} onDismiss={closeCreation}>
-      <h2 class="popup-title">New field</h2>
-      <form onSubmit={event => { event.preventDefault(); addField(); }}>
-        <div class="field-create-fields">
-          <label>Name<input class="input" value={newName()} maxLength={60} ref={input => queueMicrotask(() => input.focus())} onInput={event => { setNewName(event.currentTarget.value); setCreateError(''); }} /></label>
-          <label>Format<Button aria-label={`Format: ${kindLabels[newKind()]}`} aria-haspopup="menu" aria-expanded={!!newKindMenu()} onClick={event => setNewKindMenu(event.currentTarget)}>{kindLabels[newKind()]} <Icon name="down" /></Button></label>
+        <Button
+          class="bordered"
+          icon="plus"
+          disabled={!ready()}
+          aria-haspopup="dialog"
+          aria-expanded={!!creating()}
+          onClick={event => {
+            setNewName(search().trim());
+            setNewKind('text');
+            setNewKindMenu(null);
+            setCreateError('');
+            setCreating(event.currentTarget);
+          }}
+        >
+          New field
+        </Button>
+        <div class="fields-actions">
+          <Button
+            icon="undo"
+            label="Undo field changes"
+            disabled={!doc()?.canUndo()}
+            onClick={() => {
+              pane.focus({ preventScroll: true });
+              doc()?.undo();
+            }}
+          />
+          <Button
+            icon="redo"
+            label="Redo field changes"
+            disabled={!doc()?.canRedo()}
+            onClick={() => {
+              pane.focus({ preventScroll: true });
+              doc()?.redo();
+            }}
+          />
         </div>
-        <Show when={createError()}><p class="error" role="alert">{createError()}</p></Show>
-        <div class="popup-actions"><Button onClick={closeCreation}>Cancel</Button><Button type="submit" class="bordered" disabled={!ready() || !newName().trim()}>Add field</Button></div>
-      </form>
-      <Show when={newKindMenu()}>{kindAnchor => <Menu anchor={kindAnchor()} label="Format" onDismiss={() => setNewKindMenu(null)} items={formatMenuItems(newKind(), setNewKind)} />}</Show>
-    </Popup>}</Show>
-  </div>;
+      </div>
+      <Show when={error()}>
+        <div class="pane-error" role="alert">
+          {error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button>
+        </div>
+      </Show>
+      <Show when={documentError()}>
+        <div class="pane-error" role="alert">
+          {documentError()}
+        </div>
+      </Show>
+      <Show when={loading() && !data()}>
+        <p class="empty-state" role="status">
+          Loading fields…
+        </p>
+      </Show>
+      <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
+        <div class="fields-master-detail">
+          <div class="fields-master">
+            <Show when={data()}>
+              <Show
+                when={fields().length}
+                fallback={
+                  <p class="empty-state">
+                    No fields yet. Task and source fields appear when you add your first task or source. Use New field,
+                    or type <code>name::</code> in an atom.
+                  </p>
+                }
+              >
+                <Show
+                  when={visibleFields().length}
+                  fallback={
+                    <p class="empty-state">
+                      No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button>
+                    </p>
+                  }
+                >
+                  <table class="fields-index">
+                    <thead>
+                      <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col" class="fields-kind">
+                          Format
+                        </th>
+                        <th scope="col" class="fields-count">
+                          Atoms
+                        </th>
+                        <th scope="col">Templates</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <For each={pageFields()}>
+                        {field => (
+                          <tr
+                            data-field-id={field.id}
+                            tabIndex={0}
+                            aria-selected={selected() === field.id}
+                            onClick={event => {
+                              if (!(event.target as HTMLElement).closest('button'))
+                                selectDefinition(field, opensBeside(event));
+                            }}
+                            onDblClick={event => openDefinition(field, opensBeside(event))}
+                            onKeyDown={event => {
+                              if (event.target !== event.currentTarget) return;
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                openDefinition(field, opensBeside(event));
+                              }
+                              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                                event.preventDefault();
+                                const next =
+                                  event.key === 'ArrowDown'
+                                    ? event.currentTarget.nextElementSibling
+                                    : event.currentTarget.previousElementSibling;
+                                if (next instanceof HTMLElement) {
+                                  next.focus();
+                                  const index = pageFields().indexOf(field) + (event.key === 'ArrowDown' ? 1 : -1);
+                                  const item = pageFields()[index];
+                                  if (item && wide()) {
+                                    setSelected(item.id);
+                                    setPreviewKind(undefined);
+                                  }
+                                }
+                              }
+                            }}
+                          >
+                            <td data-label="Name">
+                              <Button
+                                class="field-name"
+                                title={`Open ${fieldLabel(field)} · ${besideHint}`}
+                                onClick={event => selectDefinition(field, opensBeside(event), event.detail === 0)}
+                              >
+                                {fieldLabel(field)}
+                              </Button>
+                            </td>
+                            <td data-label="Format">
+                              <Button
+                                class="fields-kind-button"
+                                aria-label={`Format for ${fieldLabel(field)}: ${taskFieldFormat(field) ?? kindLabels[field.kind]}`}
+                                aria-haspopup="menu"
+                                aria-expanded={kindMenu()?.field.id === field.id}
+                                disabled={!ready()}
+                                onClick={event => setKindMenu({ field, anchor: event.currentTarget })}
+                              >
+                                {taskFieldFormat(field) ?? kindLabels[field.kind]} <Icon name="down" />
+                              </Button>
+                            </td>
+                            <td data-label="Atoms" class="fields-count">
+                              <Show
+                                when={field.owners}
+                                fallback={
+                                  <span class="fields-unused" title="No atom uses this field yet">
+                                    0
+                                  </span>
+                                }
+                              >
+                                <Button
+                                  label={`Show atoms with ${fieldLabel(field)}`}
+                                  title={`Atoms using ${fieldLabel(field)}: ${field.owners} · ${besideHint}`}
+                                  onClick={event =>
+                                    props.onOpen(
+                                      {
+                                        kind: 'table',
+                                        typeId: null,
+                                        viewId: null,
+                                        query: {
+                                          type: null,
+                                          text: null,
+                                          filters: [{ field: field.id, op: 'present', value: null }],
+                                          sort: [],
+                                          limit: null,
+                                        },
+                                      },
+                                      opensBeside(event),
+                                    )
+                                  }
+                                >
+                                  {field.owners}
+                                </Button>
+                              </Show>
+                            </td>
+                            <td
+                              data-label="Templates"
+                              class="fields-templates"
+                              data-empty={!field.types.length ? '' : undefined}
+                            >
+                              <div class="fields-types">
+                                <For each={field.types} fallback={<span class="fields-unused">None</span>}>
+                                  {type => (
+                                    <button
+                                      type="button"
+                                      class="outline-tag"
+                                      title={`Open ${type.name} table · ${besideHint}`}
+                                      onClick={event =>
+                                        props.onOpen(
+                                          { kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) },
+                                          opensBeside(event),
+                                        )
+                                      }
+                                    >
+                                      #{type.name}
+                                    </button>
+                                  )}
+                                </For>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                </Show>
+              </Show>
+            </Show>
+          </div>
+          <Show when={wide() && selected()}>
+            {id => (
+              <FieldDetails
+                fieldId={id()}
+                previewKind={previewKind()}
+                inspector
+                notebook={props.notebook}
+                document={doc()}
+                onPreview={setPreviewKind}
+                onOpen={props.onOpen}
+                onClose={closeInspector}
+              />
+            )}
+          </Show>
+        </div>
+      </div>
+      <footer class="fields-footer">
+        <span role="status">
+          {visibleFields().length} of {fields().length} fields
+        </span>
+        <Show when={visibleFields().length > 100}>
+          <div>
+            <Button disabled={!page()} onClick={() => setPage(value => value - 1)}>
+              Previous
+            </Button>
+            <span>Page {page() + 1}</span>
+            <Button disabled={(page() + 1) * 100 >= visibleFields().length} onClick={() => setPage(value => value + 1)}>
+              Next
+            </Button>
+          </div>
+        </Show>
+      </footer>
+      <Show keyed when={kindMenu()}>
+        {state => (
+          <Menu
+            anchor={state.anchor}
+            label={`Format for ${fieldLabel(state.field)}`}
+            header={taskFieldName(state.field) ? undefined : <p class="menu-note">{formatMenuNote}</p>}
+            onDismiss={() => setKindMenu(null)}
+            items={formatMenuItems(
+              state.field.kind,
+              kind => changeKind(state.field, kind),
+              taskFieldName(state.field) ? taskFormatReason : undefined,
+            )}
+          />
+        )}
+      </Show>
+      <Show when={creating()}>
+        {anchor => (
+          <Popup
+            anchor={anchor()}
+            label="New field"
+            class="fields-new"
+            fitContent
+            dirty={() => newName().trim() !== search().trim() || newKind() !== 'text'}
+            onDismiss={closeCreation}
+          >
+            <h2 class="popup-title">New field</h2>
+            <form
+              onSubmit={event => {
+                event.preventDefault();
+                addField();
+              }}
+            >
+              <div class="field-create-fields">
+                <label>
+                  Name
+                  <input
+                    class="input"
+                    value={newName()}
+                    maxLength={60}
+                    ref={input => queueMicrotask(() => input.focus())}
+                    onInput={event => {
+                      setNewName(event.currentTarget.value);
+                      setCreateError('');
+                    }}
+                  />
+                </label>
+                <label>
+                  Format
+                  <Button
+                    aria-label={`Format: ${kindLabels[newKind()]}`}
+                    aria-haspopup="menu"
+                    aria-expanded={!!newKindMenu()}
+                    onClick={event => setNewKindMenu(event.currentTarget)}
+                  >
+                    {kindLabels[newKind()]} <Icon name="down" />
+                  </Button>
+                </label>
+              </div>
+              <Show when={createError()}>
+                <p class="error" role="alert">
+                  {createError()}
+                </p>
+              </Show>
+              <div class="popup-actions">
+                <Button onClick={closeCreation}>Cancel</Button>
+                <Button type="submit" class="bordered" disabled={!ready() || !newName().trim()}>
+                  Add field
+                </Button>
+              </div>
+            </form>
+            <Show when={newKindMenu()}>
+              {kindAnchor => (
+                <Menu
+                  anchor={kindAnchor()}
+                  label="Format"
+                  onDismiss={() => setNewKindMenu(null)}
+                  items={formatMenuItems(newKind(), setNewKind)}
+                />
+              )}
+            </Show>
+          </Popup>
+        )}
+      </Show>
+    </div>
+  );
 }

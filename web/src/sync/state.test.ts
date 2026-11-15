@@ -7,10 +7,23 @@ const replica = (changes: Partial<ReplicaState> = {}): SyncState => ({
   role: 'replica',
   this_device: { version: '0.3.0', build: null, schema: 35 },
   replica: {
-    hub_url: 'https://mac.example:4319', hub_name: 'mac', device_name: 'phone', device_id: 'd',
-    pending: 0, unapplied: 0, synced_at: now - FRESH_MS, syncing: false, last_error: null, retired: false,
-    hub_version: null, failing_since: null, attempts: [],
-    kept_copies: 0, rejected: 0, offline: { books: 0, bytes: 0 }, ...changes,
+    hub_url: 'https://mac.example:4319',
+    hub_name: 'mac',
+    device_name: 'phone',
+    device_id: 'd',
+    pending: 0,
+    unapplied: 0,
+    synced_at: now - FRESH_MS,
+    syncing: false,
+    last_error: null,
+    retired: false,
+    hub_version: null,
+    failing_since: null,
+    attempts: [],
+    kept_copies: 0,
+    rejected: 0,
+    offline: { books: 0, bytes: 0 },
+    ...changes,
   },
 });
 
@@ -31,6 +44,8 @@ test('a forgotten, retired, busy or non-replica notebook never syncs on its own'
   expect(syncDue(replica({ last_error: { code: 'wrong_device', message: '' } }), true, now)).toBe(false);
   expect(syncDue(replica({ retired: true }), true, now)).toBe(false);
   expect(syncDue(replica({ syncing: true }), true, now)).toBe(false);
-  expect(syncDue({ role: 'hub', replica: null, this_device: { version: '0.3.0', build: null, schema: 35 } }, true, now)).toBe(false);
+  expect(
+    syncDue({ role: 'hub', replica: null, this_device: { version: '0.3.0', build: null, schema: 35 } }, true, now),
+  ).toBe(false);
   expect(syncDue(null, true, now)).toBe(false);
 });

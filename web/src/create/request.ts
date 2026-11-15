@@ -29,7 +29,15 @@ export interface CreateRequest {
   focus?: 'kind';
 }
 
-const builtIn: Record<string, true> = { note: true, question: true, project: true, task: true, card: true, link: true, source: true };
+const builtIn: Record<string, true> = {
+  note: true,
+  question: true,
+  project: true,
+  task: true,
+  card: true,
+  link: true,
+  source: true,
+};
 
 export function isCreateKind(value: unknown): value is CreateKind {
   return typeof value === 'string' && (Object.hasOwn(builtIn, value) || /^type:\S+$/.test(value));
@@ -51,7 +59,11 @@ export const blankCapture = (): CreateRequest => ({ kind: 'note', text: '', into
 export function parseCreateRequest(raw: unknown): CreateRequest | null {
   if (typeof raw === 'string') {
     if (!raw) return null;
-    try { raw = JSON.parse(raw); } catch { return null; }
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return null;
+    }
   }
   if (typeof raw !== 'object' || raw === null) return null;
   const value = raw as { kind?: unknown; text?: unknown; into?: unknown };
@@ -71,11 +83,18 @@ export function inferKind(text: string): CreateKind | null {
   if (/^\[ ?\] /.test(text.trimStart())) return 'task';
   if (parseCardText(value).cards.length) return 'card';
   if (/^https?:\/\/\S+$/i.test(value)) {
-    try { if (new URL(value).hostname) return 'source'; } catch { /* Incomplete URL. */ }
+    try {
+      if (new URL(value).hostname) return 'source';
+    } catch {
+      /* Incomplete URL. */
+    }
   }
   const isbn = value.replace(/^(?:urn:)?isbn:?\s*/i, '').replace(/[ -]/g, '');
   if (/^(?:\d{9}[\dX]|\d{13})$/i.test(isbn)) return 'source';
-  if (/^(?:doi:)?10\.\d{4,9}\/\S+$/i.test(value)
-    || /^(?:arxiv:)?(?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\/\d{7})(?:v\d+)?$/i.test(value)) return 'source';
+  if (
+    /^(?:doi:)?10\.\d{4,9}\/\S+$/i.test(value) ||
+    /^(?:arxiv:)?(?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\/\d{7})(?:v\d+)?$/i.test(value)
+  )
+    return 'source';
   return null;
 }

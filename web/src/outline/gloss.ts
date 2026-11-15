@@ -11,11 +11,16 @@ export const GLOSS_FIELD = 'gloss';
  */
 export function glossEntry(doc: PageDocument, isGloss: (fieldId: string) => boolean): string | null {
   const children = doc.outline.children(doc.pageId);
-  return children.find(id => { const field = fieldEntryId(untrack(() => doc.block(id)?.text ?? '')); return !!field && isGloss(field); }) ?? null;
+  return (
+    children.find(id => {
+      const field = fieldEntryId(untrack(() => doc.block(id)?.text ?? ''));
+      return !!field && isGloss(field);
+    }) ?? null
+  );
 }
 
 /** The gloss text: the entry's first value. */
 export function glossText(doc: PageDocument, entry: string | null): string {
   const value = entry ? doc.outline.children(entry)[0] : undefined;
-  return value ? doc.block(value)?.text.trim() ?? '' : '';
+  return value ? (doc.block(value)?.text.trim() ?? '') : '';
 }

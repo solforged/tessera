@@ -22,10 +22,16 @@ export function createSlowFlag(waiting: () => boolean): () => boolean {
  */
 export function createSettledChanges(notebook: Pick<NotebookClient, 'changeSequence' | 'lastChange'>): () => number {
   const [settled, setSettled] = createSignal(0);
-  createEffect(on(() => [notebook.changeSequence(), notebook.lastChange()], () => {
-    const timer = setTimeout(() => setSettled(value => value + 1), slowLoadDelay);
-    onCleanup(() => clearTimeout(timer));
-  }, { defer: true }));
+  createEffect(
+    on(
+      () => [notebook.changeSequence(), notebook.lastChange()],
+      () => {
+        const timer = setTimeout(() => setSettled(value => value + 1), slowLoadDelay);
+        onCleanup(() => clearTimeout(timer));
+      },
+      { defer: true },
+    ),
+  );
   return settled;
 }
 

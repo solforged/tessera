@@ -7,12 +7,16 @@ const subject = '01M4RZJX971SKDQGB4JJJ582EJ';
 test('holder changes replace only the first link and preserve prose and other links', () => {
   const prose = `Before [[old|Old holder]] says [[question|authored subject]] matters.`;
   expect(changeHolderText(prose, holder)).toBe(`Before [[${holder}]] says [[question|authored subject]] matters.`);
-  expect(changeHolderText(prose, holder, 'New alias')).toBe(`Before [[${holder}|New alias]] says [[question|authored subject]] matters.`);
+  expect(changeHolderText(prose, holder, 'New alias')).toBe(
+    `Before [[${holder}|New alias]] says [[question|authored subject]] matters.`,
+  );
   expect(changeHolderText('A claim without links.', holder)).toBe(`[[${holder}]] A claim without links.`);
 });
 
 test('filing replaces the second occurrence or inserts immediately after the holder', () => {
-  expect(fileUnderText('[[person|P]] argues [[old|Q]] applies; [[evidence]] stays.', subject)).toBe(`[[person|P]] argues [[${subject}]] applies; [[evidence]] stays.`);
+  expect(fileUnderText('[[person|P]] argues [[old|Q]] applies; [[evidence]] stays.', subject)).toBe(
+    `[[person|P]] argues [[${subject}]] applies; [[evidence]] stays.`,
+  );
   const original = 'Before [[person|P]] keeps the claim.';
   const filed = fileUnderText(original, subject);
   expect(filed).toBe(`Before [[person|P]] [[${subject}]] keeps the claim.`);

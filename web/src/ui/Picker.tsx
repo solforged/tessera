@@ -1,4 +1,14 @@
-import { createComputed, createEffect, createMemo, createSignal, createUniqueId, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+  createComputed,
+  createEffect,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Popup } from './Popup';
 import type { PopupAnchor, PopupPlacement } from './Popup';
@@ -54,7 +64,11 @@ export interface PickerProps<T> {
   empty: string;
 }
 
-interface Group<T> { section: string | undefined; start: number; items: T[] }
+interface Group<T> {
+  section: string | undefined;
+  start: number;
+  items: T[];
+}
 /** Elements that take the keys and presses they are given; the picker's list keys and focus rescue leave them alone. */
 const OWN_INPUT = 'button, a[href], input, textarea, select, summary, [contenteditable]:not([contenteditable="false"])';
 
@@ -67,11 +81,15 @@ export function Picker<T>(props: PickerProps<T>) {
   const [revealRevision, setRevealRevision] = createSignal(0);
   let list!: HTMLDivElement;
   let input!: HTMLInputElement;
-  let opening = true, firstScroll = true, previousQuery = props.query;
+  let opening = true,
+    firstScroll = true,
+    previousQuery = props.query;
   const settledNow = () => !props.busy || props.items.length > 0 || !!props.error;
   const initiallySettled = settledNow();
   const [settled, setSettled] = createSignal(initiallySettled);
-  createComputed(() => { if (!settled() && settledNow()) setSettled(true); });
+  createComputed(() => {
+    if (!settled() && settledNow()) setSettled(true);
+  });
   const sections = (items: T[]) => {
     const section = props.section;
     const result: Group<T>[] = [];
@@ -86,10 +104,13 @@ export function Picker<T>(props: PickerProps<T>) {
   };
   // A caller that clears its rows to load the next ones keeps the picker from blanking: the rows shown stay, with the
   // headings they were drawn under, until real rows replace them.
-  const shown = createMemo<{ items: T[]; groups: Group<T>[] }>(previous => {
-    const items = props.items;
-    return props.busy && !items.length && previous.items.length ? previous : { items, groups: sections(items) };
-  }, { items: [], groups: [] });
+  const shown = createMemo<{ items: T[]; groups: Group<T>[] }>(
+    previous => {
+      const items = props.items;
+      return props.busy && !items.length && previous.items.length ? previous : { items, groups: sections(items) };
+    },
+    { items: [], groups: [] },
+  );
   const stale = createMemo(() => !!props.busy && !props.items.length && shown().items.length > 0);
   const selected = createMemo(() => {
     const key = cursor();
@@ -102,18 +123,25 @@ export function Picker<T>(props: PickerProps<T>) {
     if (item !== undefined) setCursor(props.key(item));
   };
   createComputed(() => {
-    const items = shown().items, query = props.query;
+    const items = shown().items,
+      query = props.query;
     if (query !== previousQuery) {
       // A new query starts at its first result.
-      previousQuery = query; opening = false;
-      setCursor(undefined); setRevealRevision(value => value + 1);
+      previousQuery = query;
+      opening = false;
+      setCursor(undefined);
+      setRevealRevision(value => value + 1);
     } else if (opening && items.length) {
       opening = false;
       const at = Math.max(0, Math.min(props.initial ?? 0, items.length - 1));
-      setCursor(at > 0 ? props.key(items[at]!) : undefined); setRevealRevision(value => value + 1);
+      setCursor(at > 0 ? props.key(items[at]!) : undefined);
+      setRevealRevision(value => value + 1);
     }
   });
-  let revealAt = 0, revealCenter = false, userMoved = false, margined: HTMLElement | undefined;
+  let revealAt = 0,
+    revealCenter = false,
+    userMoved = false,
+    margined: HTMLElement | undefined;
   // Scroll only the list. scrollIntoView also scrolls every ancestor, and a popup that is still taking its height
   // turns that into a stale offset: the first row sits at the top and its group heading stays hidden above it.
   const reveal = () => {
@@ -124,29 +152,45 @@ export function Picker<T>(props: PickerProps<T>) {
     if (margined && margined !== row) margined.style.scrollMarginTop = '';
     margined = row;
     const origin = list.getBoundingClientRect().top - list.scrollTop;
-    const leadTop = lead.getBoundingClientRect().top - origin, rowTop = row.getBoundingClientRect().top - origin;
+    const leadTop = lead.getBoundingClientRect().top - origin,
+      rowTop = row.getBoundingClientRect().top - origin;
     // A browser scroll of the active row (focus, the combobox's active descendant) honours this margin, so a group's
     // first row keeps its heading. The first row's margin is its own offset, which lands at the top of the list.
-    row.style.scrollMarginTop = revealAt === 0 && !revealCenter ? `${Math.max(0, rowTop)}px` : `${Math.max(0, rowTop - leadTop)}px`;
-    if (revealAt === 0 && !revealCenter) { if (!userMoved) list.scrollTop = 0; return; }
-    if (revealCenter) {
-      list.scrollTop = Math.max(0, rowTop + row.offsetHeight / 2 - list.clientHeight / 2);
-      const box = list.getBoundingClientRect(), leadBox = lead.getBoundingClientRect();
-      if (lead !== row && leadBox.top < box.top && lead.offsetHeight + row.offsetHeight <= list.clientHeight) list.scrollTop += leadBox.top - box.top;
+    row.style.scrollMarginTop =
+      revealAt === 0 && !revealCenter ? `${Math.max(0, rowTop)}px` : `${Math.max(0, rowTop - leadTop)}px`;
+    if (revealAt === 0 && !revealCenter) {
+      if (!userMoved) list.scrollTop = 0;
       return;
     }
-    const box = list.getBoundingClientRect(), leadBox = lead.getBoundingClientRect(), rowBox = row.getBoundingClientRect();
+    if (revealCenter) {
+      list.scrollTop = Math.max(0, rowTop + row.offsetHeight / 2 - list.clientHeight / 2);
+      const box = list.getBoundingClientRect(),
+        leadBox = lead.getBoundingClientRect();
+      if (lead !== row && leadBox.top < box.top && lead.offsetHeight + row.offsetHeight <= list.clientHeight)
+        list.scrollTop += leadBox.top - box.top;
+      return;
+    }
+    const box = list.getBoundingClientRect(),
+      leadBox = lead.getBoundingClientRect(),
+      rowBox = row.getBoundingClientRect();
     if (leadBox.top < box.top) list.scrollTop += leadBox.top - box.top;
     else if (rowBox.bottom > box.bottom) list.scrollTop += rowBox.bottom - box.bottom;
-    const again = lead.getBoundingClientRect(), next = list.getBoundingClientRect();
+    const again = lead.getBoundingClientRect(),
+      next = list.getBoundingClientRect();
     if (again.top < next.top) list.scrollTop += again.top - next.top;
   };
   // Placement, focus and scroll anchoring can scroll the first row to the top after the reveal. Until the person
   // moves the list themselves, put it back so the first group's heading stays in view.
-  const pinTop = () => { if (userMoved || revealAt !== 0 || revealCenter || !list || list.scrollTop === 0) return; list.scrollTop = 0; };
-  const noteUserScroll = () => { userMoved = true; };
+  const pinTop = () => {
+    if (userMoved || revealAt !== 0 || revealCenter || !list || list.scrollTop === 0) return;
+    list.scrollTop = 0;
+  };
+  const noteUserScroll = () => {
+    userMoved = true;
+  };
   createEffect(() => {
-    revealAt = selected(); revealRevision();
+    revealAt = selected();
+    revealRevision();
     revealCenter = firstScroll && props.initial !== undefined;
     firstScroll = false;
     userMoved = false;
@@ -161,18 +205,36 @@ export function Picker<T>(props: PickerProps<T>) {
   };
   const row = (item: T, index: () => number) => {
     const reason = () => props.disabledReason?.(item);
-    return <div id={`${id}-${index()}`} role="option" aria-selected={props.isCurrent ? props.isCurrent(item) : index() === selected()} aria-disabled={!!reason()} aria-description={reason()} title={reason()} class={`picker-row ${index() === selected() ? 'selected' : ''}`} onPointerMove={() => setCursor(props.key(item))} onClick={event => pick(item, event)}>
-      {props.row(item, index() === selected())}
-    </div>;
+    return (
+      <div
+        id={`${id}-${index()}`}
+        role="option"
+        aria-selected={props.isCurrent ? props.isCurrent(item) : index() === selected()}
+        aria-disabled={!!reason()}
+        aria-description={reason()}
+        title={reason()}
+        class={`picker-row ${index() === selected() ? 'selected' : ''}`}
+        onPointerMove={() => setCursor(props.key(item))}
+        onClick={event => pick(item, event)}
+      >
+        {props.row(item, index() === selected())}
+      </div>
+    );
   };
   // A page of rows from the cursor, keeping one row of overlap; rows taller than the list still move by one.
   const page = (direction: 1 | -1) => {
     const rows = list.querySelectorAll<HTMLElement>('.picker-row');
     const from = rows[selected()];
     if (!from) return;
-    const top = from.getBoundingClientRect().top, reach = Math.max(from.offsetHeight, list.clientHeight - from.offsetHeight);
+    const top = from.getBoundingClientRect().top,
+      reach = Math.max(from.offsetHeight, list.clientHeight - from.offsetHeight);
     let at = selected();
-    for (let next = at + direction; next >= 0 && next < rows.length && Math.abs(rows[next]!.getBoundingClientRect().top - top) <= reach; next += direction) at = next;
+    for (
+      let next = at + direction;
+      next >= 0 && next < rows.length && Math.abs(rows[next]!.getBoundingClientRect().top - top) <= reach;
+      next += direction
+    )
+      at = next;
     move(at === selected() ? at + direction : at);
   };
   // Keys are taken at the popup's root, so a click that lands on a gap, heading or row cannot strand them.
@@ -186,16 +248,26 @@ export function Picker<T>(props: PickerProps<T>) {
       event.preventDefault();
       move(count ? (selected() + (event.key === 'ArrowDown' ? 1 : -1) + count) % count : 0);
     } else if ((event.key === 'PageDown' || event.key === 'PageUp') && !modified) {
-      event.preventDefault(); page(event.key === 'PageDown' ? 1 : -1);
-    } else if ((event.key === 'Home' || event.key === 'End') && (target === input ? (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey : !modified)) {
+      event.preventDefault();
+      page(event.key === 'PageDown' ? 1 : -1);
+    } else if (
+      (event.key === 'Home' || event.key === 'End') &&
+      (target === input ? (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey : !modified)
+    ) {
       // Home and End edit the query's caret; with Ctrl or Cmd they jump the list.
-      event.preventDefault(); move(event.key === 'Home' ? 0 : count - 1);
+      event.preventDefault();
+      move(event.key === 'Home' ? 0 : count - 1);
     } else if (event.key === 'Enter') {
       // Rows left over from the previous query are not a selection for this one.
-      event.preventDefault(); const item = stale() ? undefined : current(); if (item !== undefined) pick(item, event); else props.onPendingPick?.(event);
+      event.preventDefault();
+      const item = stale() ? undefined : current();
+      if (item !== undefined) pick(item, event);
+      else props.onPendingPick?.(event);
     } else if (props.onKey?.(event, stale() ? undefined : current())) {
       event.preventDefault();
-      queueMicrotask(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
+      queueMicrotask(() => {
+        if (input.isConnected) input.focus({ preventScroll: true });
+      });
     }
   };
   // A press on the list, a gap or a heading must not take focus from the query; a press elsewhere that does leaves it to be
@@ -204,13 +276,20 @@ export function Picker<T>(props: PickerProps<T>) {
   const mousedown = (event: MouseEvent) => {
     inputHadFocus = document.activeElement === input;
     const target = event.target;
-    if (event.button !== 0 || !(target instanceof Element) || target.closest(OWN_INPUT) || !(list.contains(target) || target.closest('.picker-query') || target === list.parentElement)) return;
+    if (
+      event.button !== 0 ||
+      !(target instanceof Element) ||
+      target.closest(OWN_INPUT) ||
+      !(list.contains(target) || target.closest('.picker-query') || target === list.parentElement)
+    )
+      return;
     event.preventDefault();
   };
   const click = () => {
     // The popup's own box takes focus from a press on any part of it that is not focusable.
     const active = document.activeElement;
-    if (!inputHadFocus || !input.isConnected || active && active !== document.body && active !== list.parentElement) return;
+    if (!inputHadFocus || !input.isConnected || (active && active !== document.body && active !== list.parentElement))
+      return;
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed) return;
     input.focus({ preventScroll: true });
@@ -242,30 +321,88 @@ export function Picker<T>(props: PickerProps<T>) {
   // A picker placed from its natural height is a column: the room the popup is given bounds the list, which scrolls under the
   // query. The command palette places itself and sizes to its content, so it is not one. A result list never slides over its trigger.
   const column = props.placement !== 'top';
-  return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent ?? column} cover={false} scrollingList={column} autofocus={props.autofocus} ready={props.ready ?? (initiallySettled ? undefined : settled())} returnFocus={props.returnFocus} onDismiss={props.onDismiss} label={props.label} title={props.title} width={props.width ?? 560} class={`picker ${column ? 'picker-column ' : ''}${props.class ?? ''}`} style={props.style}>
-    <div class="picker-query">
-      {props.prefix}
-      <input ref={element => { input = element; props.inputRef?.(element); }} class="picker-input" role="combobox" aria-expanded="true" aria-haspopup="listbox" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={shown().items.length ? `${id}-${selected()}` : undefined} aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />
-      {props.queryActions}
-      <span class="visually-hidden" role="status">{props.busy ? 'Loading…' : ''}</span>
-    </div>
-    {props.status}
-    <div ref={list} id={listId} class="picker-list" role="listbox" aria-label={props.label} aria-busy={props.busy || undefined} data-stale={stale() ? '' : undefined}>
-      <Show when={props.error}><p class="error" role="alert">{props.error}</p></Show>
-      {/* Rows stay put while loading; the wait is a line along the list's top edge, and only an empty list says it in words. */}
-      <Show when={props.busy && !shown().items.length}><p class="empty-state">Loading…</p></Show>
-      <Show when={props.section} fallback={<For each={shown().items}>{row}</For>}>
-        <For each={shown().groups}>{group =>
-          <Show when={group.section !== undefined} fallback={<For each={group.items}>{(item, index) => row(item, () => group.start + index())}</For>}>
-            <div class="picker-group" role="group" aria-label={group.section}>
-              <div class="picker-section" aria-hidden="true">{group.section}</div>
-              <For each={group.items}>{(item, index) => row(item, () => group.start + index())}</For>
-            </div>
-          </Show>
-        }</For>
-      </Show>
-      <Show when={!props.busy && !props.error && !shown().items.length}><p class="empty-state">{props.empty}</p></Show>
-    </div>
-    {props.preview}
-  </Popup>;
+  return (
+    <Popup
+      anchor={props.anchor}
+      placement={props.placement}
+      fitContent={props.fitContent ?? column}
+      cover={false}
+      scrollingList={column}
+      autofocus={props.autofocus}
+      ready={props.ready ?? (initiallySettled ? undefined : settled())}
+      returnFocus={props.returnFocus}
+      onDismiss={props.onDismiss}
+      label={props.label}
+      title={props.title}
+      width={props.width ?? 560}
+      class={`picker ${column ? 'picker-column ' : ''}${props.class ?? ''}`}
+      style={props.style}
+    >
+      <div class="picker-query">
+        {props.prefix}
+        <input
+          ref={element => {
+            input = element;
+            props.inputRef?.(element);
+          }}
+          class="picker-input"
+          role="combobox"
+          aria-expanded="true"
+          aria-haspopup="listbox"
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={shown().items.length ? `${id}-${selected()}` : undefined}
+          aria-label={props.label}
+          placeholder={props.placeholder}
+          value={props.query}
+          onInput={event => props.onQuery(event.currentTarget.value)}
+        />
+        {props.queryActions}
+        <span class="visually-hidden" role="status">
+          {props.busy ? 'Loading…' : ''}
+        </span>
+      </div>
+      {props.status}
+      <div
+        ref={list}
+        id={listId}
+        class="picker-list"
+        role="listbox"
+        aria-label={props.label}
+        aria-busy={props.busy || undefined}
+        data-stale={stale() ? '' : undefined}
+      >
+        <Show when={props.error}>
+          <p class="error" role="alert">
+            {props.error}
+          </p>
+        </Show>
+        {/* Rows stay put while loading; the wait is a line along the list's top edge, and only an empty list says it in words. */}
+        <Show when={props.busy && !shown().items.length}>
+          <p class="empty-state">Loading…</p>
+        </Show>
+        <Show when={props.section} fallback={<For each={shown().items}>{row}</For>}>
+          <For each={shown().groups}>
+            {group => (
+              <Show
+                when={group.section !== undefined}
+                fallback={<For each={group.items}>{(item, index) => row(item, () => group.start + index())}</For>}
+              >
+                <div class="picker-group" role="group" aria-label={group.section}>
+                  <div class="picker-section" aria-hidden="true">
+                    {group.section}
+                  </div>
+                  <For each={group.items}>{(item, index) => row(item, () => group.start + index())}</For>
+                </div>
+              </Show>
+            )}
+          </For>
+        </Show>
+        <Show when={!props.busy && !props.error && !shown().items.length}>
+          <p class="empty-state">{props.empty}</p>
+        </Show>
+      </div>
+      {props.preview}
+    </Popup>
+  );
 }

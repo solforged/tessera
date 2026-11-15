@@ -24,7 +24,10 @@ function sectionHeadings(page: PageView, template: TodayTemplate): Map<string, s
   for (const { block } of page.rows) {
     if (block.parent_id !== page.root.id || block.archived || !block.heading) continue;
     const section = byName.get(foldName(block.text));
-    if (section && !found.has(section)) { found.add(section); headings.set(block.id, section); }
+    if (section && !found.has(section)) {
+      found.add(section);
+      headings.set(block.id, section);
+    }
   }
   return headings;
 }
@@ -44,16 +47,30 @@ export function recentCaptures(page: PageView, template: TodayTemplate, limit = 
   const headings = sectionHeadings(page, template);
   const blocks = new Map(page.rows.map(({ block }) => [block.id, block]));
   const inSection = (block: Block) => {
-    for (let parent = block.parent_id; parent; parent = blocks.get(parent)?.parent_id ?? null) if (headings.has(parent)) return true;
+    for (let parent = block.parent_id; parent; parent = blocks.get(parent)?.parent_id ?? null)
+      if (headings.has(parent)) return true;
     return false;
   };
-  return page.rows.map(({ block }) => block)
-    .filter(block => !block.archived && block.text.trim() && !headings.has(block.id) && !(readingRowSource(block.text) && headings.get(block.parent_id ?? '') === 'reading') && inSection(block))
+  return page.rows
+    .map(({ block }) => block)
+    .filter(
+      block =>
+        !block.archived &&
+        block.text.trim() &&
+        !headings.has(block.id) &&
+        !(readingRowSource(block.text) && headings.get(block.parent_id ?? '') === 'reading') &&
+        inSection(block),
+    )
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, limit);
 }
 
 /** A pasted address saved as a titled link, when the page's title is known. */
 export function titledLink(url: string, title: string | null): string {
-  return title ? `[${title.replace(/[[\]\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()}](${url})` : url;
+  return title
+    ? `[${title
+        .replace(/[[\]\r\n]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()}](${url})`
+    : url;
 }

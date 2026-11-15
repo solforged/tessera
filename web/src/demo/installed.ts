@@ -20,27 +20,43 @@ export function installInstalledWindow(): void {
   overlay?.addEventListener('geometrychange', geometry);
 
   const installed = window.matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)');
-  window.addEventListener('keydown', event => {
-    if (!installed.matches || event.isComposing || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-    const key = event.key.toLowerCase();
-    const command = key === ',' ? 'shell.settings' : key === 'n' ? 'shell.new' : key === 't' ? 'shell.today' : null;
-    if (!command) return;
-    event.preventDefault();
-    if (!event.repeat) window.dispatchEvent(new CustomEvent('tessera-command', { detail: command }));
-  }, true);
+  window.addEventListener(
+    'keydown',
+    event => {
+      if (!installed.matches || event.isComposing || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+        return;
+      const key = event.key.toLowerCase();
+      const command = key === ',' ? 'shell.settings' : key === 'n' ? 'shell.new' : key === 't' ? 'shell.today' : null;
+      if (!command) return;
+      event.preventDefault();
+      if (!event.repeat) window.dispatchEvent(new CustomEvent('tessera-command', { detail: command }));
+    },
+    true,
+  );
 
   // The shell drains these sources after mounting, so first-run choices keep incoming launches intact.
   const files: FileSystemFileHandle[] = [];
   let capture: CreateRequest | null = null;
-  setQuickCaptureSource({ take: () => { const request = capture; capture = null; return request; } });
+  setQuickCaptureSource({
+    take: () => {
+      const request = capture;
+      capture = null;
+      return request;
+    },
+  });
   setOpenedFilesInbox(async () => {
     const result: OpenedFiles = { jobs: [], errors: [] };
     for (const handle of files.splice(0)) {
-      if (!/\.epub$/i.test(handle.name)) { result.errors.push('Only EPUB files can be opened.'); continue; }
+      if (!/\.epub$/i.test(handle.name)) {
+        result.errors.push('Only EPUB files can be opened.');
+        continue;
+      }
       try {
         const file = await handle.getFile();
         result.jobs.push(await api.upload(file, file.name));
-      } catch (reason) { result.errors.push(`${handle.name}: ${reason instanceof Error ? reason.message : String(reason)}`); }
+      } catch (reason) {
+        result.errors.push(`${handle.name}: ${reason instanceof Error ? reason.message : String(reason)}`);
+      }
     }
     return result;
   });
@@ -49,7 +65,10 @@ export function installInstalledWindow(): void {
     const url = new URL(window.location.href);
     let changed = false;
     for (const key of ['open-file', 'capture', 'protocol']) {
-      if (url.searchParams.has(key)) { url.searchParams.delete(key); changed = true; }
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
     }
     if (changed) history.replaceState(history.state, '', url);
   };
@@ -61,7 +80,10 @@ export function installInstalledWindow(): void {
     } else if (launch.targetURL) {
       const url = new URL(launch.targetURL, window.location.href);
       // URLSearchParams already decodes the protocol's encoded plus.
-      if (url.searchParams.has('capture') || /^web\+tessera:(?:\/\/)?capture$/.test(url.searchParams.get('protocol') ?? '')) {
+      if (
+        url.searchParams.has('capture') ||
+        /^web\+tessera:(?:\/\/)?capture$/.test(url.searchParams.get('protocol') ?? '')
+      ) {
         capture = blankCapture();
         window.dispatchEvent(new Event('tessera-quick-capture'));
       }

@@ -28,16 +28,26 @@ export function documentReady(doc: PageDocument): Promise<void> {
 
 const freshFields = new WeakMap<NotebookClient, Set<string>>();
 /** A field `name::` created here whose kind still waits for its first value. */
-export function isFreshField(notebook: NotebookClient, id: string): boolean { return freshFields.get(notebook)?.has(id) ?? false; }
+export function isFreshField(notebook: NotebookClient, id: string): boolean {
+  return freshFields.get(notebook)?.has(id) ?? false;
+}
 /** The first value has been read: the field keeps whatever kind it now has. */
-export function settleField(notebook: NotebookClient, id: string): void { freshFields.get(notebook)?.delete(id); }
+export function settleField(notebook: NotebookClient, id: string): void {
+  freshFields.get(notebook)?.delete(id);
+}
 
 /**
  * The named definition, created on first use; concurrent calls share one creation. The service decides what it
  * creates: a built-in name gets the core's own definition whatever `kind` and `role` ask for, so this returns the
  * definition as created, not as requested.
  */
-export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text', role: FieldRole = 'attribute', fresh = false): Promise<FieldDefinition> {
+export function ensureField(
+  notebook: NotebookClient,
+  name: string,
+  kind: FieldKind = 'text',
+  role: FieldRole = 'attribute',
+  fresh = false,
+): Promise<FieldDefinition> {
   const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
   fieldCreations.set(notebook, pending);
   const key = name.toLowerCase();
@@ -52,7 +62,8 @@ export function ensureField(notebook: NotebookClient, name: string, kind: FieldK
       await documentReady(fieldsDoc);
       for (const id of fieldsDoc.outline.children(result.page_id)) {
         const block = fieldsDoc.block(id);
-        if (block && !block.archived && block.text.trim() && block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [], targets: [] };
+        if (block && !block.archived && block.text.trim() && block.text.toLowerCase() === key)
+          return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [], targets: [] };
       }
       // Blank outline rows may have references or history: never adopt their identity.
       const written = fieldsDoc.edit({ kind: 'addField', name, value: kind, role });
@@ -62,12 +73,21 @@ export function ensureField(notebook: NotebookClient, name: string, kind: FieldK
       const created = (await notebook.api.fields()).fields.find(field => field.id === id);
       if (!created) throw new Error(`The field ${name} was not created.`);
       // A built-in field's kind is the core's, never a guess from its first value.
-      if (fresh && !created.built_in) { const ids = freshFields.get(notebook) ?? new Set(); freshFields.set(notebook, ids); ids.add(id); }
+      if (fresh && !created.built_in) {
+        const ids = freshFields.get(notebook) ?? new Set();
+        freshFields.set(notebook, ids);
+        ids.add(id);
+      }
       return created;
-    } finally { fieldsDoc.release(); }
+    } finally {
+      fieldsDoc.release();
+    }
   })();
   pending.set(key, creation);
-  void creation.then(() => pending.delete(key), () => pending.delete(key));
+  void creation.then(
+    () => pending.delete(key),
+    () => pending.delete(key),
+  );
   return creation;
 }
 
@@ -79,10 +99,17 @@ export async function addFieldOption(notebook: NotebookClient, field: FieldDefin
   const doc = notebook.open(definition.page_id);
   try {
     await documentReady(doc);
-    const written = doc.edit({ kind: 'insert', parentId: field.id, after: doc.outline.children(field.id).at(-1) ?? null, text });
+    const written = doc.edit({
+      kind: 'insert',
+      parentId: field.id,
+      after: doc.outline.children(field.id).at(-1) ?? null,
+      text,
+    });
     if (!written.ok) throw new Error(written.reason);
     return written.created[0]!;
-  } finally { doc.release(); }
+  } finally {
+    doc.release();
+  }
 }
 
 export interface FieldEntryConversion {
@@ -93,13 +120,18 @@ export interface FieldEntryConversion {
 }
 
 export function createFieldEntryConversion(options: {
-  doc: PageDocument; notebook: NotebookClient;
-  disposed(): boolean; composing(): boolean; caret(): Caret | null; focusEpoch(): number;
+  doc: PageDocument;
+  notebook: NotebookClient;
+  disposed(): boolean;
+  composing(): boolean;
+  caret(): Caret | null;
+  focusEpoch(): number;
   /** A referenced block's kind, so a journal day reads as a date. */
   targetKind(id: string): BlockKind | undefined;
   /** A definition already loaded by name, so a known field converts without a round trip. */
   known(name: string): FieldDefinition | undefined;
-  onStart(): void; onField(field: FieldDefinition): void;
+  onStart(): void;
+  onField(field: FieldDefinition): void;
   onCommitted(id: string, caret: Caret | null, epoch: number, focus: boolean, field: FieldDefinition): void;
   onError(message: string): void;
 }) {
@@ -108,7 +140,14 @@ export function createFieldEntryConversion(options: {
    * Rewrites the block as `[[field]]` with `value` as its first child. Typing may continue while a new
    * definition is created, so the caret's place in the value is read at write time.
    */
-  function write(doc: PageDocument, id: string, field: FieldDefinition, valueStart: number, epoch: number, focus: boolean) {
+  function write(
+    doc: PageDocument,
+    id: string,
+    field: FieldDefinition,
+    valueStart: number,
+    epoch: number,
+    focus: boolean,
+  ) {
     const text = doc.block(id)!.text;
     const at = options.caret();
     const before = at?.id === id ? { ...at } : { id, offset: text.length };
@@ -117,22 +156,42 @@ export function createFieldEntryConversion(options: {
     options.onCommitted(id, result.caret, at?.id === id ? options.focusEpoch() : epoch, focus, field);
   }
   /** A new name's kind comes from `guess`, its first value when typed inline; with no value yet, the field stays fresh until one is. */
-  function start(id: string, target: FieldDefinition | string, valueStart: number, focus: boolean, still: (text: string) => number | null, guess?: { kind: FieldKind | null }) {
+  function start(
+    id: string,
+    target: FieldDefinition | string,
+    valueStart: number,
+    focus: boolean,
+    still: (text: string) => number | null,
+    guess?: { kind: FieldKind | null },
+  ) {
     pending.add(id);
     const epoch = options.focusEpoch();
     const heldDoc = options.notebook.open(options.doc.pageId);
     options.onStart();
     const known = typeof target === 'string' ? options.known(target) : target;
-    const finish = () => { pending.delete(id); heldDoc.release(); };
+    const finish = () => {
+      pending.delete(id);
+      heldDoc.release();
+    };
     if (known) {
-      try { write(heldDoc, id, known, valueStart, epoch, focus); }
-      catch (error) { options.onError(error instanceof Error ? error.message : String(error)); }
-      finally { finish(); }
+      try {
+        write(heldDoc, id, known, valueStart, epoch, focus);
+      } catch (error) {
+        options.onError(error instanceof Error ? error.message : String(error));
+      } finally {
+        finish();
+      }
       return;
     }
     void (async () => {
       try {
-        const field = await ensureField(options.notebook, typeof target === 'string' ? target : target.name, guess?.kind ?? 'text', 'attribute', !!guess && !guess.kind);
+        const field = await ensureField(
+          options.notebook,
+          typeof target === 'string' ? target : target.name,
+          guess?.kind ?? 'text',
+          'attribute',
+          !!guess && !guess.kind,
+        );
         if (options.disposed()) return;
         options.onField(field);
         const text = heldDoc.block(id)?.text;
@@ -140,7 +199,9 @@ export function createFieldEntryConversion(options: {
         if (from !== null) write(heldDoc, id, field, from, epoch, focus);
       } catch (error) {
         if (!options.disposed()) options.onError(error instanceof Error ? error.message : String(error));
-      } finally { finish(); }
+      } finally {
+        finish();
+      }
     })();
   }
   const valueOffset = (text: string, value: string) => text.length - value.length;
@@ -153,29 +214,45 @@ export function createFieldEntryConversion(options: {
       if (!match) return false;
       const name = match.name.toLowerCase();
       // Still the same field after the definition is created: convert what the block holds by then.
-      start(id, match.name, valueOffset(original!, match.value), focus, text => {
-        const now = matchFieldEntry(text);
-        return now && now.name.toLowerCase() === name ? valueOffset(text, now.value) : null;
-      }, { kind: match.value.trim() ? guessFieldKind(match.value, options.targetKind) ?? 'text' : null });
+      start(
+        id,
+        match.name,
+        valueOffset(original!, match.value),
+        focus,
+        text => {
+          const now = matchFieldEntry(text);
+          return now && now.name.toLowerCase() === name ? valueOffset(text, now.value) : null;
+        },
+        { kind: match.value.trim() ? (guessFieldKind(match.value, options.targetKind) ?? 'text') : null },
+      );
       return true;
     },
     entry(id, field, from, focus = true) {
       if (options.disposed() || pending.has(id) || !options.doc.block(id)) return;
       const original = options.doc.block(id)!.text;
-      const valueAt = (text: string) => { let at = from; while (text[at] === ' ') at++; return at; };
-      start(id, field, valueAt(original), focus, text => text.startsWith(original.slice(0, from)) ? valueAt(text) : null);
+      const valueAt = (text: string) => {
+        let at = from;
+        while (text[at] === ' ') at++;
+        return at;
+      };
+      start(id, field, valueAt(original), focus, text =>
+        text.startsWith(original.slice(0, from)) ? valueAt(text) : null,
+      );
     },
   } satisfies FieldEntryConversion;
 }
 
 /** Both entry actions and source actions apply the same positional reset plan. */
 export function createSourceFieldResets(options: {
-  doc: PageDocument; notebook: NotebookClient; definitions(): ReadonlyMap<string, FieldDefinition>;
-  caret(): Caret | null; onError(message: string): void;
+  doc: PageDocument;
+  notebook: NotebookClient;
+  definitions(): ReadonlyMap<string, FieldDefinition>;
+  caret(): Caret | null;
+  onError(message: string): void;
 }) {
   const { doc } = options;
   const [extracted] = createResource(
-    () => doc.root()?.source ? [doc.pageId, options.notebook.changeSequence()] as const : false,
+    () => (doc.root()?.source ? ([doc.pageId, options.notebook.changeSequence()] as const) : false),
     ([pageId]) => api.extracted(pageId),
   );
   return (entryId?: string): MenuItem[] => {
@@ -189,23 +266,39 @@ export function createSourceFieldResets(options: {
         const value = doc.block(child);
         return value && !value.archived ? [value] : [];
       });
-      const plan = extractedResets(values, extracted()?.find(([label]) => label.toLowerCase() === name.toLowerCase())?.[1]);
+      const plan = extractedResets(
+        values,
+        extracted()?.find(([label]) => label.toLowerCase() === name.toLowerCase())?.[1],
+      );
       return plan.set.length || plan.insert.length ? [{ id, ...plan }] : [];
     });
-    return plans.length ? [{ label: 'Reset to extracted', action: () => {
-      for (const plan of plans) {
-        for (const value of plan.set) {
-          const result = doc.edit({ kind: 'text', ...value }, options.caret());
-          if (!result.ok) { options.onError(result.reason); return; }
-        }
-        let after = doc.outline.children(plan.id).at(-1) ?? null;
-        for (const text of plan.insert) {
-          const result = doc.edit({ kind: 'insert', parentId: plan.id, after, text }, options.caret());
-          if (!result.ok) { options.onError(result.reason); return; }
-          after = result.created[0]!;
-        }
-      }
-      void doc.flush().catch(reason => options.onError(String(reason)));
-    } }] : [];
+    return plans.length
+      ? [
+          {
+            label: 'Reset to extracted',
+            action: () => {
+              for (const plan of plans) {
+                for (const value of plan.set) {
+                  const result = doc.edit({ kind: 'text', ...value }, options.caret());
+                  if (!result.ok) {
+                    options.onError(result.reason);
+                    return;
+                  }
+                }
+                let after = doc.outline.children(plan.id).at(-1) ?? null;
+                for (const text of plan.insert) {
+                  const result = doc.edit({ kind: 'insert', parentId: plan.id, after, text }, options.caret());
+                  if (!result.ok) {
+                    options.onError(result.reason);
+                    return;
+                  }
+                  after = result.created[0]!;
+                }
+              }
+              void doc.flush().catch(reason => options.onError(String(reason)));
+            },
+          },
+        ]
+      : [];
   };
 }

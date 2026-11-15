@@ -1,4 +1,11 @@
-import type { Block, ExtractedCreator, ExtractedMetadata, FieldDefinition, FieldKind, ReadingState } from '../api/types';
+import type {
+  Block,
+  ExtractedCreator,
+  ExtractedMetadata,
+  FieldDefinition,
+  FieldKind,
+  ReadingState,
+} from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import { sourceState } from '../document/types';
 import { addFieldOption, documentReady, ensureField } from '../outline/source-fields';
@@ -8,45 +15,124 @@ import { displayTitle, foldName, referenceValue, resolveName } from '../outline/
 import { titleKey } from '../document/title-key';
 import { textTokens } from '../document/text-tokens';
 
-export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'volume' | 'issue' | 'pageRange' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
-export interface SourceCreator extends ExtractedCreator { id: string | null }
+export type SourceField =
+  | 'title'
+  | 'subtitle'
+  | 'creators'
+  | 'firstPublished'
+  | 'originalLanguage'
+  | 'published'
+  | 'publisher'
+  | 'edition'
+  | 'series'
+  | 'number'
+  | 'pages'
+  | 'volume'
+  | 'issue'
+  | 'pageRange'
+  | 'language'
+  | 'identifiers'
+  | 'url'
+  | 'site'
+  | 'description'
+  | 'cover'
+  | 'siglum'
+  | 'citationKey'
+  | 'state'
+  | 'started'
+  | 'finished'
+  | 'tags';
+export interface SourceCreator extends ExtractedCreator {
+  id: string | null;
+}
 export type SourceFieldValue = string | string[] | SourceCreator[];
 export interface SourceFieldChange extends DocumentChange {}
-export interface DerivedSourceSiglum { mark: string; basis: string }
+export interface DerivedSourceSiglum {
+  mark: string;
+  basis: string;
+}
 
 /** Explain the derived alternative even while an authored Siglum field wins. Mirrors the service's family/site/title precedence. */
-export function derivedSourceSiglum(creators: readonly SourceCreator[], site: string, title: string): DerivedSourceSiglum {
-  const family = (name: string) => name.includes(',') ? name.split(',', 1)[0]! : name.trim().split(/\s+/).at(-1) ?? '';
+export function derivedSourceSiglum(
+  creators: readonly SourceCreator[],
+  site: string,
+  title: string,
+): DerivedSourceSiglum {
+  const family = (name: string) =>
+    name.includes(',') ? name.split(',', 1)[0]! : (name.trim().split(/\s+/).at(-1) ?? '');
   const author = creators.find(creator => creator.role === 'author');
   const editor = creators.find(creator => creator.role === 'editor');
-  for (const candidate of [author ? family(author.name) : '', editor ? family(editor.name) : '', site, title.split(/\s+/).find(word => /\p{Alphabetic}/u.test(word)) ?? '']) {
+  for (const candidate of [
+    author ? family(author.name) : '',
+    editor ? family(editor.name) : '',
+    site,
+    title.split(/\s+/).find(word => /\p{Alphabetic}/u.test(word)) ?? '',
+  ]) {
     const letters = candidate.match(/\p{Alphabetic}/gu) ?? [];
     if (letters.length) return { mark: letters.slice(0, 3).join('').toUpperCase(), basis: letters.join('') };
   }
   return { mark: '?', basis: 'the source title' };
 }
 
-export const emptyMetadata = (): ExtractedMetadata => ({ title: null, subtitle: null, creators: [], published: null, publisher: null, language: null, identifiers: [], unique_id: null, url: null, site: null, description: null, cover: null });
+export const emptyMetadata = (): ExtractedMetadata => ({
+  title: null,
+  subtitle: null,
+  creators: [],
+  published: null,
+  publisher: null,
+  language: null,
+  identifiers: [],
+  unique_id: null,
+  url: null,
+  site: null,
+  description: null,
+  cover: null,
+});
 type OrdinaryField = Exclude<SourceField, 'title' | 'creators' | 'citationKey' | 'state' | 'tags'>;
 const fields: Record<OrdinaryField, readonly [string, FieldKind]> = {
-  subtitle: ['subtitle', 'text'], firstPublished: ['first published', 'date'], originalLanguage: ['original language', 'text'],
-  published: ['published', 'date'], publisher: ['publisher', 'text'], edition: ['edition', 'text'], series: ['series', 'text'],
-  number: ['number', 'number'], pages: ['pages', 'number'], language: ['language', 'text'], identifiers: ['identifier', 'identifier'],
-  volume: ['volume', 'text'], issue: ['issue', 'text'], pageRange: ['page range', 'text'],
-  url: ['url', 'url'], site: ['site', 'text'], description: ['description', 'text'], cover: ['cover', 'text'], siglum: ['siglum', 'text'],
-  started: ['started', 'date'], finished: ['finished', 'date'],
+  subtitle: ['subtitle', 'text'],
+  firstPublished: ['first published', 'date'],
+  originalLanguage: ['original language', 'text'],
+  published: ['published', 'date'],
+  publisher: ['publisher', 'text'],
+  edition: ['edition', 'text'],
+  series: ['series', 'text'],
+  number: ['number', 'number'],
+  pages: ['pages', 'number'],
+  language: ['language', 'text'],
+  identifiers: ['identifier', 'identifier'],
+  volume: ['volume', 'text'],
+  issue: ['issue', 'text'],
+  pageRange: ['page range', 'text'],
+  url: ['url', 'url'],
+  site: ['site', 'text'],
+  description: ['description', 'text'],
+  cover: ['cover', 'text'],
+  siglum: ['siglum', 'text'],
+  started: ['started', 'date'],
+  finished: ['finished', 'date'],
 };
 const roles = ['author', 'editor', 'translator'] as const;
-const catalogueFields = new Set([...Object.values(fields).map(([name]) => name.toLowerCase()), ...roles, 'collections']);
+const catalogueFields = new Set([
+  ...Object.values(fields).map(([name]) => name.toLowerCase()),
+  ...roles,
+  'collections',
+]);
 /** Fields owned by the source header and catalogue card, not the ordinary outline. */
 export const isCatalogueField = (name: string): boolean => catalogueFields.has(name.trim().toLowerCase());
 const writes = new WeakMap<NotebookClient, Promise<unknown>>();
-interface FieldPreparation { pageId: string; definitions: FieldDefinition[] }
+interface FieldPreparation {
+  pageId: string;
+  definitions: FieldDefinition[];
+}
 
 /** Definition/reference creation and metadata commits share a queue, so concurrent fields cannot create duplicate definitions. */
 function prepareWrite<T>(notebook: NotebookClient, work: () => Promise<T>): Promise<T> {
   const pending = (writes.get(notebook) ?? Promise.resolve()).then(work, work);
-  writes.set(notebook, pending.catch(() => undefined));
+  writes.set(
+    notebook,
+    pending.catch(() => undefined),
+  );
   return pending;
 }
 
@@ -57,38 +143,70 @@ export function sourceEntries(doc: PageDocument, definitions: readonly FieldDefi
     const block = doc.block(id);
     if (!block || block.archived) continue;
     const name = sourceFieldName(block.text, byId)?.toLowerCase();
-    if (name) entries.set(name, [...entries.get(name) ?? [], id]);
+    if (name) entries.set(name, [...(entries.get(name) ?? []), id]);
   }
   return entries;
 }
 
-export function sourceFieldValue(doc: PageDocument, notebook: NotebookClient, definitions: readonly FieldDefinition[], field: SourceField): SourceFieldValue {
+export function sourceFieldValue(
+  doc: PageDocument,
+  notebook: NotebookClient,
+  definitions: readonly FieldDefinition[],
+  field: SourceField,
+): SourceFieldValue {
   if (field === 'title') return displayTitle(doc.root()?.text ?? '', id => notebook.lookup(id));
   if (field === 'citationKey') return doc.root()?.source?.citation_key ?? '';
   if (field === 'state') return doc.root()?.source?.state ?? '';
   if (field === 'tags') return [...(doc.root()?.manual_types ?? [])];
   const entries = sourceEntries(doc, definitions);
-  const values = (name: string) => (entries.get(name.toLowerCase()) ?? []).flatMap(id => doc.outline.children(id)).flatMap(id => {
-    const block = doc.block(id);
-    return block && !block.archived && block.text.trim() ? [block.text] : [];
-  });
-  if (field === 'creators') return roles.flatMap(role => values(role).map(text => {
-    const reference = referenceValue(text);
-    return { id: reference.id, name: reference.id ? valueLabel(text, id => notebook.lookup(id)) : reference.name, role,
-      ...!reference.id && reference.name !== text.trim() ? { create_page: true } : {} };
-  }));
+  const values = (name: string) =>
+    (entries.get(name.toLowerCase()) ?? [])
+      .flatMap(id => doc.outline.children(id))
+      .flatMap(id => {
+        const block = doc.block(id);
+        return block && !block.archived && block.text.trim() ? [block.text] : [];
+      });
+  if (field === 'creators')
+    return roles.flatMap(role =>
+      values(role).map(text => {
+        const reference = referenceValue(text);
+        return {
+          id: reference.id,
+          name: reference.id ? valueLabel(text, id => notebook.lookup(id)) : reference.name,
+          role,
+          ...(!reference.id && reference.name !== text.trim() ? { create_page: true } : {}),
+        };
+      }),
+    );
   const found = values(fields[field][0]).map(text => valueLabel(text, id => notebook.lookup(id)));
-  return field === 'identifiers' ? found : found[0] ?? '';
+  return field === 'identifiers' ? found : (found[0] ?? '');
 }
 
-export function sourceMetadata(doc: PageDocument, notebook: NotebookClient, definitions: readonly FieldDefinition[]): ExtractedMetadata {
+export function sourceMetadata(
+  doc: PageDocument,
+  notebook: NotebookClient,
+  definitions: readonly FieldDefinition[],
+): ExtractedMetadata {
   const text = (field: SourceField) => sourceFieldValue(doc, notebook, definitions, field) as string;
-  return { ...emptyMetadata(), title: text('title'), subtitle: text('subtitle') || null,
-    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(({ id, name, role, create_page }) => ({ name, role, create_page: create_page ?? id !== null })),
-    published: text('published') || null, publisher: text('publisher') || null, language: text('language') || null,
-    identifiers: sourceFieldValue(doc, notebook, definitions, 'identifiers') as string[], cover: text('cover') || null,
-    volume: text('volume') || null, issue: text('issue') || null, page_range: text('pageRange') || null,
-    url: text('url') || null, site: text('site') || null, description: text('description') || null };
+  return {
+    ...emptyMetadata(),
+    title: text('title'),
+    subtitle: text('subtitle') || null,
+    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(
+      ({ id, name, role, create_page }) => ({ name, role, create_page: create_page ?? id !== null }),
+    ),
+    published: text('published') || null,
+    publisher: text('publisher') || null,
+    language: text('language') || null,
+    identifiers: sourceFieldValue(doc, notebook, definitions, 'identifiers') as string[],
+    cover: text('cover') || null,
+    volume: text('volume') || null,
+    issue: text('issue') || null,
+    page_range: text('pageRange') || null,
+    url: text('url') || null,
+    site: text('site') || null,
+    description: text('description') || null,
+  };
 }
 
 const nameTokens = (name: string) => foldName(name).split(' ').filter(Boolean);
@@ -113,47 +231,78 @@ export function similarPages(name: string, pages: readonly Block[], limit = 3): 
     }
     return whole;
   };
-  return pages.filter(page => {
-    if (page.kind !== 'page' || page.archived || titleKey(page.text.trim()) === key) return false;
-    const tokens = nameTokens(page.text);
-    if (!tokens.length || Math.abs(tokens.length - query.length) > 1) return false;
-    return query.length <= tokens.length ? matches(query, tokens) : matches(tokens, query);
-  }).slice(0, limit);
+  return pages
+    .filter(page => {
+      if (page.kind !== 'page' || page.archived || titleKey(page.text.trim()) === key) return false;
+      const tokens = nameTokens(page.text);
+      if (!tokens.length || Math.abs(tokens.length - query.length) > 1) return false;
+      return query.length <= tokens.length ? matches(query, tokens) : matches(tokens, query);
+    })
+    .slice(0, limit);
 }
 
 export function validateSourceValue(field: SourceField, value: SourceFieldValue): SourceFieldValue {
   if (field === 'creators') {
-    if (!Array.isArray(value) || value.some(item => typeof item !== 'object' || !roles.includes(item.role) || !item.name.trim())) throw new Error('Each creator needs a name and role.');
+    if (
+      !Array.isArray(value) ||
+      value.some(item => typeof item !== 'object' || !roles.includes(item.role) || !item.name.trim())
+    )
+      throw new Error('Each creator needs a name and role.');
     return (value as SourceCreator[]).map(item => ({ ...item, name: item.name.trim() }));
   }
   if (field === 'identifiers' || field === 'tags') {
-    if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) throw new Error('Enter a list of values.');
+    if (!Array.isArray(value) || value.some(item => typeof item !== 'string'))
+      throw new Error('Enter a list of values.');
     const values = (value as string[]).map(item => item.trim()).filter(Boolean);
-    if (field === 'tags' && values.some(item => /[\[\]\r\n]/.test(item))) throw new Error('Tag names cannot contain brackets or line breaks.');
-    return values.filter((item, index) => values.findIndex(other => other.toLowerCase() === item.toLowerCase()) === index);
+    if (field === 'tags' && values.some(item => /[\[\]\r\n]/.test(item)))
+      throw new Error('Tag names cannot contain brackets or line breaks.');
+    return values.filter(
+      (item, index) => values.findIndex(other => other.toLowerCase() === item.toLowerCase()) === index,
+    );
   }
   if (typeof value !== 'string') throw new Error('Enter one value.');
   const text = value.trim();
   if (field === 'title' && !text) throw new Error('A title is required.');
   if (['firstPublished', 'published', 'started', 'finished'].includes(field) && text) {
     const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(text);
-    const year = Number(match?.[1]), month = Number(match?.[2] ?? 1), day = Number(match?.[3] ?? 1);
+    const year = Number(match?.[1]),
+      month = Number(match?.[2] ?? 1),
+      day = Number(match?.[3] ?? 1);
     const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    if (!match || year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1]!) throw new Error('Use YYYY, YYYY-MM or YYYY-MM-DD.');
+    if (!match || year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1]!)
+      throw new Error('Use YYYY, YYYY-MM or YYYY-MM-DD.');
   }
   if (field === 'pages' && text) {
     const count = Number(text);
-    if (!/^\d+$/.test(text) || !Number.isSafeInteger(count) || count < 1) throw new Error('Pages must be a positive whole number.');
+    if (!/^\d+$/.test(text) || !Number.isSafeInteger(count) || count < 1)
+      throw new Error('Pages must be a positive whole number.');
   }
-  if (field === 'number' && text && (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text) || !Number.isFinite(Number(text)))) throw new Error('Enter a finite number.');
-  if (field === 'siglum' && text && !/^[A-Za-z]{1,4}$/.test(text)) throw new Error('Use one to four letters, or leave blank to derive the siglum.');
-  if (field === 'citationKey' && text && !/^[A-Za-z][A-Za-z0-9_:-]{0,63}$/.test(text)) throw new Error('Citation keys must start with a letter and contain at most 64 letters, digits, underscores, colons or hyphens.');
-  if (field === 'state' && !['inbox', 'reading', 'finished', 'abandoned'].includes(text)) throw new Error('Choose a reading state.');
+  if (
+    field === 'number' &&
+    text &&
+    (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text) || !Number.isFinite(Number(text)))
+  )
+    throw new Error('Enter a finite number.');
+  if (field === 'siglum' && text && !/^[A-Za-z]{1,4}$/.test(text))
+    throw new Error('Use one to four letters, or leave blank to derive the siglum.');
+  if (field === 'citationKey' && text && !/^[A-Za-z][A-Za-z0-9_:-]{0,63}$/.test(text))
+    throw new Error(
+      'Citation keys must start with a letter and contain at most 64 letters, digits, underscores, colons or hyphens.',
+    );
+  if (field === 'state' && !['inbox', 'reading', 'finished', 'abandoned'].includes(text))
+    throw new Error('Choose a reading state.');
   return text;
 }
 
-async function prepareField(notebook: NotebookClient, context: FieldPreparation, label: string, kind: FieldKind, values: string[], creators?: readonly ExtractedCreator[]): Promise<{ id: string; values: string[] } | undefined> {
+async function prepareField(
+  notebook: NotebookClient,
+  context: FieldPreparation,
+  label: string,
+  kind: FieldKind,
+  values: string[],
+  creators?: readonly ExtractedCreator[],
+): Promise<{ id: string; values: string[] } | undefined> {
   let definition = context.definitions.find(field => field.name.toLowerCase() === label.toLowerCase());
   if (!definition && !values.length) return undefined;
   if (!definition) {
@@ -163,43 +312,62 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
       const doc = notebook.open(context.pageId);
       try {
         await documentReady(doc);
-        const targets = await Promise.all(['Person', 'Group'].map(async title => (await notebook.pageByTitle(title, true))!));
+        const targets = await Promise.all(
+          ['Person', 'Group'].map(async title => (await notebook.pageByTitle(title, true))!),
+        );
         const targeted = doc.edit({ kind: 'fieldTargets', definition, targets });
         if (!targeted.ok) throw new Error(targeted.reason);
         await doc.flush();
         definition = { ...definition, targets, revision: definition.revision + 1 };
-      } finally { doc.release(); }
+      } finally {
+        doc.release();
+      }
     }
     context.definitions.push(definition);
   }
   if (kind === 'instance' || definition.kind === 'instance') {
     // A creator page made a moment ago may still be on its way; the kind checks below read the service.
     await notebook.flush();
-    values = await Promise.all(values.map(async (value, index) => {
-      if (creators?.[index]?.create_page === false) return value;
-      const entityType = creators?.[index]?.kind === 'organisation' ? 'Group' : 'Person';
-      const reference = referenceValue(value);
-      const name = reference.name.includes(',') ? reference.name.split(',').reverse().map(part => part.trim()).join(' ') : reference.name;
-      let id = reference.id;
-      if (!id) {
-        const matches = await resolveName(notebook, name);
-        const eligible = (await Promise.all(matches.map(async match => {
-          const kinds = await notebook.api.noteKinds(match.page.id);
-          return kinds.some(kind => ['person', 'group', 'unfiled'].includes(kind.key)) ? match.page.id : null;
-        }))).filter((id): id is string => id !== null);
-        if (eligible.length > 1) return `[[${name}]]`;
-        id = eligible[0] ?? null;
-      }
-      if (!id) id = (await createInstance(notebook, name, entityType)).id;
-      else {
-        const kinds = await notebook.api.noteKinds(id);
-        if (!kinds.some(kind => kind.key !== 'unfiled')) {
-          const page = await notebook.api.block(id);
-          await notebook.commit([{ op: 'add_type', id, base_revision: page.revision, title: entityType }], 'File creator');
+    values = await Promise.all(
+      values.map(async (value, index) => {
+        if (creators?.[index]?.create_page === false) return value;
+        const entityType = creators?.[index]?.kind === 'organisation' ? 'Group' : 'Person';
+        const reference = referenceValue(value);
+        const name = reference.name.includes(',')
+          ? reference.name
+              .split(',')
+              .reverse()
+              .map(part => part.trim())
+              .join(' ')
+          : reference.name;
+        let id = reference.id;
+        if (!id) {
+          const matches = await resolveName(notebook, name);
+          const eligible = (
+            await Promise.all(
+              matches.map(async match => {
+                const kinds = await notebook.api.noteKinds(match.page.id);
+                return kinds.some(kind => ['person', 'group', 'unfiled'].includes(kind.key)) ? match.page.id : null;
+              }),
+            )
+          ).filter((id): id is string => id !== null);
+          if (eligible.length > 1) return `[[${name}]]`;
+          id = eligible[0] ?? null;
         }
-      }
-      return `[[${id}]]`;
-    }));
+        if (!id) id = (await createInstance(notebook, name, entityType)).id;
+        else {
+          const kinds = await notebook.api.noteKinds(id);
+          if (!kinds.some(kind => kind.key !== 'unfiled')) {
+            const page = await notebook.api.block(id);
+            await notebook.commit(
+              [{ op: 'add_type', id, base_revision: page.revision, title: entityType }],
+              'File creator',
+            );
+          }
+        }
+        return `[[${id}]]`;
+      }),
+    );
   } else if (definition.kind === 'choice') {
     const field = definition;
     values = await Promise.all(values.map(async value => `[[${await addFieldOption(notebook, field, value)}]]`));
@@ -211,28 +379,68 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
 function storedTitle(doc: PageDocument, notebook: NotebookClient, name: string): string {
   const text = doc.root()?.text ?? '';
   if (name === displayTitle(text, id => notebook.lookup(id))) return text;
-  return [name, ...textTokens(text).filter(token => token.kind === 'tag').map(token => text.slice(token.start, token.end))].join(' ');
+  return [
+    name,
+    ...textTokens(text)
+      .filter(token => token.kind === 'tag')
+      .map(token => text.slice(token.start, token.end)),
+  ].join(' ');
 }
 
-async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, context: FieldPreparation, field: SourceField, value: SourceFieldValue): Promise<SourceDetailsEdit> {
+async function prepareSourceField(
+  doc: PageDocument,
+  notebook: NotebookClient,
+  context: FieldPreparation,
+  field: SourceField,
+  value: SourceFieldValue,
+): Promise<SourceDetailsEdit> {
   const edit: SourceDetailsEdit = { kind: 'sourceDetails', fields: [] };
   if (field === 'title') edit.title = storedTitle(doc, notebook, value as string);
   else if (field === 'tags') edit.tags = value as string[];
   else if (field === 'state' || field === 'citationKey') {
     const source = sourceState(doc.root()?.source);
     if (!source) throw new Error('This atom is no longer a source.');
-    edit.source = { ...source, ...(field === 'state' ? { state: value as ReadingState } : { citation_key: (value as string) || null }) };
+    edit.source = {
+      ...source,
+      ...(field === 'state' ? { state: value as ReadingState } : { citation_key: (value as string) || null }),
+    };
   } else {
     const entries = sourceEntries(doc, context.definitions);
-    const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(creator => !creator.id && !creator.create_page);
-    const pending = field === 'creators'
-      ? roles.map(role => ({ label: role as string, kind: 'instance' as const,
-        values: (value as SourceCreator[]).filter(creator => creator.role === role).map(creator => creator.id ? `[[${creator.id}]]` : creator.name) }))
-      : [{ label: fields[field][0], kind: fields[field][1], values: field === 'identifiers' ? value as string[] : value || ['url', 'site', 'description', 'cover'].includes(field) ? [value as string] : [] }];
+    const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(
+      creator => !creator.id && !creator.create_page,
+    );
+    const pending =
+      field === 'creators'
+        ? roles.map(role => ({
+            label: role as string,
+            kind: 'instance' as const,
+            values: (value as SourceCreator[])
+              .filter(creator => creator.role === role)
+              .map(creator => (creator.id ? `[[${creator.id}]]` : creator.name)),
+          }))
+        : [
+            {
+              label: fields[field][0],
+              kind: fields[field][1],
+              values:
+                field === 'identifiers'
+                  ? (value as string[])
+                  : value || ['url', 'site', 'description', 'cover'].includes(field)
+                    ? [value as string]
+                    : [],
+            },
+          ];
     for (const { label, kind, values } of pending) {
-      const creators = field === 'creators' ? (value as SourceCreator[])
-        .filter(creator => creator.role.toLowerCase() === label.toLowerCase())
-        .map(creator => ({ name: creator.name, role: creator.role, create_page: creator.create_page ?? (!!creator.id || !plain.some(old => old.name === creator.name)) })) : undefined;
+      const creators =
+        field === 'creators'
+          ? (value as SourceCreator[])
+              .filter(creator => creator.role.toLowerCase() === label.toLowerCase())
+              .map(creator => ({
+                name: creator.name,
+                role: creator.role,
+                create_page: creator.create_page ?? (!!creator.id || !plain.some(old => old.name === creator.name)),
+              }))
+          : undefined;
       const prepared = await prepareField(notebook, context, label, kind, values, creators);
       if (prepared) edit.fields.push({ ...prepared, entries: entries.get(label.toLowerCase()) ?? [] });
     }
@@ -241,53 +449,107 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
 }
 
 /** One field, one acknowledged cross-page command, one exact undo step. */
-export async function saveSourceField(docs: readonly PageDocument[], notebook: NotebookClient, field: SourceField, value: SourceFieldValue): Promise<SourceFieldChange> {
+export async function saveSourceField(
+  docs: readonly PageDocument[],
+  notebook: NotebookClient,
+  field: SourceField,
+  value: SourceFieldValue,
+): Promise<SourceFieldChange> {
   let normalized = validateSourceValue(field, value);
   return prepareWrite(notebook, async () => {
-    await Promise.all(docs.map(async doc => { await documentReady(doc); await doc.flush(); }));
-    if (field === 'identifiers') normalized = (await notebook.api.normalizeMetadata({ ...emptyMetadata(), title: docs[0]?.root()?.text ?? 'Source', identifiers: normalized as string[] })).identifiers;
+    await Promise.all(
+      docs.map(async doc => {
+        await documentReady(doc);
+        await doc.flush();
+      }),
+    );
+    if (field === 'identifiers')
+      normalized = (
+        await notebook.api.normalizeMetadata({
+          ...emptyMetadata(),
+          title: docs[0]?.root()?.text ?? 'Source',
+          identifiers: normalized as string[],
+        })
+      ).identifiers;
     const definitions = await notebook.api.fields();
     const context: FieldPreparation = { pageId: definitions.page_id, definitions: [...definitions.fields] };
     const edits = [];
-    for (const doc of docs) edits.push({ pageId: doc.pageId, edit: await prepareSourceField(doc, notebook, context, field, normalized) });
+    for (const doc of docs)
+      edits.push({ pageId: doc.pageId, edit: await prepareSourceField(doc, notebook, context, field, normalized) });
     return notebook.editSourceDetails(edits);
   });
 }
 
 /** Shared preparation for manual details, cover replacement and fill-only-empty lookup. */
-async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, context: FieldPreparation, metadata: ExtractedMetadata, onlyMissing: boolean, coverOnly: boolean): Promise<{ edit: SourceDetailsEdit; count: number }> {
+async function prepareMetadata(
+  doc: PageDocument,
+  notebook: NotebookClient,
+  context: FieldPreparation,
+  metadata: ExtractedMetadata,
+  onlyMissing: boolean,
+  coverOnly: boolean,
+): Promise<{ edit: SourceDetailsEdit; count: number }> {
   const edit: SourceDetailsEdit = { kind: 'sourceDetails', fields: [] };
   const previous = sourceMetadata(doc, notebook, context.definitions);
   const entries = sourceEntries(doc, context.definitions);
-  const labels = coverOnly ? ['cover'] as const : ['subtitle', 'published', 'publisher', 'volume', 'issue', 'pageRange', 'language', 'identifiers', 'url', 'site', 'description', ...(onlyMissing ? ['cover' as const] : [])] as const;
+  const labels = coverOnly
+    ? (['cover'] as const)
+    : ([
+        'subtitle',
+        'published',
+        'publisher',
+        'volume',
+        'issue',
+        'pageRange',
+        'language',
+        'identifiers',
+        'url',
+        'site',
+        'description',
+        ...(onlyMissing ? ['cover' as const] : []),
+      ] as const);
   for (const field of labels) {
     const key = field === 'pageRange' ? 'page_range' : field;
-    const value = validateSourceValue(field, field === 'identifiers' ? metadata.identifiers : metadata[key] ?? '');
-    const old = field === 'identifiers' ? previous.identifiers : previous[key] ?? '';
-    if (onlyMissing && old.length || JSON.stringify(old) === JSON.stringify(value)) continue;
+    const value = validateSourceValue(field, field === 'identifiers' ? metadata.identifiers : (metadata[key] ?? ''));
+    const old = field === 'identifiers' ? previous.identifiers : (previous[key] ?? '');
+    if ((onlyMissing && old.length) || JSON.stringify(old) === JSON.stringify(value)) continue;
     const prepared = await prepareSourceField(doc, notebook, context, field, value);
     edit.fields.push(...prepared.fields);
   }
-  if (!coverOnly) for (const role of roles) {
-    const creators = metadata.creators.filter(creator => creator.role === role && creator.name.trim());
-    const names = creators.map(creator => creator.name.trim());
-    const old = previous.creators.filter(creator => creator.role === role).map(creator => creator.name);
-    if (onlyMissing && old.length || JSON.stringify(old) === JSON.stringify(names)) continue;
-    const label = role[0]!.toUpperCase() + role.slice(1);
-    const prepared = await prepareField(notebook, context, label, 'instance', names, creators);
-    if (prepared) edit.fields.push({ ...prepared, entries: entries.get(role) ?? [] });
-  }
-  const title = onlyMissing || coverOnly ? undefined : validateSourceValue('title', metadata.title ?? '') as string;
+  if (!coverOnly)
+    for (const role of roles) {
+      const creators = metadata.creators.filter(creator => creator.role === role && creator.name.trim());
+      const names = creators.map(creator => creator.name.trim());
+      const old = previous.creators.filter(creator => creator.role === role).map(creator => creator.name);
+      if ((onlyMissing && old.length) || JSON.stringify(old) === JSON.stringify(names)) continue;
+      const label = role[0]!.toUpperCase() + role.slice(1);
+      const prepared = await prepareField(notebook, context, label, 'instance', names, creators);
+      if (prepared) edit.fields.push({ ...prepared, entries: entries.get(role) ?? [] });
+    }
+  const title = onlyMissing || coverOnly ? undefined : (validateSourceValue('title', metadata.title ?? '') as string);
   if (title !== undefined) edit.title = storedTitle(doc, notebook, title);
   return { edit, count: edit.fields.length + Number(title !== undefined && title !== previous.title) };
 }
 
 /** Preserve the manual editor's page-local history while sharing the inspector's write path. */
-export async function saveDetails(doc: PageDocument, notebook: NotebookClient, metadata: ExtractedMetadata, onlyMissing = false, coverOnly = false): Promise<number> {
+export async function saveDetails(
+  doc: PageDocument,
+  notebook: NotebookClient,
+  metadata: ExtractedMetadata,
+  onlyMissing = false,
+  coverOnly = false,
+): Promise<number> {
   return prepareWrite(notebook, async () => {
     const normalized = coverOnly ? metadata : await notebook.api.normalizeMetadata(metadata);
     const definitions = await notebook.api.fields();
-    const prepared = await prepareMetadata(doc, notebook, { pageId: definitions.page_id, definitions: [...definitions.fields] }, normalized, onlyMissing, coverOnly);
+    const prepared = await prepareMetadata(
+      doc,
+      notebook,
+      { pageId: definitions.page_id, definitions: [...definitions.fields] },
+      normalized,
+      onlyMissing,
+      coverOnly,
+    );
     const result = doc.edit(prepared.edit);
     if (!result.ok) throw new Error(result.reason);
     await doc.flush();
@@ -296,9 +558,17 @@ export async function saveDetails(doc: PageDocument, notebook: NotebookClient, m
 }
 
 /** Lookups prepare separately; every filled source field commits and undoes together. */
-export async function fillMissingSourceDetails(docs: readonly PageDocument[], notebook: NotebookClient): Promise<SourceFieldChange> {
+export async function fillMissingSourceDetails(
+  docs: readonly PageDocument[],
+  notebook: NotebookClient,
+): Promise<SourceFieldChange> {
   return prepareWrite(notebook, async () => {
-    await Promise.all(docs.map(async doc => { await documentReady(doc); await doc.flush(); }));
+    await Promise.all(
+      docs.map(async doc => {
+        await documentReady(doc);
+        await doc.flush();
+      }),
+    );
     const definitions = await notebook.api.fields();
     const context: FieldPreparation = { pageId: definitions.page_id, definitions: [...definitions.fields] };
     const edits = [];

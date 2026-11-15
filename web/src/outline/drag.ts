@@ -12,7 +12,15 @@ export interface OutlineDrop {
 }
 
 /** Resolve a pointer's depth and row edge without crossing the zoom or moved subtrees. */
-export function outlineDrop(outline: OutlineReader, pageId: string, ids: readonly string[], targetId: string, depth: number, before: boolean, zoomRoot: string | null = null): OutlineDrop | null {
+export function outlineDrop(
+  outline: OutlineReader,
+  pageId: string,
+  ids: readonly string[],
+  targetId: string,
+  depth: number,
+  before: boolean,
+  zoomRoot: string | null = null,
+): OutlineDrop | null {
   const target = outline.indexOf(targetId);
   if (!ids.length || target < 0) return null;
   const zoomStart = zoomRoot ? outline.indexOf(zoomRoot) : -1;
@@ -36,14 +44,17 @@ export function outlineDrop(outline: OutlineReader, pageId: string, ids: readonl
   while (outline.depth(anchorId) > depth) anchorId = outline.parentOf(anchorId);
   if (moved(anchorId)) return null;
   const parentId = outline.parentOf(anchorId);
-  if (moved(parentId) || parentId !== pageId && outline.indexOf(parentId) < 0) return null;
+  if (moved(parentId) || (parentId !== pageId && outline.indexOf(parentId) < 0)) return null;
   const siblings = outline.children(parentId);
   let index = siblings.indexOf(anchorId) - (before ? 1 : 0);
   while (index >= 0 && moved(siblings[index]!)) index--;
   return { parentId, after: siblings[index] ?? null, depth, anchorId, edge: before ? 'before' : 'after' };
 }
 
-export interface OutlineDropIndicator extends OutlineDrop { top: number; left: number }
+export interface OutlineDropIndicator extends OutlineDrop {
+  top: number;
+  left: number;
+}
 export interface OutlineDrag {
   start(event: PointerEvent, id: string): void;
   dragging: Accessor<boolean>;
@@ -63,11 +74,27 @@ interface Gesture {
 }
 
 /** Pointer events also work in WKWebView, unlike native HTML drag and drop. */
-export function createOutlineDrag(context: Pick<OutlineContext,
-  | 'doc' | 'scroll' | 'zoom' | 'baseDepth' | 'selectedSet' | 'coveredSet'
-  | 'roots' | 'rowFocus' | 'editing' | 'composition' | 'setMenu' | 'setFolds' | 'apply'
-  | 'ids' | 'virtualizer' | 'margin'
->): OutlineDrag {
+export function createOutlineDrag(
+  context: Pick<
+    OutlineContext,
+    | 'doc'
+    | 'scroll'
+    | 'zoom'
+    | 'baseDepth'
+    | 'selectedSet'
+    | 'coveredSet'
+    | 'roots'
+    | 'rowFocus'
+    | 'editing'
+    | 'composition'
+    | 'setMenu'
+    | 'setFolds'
+    | 'apply'
+    | 'ids'
+    | 'virtualizer'
+    | 'margin'
+  >,
+): OutlineDrag {
   const [dragging, setDragging] = createSignal(false);
   const [indicator, setIndicator] = createSignal<OutlineDropIndicator | null>(null);
   let gesture: Gesture | null = null;
@@ -80,10 +107,16 @@ export function createOutlineDrag(context: Pick<OutlineContext,
 
   function update() {
     const state = gesture;
-    if (!state || !state.dragging || state.cancelled || context.zoom() !== state.zoomRoot) { setIndicator(null); return; }
+    if (!state || !state.dragging || state.cancelled || context.zoom() !== state.zoomRoot) {
+      setIndicator(null);
+      return;
+    }
     const scroll = context.scroll;
     const viewport = scroll.getBoundingClientRect();
-    if (state.x < viewport.left || state.x > viewport.right || state.y < viewport.top || state.y > viewport.bottom) { setIndicator(null); return; }
+    if (state.x < viewport.left || state.x > viewport.right || state.y < viewport.top || state.y > viewport.bottom) {
+      setIndicator(null);
+      return;
+    }
     const rows = Array.from(scroll.querySelectorAll<HTMLElement>('.outline-row[data-block-id]'));
     let target: HTMLElement | null = null;
     let distance = Infinity;
@@ -91,19 +124,36 @@ export function createOutlineDrag(context: Pick<OutlineContext,
       const rect = row.getBoundingClientRect();
       if (rect.bottom < viewport.top || rect.top > viewport.bottom) continue;
       const next = Math.max(rect.top - state.y, state.y - rect.bottom, 0);
-      if (next < distance) { target = row; distance = next; }
+      if (next < distance) {
+        target = row;
+        distance = next;
+      }
     }
     const list = target?.closest<HTMLElement>('.outline-list');
     const body = target?.querySelector<HTMLElement>('.outline-body');
-    if (!target || !list || !body) { setIndicator(null); return; }
+    if (!target || !list || !body) {
+      setIndicator(null);
+      return;
+    }
     const targetId = target.dataset.blockId!;
     const targetDepth = context.doc.outline.depth(targetId);
     const indent = Number.parseFloat(getComputedStyle(target).getPropertyValue('--indent-width'));
     const bodyLeft = body.getBoundingClientRect().left;
     const depth = targetDepth + Math.round((state.x - bodyLeft) / indent);
     const rect = target.getBoundingClientRect();
-    const destination = outlineDrop(context.doc.outline, context.doc.pageId, state.ids, targetId, depth, state.y < rect.top + rect.height / 2, state.zoomRoot);
-    if (!destination) { setIndicator(null); return; }
+    const destination = outlineDrop(
+      context.doc.outline,
+      context.doc.pageId,
+      state.ids,
+      targetId,
+      depth,
+      state.y < rect.top + rect.height / 2,
+      state.zoomRoot,
+    );
+    if (!destination) {
+      setIndicator(null);
+      return;
+    }
     const visible = context.ids();
     if (visible !== visibleIds) {
       visibleIds = visible;
@@ -119,11 +169,19 @@ export function createOutlineDrag(context: Pick<OutlineContext,
       }
     }
     const bounds = visibleBounds.get(destination.anchorId);
-    const item = bounds ? context.virtualizer.measurementsCache[destination.edge === 'after' ? bounds.last : bounds.first] : undefined;
-    if (!item) { setIndicator(null); return; }
+    const item = bounds
+      ? context.virtualizer.measurementsCache[destination.edge === 'after' ? bounds.last : bounds.first]
+      : undefined;
+    if (!item) {
+      setIndicator(null);
+      return;
+    }
     const listRect = list.getBoundingClientRect();
-    setIndicator({ ...destination, top: (destination.edge === 'before' ? item.start : item.end) - context.margin(),
-      left: bodyLeft - listRect.left + (destination.depth - targetDepth) * indent });
+    setIndicator({
+      ...destination,
+      top: (destination.edge === 'before' ? item.start : item.end) - context.margin(),
+      left: bodyLeft - listRect.left + (destination.depth - targetDepth) * indent,
+    });
   }
 
   function tick(time: number) {
@@ -135,9 +193,13 @@ export function createOutlineDrag(context: Pick<OutlineContext,
     previousFrame = time;
     if (state.x >= rect.left && state.x <= rect.right) {
       const edge = Math.min(48, rect.height / 4);
-      const speed = state.y < rect.top + edge ? -Math.min(1, (rect.top + edge - state.y) / edge)
-        : state.y > rect.bottom - edge ? Math.min(1, (state.y - rect.bottom + edge) / edge) : 0;
-      if (speed) scroll.scrollTop += speed * elapsed * .75;
+      const speed =
+        state.y < rect.top + edge
+          ? -Math.min(1, (rect.top + edge - state.y) / edge)
+          : state.y > rect.bottom - edge
+            ? Math.min(1, (state.y - rect.bottom + edge) / edge)
+            : 0;
+      if (speed) scroll.scrollTop += speed * elapsed * 0.75;
     }
     update();
     frame = requestAnimationFrame(tick);
@@ -146,7 +208,8 @@ export function createOutlineDrag(context: Pick<OutlineContext,
   function stop() {
     cancelAnimationFrame(frame);
     previousFrame = 0;
-    if (gesture && context.scroll.hasPointerCapture(gesture.pointerId)) context.scroll.releasePointerCapture(gesture.pointerId);
+    if (gesture && context.scroll.hasPointerCapture(gesture.pointerId))
+      context.scroll.releasePointerCapture(gesture.pointerId);
     gesture = null;
     setDragging(false);
     setIndicator(null);
@@ -167,7 +230,8 @@ export function createOutlineDrag(context: Pick<OutlineContext,
       state.dragging = true;
       context.scroll.setPointerCapture(state.pointerId);
       context.setMenu(null);
-      if (context.editing() || !context.selectedSet().has(state.id) && !context.coveredSet().has(state.id)) context.rowFocus(state.id);
+      if (context.editing() || (!context.selectedSet().has(state.id) && !context.coveredSet().has(state.id)))
+        context.rowFocus(state.id);
       context.scroll.focus({ preventScroll: true });
       setDragging(true);
       frame = requestAnimationFrame(tick);
@@ -185,14 +249,24 @@ export function createOutlineDrag(context: Pick<OutlineContext,
       event.stopPropagation();
       suppressClick = true;
       clearTimeout(clickTimer);
-      clickTimer = window.setTimeout(() => { suppressClick = false; }, 0);
+      clickTimer = window.setTimeout(() => {
+        suppressClick = false;
+      }, 0);
       state.x = event.clientX;
       state.y = event.clientY;
       update();
       const destination = indicator();
       if (!state.cancelled && destination) {
-        const result = context.apply({ kind: 'moveTo', ids: state.ids, parentId: destination.parentId, after: destination.after }, false);
-        if (result?.ok && destination.edge === 'child') context.setFolds(previous => { const next = new Set(previous); next.delete(destination.parentId); return next; });
+        const result = context.apply(
+          { kind: 'moveTo', ids: state.ids, parentId: destination.parentId, after: destination.after },
+          false,
+        );
+        if (result?.ok && destination.edge === 'child')
+          context.setFolds(previous => {
+            const next = new Set(previous);
+            next.delete(destination.parentId);
+            return next;
+          });
       }
     }
     stop();
@@ -227,8 +301,18 @@ export function createOutlineDrag(context: Pick<OutlineContext,
     const zoomRoot = context.zoom();
     const minimum = context.baseDepth();
     if (!ids.length || ids.some(id => context.doc.outline.depth(id) < minimum || id === zoomRoot)) return;
-    gesture = { pointerId: event.pointerId, id, ids, zoomRoot, startX: event.clientX, startY: event.clientY,
-      x: event.clientX, y: event.clientY, dragging: false, cancelled: false };
+    gesture = {
+      pointerId: event.pointerId,
+      id,
+      ids,
+      zoomRoot,
+      startX: event.clientX,
+      startY: event.clientY,
+      x: event.clientX,
+      y: event.clientY,
+      dragging: false,
+      cancelled: false,
+    };
     window.addEventListener('pointermove', move, { capture: true, passive: false });
     window.addEventListener('pointerup', end, true);
     window.addEventListener('pointercancel', cancel, true);
@@ -237,6 +321,10 @@ export function createOutlineDrag(context: Pick<OutlineContext,
   }
 
   onMount(() => window.addEventListener('click', click, true));
-  onCleanup(() => { stop(); clearTimeout(clickTimer); window.removeEventListener('click', click, true); });
+  onCleanup(() => {
+    stop();
+    clearTimeout(clickTimer);
+    window.removeEventListener('click', click, true);
+  });
   return { start, dragging, indicator };
 }

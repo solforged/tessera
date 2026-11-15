@@ -4,23 +4,67 @@ import type { Block, Committed, Operation, PageView, RejectedChange } from '../a
 import type { NotebookClient } from '../document/contract';
 import { settleRejection } from './rejections';
 
-const change: RejectedChange = { id: 'rejection', change_id: 'change', origin: 'fold', origin_name: 'Fold', mine: true, error: 'The block was deleted', created_at: 1000, page_id: 'page', page_title: 'Notes', texts: ['First words', 'Second words'] };
-const block = (id: string, parent: string | null): Block => ({ id, parent_id: parent, page_id: 'page', kind: parent ? 'block' : 'page', text: '', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 });
+const change: RejectedChange = {
+  id: 'rejection',
+  change_id: 'change',
+  origin: 'fold',
+  origin_name: 'Fold',
+  mine: true,
+  error: 'The block was deleted',
+  created_at: 1000,
+  page_id: 'page',
+  page_title: 'Notes',
+  texts: ['First words', 'Second words'],
+};
+const block = (id: string, parent: string | null): Block => ({
+  id,
+  parent_id: parent,
+  page_id: 'page',
+  kind: parent ? 'block' : 'page',
+  text: '',
+  heading: null,
+  archived: false,
+  revision: 1,
+  created_at: 0,
+  updated_at: 0,
+});
 function notebook(page: PageView | null) {
   const calls: Operation[][] = [];
   const client = {
-    roots: () => [], todayDate: () => '2026-10-12',
-    api: { page: async () => page!, journal: async () => { throw new ApiError('No journal', 404, 'not_found'); } },
+    roots: () => [],
+    todayDate: () => '2026-10-12',
+    api: {
+      page: async () => page!,
+      journal: async () => {
+        throw new ApiError('No journal', 404, 'not_found');
+      },
+    },
     commit: async (operations: readonly Operation[]): Promise<Committed> => {
       calls.push([...operations]);
-      return { seq: calls.length, revisions: operations.flatMap(operation => operation.op === 'insert' || operation.op === 'create_journal' ? [{ id: operation.id, revision: 1 }] : []), settings: [], deletions: [], replayed: false, text_rewrites: [] };
+      return {
+        seq: calls.length,
+        revisions: operations.flatMap(operation =>
+          operation.op === 'insert' || operation.op === 'create_journal' ? [{ id: operation.id, revision: 1 }] : [],
+        ),
+        settings: [],
+        deletions: [],
+        replayed: false,
+        text_rewrites: [],
+      };
     },
   } as unknown as NotebookClient;
   return { client, calls };
 }
 
 test('recovering appends words after the last top-level block and settles in the same undoable batch', async () => {
-  const { client, calls } = notebook({ root: block('page', null), rows: [{ block: block('last', 'page'), depth: 0, manual_types: [] }, { block: block('child', 'last'), depth: 1, manual_types: [] }], targets: [] });
+  const { client, calls } = notebook({
+    root: block('page', null),
+    rows: [
+      { block: block('last', 'page'), depth: 0, manual_types: [] },
+      { block: block('child', 'last'), depth: 1, manual_types: [] },
+    ],
+    targets: [],
+  });
   const receipt = await settleRejection(client, change, true);
   expect(calls).toHaveLength(1);
   expect(calls[0]![0]).toMatchObject({ op: 'insert', parent_id: 'page', after: 'last', text: 'First words' });

@@ -19,14 +19,40 @@ function hueOf(title: string) {
 export function SourceCover(props: { row: LibraryRow; siglum: string; title?: string }) {
   const surname = () => sourceByline(props.row).split(' · ')[0]!.trim().split(/\s+/).pop() ?? '';
   const title = () => props.title ?? displayTitle(props.row.page.text);
-  return <span class="library-cover" classList={{ 'library-cover-generated': !props.row.cover && isPhone() }} data-source-cover={props.row.page.id} style={!props.row.cover && isPhone() ? { '--hue': hueOf(title()) } : undefined}>
-    <Show when={props.row.cover} fallback={<Show when={isPhone()} fallback={<span class="library-spine" aria-hidden="true">
-      <span class="library-spine-siglum">{props.siglum}</span>
-    </span>}>
-      <span class="library-cover-title" aria-hidden="true">{title()}</span>
-      <span class="library-cover-author" aria-hidden="true">{surname()}</span>
-    </Show>}>
-      <ResourceImage snapshotId={props.row.source.current_snapshot_id ?? ''} href={props.row.cover!} alt="" loading="lazy" />
-    </Show>
-  </span>;
+  return (
+    <span
+      class="library-cover"
+      classList={{ 'library-cover-generated': !props.row.cover && isPhone() }}
+      data-source-cover={props.row.page.id}
+      style={!props.row.cover && isPhone() ? { '--hue': hueOf(title()) } : undefined}
+    >
+      <Show
+        when={props.row.cover}
+        fallback={
+          <Show
+            when={isPhone()}
+            fallback={
+              <span class="library-spine" aria-hidden="true">
+                <span class="library-spine-siglum">{props.siglum}</span>
+              </span>
+            }
+          >
+            <span class="library-cover-title" aria-hidden="true">
+              {title()}
+            </span>
+            <span class="library-cover-author" aria-hidden="true">
+              {surname()}
+            </span>
+          </Show>
+        }
+      >
+        <ResourceImage
+          snapshotId={props.row.source.current_snapshot_id ?? ''}
+          href={props.row.cover!}
+          alt=""
+          loading="lazy"
+        />
+      </Show>
+    </span>
+  );
 }

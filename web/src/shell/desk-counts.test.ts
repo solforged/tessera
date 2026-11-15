@@ -2,11 +2,38 @@ import { expect, test } from 'bun:test';
 import type { AgendaItem, AgendaReason, Block, TaskState } from '../api/types';
 import { agendaDaySummary } from './desk-counts';
 
-const todo: TaskState = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
+const todo: TaskState = {
+  status: 'todo',
+  scheduled: null,
+  scheduled_time: null,
+  deadline: null,
+  deadline_time: null,
+  warning_days: null,
+  repeater: null,
+  priority: null,
+  completed_on: null,
+};
 
 function item(id: string, reasons: AgendaReason[], patch: Partial<TaskState> = {}): AgendaItem {
-  const page: Block = { id: 'page', page_id: 'page', parent_id: null, kind: 'page', text: 'Plan', heading: null, archived: false, revision: 1, created_at: 1, updated_at: 1 };
-  return { source: { page, block: { ...page, id, parent_id: page.id, kind: 'block', text: id } }, task: { ...todo, ...patch }, reasons, project_id: null, time: null };
+  const page: Block = {
+    id: 'page',
+    page_id: 'page',
+    parent_id: null,
+    kind: 'page',
+    text: 'Plan',
+    heading: null,
+    archived: false,
+    revision: 1,
+    created_at: 1,
+    updated_at: 1,
+  };
+  return {
+    source: { page, block: { ...page, id, parent_id: page.id, kind: 'block', text: id } },
+    task: { ...todo, ...patch },
+    reasons,
+    project_id: null,
+    time: null,
+  };
 }
 
 test('Today and the sidebar count current plans and overdue work separately, without future warnings', () => {

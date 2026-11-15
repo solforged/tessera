@@ -12,19 +12,27 @@ import { typeQuery } from '../table/query';
 export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): IconName {
   if (typeof kind === 'string') {
     switch (kind) {
-      case 'all': return 'contents';
-      case 'question': return 'question-open';
-      case 'unfiled': return 'page';
-      case 'project': return 'flag';
-      default: return 'tag';
+      case 'all':
+        return 'contents';
+      case 'question':
+        return 'question-open';
+      case 'unfiled':
+        return 'page';
+      case 'project':
+        return 'flag';
+      default:
+        return 'tag';
     }
   }
-  return kind.icon && Object.hasOwn(paths, kind.icon) ? kind.icon as IconName : 'tag';
+  return kind.icon && Object.hasOwn(paths, kind.icon) ? (kind.icon as IconName) : 'tag';
 }
 
 /** Whether a note's eyebrow already names the kind a title tag files it under: a canonical tag by its page, a legacy tag by name. */
-export function eyebrowNamesTag(kinds: readonly Pick<NoteKind, 'name' | 'type_id'>[] | undefined, tag: Pick<Token, 'id' | 'value'>): boolean {
-  return !!kinds?.some(kind => tag.id ? kind.type_id === tag.id : foldName(kind.name) === foldName(tag.value));
+export function eyebrowNamesTag(
+  kinds: readonly Pick<NoteKind, 'name' | 'type_id'>[] | undefined,
+  tag: Pick<Token, 'id' | 'value'>,
+): boolean {
+  return !!kinds?.some(kind => (tag.id ? kind.type_id === tag.id : foldName(kind.name) === foldName(tag.value)));
 }
 
 /** A kind whose only members are tagged non-page blocks; an empty built-in kind is not one. */
@@ -34,11 +42,21 @@ export function tagOnly(kind: IndexKind): kind is IndexKind & { type_id: string 
 
 /** A tag that only marks blocks keeps the spelling you wrote. An explicit plural still wins, and a kind with notes keeps its plural. */
 export function kindLabel(kind: IndexKind): string {
-  return kind.key.startsWith('type:') && tagOnly(kind) && kind.plural === autoPlural(kind.name) ? kind.name : kind.plural;
+  return kind.key.startsWith('type:') && tagOnly(kind) && kind.plural === autoPlural(kind.name)
+    ? kind.name
+    : kind.plural;
 }
 
 /** Built-in kinds that can start from their finding aid. Sources come from the Library instead. */
-export const startableKinds: Readonly<Record<string, 'type' | 'task' | 'question' | 'project'>> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', task: 'task', question: 'question', project: 'project' };
+export const startableKinds: Readonly<Record<string, 'type' | 'task' | 'question' | 'project'>> = {
+  person: 'type',
+  group: 'type',
+  concept: 'type',
+  thesis: 'type',
+  task: 'task',
+  question: 'question',
+  project: 'project',
+};
 
 /** Built-in kinds read as common nouns (`no people yet`); a type's own name keeps the capitals it was given. */
 export function kindPlural(kind: Pick<NoteKind, 'key' | 'plural'>): string {
@@ -53,8 +71,9 @@ export function kindTally(count: number, key: string): string {
 
 /** The noun after a count on a phone's eyebrow, where the figure is set apart in mono: `people`, `concept`, `tasks`. */
 export function censusNoun(count: number, key: string, kind?: Pick<NoteKind, 'key' | 'name' | 'plural'>): string {
-  if (!kind || ['task', 'question', 'source', 'project'].includes(key)) return kindTally(count, key).replace(/^\S+ /, '');
-  return count === 1 ? kind.key in startableKinds ? kind.name.toLocaleLowerCase() : kind.name : kindPlural(kind);
+  if (!kind || ['task', 'question', 'source', 'project'].includes(key))
+    return kindTally(count, key).replace(/^\S+ /, '');
+  return count === 1 ? (kind.key in startableKinds ? kind.name.toLocaleLowerCase() : kind.name) : kindPlural(kind);
 }
 
 /** A tag-only kind opens its useful member table rather than an empty note index. */
@@ -65,18 +84,36 @@ export function indexKindTarget(kind: IndexKind): OpenTarget {
 }
 
 /** The Index's finding-aid heads, in order; spreads follow under their own head. */
-export const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Atoms'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
+export const shelves: readonly (readonly [Shelf, string])[] = [
+  ['notes', 'Atoms'],
+  ['sources', 'Sources'],
+  ['work', 'Work'],
+  ['tags', 'Tags'],
+  ['loose', 'Loose'],
+];
 
 /** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale, except while the notebook is offline, when the last one stays. */
 export function noteIndex(notebook: NotebookClient): Accessor<NoteIndex | undefined> {
   const [index, setIndex] = createSignal<NoteIndex>();
   createEffect(() => {
-    notebook.changeSequence(); notebook.lastChange(); notebook.connection();
+    notebook.changeSequence();
+    notebook.lastChange();
+    notebook.connection();
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      notebook.api.noteIndex(controller.signal).then(value => { if (!controller.signal.aborted) setIndex(value); }, () => { if (!controller.signal.aborted && notebook.connection() !== 'offline') setIndex(undefined); });
+      notebook.api.noteIndex(controller.signal).then(
+        value => {
+          if (!controller.signal.aborted) setIndex(value);
+        },
+        () => {
+          if (!controller.signal.aborted && notebook.connection() !== 'offline') setIndex(undefined);
+        },
+      );
     }, 0);
-    onCleanup(() => { clearTimeout(timer); controller.abort(); });
+    onCleanup(() => {
+      clearTimeout(timer);
+      controller.abort();
+    });
   });
   return index;
 }

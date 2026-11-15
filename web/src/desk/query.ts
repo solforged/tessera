@@ -11,15 +11,30 @@ export const columnNames = ['Questions', 'Perspectives', 'Sources'] as const;
 
 export function deskQuery(question?: string): Query {
   return {
-    ...typeQuery(null), source: 'questions', layout: 'desk', group: { key: '@program' },
-    filters: [{ field: '@state', op: 'is_not', value: 'parked' }, { field: '@state', op: 'is_not', value: 'answered' }],
+    ...typeQuery(null),
+    source: 'questions',
+    layout: 'desk',
+    group: { key: '@program' },
+    filters: [
+      { field: '@state', op: 'is_not', value: 'parked' },
+      { field: '@state', op: 'is_not', value: 'answered' },
+    ],
     desk: {
-      positions: { ...typeQuery(null), source: 'positions', filters: question ? [{ field: '@question', op: 'is', value: question }] : [] },
+      positions: {
+        ...typeQuery(null),
+        source: 'positions',
+        filters: question ? [{ field: '@question', op: 'is', value: question }] : [],
+      },
       sources: { ...typeQuery(null), source: 'sources' },
     },
   };
 }
-export const deskTarget = (question?: string): Extract<OpenTarget, { kind: 'table' }> => ({ kind: 'table', typeId: null, viewId: null, query: deskQuery(question) });
+export const deskTarget = (question?: string): Extract<OpenTarget, { kind: 'table' }> => ({
+  kind: 'table',
+  typeId: null,
+  viewId: null,
+  query: deskQuery(question),
+});
 export function columnQuery(query: Query, column: DeskColumn): Query {
   if (column === 1) return query.desk?.positions ?? deskQuery().desk!.positions;
   if (column === 2) return query.desk?.sources ?? deskQuery().desk!.sources;
@@ -29,18 +44,27 @@ export function columnQuery(query: Query, column: DeskColumn): Query {
 export function updateColumn(query: Query, column: DeskColumn, value: Query): Query {
   const next = copyQuery(query);
   if (column === 0) return { ...copyQuery(value), layout: 'desk', desk: next.desk };
-  return { ...next, desk: { ...next.desk ?? deskQuery().desk!, [column === 1 ? 'positions' : 'sources']: copyQuery(value) } };
+  return {
+    ...next,
+    desk: { ...(next.desk ?? deskQuery().desk!), [column === 1 ? 'positions' : 'sources']: copyQuery(value) },
+  };
 }
 export function linkedQuery(query: Query, field: '@question' | '@cited_in', id: string | null): Query {
   const filters = query.filters.filter(filter => filter.field !== field);
   return { ...query, offset: 0, filters: id ? [{ field, op: 'is', value: id }, ...filters] : filters };
 }
 export function initialSelection(query: Query, stored?: DeskSelection): DeskSelection {
-  return stored ? { ...stored } : {
-    question: query.desk?.positions.filters.find(filter => filter.field === '@question' && filter.op === 'is')?.value ?? null,
-    position: query.desk?.sources.filters.find(filter => filter.field === '@cited_in' && filter.op === 'is')?.value ?? null,
-    source: null, column: 0,
-  };
+  return stored
+    ? { ...stored }
+    : {
+        question:
+          query.desk?.positions.filters.find(filter => filter.field === '@question' && filter.op === 'is')?.value ??
+          null,
+        position:
+          query.desk?.sources.filters.find(filter => filter.field === '@cited_in' && filter.op === 'is')?.value ?? null,
+        source: null,
+        column: 0,
+      };
 }
 export function rowTarget(row: QueryRow): OpenTarget {
   const block = row.block.block;
@@ -52,7 +76,12 @@ export function linkedQuestionName(id: string, notebook: NotebookClient): string
   return target ? targetLabel(target.text, value => notebook.lookup(value)) || 'Empty atom' : 'the selected question';
 }
 /** Restored filters render before query rows arrive; resolve their live references with the notebook receiver intact. */
-export function deskConditionLabel(condition: Filter, fields: FieldDefinition[], notebook: NotebookClient, positions: readonly QueryRow[]): string {
+export function deskConditionLabel(
+  condition: Filter,
+  fields: FieldDefinition[],
+  notebook: NotebookClient,
+  positions: readonly QueryRow[],
+): string {
   if (condition.field === '@cited_in' && condition.op === 'is') {
     const position = positions.find(row => row.block.block.id === condition.value);
     if (position) {
@@ -60,7 +89,8 @@ export function deskConditionLabel(condition: Filter, fields: FieldDefinition[],
       return `Cited in is ${holder || plainText(position.block.block.text, id => notebook.lookup(id))}`;
     }
   }
-  if (condition.field === '@question' && condition.op === 'is' && condition.value) return `Question is ${linkedQuestionName(condition.value, notebook)}`;
+  if (condition.field === '@question' && condition.op === 'is' && condition.value)
+    return `Question is ${linkedQuestionName(condition.value, notebook)}`;
   return plainText(filterLabel(condition, fields, notebook), id => notebook.lookup(id));
 }
 /** Authored locators and passage locations, restricted to this position's live subtree. */
@@ -75,11 +105,15 @@ export function positionLocators(page: PageView, position: string): Map<string, 
     if (!values.includes(locator)) values.push(locator);
     result.set(source, values);
   };
-  for (const block of blocks) if (ids.has(block.id) && !block.archived) {
-    for (const token of textTokens(block.text)) if (token.kind === 'reference' && token.id && token.locator) add(token.id, token.locator);
-  }
-  for (const capability of page.capabilities ?? []) if (ids.has(capability.block_id)) {
-    for (const citation of capability.citations ?? []) add(citation.source_id, citation.locator || `¶${citation.ordinal + 1}`);
-  }
+  for (const block of blocks)
+    if (ids.has(block.id) && !block.archived) {
+      for (const token of textTokens(block.text))
+        if (token.kind === 'reference' && token.id && token.locator) add(token.id, token.locator);
+    }
+  for (const capability of page.capabilities ?? [])
+    if (ids.has(capability.block_id)) {
+      for (const citation of capability.citations ?? [])
+        add(citation.source_id, citation.locator || `¶${citation.ordinal + 1}`);
+    }
   return result;
 }

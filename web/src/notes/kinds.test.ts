@@ -3,8 +3,18 @@ import type { IndexKind } from '../api/types';
 import { eyebrowNamesTag, kindLabel, noteKindIcon } from './kinds';
 
 const kind = (over: Partial<IndexKind> = {}): IndexKind => ({
-  key: 'type:1', name: 'arabic', plural: 'arabics', icon: null, type_id: '1',
-  count: 0, tagged_block_count: 1, cards: 0, fields: [], tag: true, shelf: 'tags', ...over,
+  key: 'type:1',
+  name: 'arabic',
+  plural: 'arabics',
+  icon: null,
+  type_id: '1',
+  count: 0,
+  tagged_block_count: 1,
+  cards: 0,
+  fields: [],
+  tag: true,
+  shelf: 'tags',
+  ...over,
 });
 
 test('a tag-only kind keeps the spelling you wrote', () => {
@@ -27,7 +37,10 @@ test('shell capabilities have their glyphs without overriding registry icons', (
 });
 
 test('a title tag for a kind the eyebrow names is not repeated, by page for a canonical tag and by name for a legacy one', () => {
-  const eyebrow = [{ name: 'Concept', type_id: 'concept-page' }, { name: 'Italian word', type_id: 'italian-page' }];
+  const eyebrow = [
+    { name: 'Concept', type_id: 'concept-page' },
+    { name: 'Italian word', type_id: 'italian-page' },
+  ];
   expect(eyebrowNamesTag(eyebrow, { id: 'concept-page', value: 'whatever alias' })).toBe(true);
   expect(eyebrowNamesTag(eyebrow, { value: 'concept' })).toBe(true);
   expect(eyebrowNamesTag(eyebrow, { value: 'Italian-word' })).toBe(true);

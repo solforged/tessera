@@ -12,8 +12,10 @@ export type PopupSide = 'above' | 'below';
 /** A pane-local popup still respects the keyboard-resized visual viewport. */
 export function popupBounds(viewport: PopupBounds, pane?: PopupBounds | null): PopupBounds {
   if (!pane) return viewport;
-  const left = Math.max(viewport.left, pane.left), top = Math.max(viewport.top, pane.top);
-  const right = Math.max(left, Math.min(viewport.right, pane.right)), bottom = Math.max(top, Math.min(viewport.bottom, pane.bottom));
+  const left = Math.max(viewport.left, pane.left),
+    top = Math.max(viewport.top, pane.top);
+  const right = Math.max(left, Math.min(viewport.right, pane.right)),
+    bottom = Math.max(top, Math.min(viewport.bottom, pane.bottom));
   return { left, top, right, bottom, width: right - left, height: bottom - top };
 }
 
@@ -36,7 +38,17 @@ const LIST_ROOM = 40 + 8 + 10 * 28;
  * A growing result list (`scrollingList`) stays below when that side holds its input and a few rows, and flips above
  * only when below cannot hold that and above has more room. `bounds` is the pane the trigger sits in, cut to the
  * window, so the half a trigger is in is its pane's, and a popup never reaches over a neighbouring pane. */
-export function anchoredPopupPosition(rect: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>, bounds: PopupBounds, width: number, contentHeight: number, maxHeight = Infinity, prefer?: PopupSide, forceBelow = false, mayCover = true, scrollingList = false) {
+export function anchoredPopupPosition(
+  rect: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+  bounds: PopupBounds,
+  width: number,
+  contentHeight: number,
+  maxHeight = Infinity,
+  prefer?: PopupSide,
+  forceBelow = false,
+  mayCover = true,
+  scrollingList = false,
+) {
   const belowTop = Math.max(bounds.top + 8, Math.min(bounds.bottom - 8, rect.bottom + 4));
   const aboveBottom = Math.max(bounds.top + 8, Math.min(bounds.bottom - 8, rect.top - 4));
   const below = Math.max(0, bounds.bottom - belowTop - 8);
@@ -47,15 +59,36 @@ export function anchoredPopupPosition(rect: Pick<DOMRect, 'left' | 'right' | 'to
   const caret = point && rect.left + width <= bounds.right - 8;
   const start = !caret && rect.left > bounds.left + bounds.width / 2 ? rect.right - width : rect.left;
   const left = Math.max(bounds.left + 8, Math.min(start, bounds.right - width - 8));
-  const room = (side: PopupSide) => side === 'above' ? above : below;
-  const opposite = (side: PopupSide): PopupSide => side === 'above' ? 'below' : 'above';
-  const kept = prefer !== undefined && !(room(prefer) < Math.min(needed, KEPT_ROOM) && room(opposite(prefer)) > room(prefer)) ? prefer : undefined;
+  const room = (side: PopupSide) => (side === 'above' ? above : below);
+  const opposite = (side: PopupSide): PopupSide => (side === 'above' ? 'below' : 'above');
+  const kept =
+    prefer !== undefined && !(room(prefer) < Math.min(needed, KEPT_ROOM) && room(opposite(prefer)) > room(prefer))
+      ? prefer
+      : undefined;
   const floor = scrollingList ? Math.min(needed, LIST_ROOM) : needed;
-  const side: PopupSide = forceBelow ? 'below' : kept ?? (below < floor && above > below ? 'above' : 'below');
-  if (mayCover && !forceBelow && !point && Number.isFinite(maxHeight) && room(side) < needed && room(opposite(side)) < needed && needed <= bounds.height - 16) {
-    const top = Math.max(bounds.top + 8, Math.min(side === 'above' ? aboveBottom - needed : belowTop, bounds.bottom - 8 - needed));
+  const side: PopupSide = forceBelow ? 'below' : (kept ?? (below < floor && above > below ? 'above' : 'below'));
+  if (
+    mayCover &&
+    !forceBelow &&
+    !point &&
+    Number.isFinite(maxHeight) &&
+    room(side) < needed &&
+    room(opposite(side)) < needed &&
+    needed <= bounds.height - 16
+  ) {
+    const top = Math.max(
+      bounds.top + 8,
+      Math.min(side === 'above' ? aboveBottom - needed : belowTop, bounds.bottom - 8 - needed),
+    );
     return { left, top, height: needed, visible: true, clipped: contentHeight > needed, side };
   }
   const height = Math.min(needed, room(side));
-  return { left, top: side === 'above' ? aboveBottom - height : belowTop, height, visible: true, clipped: contentHeight > height, side };
+  return {
+    left,
+    top: side === 'above' ? aboveBottom - height : belowTop,
+    height,
+    visible: true,
+    clipped: contentHeight > height,
+    side,
+  };
 }

@@ -97,7 +97,6 @@ import type {
 
 export type ExportFormat = 'bibtex' | 'csl' | 'markdown';
 
-
 export interface UndoReceipt {
   undone: number;
   kept_pages: Block[];
@@ -106,7 +105,9 @@ export interface UndoReceipt {
 
 export type Transport = (url: string, init: RequestInit) => Promise<Response>;
 let transport: Transport = (url, init) => fetch(url, init);
-export function setTransport(value: Transport): void { transport = value; }
+export function setTransport(value: Transport): void {
+  transport = value;
+}
 
 export const CHANGE_CONNECTING = 0;
 export const CHANGE_OPEN = 1;
@@ -122,7 +123,9 @@ export interface ChangeSocket {
 }
 type StreamFactory = (after: number) => ChangeSocket;
 let streamFactory: StreamFactory | undefined;
-export function setStreamFactory(value: StreamFactory): void { streamFactory = value; }
+export function setStreamFactory(value: StreamFactory): void {
+  streamFactory = value;
+}
 export const exportExtensions: Record<ExportFormat, string> = { bibtex: 'bib', csl: 'json', markdown: 'md' };
 
 /** A failed request. `status` is 0 when the service could not be reached. */
@@ -165,7 +168,9 @@ interface ErrorEnvelope {
  * switched notebooks refuses them instead of mixing this window's edits into another notebook.
  */
 const boundNotebooks = new Map<string, string>();
-export function bindNotebook(base: string, notebookId: string): void { boundNotebooks.set(base, notebookId); }
+export function bindNotebook(base: string, notebookId: string): void {
+  boundNotebooks.set(base, notebookId);
+}
 let reloading = false;
 /** The service now has another notebook open: start over on it. Unsent edits stay in this notebook's outbox. */
 function notebookChanged() {
@@ -180,13 +185,24 @@ function notebookHeaders(base: string, headers: Record<string, string> = {}): Re
   return notebook ? { ...headers, 'X-Tessera-Notebook': notebook } : headers;
 }
 
-async function request<T>(base: string, method: 'GET' | 'PUT' | 'POST' | 'DELETE', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
+async function request<T>(
+  base: string,
+  method: 'GET' | 'PUT' | 'POST' | 'DELETE',
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  frozen?: string,
+): Promise<T> {
   const json = frozen ?? (body === undefined ? undefined : JSON.stringify(body));
   const headers = notebookHeaders(base, json === undefined ? {} : { 'Content-Type': 'application/json' });
   return send<T>(`${base}/api${path}`, { method, signal, headers, body: json });
 }
 
-async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }, decode?: (response: Response) => Promise<T>): Promise<T> {
+async function send<T>(
+  url: string,
+  init: RequestInit & { signal?: AbortSignal },
+  decode?: (response: Response) => Promise<T>,
+): Promise<T> {
   let response: Response;
   try {
     response = await transport(url, init);
@@ -196,9 +212,13 @@ async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }
   }
   if (response.ok && decode) return decode(response);
   let failed = false;
-  const parsed: unknown = await response.json().catch(() => { failed = true; return null; });
+  const parsed: unknown = await response.json().catch(() => {
+    failed = true;
+    return null;
+  });
   // An abort during the body read must not look like an empty successful response.
-  if (failed && init.signal?.aborted) throw init.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+  if (failed && init.signal?.aborted)
+    throw init.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
   if (!response.ok) {
     const envelope = (parsed as ErrorEnvelope | null)?.error;
     if (envelope?.code === 'notebook_changed') notebookChanged();
@@ -279,7 +299,10 @@ export interface ApiClient {
   workSessions(id: string, signal?: AbortSignal): Promise<WorkSession[]>;
   activeWorkSession(signal?: AbortSignal): Promise<WorkSession | null>;
   projects(signal?: AbortSignal): Promise<ProjectRecord[]>;
-  positions(query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal): Promise<PositionQueryResult>;
+  positions(
+    query: { holder?: string; subject?: string; limit?: number },
+    signal?: AbortSignal,
+  ): Promise<PositionQueryResult>;
   relations(query: RelationQuery, signal?: AbortSignal): Promise<RelationRow[]>;
   questions(query: QuestionQuery, signal?: AbortSignal): Promise<QuestionRow[]>;
   revisits(due?: string, signal?: AbortSignal): Promise<RevisitRow[]>;
@@ -355,7 +378,13 @@ export interface ApiClient {
   resource(snapshotId: string, href: string, signal?: AbortSignal): Promise<Blob>;
   /** Record the reading position: the first passage on screen. */
   readingPosition(snapshotId: string, ordinal: number, signal?: AbortSignal): Promise<ReadingProgress>;
-  searchPassages(q: string, sourceId?: string, limit?: number, offset?: number, signal?: AbortSignal): Promise<PassageHit[]>;
+  searchPassages(
+    q: string,
+    sourceId?: string,
+    limit?: number,
+    offset?: number,
+    signal?: AbortSignal,
+  ): Promise<PassageHit[]>;
   highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
   resurfacing(date: string, limit?: number, signal?: AbortSignal): Promise<Surfacing[]>;
   recordSurfacing(citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal): Promise<void>;
@@ -364,69 +393,148 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
-type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'restoreBackup' | 'deleteOtherBackups' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
+type NativeMethod =
+  | 'service'
+  | 'backups'
+  | 'createBackup'
+  | 'deleteBackup'
+  | 'restoreBackup'
+  | 'deleteOtherBackups'
+  | 'notebooks'
+  | 'openNotebook'
+  | 'forgetNotebook'
+  | 'queueUrl'
+  | 'syncDevices'
+  | 'setSharing'
+  | 'forgetDevice'
+  | 'startPairing'
+  | 'pairingStatus'
+  | 'cancelPairing';
 
 export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
-  const agentRequest = <T>(method: 'GET' | 'PUT' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<T> =>
-    DEMO ? Promise.reject(new ApiError('The agent requires the Tessera app or local service.', 400, 'unsupported'))
+  const agentRequest = <T>(
+    method: 'GET' | 'PUT' | 'POST',
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<T> =>
+    DEMO
+      ? Promise.reject(new ApiError('The agent requires the Tessera app or local service.', 400, 'unsupported'))
       : request<T>(base, method, path, body, signal);
-  const resourceUrl = (snapshotId: string, href: string) => href.startsWith('/api/library/covers/') ? `${base}${href}` : `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
+  const resourceUrl = (snapshotId: string, href: string) =>
+    href.startsWith('/api/library/covers/')
+      ? `${base}${href}`
+      : `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
-    notebookSize: (signal?: AbortSignal) => DEMO ? Promise.reject(new ApiError('The workshop lives in this page, which has no folder to measure.', 400, 'unsupported')) : get<NotebookSize>('/notebook/size', signal),
-    ...(!EMBEDDED ? {
-      service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
-      backups: (signal?: AbortSignal) => get<Backups>('/backups', signal),
-      createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
-      deleteBackup: (name: string, signal?: AbortSignal) => request<Backups>(base, 'DELETE', `/backups/${segment(name)}`, undefined, signal),
-      restoreBackup: (name: string, signal?: AbortSignal) => request<RestoringBackup>(base, 'POST', `/backups/${segment(name)}/restore`, undefined, signal),
-      deleteOtherBackups: (workshopId: string, signal?: AbortSignal) => request<Backups>(base, 'DELETE', `/backups/others/${segment(workshopId)}`, undefined, signal),
-      notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
-      openNotebook: (path: string, create: boolean, signal?: AbortSignal) => request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
-      forgetNotebook: (path: string, signal?: AbortSignal) => request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),
-      queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
-      syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
-      setSharing: (on: boolean, signal?: AbortSignal) => request<SyncSharing>(base, 'POST', '/sync/sharing', { on }, signal),
-      forgetDevice: (id: string, signal?: AbortSignal) => request<void>(base, 'DELETE', `/sync/devices/${segment(id)}`, undefined, signal),
-      startPairing: (signal?: AbortSignal) => request<PairingCode>(base, 'POST', '/sync/pairing', {}, signal),
-      pairingStatus: (signal?: AbortSignal) => get<PairingStatus>('/sync/pairing', signal),
-      cancelPairing: (signal?: AbortSignal) => request<void>(base, 'DELETE', '/sync/pairing', undefined, signal),
-    } : {}),
-    history: async (limit = 50, before?: number, signal?: AbortSignal) => (await get<{ entries: HistoryEntry[] }>(`/history${query({ limit, before })}`, signal)).entries,
-    undoChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/history/${seq}/undo`, { actor: { kind: 'client', name: actorName } }, signal),
-    agentProviders: (signal?: AbortSignal) => agentRequest<AgentProviders>('GET', '/agent/providers', undefined, signal),
-    saveAgentProviders: (body: SaveAgentProviders, signal?: AbortSignal) => agentRequest<AgentProviders>('PUT', '/agent/providers', body, signal),
-    testAgentProvider: (id: string, signal?: AbortSignal) => agentRequest<{ ok: true }>('POST', `/agent/providers/${segment(id)}/test`, undefined, signal),
-    startAgentTurn: (body: StartAgentTurn, signal?: AbortSignal) => agentRequest<AgentTurnStarted>('POST', '/agent/turns', body, signal),
-    agentTurnEvents: (turn: string, after: number, signal?: AbortSignal) => agentRequest<AgentTurnEvents>('GET', `/agent/turns/${segment(turn)}/events${query({ after })}`, undefined, signal),
-    cancelAgentTurn: (turn: string, signal?: AbortSignal) => agentRequest<void>('POST', `/agent/turns/${segment(turn)}/cancel`, undefined, signal),
+    notebookSize: (signal?: AbortSignal) =>
+      DEMO
+        ? Promise.reject(
+            new ApiError('The workshop lives in this page, which has no folder to measure.', 400, 'unsupported'),
+          )
+        : get<NotebookSize>('/notebook/size', signal),
+    ...(!EMBEDDED
+      ? {
+          service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
+          backups: (signal?: AbortSignal) => get<Backups>('/backups', signal),
+          createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
+          deleteBackup: (name: string, signal?: AbortSignal) =>
+            request<Backups>(base, 'DELETE', `/backups/${segment(name)}`, undefined, signal),
+          restoreBackup: (name: string, signal?: AbortSignal) =>
+            request<RestoringBackup>(base, 'POST', `/backups/${segment(name)}/restore`, undefined, signal),
+          deleteOtherBackups: (workshopId: string, signal?: AbortSignal) =>
+            request<Backups>(base, 'DELETE', `/backups/others/${segment(workshopId)}`, undefined, signal),
+          notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
+          openNotebook: (path: string, create: boolean, signal?: AbortSignal) =>
+            request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
+          forgetNotebook: (path: string, signal?: AbortSignal) =>
+            request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),
+          queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) =>
+            request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
+          syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
+          setSharing: (on: boolean, signal?: AbortSignal) =>
+            request<SyncSharing>(base, 'POST', '/sync/sharing', { on }, signal),
+          forgetDevice: (id: string, signal?: AbortSignal) =>
+            request<void>(base, 'DELETE', `/sync/devices/${segment(id)}`, undefined, signal),
+          startPairing: (signal?: AbortSignal) => request<PairingCode>(base, 'POST', '/sync/pairing', {}, signal),
+          pairingStatus: (signal?: AbortSignal) => get<PairingStatus>('/sync/pairing', signal),
+          cancelPairing: (signal?: AbortSignal) => request<void>(base, 'DELETE', '/sync/pairing', undefined, signal),
+        }
+      : {}),
+    history: async (limit = 50, before?: number, signal?: AbortSignal) =>
+      (await get<{ entries: HistoryEntry[] }>(`/history${query({ limit, before })}`, signal)).entries,
+    undoChange: (seq: number, signal?: AbortSignal) =>
+      request<UndoReceipt>(
+        base,
+        'POST',
+        `/history/${seq}/undo`,
+        { actor: { kind: 'client', name: actorName } },
+        signal,
+      ),
+    agentProviders: (signal?: AbortSignal) =>
+      agentRequest<AgentProviders>('GET', '/agent/providers', undefined, signal),
+    saveAgentProviders: (body: SaveAgentProviders, signal?: AbortSignal) =>
+      agentRequest<AgentProviders>('PUT', '/agent/providers', body, signal),
+    testAgentProvider: (id: string, signal?: AbortSignal) =>
+      agentRequest<{ ok: true }>('POST', `/agent/providers/${segment(id)}/test`, undefined, signal),
+    startAgentTurn: (body: StartAgentTurn, signal?: AbortSignal) =>
+      agentRequest<AgentTurnStarted>('POST', '/agent/turns', body, signal),
+    agentTurnEvents: (turn: string, after: number, signal?: AbortSignal) =>
+      agentRequest<AgentTurnEvents>(
+        'GET',
+        `/agent/turns/${segment(turn)}/events${query({ after })}`,
+        undefined,
+        signal,
+      ),
+    cancelAgentTurn: (turn: string, signal?: AbortSignal) =>
+      agentRequest<void>('POST', `/agent/turns/${segment(turn)}/cancel`, undefined, signal),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     syncState: (signal?: AbortSignal) => get<SyncState>('/sync/state', signal),
     runSync: (signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/run', undefined, signal),
-    joinHub: (url: string, code: string, name: string, signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/join', { url, code, name }, signal),
+    joinHub: (url: string, code: string, name: string, signal?: AbortSignal) =>
+      request<SyncState>(base, 'POST', '/sync/join', { url, code, name }, signal),
     reclone: (signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/reclone', undefined, signal),
     syncConflicts: (signal?: AbortSignal) => get<SyncConflicts>('/sync/conflicts', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     deletedPages: (signal?: AbortSignal) => get<DeletedPage[]>('/pages/deleted', signal),
-    writtenJournalDates: (from: string, to: string, signal?: AbortSignal) => get<string[]>(`/journal/written?${new URLSearchParams({ from, to })}`, signal),
+    writtenJournalDates: (from: string, to: string, signal?: AbortSignal) =>
+      get<string[]>(`/journal/written?${new URLSearchParams({ from, to })}`, signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),
     pageByTitle: (title: string, signal?: AbortSignal) => get<Block>(`/pages/by-title/${segment(title)}`, signal),
     resolveName: (name: string, signal?: AbortSignal) => get<NameMatch[]>(`/names/${segment(name)}`, signal),
-    addAlias: (pageId: string, name: string, signal?: AbortSignal) => request<Committed | null>(base, 'POST', `/pages/${segment(pageId)}/aliases`, { name }, signal),
-    startingTemplate: (typeId: string, signal?: AbortSignal) => request<Committed | null>(base, 'POST', `/types/${segment(typeId)}/starting-template`, undefined, signal),
-    cardTemplates: (typeId: string, signal?: AbortSignal) => get<CardTemplateInfo[]>(`/types/${segment(typeId)}/card-templates`, signal),
-    cardTemplateForecast: (id: string, days = 14, signal?: AbortSignal) => get<CardTemplateForecast>(`/card-templates/${segment(id)}/forecast${query({ days })}`, signal),
+    addAlias: (pageId: string, name: string, signal?: AbortSignal) =>
+      request<Committed | null>(base, 'POST', `/pages/${segment(pageId)}/aliases`, { name }, signal),
+    startingTemplate: (typeId: string, signal?: AbortSignal) =>
+      request<Committed | null>(base, 'POST', `/types/${segment(typeId)}/starting-template`, undefined, signal),
+    cardTemplates: (typeId: string, signal?: AbortSignal) =>
+      get<CardTemplateInfo[]>(`/types/${segment(typeId)}/card-templates`, signal),
+    cardTemplateForecast: (id: string, days = 14, signal?: AbortSignal) =>
+      get<CardTemplateForecast>(`/card-templates/${segment(id)}/forecast${query({ days })}`, signal),
     journal: (date: string, signal?: AbortSignal) => get<Block>(`/journal/${segment(date)}`, signal),
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
-    subtree: (id: string, limit = 200, signal?: AbortSignal) => get<Subtree>(`/blocks/${segment(id)}/subtree${query({ limit })}`, signal),
-    subtrees: (ids: readonly string[], signal?: AbortSignal) => request<BatchSubtrees>(base, 'POST', '/blocks/subtrees', { ids, per_id: Math.min(200, Math.floor(4096 / Math.max(1, ids.length))) }, signal),
-    streamArrivals: (id: string, signal?: AbortSignal) => get<StreamArrival[]>(`/pages/${segment(id)}/arrivals`, signal),
-    quoteSnapshot: (id: string, signal?: AbortSignal) => get<QuoteState>(`/blocks/${segment(id)}/quote-snapshot`, signal),
-    quoteStatus: (pageId: string, signal?: AbortSignal) => get<QuoteStatus[]>(`/pages/${segment(pageId)}/quote-status`, signal),
-    capabilities: (id: string, signal?: AbortSignal) => get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),
-    taskOccurrences: (id: string, signal?: AbortSignal) => get<TaskOccurrence[]>(`/blocks/${segment(id)}/task-occurrences`, signal),
-    workSessions: (id: string, signal?: AbortSignal) => get<WorkSession[]>(`/blocks/${segment(id)}/work-sessions`, signal),
+    subtree: (id: string, limit = 200, signal?: AbortSignal) =>
+      get<Subtree>(`/blocks/${segment(id)}/subtree${query({ limit })}`, signal),
+    subtrees: (ids: readonly string[], signal?: AbortSignal) =>
+      request<BatchSubtrees>(
+        base,
+        'POST',
+        '/blocks/subtrees',
+        { ids, per_id: Math.min(200, Math.floor(4096 / Math.max(1, ids.length))) },
+        signal,
+      ),
+    streamArrivals: (id: string, signal?: AbortSignal) =>
+      get<StreamArrival[]>(`/pages/${segment(id)}/arrivals`, signal),
+    quoteSnapshot: (id: string, signal?: AbortSignal) =>
+      get<QuoteState>(`/blocks/${segment(id)}/quote-snapshot`, signal),
+    quoteStatus: (pageId: string, signal?: AbortSignal) =>
+      get<QuoteStatus[]>(`/pages/${segment(pageId)}/quote-status`, signal),
+    capabilities: (id: string, signal?: AbortSignal) =>
+      get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),
+    taskOccurrences: (id: string, signal?: AbortSignal) =>
+      get<TaskOccurrence[]>(`/blocks/${segment(id)}/task-occurrences`, signal),
+    workSessions: (id: string, signal?: AbortSignal) =>
+      get<WorkSession[]>(`/blocks/${segment(id)}/work-sessions`, signal),
     activeWorkSession: (signal?: AbortSignal) => get<WorkSession | null>('/work-sessions/active', signal),
     projects: (signal?: AbortSignal) => get<ProjectRecord[]>('/projects', signal),
     positions: (query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal) => {
@@ -436,7 +544,8 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
       if (query.limit !== undefined) params.set('limit', String(query.limit));
       return get<PositionQueryResult>(`/positions?${params}`, signal);
     },
-    relations: (value: RelationQuery, signal?: AbortSignal) => get<RelationRow[]>(`/relations${query({ ...value })}`, signal),
+    relations: (value: RelationQuery, signal?: AbortSignal) =>
+      get<RelationRow[]>(`/relations${query({ ...value })}`, signal),
     revisits: (due = 'today', signal?: AbortSignal) => get<RevisitRow[]>(`/revisits${query({ due })}`, signal),
     revisitEvents: (id: string, signal?: AbortSignal) => get<RevisitEvent[]>(`/blocks/${segment(id)}/revisits`, signal),
     questions: (query: QuestionQuery, signal?: AbortSignal) => {
@@ -449,13 +558,15 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
       if (query.limit !== undefined) params.set('limit', String(query.limit));
       return get<QuestionRow[]>(`/questions?${params}`, signal);
     },
-    taskQuery: (value: TaskQuery, signal?: AbortSignal) => request<TaskQueryResult>(base, 'POST', '/tasks/query', value, signal),
+    taskQuery: (value: TaskQuery, signal?: AbortSignal) =>
+      request<TaskQueryResult>(base, 'POST', '/tasks/query', value, signal),
     agenda: (date: string, signal?: AbortSignal) => get<Agenda>(`/agenda/${segment(date)}`, signal),
     taskViews: (signal?: AbortSignal) => get<TaskView[]>('/task-views', signal),
     taskView: (id: string, signal?: AbortSignal) => get<TaskView>(`/task-views/${segment(id)}`, signal),
     sourceCards: (id: string, signal?: AbortSignal) => get<CardUnit[]>(`/blocks/${segment(id)}/cards`, signal),
     card: (id: string, signal?: AbortSignal) => get<CardUnit>(`/cards/${segment(id)}`, signal),
-    cardQuery: (value: CardQuery, signal?: AbortSignal) => request<CardQueryResult>(base, 'POST', '/cards/query', value, signal),
+    cardQuery: (value: CardQuery, signal?: AbortSignal) =>
+      request<CardQueryResult>(base, 'POST', '/cards/query', value, signal),
     cardPreviews: (id: string, signal?: AbortSignal) => get<CardPreviews>(`/cards/${segment(id)}/previews`, signal),
     cardReviews: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/cards/${segment(id)}/reviews`, signal),
     decks: (signal?: AbortSignal) => get<Deck[]>('/decks', signal),
@@ -463,16 +574,25 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     deck: (id: string, signal?: AbortSignal) => get<Deck>(`/decks/${segment(id)}`, signal),
     reviewSessions: (signal?: AbortSignal) => get<ReviewSession[]>('/review-sessions', signal),
     reviewSession: (id: string, signal?: AbortSignal) => get<ReviewSession>(`/review-sessions/${segment(id)}`, signal),
-    reviewStats: (deckId?: string | null, date?: string, signal?: AbortSignal) => get<ReviewStats>(`/review/stats${query({ deck: deckId ?? undefined, date })}`, signal),
-    reviewSessionEvents: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/review-sessions/${segment(id)}/reviews`, signal),
-    backlinks: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
-    incomingFields: (id: string, signal?: AbortSignal) => get<IncomingFieldValue[]>(`/blocks/${segment(id)}/incoming-fields`, signal),
-    pageReferences: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<PageReferences>(`/pages/${segment(id)}/references${query({ limit })}`, signal),
-    referenceCounts: (id: string, signal?: AbortSignal) => get<ReferenceCount[]>(`/pages/${segment(id)}/reference-counts`, signal),
-    unlinkedMentions: (id: string, limit = 100, signal?: AbortSignal) => get<UnlinkedMentions>(`/pages/${segment(id)}/unlinked-mentions${query({ limit })}`, signal),
-    members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
+    reviewStats: (deckId?: string | null, date?: string, signal?: AbortSignal) =>
+      get<ReviewStats>(`/review/stats${query({ deck: deckId ?? undefined, date })}`, signal),
+    reviewSessionEvents: (id: string, signal?: AbortSignal) =>
+      get<ReviewEvent[]>(`/review-sessions/${segment(id)}/reviews`, signal),
+    backlinks: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) =>
+      get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
+    incomingFields: (id: string, signal?: AbortSignal) =>
+      get<IncomingFieldValue[]>(`/blocks/${segment(id)}/incoming-fields`, signal),
+    pageReferences: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) =>
+      get<PageReferences>(`/pages/${segment(id)}/references${query({ limit })}`, signal),
+    referenceCounts: (id: string, signal?: AbortSignal) =>
+      get<ReferenceCount[]>(`/pages/${segment(id)}/reference-counts`, signal),
+    unlinkedMentions: (id: string, limit = 100, signal?: AbortSignal) =>
+      get<UnlinkedMentions>(`/pages/${segment(id)}/unlinked-mentions${query({ limit })}`, signal),
+    members: (id: string, limit = 100, signal?: AbortSignal) =>
+      get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
-    fieldDetail: (id: string, kind?: FieldKind, limit = 12, signal?: AbortSignal) => get<FieldDetail>(`/fields/${segment(id)}${query({ kind, limit })}`, signal),
+    fieldDetail: (id: string, kind?: FieldKind, limit = 12, signal?: AbortSignal) =>
+      get<FieldDetail>(`/fields/${segment(id)}${query({ kind, limit })}`, signal),
     types: (signal?: AbortSignal) => get<Type[]>('/types', signal),
     entities: (signal?: AbortSignal) => get<string[]>('/entities', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
@@ -484,56 +604,117 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     query: (value: Query, signal?: AbortSignal) => request<QueryResult>(base, 'POST', '/query', value, signal),
     views: (signal?: AbortSignal) => get<View[]>('/views', signal),
     view: (id: string, signal?: AbortSignal) => get<View>(`/views/${segment(id)}`, signal),
-    complete: (q: string, limit = 20, signal?: AbortSignal) => get<Completion[]>(`/complete${query({ q, limit })}`, signal),
-    search: (q: string, limit = 40, signal?: AbortSignal) => get<BlockInPage[]>(`/search${query({ q, limit })}`, signal),
-    changes: (after: number, limit = 500, signal?: AbortSignal) => get<ChangeEvent[]>(`/changes${query({ after, limit })}`, signal),
+    complete: (q: string, limit = 20, signal?: AbortSignal) =>
+      get<Completion[]>(`/complete${query({ q, limit })}`, signal),
+    search: (q: string, limit = 40, signal?: AbortSignal) =>
+      get<BlockInPage[]>(`/search${query({ q, limit })}`, signal),
+    changes: (after: number, limit = 500, signal?: AbortSignal) =>
+      get<ChangeEvent[]>(`/changes${query({ after, limit })}`, signal),
     changeHead: (signal?: AbortSignal) => get<number>('/changes/head', signal),
     submit: (batch: Batch, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', batch, signal),
-    submitFrozen: (json: string, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', undefined, signal, json),
+    submitFrozen: (json: string, signal?: AbortSignal) =>
+      request<Committed>(base, 'POST', '/batches', undefined, signal, json),
     stream: (after: number) => {
       if (streamFactory) return streamFactory(after);
-      const url = new URL(`${base}/api/changes/stream${query({ after, notebook: boundNotebooks.get(base) })}`, typeof location === 'undefined' ? 'http://127.0.0.1' : location.href);
+      const url = new URL(
+        `${base}/api/changes/stream${query({ after, notebook: boundNotebooks.get(base) })}`,
+        typeof location === 'undefined' ? 'http://127.0.0.1' : location.href,
+      );
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
       return new WebSocket(url.href);
     },
-    library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
-    collectionValues: (id: string, signal?: AbortSignal) => get<Block[]>(`/library/collections/${encodeURIComponent(id)}/values`, signal),
-    lookup: (query: string, signal?: AbortSignal) => request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
-    linkPreview: (url: string, signal?: AbortSignal) => request<{ title: string | null; site: string | null }>(base, 'POST', '/library/link', { url }, signal),
-    normalizeMetadata: (metadata: ExtractedMetadata) => request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
-    planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) => request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),
-    uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: notebookHeaders(base, { 'Content-Type': file.type }) }),
-    uploadImage: (file: Blob, signal?: AbortSignal) => send<ImageRef>(`${base}/api/images`, { method: 'POST', body: file, signal, headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream' }) }),
+    library: (value: LibraryQuery, signal?: AbortSignal) =>
+      request<LibraryResult>(base, 'POST', '/library/query', value, signal),
+    collectionValues: (id: string, signal?: AbortSignal) =>
+      get<Block[]>(`/library/collections/${encodeURIComponent(id)}/values`, signal),
+    lookup: (query: string, signal?: AbortSignal) =>
+      request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
+    linkPreview: (url: string, signal?: AbortSignal) =>
+      request<{ title: string | null; site: string | null }>(base, 'POST', '/library/link', { url }, signal),
+    normalizeMetadata: (metadata: ExtractedMetadata) =>
+      request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
+    planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) =>
+      request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),
+    uploadCover: (file: Blob) =>
+      send<string>(`${base}/api/library/covers`, {
+        method: 'POST',
+        body: file,
+        headers: notebookHeaders(base, { 'Content-Type': file.type }),
+      }),
+    uploadImage: (file: Blob, signal?: AbortSignal) =>
+      send<ImageRef>(`${base}/api/images`, {
+        method: 'POST',
+        body: file,
+        signal,
+        headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream' }),
+      }),
     imageUrl: (sha: string) => `${base}/api/images/${segment(sha)}`,
-    image: (sha: string, signal?: AbortSignal) => send<Blob>(`${base}/api/images/${segment(sha)}`, { method: 'GET', signal, headers: notebookHeaders(base) }, response => response.blob()),
+    image: (sha: string, signal?: AbortSignal) =>
+      send<Blob>(
+        `${base}/api/images/${segment(sha)}`,
+        { method: 'GET', signal, headers: notebookHeaders(base) },
+        response => response.blob(),
+      ),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
     ingestJob: (id: string, signal?: AbortSignal) => get<IngestJob>(`/library/jobs/${segment(id)}`, signal),
-    upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
-      method: 'POST', signal, body: file,
-      headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) }),
-    }),
-    retryJob: (id: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', `/library/jobs/${segment(id)}/retry`, undefined, signal),
+    upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) =>
+      send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
+        method: 'POST',
+        signal,
+        body: file,
+        headers: notebookHeaders(base, {
+          'Content-Type': file.type || 'application/octet-stream',
+          'X-Filename': encodeURIComponent(name),
+        }),
+      }),
+    retryJob: (id: string, signal?: AbortSignal) =>
+      request<IngestJob>(base, 'POST', `/library/jobs/${segment(id)}/retry`, undefined, signal),
     source: (id: string, signal?: AbortSignal) => get<SourceView>(`/sources/${segment(id)}`, signal),
-    extracted: (id: string, signal?: AbortSignal) => get<[string, string[]][]>(`/sources/${segment(id)}/extracted`, signal),
-    passages: (snapshotId: string, from: number, limit = 200, signal?: AbortSignal) => get<PassagePage>(`/snapshots/${segment(snapshotId)}/passages${query({ from, limit })}`, signal),
-    locate: (snapshotId: string, at: string, signal?: AbortSignal) => get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
+    extracted: (id: string, signal?: AbortSignal) =>
+      get<[string, string[]][]>(`/sources/${segment(id)}/extracted`, signal),
+    passages: (snapshotId: string, from: number, limit = 200, signal?: AbortSignal) =>
+      get<PassagePage>(`/snapshots/${segment(snapshotId)}/passages${query({ from, limit })}`, signal),
+    locate: (snapshotId: string, at: string, signal?: AbortSignal) =>
+      get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
     resourceUrl,
-    resource: (snapshotId: string, href: string, signal?: AbortSignal) => send<Blob>(resourceUrl(snapshotId, href), { method: 'GET', signal }, response => response.blob()),
-    readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => send<ReadingProgress>(`${base}/api/snapshots/${segment(snapshotId)}/position`, {
-      method: 'POST', signal, keepalive: true, headers: notebookHeaders(base, { 'Content-Type': 'application/json' }), body: JSON.stringify({ ordinal }),
-    }),
-    searchPassages: (q: string, sourceId?: string, limit = 40, offset = 0, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit, offset })}`, signal),
-    highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
-    resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),
-    recordSurfacing: (citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal) => request<void>(base, 'POST', `/highlights/${segment(citationId)}/resurface`, { date, action }, signal),
-    exportSources: (format: ExportFormat, ids: readonly string[], signal?: AbortSignal) => send<Blob>(`${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`, { method: 'GET', signal }, response => response.blob()),
-    exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
-      method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),
-    }, response => response.blob()),
+    resource: (snapshotId: string, href: string, signal?: AbortSignal) =>
+      send<Blob>(resourceUrl(snapshotId, href), { method: 'GET', signal }, response => response.blob()),
+    readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) =>
+      send<ReadingProgress>(`${base}/api/snapshots/${segment(snapshotId)}/position`, {
+        method: 'POST',
+        signal,
+        keepalive: true,
+        headers: notebookHeaders(base, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ ordinal }),
+      }),
+    searchPassages: (q: string, sourceId?: string, limit = 40, offset = 0, signal?: AbortSignal) =>
+      get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit, offset })}`, signal),
+    highlights: (value: HighlightQuery, signal?: AbortSignal) =>
+      request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
+    resurfacing: (date: string, limit = 3, signal?: AbortSignal) =>
+      get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),
+    recordSurfacing: (citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal) =>
+      request<void>(base, 'POST', `/highlights/${segment(citationId)}/resurface`, { date, action }, signal),
+    exportSources: (format: ExportFormat, ids: readonly string[], signal?: AbortSignal) =>
+      send<Blob>(
+        `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
+        { method: 'GET', signal },
+        response => response.blob(),
+      ),
+    exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) =>
+      send<Blob>(
+        `${base}/api/library/export`,
+        {
+          method: 'POST',
+          signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ format, query }),
+        },
+        response => response.blob(),
+      ),
     // Only service, backups and article URL ingestion are absent in embedded builds; their callers are guarded.
   } satisfies Omit<ApiClient, NativeMethod> as ApiClient;
 }
 
 export const api = createApi();
-
