@@ -9,6 +9,7 @@
 //! `/api/notebooks` lists known notebooks and switches the service to another one.
 
 mod agent;
+pub mod agent_outline;
 pub mod agent_render;
 mod assets;
 mod backups;

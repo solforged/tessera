@@ -10,12 +10,12 @@ use tessera_core::{
 };
 
 use super::cards::found;
-use super::outline::{block_text, note_problems, outline, text_problems};
 use super::render::{
     Clock, Fields, PageContext, age, card_answer, card_front, card_label, kind_label, location,
     one_line, quoted, render, snippet,
 };
 use super::{Api, Session, Titles, boolean, integer, limit, offset, required, segment, string};
+use tessera_service::agent_outline::{block_text, note_problems, outline, text_problems};
 
 /// The most hits tessera_search returns.
 const SEARCH_LIMIT: usize = 200;
@@ -414,7 +414,7 @@ fn problem_report(problems: &[(String, String)]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::outline::text_problems;
+    use tessera_service::agent_outline::text_problems;
 
     #[test]
     fn problems_quote_the_whole_block_they_are_about() {

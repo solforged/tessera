@@ -1,6 +1,6 @@
 use anyhow::{Context, bail, ensure};
 use serde_json::{Value, json};
-use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Notebook};
+use tessera_core::{Actor, AgentEdit, AgentRequest, NoteTarget, Notebook};
 
 use super::{ContextRef, EventKind};
 use crate::agent_render::{self, Clock, Fields, PageContext};
@@ -35,7 +35,7 @@ pub(super) fn definitions() -> Vec<Value> {
         ),
         definition(
             "add_note",
-            "Append notes. Each nonempty line is a block; indent children by two spaces per level. Target exactly one page title, journal date (null means today), or block id.",
+            "Append a Markdown outline. `- ` or `1. ` items nest by indentation, and indented lines under an item continue it; every other line is its own block. `#` headings contain what follows. A fenced code block is one block. `- [ ] `, `- [x] `, `- [doing] `, `- [waiting] ` and `- [cancelled] ` items become tasks. `[[Page title]]` links a page, and `Name:: value` sets a field on the parent. Target exactly one page title, journal date (null means today), or block id.",
             json!({"target":{"type":"object","properties":{"page":string,"journal":{"type":["string","null"]},"block":id},"minProperties":1,"maxProperties":1},"text":string}),
             &["target", "text"],
         ),
@@ -141,54 +141,6 @@ fn optional<'a>(value: &'a Value, key: &str) -> anyhow::Result<Option<&'a str>> 
     }
 }
 
-// Build bottom-up so an indented note does not recurse through untrusted input.
-fn outline(text: &str) -> anyhow::Result<Vec<NoteBlock>> {
-    let mut levels: Vec<Vec<NoteBlock>> = vec![Vec::new()];
-    for line in text.lines().filter(|line| !line.trim().is_empty()) {
-        let spaces = line.bytes().take_while(|b| *b == b' ').count();
-        ensure!(spaces % 2 == 0, "Indent children by two spaces per level.");
-        let depth = spaces / 2;
-        ensure!(
-            depth <= levels.len(),
-            "An atom cannot skip an indentation level."
-        );
-        while levels.len() > depth + 1 {
-            let children = levels.pop().expect("nested level");
-            levels
-                .last_mut()
-                .and_then(|blocks| blocks.last_mut())
-                .context("An indented atom needs a parent.")?
-                .children = children;
-        }
-        if depth == levels.len() {
-            ensure!(
-                levels.last().is_some_and(|level| !level.is_empty()),
-                "An indented atom needs a parent."
-            );
-            levels.push(Vec::new());
-        }
-        let body = line[spaces..].trim_end();
-        let body = body.strip_prefix("- ").unwrap_or(body);
-        levels.last_mut().expect("root level").push(NoteBlock {
-            text: body.to_owned(),
-            heading: None,
-            task: None,
-            children: Vec::new(),
-        });
-    }
-    while levels.len() > 1 {
-        let children = levels.pop().expect("nested level");
-        levels
-            .last_mut()
-            .and_then(|blocks| blocks.last_mut())
-            .context("An indented atom needs a parent.")?
-            .children = children;
-    }
-    let blocks = levels.pop().expect("root level");
-    ensure!(!blocks.is_empty(), "Nothing to add: the text is empty.");
-    Ok(blocks)
-}
-
 pub(super) fn execute(
     notebook: &mut Notebook,
     changes: &tokio::sync::broadcast::Sender<i64>,
@@ -263,7 +215,7 @@ pub(super) fn execute(
             };
             AgentEdit::AddNote {
                 target,
-                blocks: outline(required(args, "text")?)?,
+                blocks: crate::agent_outline::outline(required(args, "text")?)?,
             }
         }
         "edit_block" => AgentEdit::EditBlock {
@@ -324,7 +276,7 @@ mod tests {
         let mut notifications = changes.subscribe();
         let actor = "Local · model";
         let (receipt, event) = execute(&mut notebook, &changes, "add_note", &json!({
-            "target":{"page":"Asabiyya"}, "text":"Group feeling\n  Shared purpose\nAnother thought"
+            "target":{"page":"Asabiyya"}, "text":"- Group feeling\n  - Shared purpose\n- Another thought"
         }), actor, "Capture ideas").unwrap();
         let receipt: tessera_core::AgentReceipt = serde_json::from_str(&receipt).unwrap();
         assert!(matches!(event, EventKind::Edit { seq, .. } if seq == receipt.seq));
@@ -563,5 +515,39 @@ mod tests {
             panic!("a name no page has read a page");
         };
         assert_eq!(missing.to_string(), "No atom is titled \"Fold repro\".");
+    }
+
+    #[test]
+    fn add_note_reads_a_task_line_and_a_heading_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let changes = tokio::sync::broadcast::channel(16).0;
+        let (receipt, _) = execute(
+            &mut notebook,
+            &changes,
+            "add_note",
+            &json!({
+                "target": {"page": "Plan"},
+                "text": "# Heading\n- [ ] task"
+            }),
+            "Local · model",
+            "",
+        )
+        .unwrap();
+        let receipt: tessera_core::AgentReceipt = serde_json::from_str(&receipt).unwrap();
+        let page = receipt.page.unwrap().id;
+        let rows = notebook.page(&page).unwrap().rows;
+        let heading = rows.iter().find(|row| row.block.text == "Heading").unwrap();
+        assert_eq!(heading.block.heading, Some(1));
+        let task = rows.iter().find(|row| row.block.text == "task").unwrap();
+        assert_eq!(
+            notebook
+                .capabilities(&task.block.id)
+                .unwrap()
+                .task
+                .unwrap()
+                .status,
+            Some(tessera_core::TaskStatus::Todo)
+        );
     }
 }

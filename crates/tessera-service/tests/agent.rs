@@ -683,7 +683,7 @@ async fn protocol_turn(protocol: &'static str) {
                 .iter()
                 .map(|r| (r.block.text.as_str(), r.depth))
                 .collect::<Vec<_>>(),
-            [("First note", 0), ("Child note", 1), ("Second note", 0)]
+            [("First note", 0), ("Child note", 0), ("Second note", 0)]
         );
         let changes = notebook.history(10, None).unwrap();
         assert_eq!(
