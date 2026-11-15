@@ -349,7 +349,7 @@ async fn missing_snapshots(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let ids = run(&state, move |workshop| {
+    let ids = read(&state, move |workshop| {
         workshop.sync_missing_snapshots(&request.ids)
     })
     .await?;
@@ -370,7 +370,7 @@ async fn snapshot_content(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let content = run(&state, move |workshop| {
+    let content = read(&state, move |workshop| {
         workshop.sync_snapshot_content(&request.ids, request.from)
     })
     .await?;
@@ -398,7 +398,7 @@ async fn missing_objects(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let ids = run(&state, move |workshop| {
+    let ids = read(&state, move |workshop| {
         workshop.sync_missing_objects(&request.ids)
     })
     .await?;
@@ -474,22 +474,27 @@ async fn retire(
 }
 
 /// A stored file. A replica that does not have it yet fetches it from its
-/// hub and keeps it, so opening a book brings its images.
+/// hub and keeps it, so opening a book brings its images. Only keeping a
+/// fetched file waits for the writer.
 pub(crate) async fn object_or_fetch(
     workshop: std::sync::Arc<parking_lot::Mutex<tessera_core::Workshop>>,
+    readers: Option<tessera_api::Readers>,
     sha: String,
 ) -> Result<Vec<u8>, ApiError> {
     use tessera_core::sync::Hub;
     tokio::task::spawn_blocking(move || {
-        let (url, credentials) = {
-            let n = workshop.lock();
-            if let Some(bytes) = n.sync_object(&sha)? {
-                return Ok(bytes);
-            }
-            (
-                n.sync_status()?.ok_or_else(ApiError::not_found)?.hub_url,
-                n.sync_hub_credentials()?,
-            )
+        let stored = tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
+            Ok(match n.sync_object(&sha)? {
+                Some(bytes) => Ok(bytes),
+                None => Err((
+                    n.sync_status()?.map(|status| status.hub_url),
+                    n.sync_hub_credentials()?,
+                )),
+            })
+        })?;
+        let (url, credentials) = match stored {
+            Ok(bytes) => return Ok(bytes),
+            Err((url, credentials)) => (url.ok_or_else(ApiError::not_found)?, credentials),
         };
         let unreachable = |error: anyhow::Error| {
             ApiError::new(

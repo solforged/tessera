@@ -3,7 +3,7 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use tessera_core::Workshop;
 
-use super::{Readers, WorkshopError};
+use super::{Readers, WorkshopError, read_blocking};
 
 pub async fn read_workshop<T: Send + 'static>(
     workshop: &Arc<Mutex<Workshop>>,
@@ -26,11 +26,7 @@ pub async fn read_snapshot<T: Send + 'static>(
     let workshop = workshop.clone();
     let readers = readers.cloned();
     tokio::task::spawn_blocking(move || {
-        match readers {
-            Some(readers) => readers.free().read(operation),
-            None => operation(&workshop.lock()),
-        }
-        .map_err(WorkshopError::Workshop)
+        read_blocking(&workshop, readers.as_ref(), operation).map_err(WorkshopError::Workshop)
     })
     .await
     .map_err(|error| WorkshopError::Interrupted(error.to_string()))?

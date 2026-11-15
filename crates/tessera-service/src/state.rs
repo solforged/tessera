@@ -36,7 +36,7 @@ pub(crate) struct AppState {
 }
 
 pub(crate) fn hub_objects() -> tessera_api::ObjectReader {
-    Arc::new(|workshop, sha| Box::pin(sync::object_or_fetch(workshop, sha)))
+    Arc::new(|workshop, readers, sha| Box::pin(sync::object_or_fetch(workshop, readers, sha)))
 }
 
 impl axum::extract::FromRef<AppState> for tessera_api::WorkshopState {

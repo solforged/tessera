@@ -156,17 +156,29 @@ pub(crate) struct SyncState {
     replica: Option<ReplicaState>,
 }
 async fn state(State(state): State<AppState>) -> Result<Json<SyncState>, LastError> {
-    state_value(state.workshop, state.replica).await.map(Json)
+    state_value(&state).await.map(Json)
 }
-async fn state_value(
-    workshop: Arc<Mutex<Workshop>>,
-    runtime: Arc<ReplicaRuntime>,
-) -> Result<SyncState, LastError> {
+async fn state_value(state: &AppState) -> Result<SyncState, LastError> {
+    let workshop = state.workshop.clone();
+    let readers = state.readers.clone();
+    let runtime = state.replica.clone();
     tokio::task::spawn_blocking(move || {
-        let mut n = workshop.lock();
-        let status = n.sync_status()?;
+        // A replica's status is read beside the writer, in one snapshot.
+        let replica = tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
+            let Some(status) = n.sync_status()? else {
+                return Ok(None);
+            };
+            Ok(Some((
+                status,
+                n.sync_hub_credentials()?.expect("replica credentials row"),
+                n.sync_replica_conflicts()?,
+                n.sync_offline_files()?,
+            )))
+        })?;
         let this_device = crate::SyncVersion::current();
-        let Some(status) = status else {
+        let Some((status, credentials, conflicts, offline)) = replica else {
+            // Listing devices retires replicas that stopped syncing, so it writes.
+            let mut n = workshop.lock();
             let role = if n.sync_devices()?.is_empty() && n.sync_replicas()?.is_empty() {
                 "none"
             } else {
@@ -178,9 +190,6 @@ async fn state_value(
                 replica: None,
             });
         };
-        let credentials = n.sync_hub_credentials()?.expect("replica credentials row");
-        let conflicts = n.sync_replica_conflicts()?;
-        let offline = n.sync_offline_files()?;
         let memory = runtime.memory.lock();
         anyhow::Ok(SyncState {
             this_device,
@@ -355,7 +364,7 @@ async fn run_now(State(state): State<AppState>) -> Result<Json<SyncState>, LastE
         state.replica.clone(),
     )
     .await;
-    state_value(state.workshop, state.replica).await.map(Json)
+    state_value(&state).await.map(Json)
 }
 
 #[derive(Deserialize)]
@@ -403,7 +412,7 @@ async fn join(
     .map_err(|e| LastError::from_error(e.into()))?;
     result.map_err(LastError::from_error)?;
     state.replica.wake.notify_one();
-    state_value(state.workshop, state.replica).await.map(Json)
+    state_value(&state).await.map(Json)
 }
 fn join_blocking(
     state: &AppState,
@@ -462,7 +471,7 @@ async fn reclone(State(state): State<AppState>) -> Result<Json<SyncState>, LastE
     .await
     .map_err(|e| LastError::from_error(e.into()))?;
     result.map_err(LastError::from_error)?;
-    state_value(state.workshop, state.replica).await.map(Json)
+    state_value(&state).await.map(Json)
 }
 
 fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> anyhow::Result<()> {

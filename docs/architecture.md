@@ -130,10 +130,13 @@ a Mac hosts: the listener and launch agent, backups, sync sharing and pairing,
 the in-app agent and the embedded editor.
 
 Writes go through the workshop's one writer connection behind a lock. Reads
-that need no write, about 70 `GET` routes, use one of three `query_only` reader
-connections beside it (`tessera-api/src/run.rs`), so a slow query or page read
-does not hold up a save. Agent context and sync reads still take the writer
-lock.
+that need no write use one of three `query_only` reader connections beside it
+(`tessera-api/src/run.rs`), so a slow query or page read does not hold up a
+save. That covers about 70 `GET` routes, stored files, the in-app agent's
+context and its `search` and `read_page` tools, a paired device's key check,
+the hub's missing-file and snapshot reads, and a replica's sync status. A
+reader refuses writes, so a read that writes fails instead of racing the
+writer.
 
 Editor receipts and change streams use the local `editor_events` cursor, not
 replicated `changes.seq`. `GET /api/changes/head` reads it without loading
