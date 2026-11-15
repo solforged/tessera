@@ -22,7 +22,7 @@ fn check_executable(executable: &Path, allow_debug: bool) -> anyhow::Result<()> 
 #[cfg(any(target_os = "macos", test))]
 fn plist(
     executable: &Path,
-    notebook: Option<&Path>,
+    workshop: Option<&Path>,
     port: u16,
     log: &Path,
 ) -> anyhow::Result<String> {
@@ -43,11 +43,11 @@ fn plist(
             .context("launch agent paths must be valid UTF-8")?))
     }
     let mut arguments = format!("    <string>{}</string>\n", path(executable)?);
-    if let Some(notebook) = notebook {
+    if let Some(workshop) = workshop {
         writeln!(
             arguments,
             "    <string>--workshop</string>\n    <string>{}</string>",
-            path(notebook)?
+            path(workshop)?
         )?;
     }
     arguments.push_str("    <string>serve</string>\n");
@@ -195,13 +195,13 @@ fn log_tail(log: &Path) -> String {
 }
 
 /// Make this executable the launch agent's service. Stops the old service,
-/// backs up the notebook, starts this build and waits for it to answer. If it
+/// backs up the workshop, starts this build and waits for it to answer. If it
 /// does not, and `rollback` names the previous executable, restores the backup
 /// with that executable and puts it back as the service.
 #[cfg(target_os = "macos")]
 pub fn install(
-    notebook: &Path,
-    explicit_notebook: bool,
+    workshop: &Path,
+    explicit_workshop: bool,
     port: u16,
     allow_debug: bool,
     rollback: Option<&Path>,
@@ -225,8 +225,8 @@ pub fn install(
     // Stop first, so the backup holds every edit the old service acknowledged.
     bootout(&domain)?;
     let moved = tessera_service::migration::migrate_layout()?;
-    let notebook = if explicit_notebook {
-        let absolute = std::path::absolute(notebook)?;
+    let workshop = if explicit_workshop {
+        let absolute = std::path::absolute(workshop)?;
         moved
             .into_iter()
             .find_map(|(source, target)| (source == absolute).then_some(target))
@@ -236,13 +236,13 @@ pub fn install(
             .context("no workshop directory")?
             .startup()
     };
-    let pinned = explicit_notebook.then_some(notebook.as_path());
+    let pinned = explicit_workshop.then_some(workshop.as_path());
     let content = plist(&executable, pinned, port, &log)?;
-    let backup = if notebook.join(tessera_core::DATABASE_FILE).exists() {
+    let backup = if workshop.join(tessera_core::DATABASE_FILE).exists() {
         let result = tessera_service::paths::backups_dir()
             .context("cannot find the workshop backup store")
             .and_then(|store| {
-                tessera_core::backup_before_update(&notebook, store).map_err(Into::into)
+                tessera_core::backup_before_update(&workshop, store).map_err(Into::into)
             });
         match result {
             Ok(backup) => {
@@ -291,10 +291,10 @@ pub fn install(
     };
     bootout(&domain)?;
     if let Some(backup) = &backup {
-        // The previous build restores, so the notebook keeps a schema it can open.
+        // The previous build restores, so the workshop keeps a schema it can open.
         let status = std::process::Command::new(&previous)
             .arg("--workshop")
-            .arg(&notebook)
+            .arg(&workshop)
             .arg("restore")
             .arg(backup)
             .arg("--force")
@@ -374,7 +374,7 @@ mod tests {
     }
 
     #[test]
-    fn renders_explicit_notebook_port_and_xml_escaping() {
+    fn renders_explicit_workshop_port_and_xml_escaping() {
         let rendered = plist(
             Path::new("/Applications/A & B/tessera"),
             Some(Path::new("/notes/<work>\"'")),

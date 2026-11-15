@@ -5,7 +5,7 @@
  *
  * Rules every implementation keeps:
  * - Typing never waits on the network, the service or storage.
- * - No per-keystroke work proportional to page or notebook size.
+ * - No per-keystroke work proportional to page or workshop size.
  * - Edits are saved as revision-checked operations, coalescing text for
  *   150 to 300 ms (1 s at most); pending batches live in an IndexedDB outbox
  *   until the service acknowledges them. "Saved" means committed.
@@ -464,9 +464,9 @@ export interface DerivedType {
 }
 
 /** The notebook-wide client. One per window. */
-export interface NotebookClient {
+export interface WorkshopClient {
   readonly api: ApiClient;
-  /** Durable notebook command; structural writes name pages whose outlines must refresh before acknowledgement is exposed. */
+  /** Durable workshop command; structural writes name pages whose outlines must refresh before acknowledgement is exposed. */
   commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed>;
   /** Keep text for a value whose creation is already queued, before its editor can mount. */
   queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void>;
@@ -491,7 +491,7 @@ export interface NotebookClient {
   open(pageId: string): PageDocument;
   /** Live pages, then journal days newest first; follows remote changes. */
   roots: Accessor<readonly Block[]>;
-  /** Today's journal day in the notebook's time zone, created if missing. */
+  /** Today's journal day in the workshop's time zone, created if missing. */
   today(signal?: AbortSignal): Promise<string>;
   /** Service calendar date, or the device date when offline. */
   todayDate(): string;
@@ -537,7 +537,7 @@ export interface NotebookClient {
   connection(): 'connecting' | 'live' | 'offline';
   /** Worst save state across open documents, plus outbox items for closed ones. */
   saveState(): SaveState;
-  /** Why the notebook is in `error` or `conflict`, including documents no longer open. */
+  /** Why the workshop is in `error` or `conflict`, including documents no longer open. */
   saveMessage(): string;
   /** Operations persisted in the outbox and not yet acknowledged. */
   queuedChanges(): number;

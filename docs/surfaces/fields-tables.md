@@ -203,7 +203,7 @@ template place in one change.
 
 The type page and the Fields tab list a template with one row design: Name,
 Format and right-aligned Uses in template order. Uses counts distinct owning
-atoms across the notebook, including empty entries, with a tooltip explaining
+atoms across the workshop, including empty entries, with a tooltip explaining
 its notebook-wide scope. Built-in task field names stay lowercase. A name opens
 its field page. Format has a faint menu chevron and reads as Relation → Person,
 Group for a relation, any atom when it has no Links to types, and as Choice · 3

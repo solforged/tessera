@@ -7,8 +7,8 @@ use crate::calendar::{RepeatMode, RepeatUnit};
 use crate::reads::hidden_blocks;
 use crate::storage::validation;
 use crate::{
-    FieldKind, Notebook, Query, QueryAttribute, QueryAttributeValue, QueryGroup, QueryRow,
-    QuerySource, Reading, ReadingValue, Result,
+    FieldKind, Query, QueryAttribute, QueryAttributeValue, QueryGroup, QueryRow, QuerySource,
+    Reading, ReadingValue, Result, Workshop,
 };
 
 type Attributes = BTreeMap<String, Vec<QueryAttributeValue>>;
@@ -268,7 +268,7 @@ fn cited_in(conn: &Connection) -> Result<HashMap<String, HashSet<String>>> {
     Ok(result)
 }
 
-impl Notebook {
+impl Workshop {
     pub(crate) fn query_entities(&self, source: QuerySource) -> Result<Option<Entities>> {
         if source == QuerySource::Notes {
             return Ok(None);
@@ -458,7 +458,7 @@ impl Notebook {
                         None,
                     );
                 }
-                // Creators by what their fields count as: author first, then the notebook's own creator
+                // Creators by what their fields count as: author first, then the workshop's own creator
                 // fields, and editors only for works with neither. Contributors such as translators follow.
                 let definitions = crate::fields::definitions(&self.conn)?;
                 let tiers: HashMap<&str, (crate::built_in::CreatorTier, usize)> = definitions

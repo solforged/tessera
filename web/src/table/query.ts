@@ -1,5 +1,5 @@
 import type { FieldDefinition, FieldKind, Filter, FilterOp, Query, SortKey } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { parseCardText } from '../core/card-text';
 import { targetLabel } from '../outline/names';
@@ -253,15 +253,15 @@ export function sortLabel(key: SortKey, fields: readonly FieldDefinition[], name
 export function filterLabel(
   filter: Filter,
   fields: readonly FieldDefinition[],
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   names?: Record<string, string>,
 ): string {
   const definition = fields.find(field => field.id === filter.field);
   const name = definition ? fieldLabel(definition) : (names?.[filter.field] ?? 'Missing field');
   const value =
     definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
-      ? (target => (!target ? filter.value : targetLabel(target.text, id => notebook.lookup(id)) || 'Empty atom'))(
-          notebook.lookup(filter.value)(),
+      ? (target => (!target ? filter.value : targetLabel(target.text, id => workshop.lookup(id)) || 'Empty atom'))(
+          workshop.lookup(filter.value)(),
         )
       : definition?.kind === 'choice' && definition.id.startsWith('@')
         ? (definition.options.find(option => option.id === filter.value)?.text ?? filter.value)

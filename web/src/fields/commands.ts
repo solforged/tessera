@@ -12,7 +12,7 @@ import type {
   Type,
   View,
 } from '../api/types';
-import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
+import type { DocumentChange, WorkshopClient, PageDocument } from '../document/contract';
 import { fieldEntryId } from '../core/field-entry';
 import { queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
@@ -68,7 +68,7 @@ function replace(steps: Step[], block: Pick<Block, 'id' | 'text' | 'revision'>, 
 }
 /** Revision-guarded forward and inverse batches; option creation and all links share a receipt. */
 async function commit(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   steps: Step[],
   pages: string[],
   reason: string,
@@ -92,7 +92,7 @@ async function commit(
         ? { ...operation, revision: current }
         : { ...operation, base_revision: current };
     });
-    const receipt = await notebook.commit(operations, reason, pages);
+    const receipt = await workshop.commit(operations, reason, pages);
     let deletion = 0;
     for (const step of ordered) {
       const sent = forward ? step.forward : step.backward;
@@ -130,12 +130,12 @@ export type Interpretation = { mode: 'keep' } | { mode: 'option' | 'page' | 'cre
 export type InterpretationMap = Record<string, Interpretation>;
 
 export async function changeFieldKind(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   detail: FieldDetail,
   convert: InterpretationMap,
 ): Promise<DocumentChange> {
   const steps: Step[] = [];
-  const definition = await notebook.api.block(detail.field.id);
+  const definition = await workshop.api.block(detail.field.id);
   const pages = new Set([definition.page_id]);
   if (detail.field.kind !== detail.kind)
     steps.push({
@@ -149,7 +149,7 @@ export async function changeFieldKind(
   const [only, ...others] = detail.kind === 'instance' ? detail.field.targets : [];
   const sole =
     only && !others.length && Object.values(convert).some(mapping => mapping.mode === 'create') ? only : null;
-  const fileUnder = sole && sole !== SOURCE_TARGET ? (await notebook.api.block(sole)).text : null;
+  const fileUnder = sole && sole !== SOURCE_TARGET ? (await workshop.api.block(sole)).text : null;
   let after = detail.field.options.at(-1)?.id ?? null;
   for (const row of detail.interpretations) {
     const mapping = convert[row.text];
@@ -192,7 +192,7 @@ export async function changeFieldKind(
       replace(steps, value, `[[${target}]]`);
     }
   }
-  return commit(notebook, steps, [...pages], 'Change field format');
+  return commit(workshop, steps, [...pages], 'Change field format');
 }
 function addCandidates(steps: Step[], pages: Set<string>, field: FieldDefinition, candidates: FieldChoiceCandidate[]) {
   let after = field.options.at(-1)?.id ?? null;
@@ -206,30 +206,30 @@ function addCandidates(steps: Step[], pages: Set<string>, field: FieldDefinition
   }
 }
 export async function makeFieldOption(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   detail: FieldDetail,
   text: string,
 ): Promise<DocumentChange> {
   const steps: Step[] = [];
-  const definition = await notebook.api.block(detail.field.id);
+  const definition = await workshop.api.block(detail.field.id);
   const candidates = detail.choice_candidates.filter(
     candidate => candidate.text.toLowerCase() === text.trim().toLowerCase(),
   );
   if (!candidates.length) throw new Error('The value changed. Open the field again.');
   const pages = new Set([definition.page_id]);
   addCandidates(steps, pages, detail.field, candidates);
-  return commit(notebook, steps, [...pages], 'Make field option');
+  return commit(workshop, steps, [...pages], 'Make field option');
 }
 
 /** A fresh field's kind, set from its first value; Undo returns it to text. Nothing else needs reinterpreting yet. */
 export async function setFreshFieldKind(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   fieldId: string,
   kind: FieldKind,
 ): Promise<DocumentChange> {
-  const definition = await notebook.api.block(fieldId);
+  const definition = await workshop.api.block(fieldId);
   return commit(
-    notebook,
+    workshop,
     [
       {
         forward: { op: 'set_field_kind', id: fieldId, base_revision: definition.revision, kind },
@@ -243,27 +243,27 @@ export async function setFreshFieldKind(
 
 /** A field renamed in place; the caller has already refused names another field holds. */
 export async function renameField(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   field: FieldDefinition,
   name: string,
 ): Promise<DocumentChange> {
-  const register = await notebook.api.fields();
+  const register = await workshop.api.fields();
   const problem = fieldNameProblem(name, register.fields, field.id);
   if (problem) throw new Error(problem);
   const steps: Step[] = [];
   replace(steps, { id: field.id, text: field.name, revision: field.revision }, name.trim());
-  return commit(notebook, steps, [register.page_id], 'Rename field');
+  return commit(workshop, steps, [register.page_id], 'Rename field');
 }
 
 /** A relation field's Links to types; none means any block. */
 export async function setFieldTargets(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   field: FieldDefinition,
   targets: string[],
 ): Promise<DocumentChange> {
-  const register = await notebook.api.fields();
+  const register = await workshop.api.fields();
   return commit(
-    notebook,
+    workshop,
     [
       {
         forward: { op: 'set_field_targets', id: field.id, base_revision: field.revision, targets },
@@ -276,9 +276,9 @@ export async function setFieldTargets(
 }
 
 /** An existing field placed last in a type's template; Undo restores the template it had. */
-export async function addTemplateField(notebook: NotebookClient, type: Type, fieldId: string): Promise<DocumentChange> {
+export async function addTemplateField(workshop: WorkshopClient, type: Type, fieldId: string): Promise<DocumentChange> {
   return commit(
-    notebook,
+    workshop,
     [
       {
         forward: {
@@ -297,12 +297,12 @@ export async function addTemplateField(notebook: NotebookClient, type: Type, fie
 
 /** A new definition placed last in a type's template, as one undoable change. */
 export async function createTemplateField(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   type: Type,
   name: string,
   kind: FieldKind,
 ): Promise<DocumentChange> {
-  const register = await notebook.api.fields();
+  const register = await workshop.api.fields();
   const problem = fieldNameProblem(name, register.fields);
   if (problem) throw new Error(problem);
   const steps: Step[] = [];
@@ -321,11 +321,11 @@ export async function createTemplateField(
     },
     backward: { op: 'set_type_fields', type_id: type.page.id, base_revision: 0, fields: type.fields },
   });
-  return commit(notebook, steps, [register.page_id, type.page.id], 'Create template field');
+  return commit(workshop, steps, [register.page_id, type.page.id], 'Create template field');
 }
 
 export async function createFieldEntry(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   doc: PageDocument,
   register: Fields,
   owner: string,
@@ -344,15 +344,15 @@ export async function createFieldEntry(
     });
   const entry = insert(steps, owner, `[[${id}]]`, doc.outline.children(owner).at(-1) ?? null);
   const value = insert(steps, entry, kind === 'checkbox' ? 'yes' : '');
-  const pending = commit(notebook, steps, [register.page_id, doc.pageId], 'Create field');
+  const pending = commit(workshop, steps, [register.page_id, doc.pageId], 'Create field');
   onPrepared?.(value);
   const change = doc.rememberChange(await pending);
-  const field = (await notebook.api.fields()).fields.find(field => field.id === id)!;
+  const field = (await workshop.api.fields()).fields.find(field => field.id === id)!;
   return { field, value, change };
 }
 
 export async function createOptionValue(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   doc: PageDocument,
   target: { ownerId: string; valueId?: string; field: FieldDefinition },
   text: string,
@@ -360,9 +360,9 @@ export async function createOptionValue(
   await documentReady(doc);
   await doc.flush();
   const steps: Step[] = [];
-  const field = (await notebook.api.fields()).fields.find(field => field.id === target.field.id);
+  const field = (await workshop.api.fields()).fields.find(field => field.id === target.field.id);
   if (!field) throw new Error('Field no longer exists.');
-  const definition = await notebook.api.block(field.id);
+  const definition = await workshop.api.block(field.id);
   const name = text.trim();
   const option =
     field.options.find(option => option.text.trim().toLowerCase() === name.toLowerCase())?.id ??
@@ -381,7 +381,7 @@ export async function createOptionValue(
     entry ??= insert(steps, target.ownerId, `[[${field.id}]]`, doc.outline.children(target.ownerId).at(-1) ?? null);
     insert(steps, entry, `[[${option}]]`, doc.outline.children(entry).at(-1) ?? null);
   }
-  return doc.rememberChange(await commit(notebook, steps, [doc.pageId, definition.page_id], 'Add field option'));
+  return doc.rememberChange(await commit(workshop, steps, [doc.pageId, definition.page_id], 'Add field option'));
 }
 
 /** Predict the selected conversion without relaxing Choice's link-only reading rule. */
@@ -423,18 +423,18 @@ export interface FieldImpact {
 }
 
 /** Capture revisions at preview time, so a later edit rejects rather than being overwritten. */
-export async function fieldImpact(notebook: NotebookClient, id: string, target?: string): Promise<FieldImpact> {
-  const detail = await notebook.api.fieldDetail(id);
+export async function fieldImpact(workshop: WorkshopClient, id: string, target?: string): Promise<FieldImpact> {
+  const detail = await workshop.api.fieldDetail(id);
   const [definition, entries, templates, survivor, views] = await Promise.all([
-    notebook.api.block(id),
-    Promise.all(detail.entries.map(id => notebook.api.block(id))),
-    Promise.all(detail.templates.map(type => notebook.api.type(type.type_id))),
-    target ? notebook.api.fieldDetail(target) : undefined,
-    notebook.api.views(),
+    workshop.api.block(id),
+    Promise.all(detail.entries.map(id => workshop.api.block(id))),
+    Promise.all(detail.templates.map(type => workshop.api.type(type.type_id))),
+    target ? workshop.api.fieldDetail(target) : undefined,
+    workshop.api.views(),
   ]);
   const pageIds = [...new Set([definition.page_id, ...entries.map(entry => entry.page_id)])];
-  const pages = await Promise.all(pageIds.map(id => notebook.api.page(id)));
-  const targetEntries = survivor ? await Promise.all(survivor.entries.map(id => notebook.api.block(id))) : [];
+  const pages = await Promise.all(pageIds.map(id => workshop.api.page(id)));
+  const targetEntries = survivor ? await Promise.all(survivor.entries.map(id => workshop.api.block(id))) : [];
   const targetOwners = new Set(targetEntries.map(entry => entry.parent_id));
   return {
     detail,
@@ -482,7 +482,7 @@ export interface OptionImpact {
 
 /** Snapshot every affected value before offering the same revision-guarded deletion to mouse and keyboard. */
 export async function optionImpact(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   roots: Block[],
   fields: readonly FieldDefinition[],
 ): Promise<OptionImpact> {
@@ -490,12 +490,12 @@ export async function optionImpact(
   const choices = fields.filter(
     field => field.kind === 'choice' && field.options.some(option => selected.has(option.id)),
   );
-  const details = await Promise.all(choices.map(field => notebook.api.fieldDetail(field.id)));
+  const details = await Promise.all(choices.map(field => workshop.api.fieldDetail(field.id)));
   const entries = await Promise.all(
-    [...new Set(details.flatMap(detail => detail.entries))].map(id => notebook.api.block(id)),
+    [...new Set(details.flatMap(detail => detail.entries))].map(id => workshop.api.block(id)),
   );
   const pages = await Promise.all(
-    [...new Set([...entries, ...roots].map(block => block.page_id))].map(id => notebook.api.page(id)),
+    [...new Set([...entries, ...roots].map(block => block.page_id))].map(id => workshop.api.page(id)),
   );
   const owners = new Map(entries.map(entry => [entry.id, entry.parent_id!]));
   const labels = optionLabels(
@@ -512,7 +512,7 @@ export async function optionImpact(
   return { roots, values };
 }
 
-export async function deleteFieldOptions(notebook: NotebookClient, impact: OptionImpact): Promise<DocumentChange> {
+export async function deleteFieldOptions(workshop: WorkshopClient, impact: OptionImpact): Promise<DocumentChange> {
   const steps: Step[] = [];
   for (const value of impact.values) replace(steps, value.block, value.text);
   for (const root of impact.roots)
@@ -521,7 +521,7 @@ export async function deleteFieldOptions(notebook: NotebookClient, impact: Optio
       backward: { op: 'delete', id: root.id, base_revision: 0 },
     });
   return commit(
-    notebook,
+    workshop,
     steps,
     [...new Set([...impact.roots, ...impact.values.map(value => value.block)].map(block => block.page_id))],
     'Delete choice options',
@@ -529,7 +529,7 @@ export async function deleteFieldOptions(notebook: NotebookClient, impact: Optio
 }
 
 export async function applyFieldImpact(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   impact: FieldImpact,
   action: 'archive' | 'merge' | 'detach' | 'delete',
 ): Promise<DocumentChange> {
@@ -624,7 +624,7 @@ export async function applyFieldImpact(
     });
   }
   return commit(
-    notebook,
+    workshop,
     steps,
     [...pages],
     action === 'merge'

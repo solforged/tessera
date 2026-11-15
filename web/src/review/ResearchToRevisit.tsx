@@ -1,5 +1,5 @@
 import { For, Show } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
@@ -10,10 +10,10 @@ import './revisits.css';
 
 export function ResearchToRevisit(props: {
   name?: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
-  const queue = createRevisits(props.notebook);
+  const queue = createRevisits(props.workshop);
   return (
     <Show when={queue.rows().length || queue.error()}>
       <section class="research-revisits" aria-label="Research to revisit">
@@ -27,7 +27,7 @@ export function ResearchToRevisit(props: {
           {row => (
             <div class="research-revisit-row">
               <div>
-                <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+                <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} />
                 <span class="revisit-meta">
                   {revisitKind(row)} · {row.revisit_on}
                 </span>

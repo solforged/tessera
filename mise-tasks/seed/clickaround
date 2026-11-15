@@ -42,7 +42,7 @@ if (existsSync(join(dir, 'notebook.db'))) {
   fail(`${dir} exists but holds no workshop; remove it or pass --replace`);
 }
 
-/** The PID in the service's ownership file when that process is still alive. The file is advisory, but a live PID means a service probably has the notebook open. */
+/** The PID in the service's ownership file when that process is still alive. The file is advisory, but a live PID means a service probably has the workshop open. */
 function heldBy(notebook: string): number | null {
   try {
     const { pid } = JSON.parse(readFileSync(join(notebook, 'service.lock'), 'utf8')) as { pid?: number };

@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
         "sqlite_version": rusqlite::version(), "schema_version": tessera_core::SCHEMA_VERSION,
         "profile": "release", "runs": args.runs, "seed": args.seed,
         "command": std::env::args().collect::<Vec<_>>(),
-        "cold_definition": "fresh Notebook connection; OS file cache is not evicted; cold HTTP additionally starts a fresh loopback server and client",
+        "cold_definition": "fresh Workshop connection; OS file cache is not evicted; cold HTTP additionally starts a fresh loopback server and client",
         "http_definition": "real loopback TCP, service dispatch, JSON encoding and client JSON decoding",
         "page_definition": "descendant rows; root is additional; no viewport rendering is measured",
     });

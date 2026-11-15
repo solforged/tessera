@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::Serialize;
-use tessera_core::NotebookInfo;
+use tessera_core::WorkshopInfo;
 
 use crate::error::ApiError;
 use crate::state::{AppState, read, run};
@@ -82,7 +82,7 @@ fn backup_store(state: &AppState) -> Result<PathBuf, ApiError> {
     state.backup_store.clone().ok_or_else(ApiError::not_found)
 }
 
-fn backup_directory(store: &std::path::Path, info: &NotebookInfo) -> Result<PathBuf, ApiError> {
+fn backup_directory(store: &std::path::Path, info: &WorkshopInfo) -> Result<PathBuf, ApiError> {
     tessera_core::backup_directory(store, &info.id).map_err(ApiError::from)
 }
 
@@ -145,7 +145,7 @@ fn backup_info(
     })
 }
 
-fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups, ApiError> {
+fn list_backups(store: &std::path::Path, info: &WorkshopInfo) -> Result<Backups, ApiError> {
     let backups = tessera_core::finished_backups(store, &info.id)
         .map_err(ApiError::from)?
         .into_iter()
@@ -196,7 +196,7 @@ fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups,
 async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiError> {
     let store = backup_store(&state)?;
     let guard = state.backup.clone().lock_owned().await;
-    let info = read(&state, |notebook| notebook.info()).await?;
+    let info = read(&state, |workshop| workshop.info()).await?;
     tokio::task::spawn_blocking(move || {
         let failure = guard.clone();
         list_backups(&store, &info).map(|backups| {
@@ -229,7 +229,7 @@ async fn delete_backup(
     let Path(name) = name.map_err(ApiError::from)?;
     validate_backup_name(&name)?;
     let guard = state.backup.clone().lock_owned().await;
-    let info = run(&state, |notebook| notebook.info()).await?;
+    let info = run(&state, |workshop| workshop.info()).await?;
     tokio::task::spawn_blocking(move || {
         let backups = list_backups(&store, &info)?.backups;
         let index = backups
@@ -289,7 +289,7 @@ async fn restore_backup(
         return Err(conflict());
     }
     let store = backup_store(&state)?;
-    let info = run(&state, |notebook| notebook.info()).await?;
+    let info = run(&state, |workshop| workshop.info()).await?;
     tokio::task::spawn_blocking(move || {
         // Both guards outlive cancellation, including publishing the restart request.
         let (_guard, _transition) = (guard, transition);
@@ -335,7 +335,7 @@ async fn delete_other_backups(
         ));
     }
     let guard = state.backup.clone().lock_owned().await;
-    let info = run(&state, |notebook| notebook.info()).await?;
+    let info = run(&state, |workshop| workshop.info()).await?;
     if info.id == id {
         return Err(ApiError::new(
             axum::http::StatusCode::CONFLICT,
@@ -370,7 +370,7 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
             "A backup is already running.",
         )
     })?;
-    let info = run(&state, |notebook| notebook.info()).await?;
+    let info = run(&state, |workshop| workshop.info()).await?;
     tokio::task::spawn_blocking(move || {
         // Keep the guard here so cancelling the HTTP request cannot release it early.
         let mut guard = guard;
@@ -398,7 +398,7 @@ mod tests {
         routing::post,
     };
     use parking_lot::Mutex;
-    use tessera_core::Notebook;
+    use tessera_core::Workshop;
     use tokio::sync::broadcast;
     use tower::ServiceExt;
 
@@ -410,19 +410,19 @@ mod tests {
     #[tokio::test]
     async fn backup_rejects_concurrent_requests_and_releases_guard_after_failure() {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            Notebook::open(dir.path().join("notebook")).unwrap(),
+        let workshop = Arc::new(Mutex::new(
+            Workshop::open(dir.path().join("notebook")).unwrap(),
         ));
-        let info = notebook.lock().info().unwrap();
+        let info = workshop.lock().info().unwrap();
         let changes = broadcast::channel(32).0;
         let library =
-            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+            library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
         let backup = Arc::new(tokio::sync::Mutex::new(None));
         let app = Router::new()
             .route("/api/backups", post(create_backup))
             .with_state(AppState {
                 readers: None,
-                notebook,
+                workshop,
                 assets: None,
                 changes,
                 library,
@@ -487,19 +487,19 @@ mod tests {
             serde_json::from_slice(&bytes).unwrap()
         }
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            Notebook::open(dir.path().join("notebook")).unwrap(),
+        let workshop = Arc::new(Mutex::new(
+            Workshop::open(dir.path().join("notebook")).unwrap(),
         ));
         let changes = broadcast::channel(32).0;
         let library =
-            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+            library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
         let backup = Arc::new(tokio::sync::Mutex::new(Some(BackupFailure {
             at: 7,
             message: "disk full".into(),
         })));
         let app = backup_routes().with_state(AppState {
             readers: None,
-            notebook,
+            workshop,
             assets: None,
             changes,
             library,
@@ -525,18 +525,18 @@ mod tests {
         assert!(json(&app, "GET").await["automatic_failure"].is_null());
     }
 
-    fn backup_fixture() -> (tempfile::TempDir, Router, NotebookInfo) {
+    fn backup_fixture() -> (tempfile::TempDir, Router, WorkshopInfo) {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            Notebook::open(dir.path().join("notebook")).unwrap(),
+        let workshop = Arc::new(Mutex::new(
+            Workshop::open(dir.path().join("notebook")).unwrap(),
         ));
-        let info = notebook.lock().info().unwrap();
+        let info = workshop.lock().info().unwrap();
         let changes = broadcast::channel(32).0;
         let library =
-            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+            library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
         let app = backup_routes().with_state(AppState {
             readers: None,
-            notebook,
+            workshop,
             assets: None,
             changes,
             library,
@@ -561,7 +561,7 @@ mod tests {
             std::fs::write(path.join("notebook.db"), b"database").unwrap();
             std::fs::write(path.join("objects/nested/object"), b"object").unwrap();
             let manifest = tessera_core::BackupManifest {
-                notebook_id: info.id.clone(),
+                workshop_id: info.id.clone(),
                 schema_version: 1,
                 created_at,
                 object_count: 1,
@@ -665,7 +665,7 @@ mod tests {
         std::fs::write(root.join("unfinished/notebook.db"), b"in progress").unwrap();
         std::fs::create_dir(root.join("foreign")).unwrap();
         let foreign = tessera_core::BackupManifest {
-            notebook_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+            workshop_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
             schema_version: 1,
             created_at: 0,
             object_count: 0,

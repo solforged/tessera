@@ -1,13 +1,13 @@
-use tessera_core::{Actor, Batch, DATABASE_FILE, Error, Notebook, Operation, SCHEMA_VERSION};
+use tessera_core::{Actor, Batch, DATABASE_FILE, Error, Operation, SCHEMA_VERSION, Workshop};
 
 #[test]
-fn reopening_keeps_the_notebook_identity() {
+fn reopening_keeps_the_workshop_identity() {
     let dir = tempfile::tempdir().unwrap();
-    let first = Notebook::open(dir.path().join("nb"))
+    let first = Workshop::open(dir.path().join("nb"))
         .unwrap()
         .info()
         .unwrap();
-    let second = Notebook::open(dir.path().join("nb"))
+    let second = Workshop::open(dir.path().join("nb"))
         .unwrap()
         .info()
         .unwrap();
@@ -18,7 +18,7 @@ fn reopening_keeps_the_notebook_identity() {
 #[test]
 fn opens_with_durable_wal_settings() {
     let dir = tempfile::tempdir().unwrap();
-    Notebook::open(dir.path()).unwrap();
+    Workshop::open(dir.path()).unwrap();
     let conn = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
     let mode: String = conn
         .pragma_query_value(None, "journal_mode", |row| row.get(0))
@@ -27,15 +27,15 @@ fn opens_with_durable_wal_settings() {
 }
 
 #[test]
-fn refuses_a_notebook_from_a_newer_schema_without_touching_it() {
+fn refuses_a_workshop_from_a_newer_schema_without_touching_it() {
     let dir = tempfile::tempdir().unwrap();
-    Notebook::open(dir.path()).unwrap();
+    Workshop::open(dir.path()).unwrap();
     let conn = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
     conn.pragma_update(None, "user_version", SCHEMA_VERSION + 1)
         .unwrap();
     drop(conn);
 
-    let error = Notebook::open(dir.path())
+    let error = Workshop::open(dir.path())
         .err()
         .expect("newer schema must fail");
     assert!(matches!(error, Error::SchemaTooNew { found, .. } if found == SCHEMA_VERSION + 1));
@@ -53,19 +53,19 @@ fn migrating_the_first_schema_preserves_identity_and_enables_outline_operations(
     let conn = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
     conn.execute_batch(include_str!("../migrations/001_notebook.sql"))
         .unwrap();
-    let notebook_id = ulid::Ulid::from(1u128).to_string();
+    let workshop_id = ulid::Ulid::from(1u128).to_string();
     conn.execute(
         "INSERT INTO notebook(singleton, id, created_at) VALUES (1, ?1, 123)",
-        [&notebook_id],
+        [&workshop_id],
     )
     .unwrap();
     conn.pragma_update(None, "user_version", 1).unwrap();
     drop(conn);
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    assert_eq!(notebook.info().unwrap().id, notebook_id);
-    assert_eq!(notebook.info().unwrap().created_at, 123);
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    assert_eq!(workshop.info().unwrap().id, workshop_id);
+    assert_eq!(workshop.info().unwrap().created_at, 123);
     let page_id = ulid::Ulid::from(2u128).to_string();
-    notebook
+    workshop
         .apply(&tessera_core::Batch {
             actor: tessera_core::Actor::Person,
             reason: None,
@@ -76,21 +76,21 @@ fn migrating_the_first_schema_preserves_identity_and_enables_outline_operations(
             }],
         })
         .unwrap();
-    assert_eq!(notebook.page(&page_id).unwrap().root.text, "Migrated page");
+    assert_eq!(workshop.page(&page_id).unwrap().root.text, "Migrated page");
 }
 
 #[test]
-fn concurrent_openers_upgrade_a_wal_notebook_once_and_preserve_identity() {
+fn concurrent_openers_upgrade_a_wal_workshop_once_and_preserve_identity() {
     const OPENERS: usize = 4;
     let dir = tempfile::tempdir().unwrap();
     let mut conn = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
     conn.pragma_update(None, "journal_mode", "WAL").unwrap();
     conn.execute_batch(include_str!("../migrations/001_notebook.sql"))
         .unwrap();
-    let notebook_id = ulid::Ulid::from(1u128).to_string();
+    let workshop_id = ulid::Ulid::from(1u128).to_string();
     conn.execute(
         "INSERT INTO notebook(singleton, id, created_at) VALUES (1, ?1, 123)",
-        [&notebook_id],
+        [&workshop_id],
     )
     .unwrap();
     conn.pragma_update(None, "user_version", 1).unwrap();
@@ -110,7 +110,7 @@ fn concurrent_openers_upgrade_a_wal_notebook_once_and_preserve_identity() {
             let path = dir.path();
             scope.spawn(move || {
                 barrier.wait();
-                let result = Notebook::open(path).and_then(|notebook| notebook.info());
+                let result = Workshop::open(path).and_then(|workshop| workshop.info());
                 send.send(result).unwrap();
             });
         }
@@ -128,7 +128,7 @@ fn concurrent_openers_upgrade_a_wal_notebook_once_and_preserve_identity() {
         assert_eq!(results.len(), OPENERS);
         for result in results {
             let info = result.expect("every independent concurrent opener must succeed");
-            assert_eq!(info.id, notebook_id);
+            assert_eq!(info.id, workshop_id);
             assert_eq!(info.created_at, 123);
             assert_eq!(info.schema_version, SCHEMA_VERSION);
         }
@@ -137,8 +137,8 @@ fn concurrent_openers_upgrade_a_wal_notebook_once_and_preserve_identity() {
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
     assert_eq!(version, SCHEMA_VERSION);
-    let reopened = Notebook::open(dir.path()).unwrap().info().unwrap();
-    assert_eq!(reopened.id, notebook_id);
+    let reopened = Workshop::open(dir.path()).unwrap().info().unwrap();
+    assert_eq!(reopened.id, workshop_id);
     assert_eq!(reopened.created_at, 123);
 }
 
@@ -148,10 +148,10 @@ fn failed_upgrade_rolls_back_schema_changes_and_releases_the_writer_slot() {
     let conn = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
     conn.execute_batch(include_str!("../migrations/001_notebook.sql"))
         .unwrap();
-    let notebook_id = ulid::Ulid::from(1u128).to_string();
+    let workshop_id = ulid::Ulid::from(1u128).to_string();
     conn.execute(
         "INSERT INTO notebook(singleton, id, created_at) VALUES (1, ?1, 123)",
-        [&notebook_id],
+        [&workshop_id],
     )
     .unwrap();
     conn.pragma_update(None, "user_version", 1).unwrap();
@@ -159,7 +159,7 @@ fn failed_upgrade_rolls_back_schema_changes_and_releases_the_writer_slot() {
     conn.execute_batch("CREATE TABLE blocks (unrelated TEXT)")
         .unwrap();
 
-    assert!(matches!(Notebook::open(dir.path()), Err(Error::Sqlite(_))));
+    assert!(matches!(Workshop::open(dir.path()), Err(Error::Sqlite(_))));
     let version: u32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
@@ -174,8 +174,8 @@ fn failed_upgrade_rolls_back_schema_changes_and_releases_the_writer_slot() {
     assert_eq!(tables, vec!["blocks", "notebook"]);
 
     conn.execute_batch("DROP TABLE blocks").unwrap();
-    let info = Notebook::open(dir.path()).unwrap().info().unwrap();
-    assert_eq!(info.id, notebook_id);
+    let info = Workshop::open(dir.path()).unwrap().info().unwrap();
+    assert_eq!(info.id, workshop_id);
     assert_eq!(info.created_at, 123);
     assert_eq!(info.schema_version, SCHEMA_VERSION);
 }
@@ -196,26 +196,26 @@ fn setting_batch(key: &str, base_revision: Option<i64>, value: &str) -> Batch {
 #[test]
 fn settings_create_update_and_replay_without_block_revisions() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let mut workshop = Workshop::open(dir.path()).unwrap();
     let mut batch = setting_batch("vim", None, "true");
     batch.idempotency_key = Some("setting-create".into());
-    let created = notebook.apply(&batch).unwrap();
+    let created = workshop.apply(&batch).unwrap();
     assert!(created.revisions.is_empty());
     assert_eq!(created.settings[0].key, "vim");
     assert_eq!(created.settings[0].revision, 1);
-    let replay = notebook.apply(&batch).unwrap();
+    let replay = workshop.apply(&batch).unwrap();
     assert!(replay.replayed);
     assert_eq!(replay.settings, created.settings);
-    notebook
+    workshop
         .apply(&setting_batch("vim", Some(1), "false"))
         .unwrap();
-    drop(notebook);
-    let notebook = Notebook::open(dir.path()).unwrap();
-    let settings = notebook.settings().unwrap();
+    drop(workshop);
+    let workshop = Workshop::open(dir.path()).unwrap();
+    let settings = workshop.settings().unwrap();
     assert_eq!(settings[0].value, "false");
     assert_eq!(settings[0].revision, 2);
     assert!(settings[0].updated_at > 0);
-    let changes = notebook.changes_since(0, 10).unwrap();
+    let changes = workshop.changes_since(0, 10).unwrap();
     assert_eq!(changes.len(), 2);
     assert_eq!(changes[0].settings, ["vim"]);
     assert!(changes[0].blocks.is_empty() && changes[0].removed.is_empty());
@@ -224,9 +224,9 @@ fn settings_create_update_and_replay_without_block_revisions() {
 #[test]
 fn stale_setting_revision_rejects_the_whole_batch() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    notebook.apply(&setting_batch("vim", None, "true")).unwrap();
-    notebook
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    workshop.apply(&setting_batch("vim", None, "true")).unwrap();
+    workshop
         .apply(&setting_batch("vim", Some(1), "false"))
         .unwrap();
     let mut batch = setting_batch("time_zone", None, "Pacific/Kiritimati");
@@ -236,7 +236,7 @@ fn stale_setting_revision_rejects_the_whole_batch() {
         value: "true".into(),
     });
     assert!(matches!(
-        notebook.apply(&batch),
+        workshop.apply(&batch),
         Err(Error::Conflict {
             op_index: 1,
             expected: 1,
@@ -244,30 +244,30 @@ fn stale_setting_revision_rejects_the_whole_batch() {
             ..
         })
     ));
-    assert_eq!(notebook.settings().unwrap().len(), 1);
-    assert_eq!(notebook.settings().unwrap()[0].value, "false");
+    assert_eq!(workshop.settings().unwrap().len(), 1);
+    assert_eq!(workshop.settings().unwrap()[0].value, "false");
     assert!(matches!(
-        notebook.apply(&setting_batch("vim", None, "true")),
+        workshop.apply(&setting_batch("vim", None, "true")),
         Err(Error::Conflict { .. })
     ));
     assert!(matches!(
-        notebook.apply(&setting_batch("time_zone", Some(1), "UTC")),
+        workshop.apply(&setting_batch("time_zone", Some(1), "UTC")),
         Err(Error::Conflict { found: None, .. })
     ));
-    assert!(notebook.changes_since(2, 10).unwrap().is_empty());
+    assert!(workshop.changes_since(2, 10).unwrap().is_empty());
 }
 
 #[test]
 fn view_delete_confirmation_accepts_boolean_values() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    notebook
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    workshop
         .apply(&setting_batch("confirm_view_delete", None, "false"))
         .unwrap();
-    notebook
+    workshop
         .apply(&setting_batch("confirm_view_delete", Some(1), "true"))
         .unwrap();
-    let settings = notebook.settings().unwrap();
+    let settings = workshop.settings().unwrap();
     assert_eq!(settings[0].key, "confirm_view_delete");
     assert_eq!(settings[0].value, "true");
     assert_eq!(settings[0].revision, 2);
@@ -276,7 +276,7 @@ fn view_delete_confirmation_accepts_boolean_values() {
 #[test]
 fn invalid_time_zone_boolean_and_unknown_settings_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let mut workshop = Workshop::open(dir.path()).unwrap();
     for (key, value) in [
         ("time_zone", "Mars/Olympus"),
         ("time_zone", "+03:00"),
@@ -287,12 +287,12 @@ fn invalid_time_zone_boolean_and_unknown_settings_are_rejected() {
         ("unknown", "true"),
     ] {
         assert!(matches!(
-            notebook.apply(&setting_batch(key, None, value)),
+            workshop.apply(&setting_batch(key, None, value)),
             Err(Error::Validation { .. })
         ));
     }
-    assert!(notebook.settings().unwrap().is_empty());
-    assert!(notebook.changes_since(0, 10).unwrap().is_empty());
+    assert!(workshop.settings().unwrap().is_empty());
+    assert!(workshop.changes_since(0, 10).unwrap().is_empty());
 }
 
 const TODAY_TEMPLATE: &str = r#"{"sections":[{"id":"plan","name":"Plan","on":true},{"id":"inbox","name":"Inbox","on":true},{"id":"reading","name":"Reading","on":true},{"id":"notes","name":"Notes","on":true},{"id":"research","name":"Research to revisit","on":true},{"id":"highlights","name":"From your highlights","on":false}],"capture":"inbox","links":"link","tiles":{"agenda":true,"review":true,"reading":true}}"#;
@@ -300,8 +300,8 @@ const TODAY_TEMPLATE: &str = r#"{"sections":[{"id":"plan","name":"Plan","on":tru
 #[test]
 fn today_template_accepts_a_complete_template_and_rejects_broken_ones() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    notebook
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    workshop
         .apply(&setting_batch("today_template", None, TODAY_TEMPLATE))
         .unwrap();
     for value in [
@@ -316,30 +316,30 @@ fn today_template_accepts_a_complete_template_and_rejects_broken_ones() {
         TODAY_TEMPLATE.replace(r#""links":"link""#, r#""links":"page""#),
     ] {
         assert!(matches!(
-            notebook.apply(&setting_batch("today_template", Some(1), &value)),
+            workshop.apply(&setting_batch("today_template", Some(1), &value)),
             Err(Error::Validation { .. })
         ));
     }
-    assert_eq!(notebook.settings().unwrap()[0].revision, 1);
+    assert_eq!(workshop.settings().unwrap()[0].revision, 1);
 }
 
 #[test]
-fn today_uses_notebook_time_zone_across_midnight() {
+fn today_uses_workshop_time_zone_across_midnight() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let mut workshop = Workshop::open(dir.path()).unwrap();
     let instant: jiff::Timestamp = "2026-10-02T10:30:00Z".parse().unwrap();
-    notebook
+    workshop
         .apply(&setting_batch("time_zone", None, "Pacific/Kiritimati"))
         .unwrap();
     assert_eq!(
-        notebook.today(instant.as_millisecond()).unwrap(),
+        workshop.today(instant.as_millisecond()).unwrap(),
         "2026-10-03"
     );
-    notebook
+    workshop
         .apply(&setting_batch("time_zone", Some(1), "America/Los_Angeles"))
         .unwrap();
     assert_eq!(
-        notebook.today(instant.as_millisecond()).unwrap(),
+        workshop.today(instant.as_millisecond()).unwrap(),
         "2026-10-02"
     );
 }
@@ -347,10 +347,10 @@ fn today_uses_notebook_time_zone_across_midnight() {
 #[test]
 fn unset_time_zone_uses_service_host_local_zone() {
     let dir = tempfile::tempdir().unwrap();
-    let notebook = Notebook::open(dir.path()).unwrap();
+    let workshop = Workshop::open(dir.path()).unwrap();
     let instant: jiff::Timestamp = "2026-10-02T10:30:00Z".parse().unwrap();
     let host_zone = jiff::tz::TimeZone::system();
-    let view = notebook.settings_view(instant.as_millisecond()).unwrap();
+    let view = workshop.settings_view(instant.as_millisecond()).unwrap();
     assert_eq!(view.time_zone, host_zone.iana_name().unwrap_or("UTC"));
     assert_eq!(view.today, instant.to_zoned(host_zone).date().to_string());
 }
@@ -370,15 +370,15 @@ fn page(id: &str, title: &str) -> Batch {
 #[test]
 fn a_reader_sees_commits_and_holds_one_snapshot_per_read() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    let reader = notebook.reader().unwrap();
-    let before = reader.read(|notebook| notebook.roots()).unwrap().len();
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    let reader = workshop.reader().unwrap();
+    let before = reader.read(|workshop| workshop.roots()).unwrap().len();
 
-    notebook
+    workshop
         .apply(&page("01JREADER0000000000000000A", "First"))
         .unwrap();
     assert_eq!(
-        reader.read(|notebook| notebook.roots()).unwrap().len(),
+        reader.read(|workshop| workshop.roots()).unwrap().len(),
         before + 1
     );
 
@@ -386,13 +386,13 @@ fn a_reader_sees_commits_and_holds_one_snapshot_per_read() {
     let (first, second) = reader
         .read(|snapshot| {
             let first = snapshot.roots()?.len();
-            notebook.apply(&page("01JREADER0000000000000000B", "Second"))?;
+            workshop.apply(&page("01JREADER0000000000000000B", "Second"))?;
             Ok((first, snapshot.roots()?.len()))
         })
         .unwrap();
     assert_eq!((first, second), (before + 1, before + 1));
     assert_eq!(
-        reader.read(|notebook| notebook.roots()).unwrap().len(),
+        reader.read(|workshop| workshop.roots()).unwrap().len(),
         before + 2
     );
 }
@@ -400,11 +400,11 @@ fn a_reader_sees_commits_and_holds_one_snapshot_per_read() {
 #[test]
 fn a_reader_refuses_to_write() {
     let dir = tempfile::tempdir().unwrap();
-    let notebook = Notebook::open(dir.path()).unwrap();
-    let reader = notebook.reader().unwrap();
+    let workshop = Workshop::open(dir.path()).unwrap();
+    let reader = workshop.reader().unwrap();
     // Resuming ingest jobs is a write that takes `&self`.
     let error = reader
-        .read(|notebook| notebook.resume_ingest())
+        .read(|workshop| workshop.resume_ingest())
         .expect_err("a write through the reader must fail");
     let Error::Sqlite(error) = error else {
         panic!("unexpected error: {error}");

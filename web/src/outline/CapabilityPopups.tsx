@@ -25,13 +25,13 @@ export function createCapabilityPopups(
     const load = async () => {
       await doc.flush();
       const [sessions, active] = await Promise.all([
-        props.notebook.api.workSessions(state.id),
-        props.notebook.api.activeWorkSession(),
+        props.workshop.api.workSessions(state.id),
+        props.workshop.api.activeWorkSession(),
       ]);
-      const source = active ? await props.notebook.api.block(active.block_id) : null;
+      const source = active ? await props.workshop.api.block(active.block_id) : null;
       return { sessions, active, source };
     };
-    const [history, { refetch, mutate }] = createResource(() => props.notebook.changeSequence(), load);
+    const [history, { refetch, mutate }] = createResource(() => props.workshop.changeSequence(), load);
     const [shown, setShown] = createSignal<WorkHistory>();
     createEffect(() => {
       if (!history.error) {
@@ -90,7 +90,7 @@ export function createCapabilityPopups(
         <header class="task-planning-header">
           <p class="task-planning-kicker">Work</p>
           <h2 class="popup-title task-planning-title">
-            <BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} />
+            <BlockText text={doc.block(state.id)?.text ?? ''} workshop={props.workshop} interactive={false} />
           </h2>
         </header>
         <Show when={history.loading && !shown()}>
@@ -114,7 +114,7 @@ export function createCapabilityPopups(
           {source => (
             <div class="outline-running-task">
               <span>Work is running on</span>
-              <BlockText text={source().text} blockId={source().id} notebook={props.notebook} onOpen={props.onOpen} />
+              <BlockText text={source().text} blockId={source().id} workshop={props.workshop} onOpen={props.onOpen} />
               <Button
                 onClick={event =>
                   props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, opensBeside(event))
@@ -130,7 +130,7 @@ export function createCapabilityPopups(
             <WorkSessions
               sessions={value().sessions}
               active={value().active?.block_id === state.id ? value().active : null}
-              today={props.notebook.todayDate()}
+              today={props.workshop.todayDate()}
               disabled={!!history.error || capabilities.busy(state.id)}
               onStart={start}
               onStop={(id, note) => change('stopWork', id, note)}
@@ -156,12 +156,12 @@ export function createCapabilityPopups(
                 <Show when={doc.block(state.id)?.question}>
                   {question => (
                     <DatePicker
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       anchor={state.anchor}
                       label="Set revisit date"
                       presets="revisit"
                       value={question().state.review_on}
-                      contextDate={props.notebook.todayDate()}
+                      contextDate={props.workshop.todayDate()}
                       onDismiss={() => capabilities.dismiss(state)}
                       onSelect={value =>
                         capabilities.edit(state.id, {
@@ -177,7 +177,7 @@ export function createCapabilityPopups(
               {state.kind === 'question-parent' && (
                 <QuestionParentPicker
                   id={state.id}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   anchor={state.anchor}
                   onDismiss={() => capabilities.dismiss(state)}
                   onPick={parent => {
@@ -199,7 +199,7 @@ export function createCapabilityPopups(
                   onDismiss={() => capabilities.dismiss(state)}
                 >
                   <ProjectControls
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     project={doc.block(state.id)?.project ?? null}
                     contextDate={contextDate()}
                     disabled={capabilities.busy(state.id)}

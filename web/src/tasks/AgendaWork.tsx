@@ -1,6 +1,6 @@
 import { Show, createEffect, createResource, createSignal } from 'solid-js';
 import type { WorkSession } from '../api/types';
-import type { Edit, NotebookClient } from '../document/contract';
+import type { Edit, WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
@@ -14,7 +14,7 @@ interface WorkHistory {
 
 /** A listed task's Work sessions: the popup the outline opens, saving each edit through the task's source page. */
 export function AgendaWork(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   /** The task block. */
   id: string;
   text: string;
@@ -25,12 +25,12 @@ export function AgendaWork(props: {
 }) {
   const load = async (): Promise<WorkHistory> => {
     const [sessions, active] = await Promise.all([
-      props.notebook.api.workSessions(props.id),
-      props.notebook.api.activeWorkSession(),
+      props.workshop.api.workSessions(props.id),
+      props.workshop.api.activeWorkSession(),
     ]);
     return { sessions, active };
   };
-  const [history, { refetch }] = createResource(() => props.notebook.changeSequence(), load);
+  const [history, { refetch }] = createResource(() => props.workshop.changeSequence(), load);
   const [shown, setShown] = createSignal<WorkHistory>();
   createEffect(() => {
     if (!history.error) {
@@ -72,7 +72,7 @@ export function AgendaWork(props: {
       <header class="task-planning-header">
         <p class="task-planning-kicker">Work</p>
         <h2 class="popup-title task-planning-title">
-          <BlockText text={props.text} notebook={props.notebook} interactive={false} />
+          <BlockText text={props.text} workshop={props.workshop} interactive={false} />
         </h2>
       </header>
       <Show when={history.loading && !shown()}>
@@ -97,7 +97,7 @@ export function AgendaWork(props: {
           <WorkSessions
             sessions={value().sessions}
             active={value().active?.block_id === props.id ? value().active : null}
-            today={props.notebook.todayDate()}
+            today={props.workshop.todayDate()}
             disabled={!!history.error}
             onStart={start}
             onStop={(id, note) => change('stopWork', id, note)}

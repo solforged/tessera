@@ -1,7 +1,7 @@
 import { opensBeside } from '../core/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { QuestionInfo, QuestionRow, QuestionStatus } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -21,13 +21,13 @@ export const questionLabels: Record<QuestionStatus, string> = {
 
 export function QuestionParent(props: {
   info: QuestionInfo | null | undefined;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChange(anchor: HTMLElement): void;
   onRemove(): void;
   disabled: boolean;
 }) {
-  const parent = createMemo(() => (props.info?.parent_id ? props.notebook.lookup(props.info.parent_id)() : null));
+  const parent = createMemo(() => (props.info?.parent_id ? props.workshop.lookup(props.info.parent_id)() : null));
   return (
     <Show when={parent()}>
       {block => (
@@ -42,7 +42,7 @@ export function QuestionParent(props: {
               )
             }
           >
-            <BlockText text={block().text} notebook={props.notebook} interactive={false} />
+            <BlockText text={block().text} workshop={props.workshop} interactive={false} />
           </Button>
           <Show when={props.info?.parent_explicit}>
             <Button disabled={props.disabled} onClick={event => props.onChange(event.currentTarget)}>
@@ -60,7 +60,7 @@ export function QuestionParent(props: {
 
 export function QuestionParentPicker(props: {
   id: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   anchor: PopupAnchor;
   onDismiss(): void;
   onPick(id: string): Promise<void>;
@@ -69,8 +69,8 @@ export function QuestionParentPicker(props: {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [questions] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.questions({}),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.questions({}),
   );
   const matches = createMemo(() => {
     if (questions.error) return [];
@@ -84,7 +84,7 @@ export function QuestionParentPicker(props: {
         seen.add(id);
       }
       return (
-        foldName(plainText(row.block.block.text, id => props.notebook.lookup(id))).includes(text) ||
+        foldName(plainText(row.block.block.text, id => props.workshop.lookup(id))).includes(text) ||
         foldName(row.block.page.text).includes(text)
       );
     });
@@ -123,10 +123,10 @@ export function QuestionParentPicker(props: {
         <>
           <Icon name="question-open" />
           <span class="picker-text find-result">
-            <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+            <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} />
             <Show when={row.block.block.kind === 'block'}>
               <small>
-                <BlockText text={row.block.page.text} notebook={props.notebook} interactive={false} /> · Inline question
+                <BlockText text={row.block.page.text} workshop={props.workshop} interactive={false} /> · Inline question
               </small>
             </Show>
           </span>
@@ -138,7 +138,7 @@ export function QuestionParentPicker(props: {
 
 export function QuestionBranches(props: {
   rows: QuestionRow[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   return (
@@ -161,7 +161,7 @@ export function QuestionBranches(props: {
               }
             >
               <span class="question-branch-title">
-                <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+                <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} />
               </span>
               <span class="outline-question" data-question-status={row.info.status}>
                 <Icon name={row.info.status === 'answered' ? 'question-settled' : 'question-open'} />
@@ -174,7 +174,7 @@ export function QuestionBranches(props: {
                 <Show when={row.current} fallback="No current answer">
                   {current => (
                     <>
-                      <BlockText text={current().text} notebook={props.notebook} interactive={false} />
+                      <BlockText text={current().text} workshop={props.workshop} interactive={false} />
                       <span class="question-branch-count"> · {current().assessed_on}</span>
                     </>
                   )}
@@ -192,7 +192,7 @@ export function QuestionBranches(props: {
 export function AssessmentJournal(props: {
   questionId: string;
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onWrite(): void;
 }) {
@@ -209,7 +209,7 @@ export function AssessmentJournal(props: {
       for (const citation of block.citations)
         links.push({
           id: blockId,
-          text: `${props.notebook.lookup(citation.source_id)()?.text ?? 'Passage'} · ${citation.locator || `¶${citation.ordinal + 1}`}`,
+          text: `${props.workshop.lookup(citation.source_id)()?.text ?? 'Passage'} · ${citation.locator || `¶${citation.ordinal + 1}`}`,
         });
       for (const child of props.doc.outline.children(blockId)) visit(child);
     };
@@ -245,14 +245,14 @@ export function AssessmentJournal(props: {
                   props.onOpen({ kind: 'page', pageId: props.doc.pageId, blockId: block.id }, opensBeside(event))
                 }
               >
-                <BlockText text={block.text.split('\n')[0] ?? ''} notebook={props.notebook} interactive={false} />
+                <BlockText text={block.text.split('\n')[0] ?? ''} workshop={props.workshop} interactive={false} />
               </Button>
               <div class="assessment-journal-citations">
                 <For each={citations(block.id)}>
                   {link => (
                     <Button
                       onClick={event => {
-                        const target = props.notebook.lookup(link.id)();
+                        const target = props.workshop.lookup(link.id)();
                         if (target)
                           props.onOpen(
                             {
@@ -264,7 +264,7 @@ export function AssessmentJournal(props: {
                           );
                       }}
                     >
-                      <BlockText text={link.text} notebook={props.notebook} interactive={false} />
+                      <BlockText text={link.text} workshop={props.workshop} interactive={false} />
                     </Button>
                   )}
                 </For>

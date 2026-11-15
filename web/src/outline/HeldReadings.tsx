@@ -1,7 +1,7 @@
 import { opensBeside, besideHint } from '../core/beside';
 import { For, Show, createMemo, createResource } from 'solid-js';
 import type { PositionRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { citedSigla } from '../library/sigla';
 import { fieldEntryId } from '../core/field-entry';
@@ -21,12 +21,12 @@ interface HeldReading {
 /** A holder's readings lead with their arguments, grouped by their stored subjects. */
 export function HeldReadings(props: {
   rows: PositionRow[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [fields] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.fields(),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.fields(),
   );
   const names = createMemo(() => new Map((fields()?.fields ?? []).map(field => [field.id, field.name])));
   const readings = createMemo<HeldReading[]>(() =>
@@ -63,12 +63,12 @@ export function HeldReadings(props: {
     subjects =>
       Promise.all(
         subjects.map(
-          async subject => [subject, (await props.notebook.api.positions({ subject })).rows.length] as const,
+          async subject => [subject, (await props.workshop.api.positions({ subject })).rows.length] as const,
         ),
       ),
   );
   const countBySubject = createMemo(() => new Map(counts() ?? []));
-  const sources = createCitedSources(props.notebook, () => [
+  const sources = createCitedSources(props.workshop, () => [
     ...new Set(
       readings()
         .map(reading => reading.source)
@@ -92,7 +92,7 @@ export function HeldReadings(props: {
                   {subject => (
                     <Button
                       onClick={event => {
-                        const block = props.notebook.lookup(subject())();
+                        const block = props.workshop.lookup(subject())();
                         if (block)
                           props.onOpen(
                             {
@@ -106,8 +106,8 @@ export function HeldReadings(props: {
                     >
                       <span>
                         <BlockText
-                          text={props.notebook.lookup(subject())()?.text ?? 'Loading subject…'}
-                          notebook={props.notebook}
+                          text={props.workshop.lookup(subject())()?.text ?? 'Loading subject…'}
+                          workshop={props.workshop}
                           interactive={false}
                         />
                       </span>
@@ -143,20 +143,20 @@ export function HeldReadings(props: {
                     <span class="held-reading-title">
                       <BlockText
                         text={reading.gist || 'Perspective without a gist'}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         interactive={false}
                       />
                     </span>
                     <Show when={reading.work}>
                       <span class="held-work">
-                        <BlockText text={reading.work} notebook={props.notebook} interactive={false} />
+                        <BlockText text={reading.work} workshop={props.workshop} interactive={false} />
                       </span>
                     </Show>
                   </Button>
                   <IncomingRelations
                     target={reading.row.block.block.id}
-                    version={props.notebook.changeSequence()}
-                    notebook={props.notebook}
+                    version={props.workshop.changeSequence()}
+                    workshop={props.workshop}
                     onOpen={props.onOpen}
                   />
                 </article>

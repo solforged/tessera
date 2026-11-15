@@ -39,7 +39,7 @@ test('opening the app retries a failed sync once; staying open leaves failures t
   expect(syncDue(failing, false, now)).toBe(false);
 });
 
-test('a forgotten, retired, busy or non-replica notebook never syncs on its own', () => {
+test('a forgotten, retired, busy or non-replica workshop never syncs on its own', () => {
   expect(syncDue(replica({ last_error: { code: 'unpaired', message: '' } }), true, now)).toBe(false);
   expect(syncDue(replica({ last_error: { code: 'wrong_device', message: '' } }), true, now)).toBe(false);
   expect(syncDue(replica({ retired: true }), true, now)).toBe(false);

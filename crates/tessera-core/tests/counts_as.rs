@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 use tessera_core::library::*;
-use tessera_core::{Actor, Batch, CountsAs, Error, FieldKind, Notebook, Operation};
+use tessera_core::{Actor, Batch, CountsAs, Error, FieldKind, Operation, Workshop};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -22,7 +22,7 @@ fn insert(n: u128, parent: &str, text: &str) -> Operation {
         heading: None,
     }
 }
-fn creators(nb: &Notebook, field: &str, person: u128) -> Vec<String> {
+fn creators(nb: &Workshop, field: &str, person: u128) -> Vec<String> {
     let query: Value =
         json!({"source":"sources","filters":[{"field":field,"op":"is","value":id(person)}]});
     nb.query(&serde_json::from_value(query).unwrap())
@@ -32,7 +32,7 @@ fn creators(nb: &Notebook, field: &str, person: u128) -> Vec<String> {
         .map(|row| row.block.block.id)
         .collect()
 }
-fn counts_as(nb: &Notebook, field: u128, counts_as: Option<CountsAs>) -> Batch {
+fn counts_as(nb: &Workshop, field: u128, counts_as: Option<CountsAs>) -> Batch {
     batch(vec![Operation::SetFieldCountsAs {
         id: id(field),
         base_revision: nb.block(&id(field)).unwrap().revision,
@@ -43,7 +43,7 @@ fn counts_as(nb: &Notebook, field: u128, counts_as: Option<CountsAs>) -> Batch {
 #[test]
 fn creators_read_what_fields_count_as_with_author_first_and_editors_as_fallback() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let mut operations = vec![];
     for (n, title) in [
@@ -171,7 +171,7 @@ fn creators_read_what_fields_count_as_with_author_first_and_editors_as_fallback(
 fn plain_creator_names_are_values_not_problems() {
     use tessera_core::Reading;
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let mut operations = vec![
         Operation::CreatePage {

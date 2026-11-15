@@ -10,9 +10,9 @@ use super::{AgentEdit, AgentReceipt, AgentRequest};
 use crate::history::{Step, Undo, inverse, provisional_undo_targets, resulting};
 use crate::notebook::new_ulid;
 use crate::storage::validation;
-use crate::{Batch, BlockKind, Notebook, Operation, Result};
+use crate::{Batch, BlockKind, Operation, Result, Workshop};
 
-impl Notebook {
+impl Workshop {
     /// Apply one agent request as an attributed batch and record how to undo
     /// it. A failure writes nothing.
     pub fn agent_edit(&mut self, request: &AgentRequest) -> Result<AgentReceipt> {

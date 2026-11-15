@@ -1,10 +1,10 @@
 import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { ImageRef } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OutlineContext } from './context';
 import type { OutlineDropIndicator } from './drag';
-import { NotebookImage } from '../ui/NotebookImage';
+import { WorkshopImage } from '../ui/NotebookImage';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import { OcclusionEditor } from '../review/OcclusionEditor';
@@ -15,7 +15,7 @@ import './image.css';
 export function ImageViewer(props: {
   image: ImageRef;
   caption: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onClose(): void;
   onEditMasks(): void;
 }) {
@@ -44,14 +44,14 @@ export function ImageViewer(props: {
         <header class="image-viewer-header">
           <p class="image-viewer-caption">
             <Show when={props.caption} fallback="Image">
-              <BlockText text={props.caption} notebook={props.notebook} interactive={false} />
+              <BlockText text={props.caption} workshop={props.workshop} interactive={false} />
             </Show>
           </p>
           <Button onClick={() => props.onEditMasks()}>Edit masks</Button>
           <Button onClick={() => props.onClose()}>Close</Button>
         </header>
         <div class="image-viewer-stage">
-          <NotebookImage image={props.image} api={props.notebook.api} alt={props.caption} />
+          <WorkshopImage image={props.image} api={props.workshop.api} alt={props.caption} />
         </div>
       </dialog>
     </Portal>
@@ -81,7 +81,7 @@ export function createOutlineImages(
     }
     try {
       const images: ImageRef[] = await Promise.all(
-        (replace ? files.slice(0, 1) : files).map(file => context.props.notebook.api.uploadImage(file)),
+        (replace ? files.slice(0, 1) : files).map(file => context.props.workshop.api.uploadImage(file)),
       );
       if (context.disposed) return;
       if (replace && targetId) context.apply({ kind: 'image', id: targetId, image: images[0]! }, false);
@@ -193,7 +193,7 @@ export function createOutlineImages(
             <ImageViewer
               image={image()}
               caption={block()!.text}
-              notebook={context.props.notebook}
+              workshop={context.props.workshop}
               onClose={close}
               onEditMasks={() => editOcclusion(viewer()!)}
             />
@@ -208,7 +208,7 @@ export function createOutlineImages(
                   image={image()}
                   caption={block.text}
                   state={block.occlusion}
-                  notebook={context.props.notebook}
+                  workshop={context.props.workshop}
                   doc={context.doc}
                   onClose={() => {
                     setEditor(undefined);

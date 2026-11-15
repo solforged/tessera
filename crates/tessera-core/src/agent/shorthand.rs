@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use super::plan::{Plan, listed, plan_text, touch};
 use crate::notebook::new_ulid;
 use crate::storage::{validate_id, validation};
-use crate::{Block, BlockKind, Error, FieldKind, Notebook, Operation, Result};
+use crate::{Block, BlockKind, Error, FieldKind, Operation, Result, Workshop};
 
 /// `Name:: value` shorthand with its name resolved to a field definition.
 pub(super) struct Entry<'a> {
@@ -14,7 +14,7 @@ pub(super) struct Entry<'a> {
     pub(super) value: Option<&'a str>,
 }
 
-impl Notebook {
+impl Workshop {
     /// Convert editor field shorthand before resolving ordinary title links.
     pub(super) fn note_text<'a>(
         &self,

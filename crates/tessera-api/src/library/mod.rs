@@ -19,7 +19,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 #[cfg(native)]
 use std::time::Duration;
-use tessera_core::{Actor, Batch, Notebook, library::*};
+use tessera_core::{Actor, Batch, Workshop, library::*};
 use tokio::sync::broadcast;
 #[cfg(native)]
 use {tessera_core::now_ms, tokio::sync::Notify};
@@ -110,7 +110,7 @@ async fn upload(
         .decode_utf8()
         .map_err(|_| invalid("The filename is not valid UTF-8."))?
         .into_owned();
-    let job = run(&state.notebook, move |n| {
+    let job = run(&state.workshop, move |n| {
         let sha = n.put_object(&body)?;
         n.queue_ingest(
             IngestInput::File,
@@ -140,7 +140,7 @@ async fn queue(
     if !matches!(url.scheme(), "http" | "https") {
         return Err(invalid("Only HTTP and HTTPS source URLs are accepted."));
     }
-    let job = run(&state.notebook, move |n| {
+    let job = run(&state.workshop, move |n| {
         n.queue_ingest(
             IngestInput::Url,
             url.as_str(),
@@ -157,7 +157,7 @@ async fn jobs(
     query: Result<Query<crate::limits::Limit>, QueryRejection>,
 ) -> Result<Json<Vec<IngestJob>>, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.ingest_jobs(q.limit))
+    run(&state.workshop, move |n| n.ingest_jobs(q.limit))
         .await
         .map(Json)
 }
@@ -173,7 +173,7 @@ async fn retry(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<IngestJob>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    let job = run(&state.notebook, move |n| n.retry_ingest(&id)).await?;
+    let job = run(&state.workshop, move |n| n.retry_ingest(&id)).await?;
     state.library.kick();
     Ok(Json(job))
 }
@@ -182,7 +182,7 @@ async fn query(
     body: Result<Json<LibraryQuery>, JsonRejection>,
 ) -> Result<Json<LibraryResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.library(&q)).await.map(Json)
+    run(&state.workshop, move |n| n.library(&q)).await.map(Json)
 }
 async fn views(State(state): State<WorkshopState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
     read(&state, move |n| n.library_views()).await.map(Json)
@@ -192,7 +192,7 @@ async fn collection_values(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::Block>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.collection_values(&id))
+    run(&state.workshop, move |n| n.collection_values(&id))
         .await
         .map(Json)
 }
@@ -294,7 +294,7 @@ async fn position(
     let Path(id) = path.map_err(ApiError::from)?;
     let Json(body) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state.notebook, move |n| {
+    run(&state.workshop, move |n| {
         let mut result = n.set_reading_position(&id, body.ordinal)?;
         if let Some(seq) = result.seq {
             result.seq = Some(n.editor_change_cursor(seq)?);
@@ -330,7 +330,7 @@ async fn highlights(
     body: Result<Json<HighlightQuery>, JsonRejection>,
 ) -> Result<Json<HighlightResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.highlights(&q))
+    run(&state.workshop, move |n| n.highlights(&q))
         .await
         .map(Json)
 }
@@ -344,7 +344,7 @@ async fn resurfacing(
     query: Result<Query<ResurfaceQuery>, QueryRejection>,
 ) -> Result<Json<Vec<Surfacing>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| {
+    run(&state.workshop, move |n| {
         n.resurfacing(&query.date, query.limit.unwrap_or(3))
     })
     .await
@@ -364,7 +364,7 @@ async fn record_surfacing(
     let Path(id) = path.map_err(ApiError::from)?;
     let Json(body) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state.notebook, move |n| {
+    run(&state.workshop, move |n| {
         n.record_surfacing(&id, &body.date, &body.action)?;
         let _ = changes.send(n.editor_cursor()?);
         Ok(())
@@ -404,7 +404,7 @@ async fn export_query(
     body: Result<Json<ExportBody>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     let Json(body) = body.map_err(ApiError::from)?;
-    let output = run(&state.notebook, move |n| {
+    let output = run(&state.workshop, move |n| {
         n.export_query(&body.query, body.format)
     })
     .await?;
@@ -452,9 +452,9 @@ pub fn extract(
 }
 
 /// Store an extracted document's resources, stage its snapshot, apply the
-/// source plan and finish the job, all under one notebook lock.
+/// source plan and finish the job, all under one workshop lock.
 fn commit(
-    n: &mut Notebook,
+    n: &mut Workshop,
     job: &IngestJob,
     doc: &ExtractedDocument,
     sha: &str,
@@ -503,7 +503,7 @@ mod tests {
     #[tokio::test]
     async fn markdown_export_get_and_query_have_download_headers() {
         let dir = tempfile::tempdir().unwrap();
-        let app = routes().with_state(state(Notebook::open(dir.path()).unwrap(), constructed));
+        let app = routes().with_state(state(Workshop::open(dir.path()).unwrap(), constructed));
         for (method, path, body) in [
             ("GET", "/api/library/export?format=markdown", ""),
             (
@@ -587,11 +587,11 @@ mod tests {
     ) -> Result<ExtractedDocument, String> {
         Err("The file could not be extracted.".into())
     }
-    fn state(notebook: Notebook, extractor: Extractor) -> WorkshopState {
-        let notebook = Arc::new(Mutex::new(notebook));
+    fn state(workshop: Workshop, extractor: Extractor) -> WorkshopState {
+        let workshop = Arc::new(Mutex::new(workshop));
         let changes = broadcast::channel(32).0;
-        let library = Library::start(notebook.clone(), changes.clone(), extractor).unwrap();
-        WorkshopState::from_parts(notebook, changes, library)
+        let library = Library::start(workshop.clone(), changes.clone(), extractor).unwrap();
+        WorkshopState::from_parts(workshop, changes, library)
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {
         app.clone()
@@ -613,7 +613,7 @@ mod tests {
     async fn done(state: &WorkshopState, id: &str) -> IngestJob {
         tokio::time::timeout(Duration::from_secs(10), async {
             loop {
-                let job = state.notebook.lock().ingest_job(id).unwrap();
+                let job = state.workshop.lock().ingest_job(id).unwrap();
                 if matches!(job.state, IngestJobState::Done | IngestJobState::Failed) {
                     return job;
                 }
@@ -626,7 +626,7 @@ mod tests {
     #[tokio::test]
     async fn passage_search_http_pages_default_to_zero_and_reach_the_end() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let mut doc = constructed(&[], None, "", None).unwrap();
         doc.resources.clear();
         doc.passages = (0..82)
@@ -640,13 +640,13 @@ mod tests {
                 marks: vec![],
             })
             .collect();
-        let hash = notebook.put_object(b"search book").unwrap();
-        let snapshot = notebook.stage_snapshot(&doc, &hash, &[]).unwrap();
-        let plan = notebook
+        let hash = workshop.put_object(b"search book").unwrap();
+        let snapshot = workshop.stage_snapshot(&doc, &hash, &[]).unwrap();
+        let plan = workshop
             .plan_ingest(&snapshot.id, None, Some("search.epub"))
             .unwrap();
         let source = plan.source_id;
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -654,7 +654,7 @@ mod tests {
                 operations: plan.operations,
             })
             .unwrap();
-        let app = routes().with_state(state(notebook, constructed));
+        let app = routes().with_state(state(workshop, constructed));
         for (suffix, from, count) in [
             ("", 0, 41),
             ("&offset=40", 40, 41),
@@ -685,7 +685,7 @@ mod tests {
     #[tokio::test]
     async fn uploads_run_attributed_jobs_and_serve_only_image_resources() {
         let dir = tempfile::tempdir().unwrap();
-        let state = state(Notebook::open(dir.path()).unwrap(), constructed);
+        let state = state(Workshop::open(dir.path()).unwrap(), constructed);
         let mut changes = state.changes.subscribe();
         let app = routes().with_state(state.clone());
         let uploaded = response(
@@ -702,12 +702,12 @@ mod tests {
         assert_eq!(job.name, "worker book.epub");
         let seq = changes.recv().await.unwrap();
         let source = state
-            .notebook
+            .workshop
             .lock()
             .source(job.source_id.as_ref().unwrap())
             .unwrap();
         assert_eq!(source.page.text, "Worker book");
-        let events = state.notebook.lock().changes_since(seq - 1, 10).unwrap();
+        let events = state.workshop.lock().changes_since(seq - 1, 10).unwrap();
         assert_eq!(
             events[0].actor,
             Actor::Client {
@@ -765,17 +765,17 @@ mod tests {
     #[tokio::test]
     async fn running_jobs_resume_and_failed_jobs_retry() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
-        let hash = notebook.put_object(b"resume").unwrap();
-        let job = notebook
+        let mut workshop = Workshop::open(dir.path()).unwrap();
+        let hash = workshop.put_object(b"resume").unwrap();
+        let job = workshop
             .queue_ingest(IngestInput::File, &hash, "resume.epub", None)
             .unwrap();
-        notebook.claim_ingest().unwrap().unwrap();
-        drop(notebook);
-        let first = state(Notebook::open(dir.path()).unwrap(), failed);
+        workshop.claim_ingest().unwrap().unwrap();
+        drop(workshop);
+        let first = state(Workshop::open(dir.path()).unwrap(), failed);
         assert_eq!(done(&first, &job.id).await.state, IngestJobState::Failed);
         drop(first);
-        let second = state(Notebook::open(dir.path()).unwrap(), constructed);
+        let second = state(Workshop::open(dir.path()).unwrap(), constructed);
         let app = routes().with_state(second.clone());
         let retried = response(
             &app,
@@ -813,7 +813,7 @@ mod tests {
             .unwrap();
         });
         let dir = tempfile::tempdir().unwrap();
-        let state = state(Notebook::open(dir.path()).unwrap(), constructed);
+        let state = state(Workshop::open(dir.path()).unwrap(), constructed);
         let app = routes().with_state(state.clone());
         let request = |url: String| {
             Request::builder()
@@ -840,7 +840,7 @@ mod tests {
         let id = job["id"].as_str().unwrap().to_owned();
         let queued = tokio::time::timeout(Duration::from_secs(5), async {
             loop {
-                let job = state.notebook.lock().ingest_job(&id).unwrap();
+                let job = state.workshop.lock().ingest_job(&id).unwrap();
                 if job.error.is_some() {
                     break job;
                 }
@@ -858,12 +858,12 @@ mod tests {
     #[tokio::test]
     async fn library_views_and_query_exports_use_saved_queries() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let document = constructed(&[], None, "", None).unwrap();
-        let hash = notebook.put_object(b"library view book").unwrap();
-        let snapshot = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
-        let plan = notebook.plan_ingest(&snapshot.id, None, None).unwrap();
-        notebook
+        let hash = workshop.put_object(b"library view book").unwrap();
+        let snapshot = workshop.stage_snapshot(&document, &hash, &[]).unwrap();
+        let plan = workshop.plan_ingest(&snapshot.id, None, None).unwrap();
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -872,7 +872,7 @@ mod tests {
             })
             .unwrap();
         let view_id = ulid::Ulid::generate().to_string();
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -889,7 +889,7 @@ mod tests {
                 }],
             })
             .unwrap();
-        let state = state(notebook, constructed);
+        let state = state(workshop, constructed);
         let app = routes().with_state(state);
         let views = value(response(&app, "GET", "/api/library/views", vec![]).await).await;
         assert_eq!(views[0]["id"], view_id);
@@ -933,7 +933,7 @@ mod tests {
     #[tokio::test]
     async fn historical_snapshot_passages_return_their_own_contents() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let mut document = constructed(&[], None, "", None).unwrap();
         document.toc = vec![TocEntry {
             title: "Old opening".into(),
@@ -942,11 +942,11 @@ mod tests {
             ordinal: None,
             start: None,
         }];
-        let hash = notebook.put_object(b"old book").unwrap();
-        let old = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
-        let plan = notebook.plan_ingest(&old.id, None, None).unwrap();
+        let hash = workshop.put_object(b"old book").unwrap();
+        let old = workshop.stage_snapshot(&document, &hash, &[]).unwrap();
+        let plan = workshop.plan_ingest(&old.id, None, None).unwrap();
         let source = plan.source_id;
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -955,10 +955,10 @@ mod tests {
             })
             .unwrap();
         document.toc[0].title = "New opening".into();
-        let hash = notebook.put_object(b"new book").unwrap();
-        let new = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
-        let plan = notebook.plan_ingest(&new.id, Some(&source), None).unwrap();
-        notebook
+        let hash = workshop.put_object(b"new book").unwrap();
+        let new = workshop.stage_snapshot(&document, &hash, &[]).unwrap();
+        let plan = workshop.plan_ingest(&new.id, Some(&source), None).unwrap();
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -967,10 +967,10 @@ mod tests {
             })
             .unwrap();
         assert_eq!(
-            notebook.source(&source).unwrap().source.current_snapshot_id,
+            workshop.source(&source).unwrap().source.current_snapshot_id,
             Some(new.id)
         );
-        let app = routes().with_state(state(notebook, constructed));
+        let app = routes().with_state(state(workshop, constructed));
         let passages = response(
             &app,
             "GET",
@@ -995,12 +995,12 @@ mod resurface_tests {
     #[tokio::test]
     async fn resurfacing_routes_validate_dates_actions_and_limits() {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(Notebook::open(dir.path()).unwrap()));
+        let workshop = Arc::new(Mutex::new(Workshop::open(dir.path()).unwrap()));
         let changes = broadcast::channel(32).0;
         let mut events = changes.subscribe();
-        let library = Library::start(notebook.clone(), changes.clone(), extract).unwrap();
+        let library = Library::start(workshop.clone(), changes.clone(), extract).unwrap();
         let app = routes().with_state(WorkshopState::from_parts(
-            notebook,
+            workshop,
             changes.clone(),
             library,
         ));

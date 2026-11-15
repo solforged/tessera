@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import {
   chooseName,
@@ -155,10 +155,10 @@ describe('page names', () => {
     expect(foldName('Lab #[[project]]')).toBe('lab');
   });
 
-  test('shares folded resolutions until the notebook change sequence advances', async () => {
+  test('shares folded resolutions until the workshop change sequence advances', async () => {
     let sequence = 0;
     const requests: string[] = [];
-    const notebook = {
+    const workshop = {
       changeSequence: () => sequence,
       api: {
         resolveName: async (name: string) => {
@@ -166,18 +166,18 @@ describe('page names', () => {
           return [match];
         },
       },
-    } as unknown as NotebookClient;
-    const first = resolveName(notebook, 'Túlly');
-    expect(resolveName(notebook, '  TULLY ')).toBe(first);
+    } as unknown as WorkshopClient;
+    const first = resolveName(workshop, 'Túlly');
+    expect(resolveName(workshop, '  TULLY ')).toBe(first);
     expect(await first).toEqual([match]);
     sequence++;
-    expect(await resolveName(notebook, 'tully')).toEqual([match]);
+    expect(await resolveName(workshop, 'tully')).toEqual([match]);
     expect(requests).toEqual(['Túlly', 'tully']);
   });
 
   test('failed lookups can be retried within the same sequence', async () => {
     let calls = 0;
-    const notebook = {
+    const workshop = {
       changeSequence: () => 0,
       api: {
         resolveName: async () => {
@@ -185,9 +185,9 @@ describe('page names', () => {
           return [match];
         },
       },
-    } as unknown as NotebookClient;
-    await expect(resolveName(notebook, 'Tully')).rejects.toThrow('Offline');
-    expect(await resolveName(notebook, 'Tully')).toEqual([match]);
+    } as unknown as WorkshopClient;
+    await expect(resolveName(workshop, 'Tully')).rejects.toThrow('Offline');
+    expect(await resolveName(workshop, 'Tully')).toEqual([match]);
     expect(calls).toBe(2);
   });
 
@@ -195,7 +195,7 @@ describe('page names', () => {
     const person = page('person', 'Ibn Khaldun'),
       source = page('source', 'ʿAbd al-Raḥmān');
     const alias = { page: person, alias: 'ʿAbd al-Raḥmān' };
-    const notebook = {
+    const workshop = {
       changeSequence: () => 0,
       roots: () => [person, source],
       api: {
@@ -205,9 +205,9 @@ describe('page names', () => {
           { ...person, alias: alias.alias },
         ],
       },
-    } as unknown as NotebookClient;
-    expect(await completeNames(notebook, 'ʿabd al-rahman', [person])).toEqual({ rows: [alias], canCreate: false });
-    expect(await completeNames(notebook, 'ʿabd al-rahman', [])).toEqual({ rows: [], canCreate: true });
+    } as unknown as WorkshopClient;
+    expect(await completeNames(workshop, 'ʿabd al-rahman', [person])).toEqual({ rows: [alias], canCreate: false });
+    expect(await completeNames(workshop, 'ʿabd al-rahman', [])).toEqual({ rows: [], canCreate: true });
   });
 
   test('nested position and quote labels render holder names and bound reference cycles', () => {
@@ -263,7 +263,7 @@ describe('page names', () => {
         calls.push('release');
       },
     } as unknown as PageDocument;
-    const notebook = {
+    const workshop = {
       lookup: () => () => source,
       open: () => doc,
       api: {
@@ -272,8 +272,8 @@ describe('page names', () => {
           return null;
         },
       },
-    } as unknown as NotebookClient;
-    await chooseName(notebook, source.id, textTokens(text).find(token => token.kind === 'reference')!, 'target');
+    } as unknown as WorkshopClient;
+    await chooseName(workshop, source.id, textTokens(text).find(token => token.kind === 'reference')!, 'target');
     expect(text).toBe('See [[target|Tully]]');
     expect(calls).toEqual(['edit', 'flush', 'alias:target:Tully', 'release']);
   });
@@ -288,7 +288,7 @@ describe('page names', () => {
       block: () => ({ ...source, text }),
       release: () => calls.push('release'),
     } as unknown as PageDocument;
-    const notebook = {
+    const workshop = {
       lookup: () => () => source,
       open: () => doc,
       createPage: async (name: string) => {
@@ -296,8 +296,8 @@ describe('page names', () => {
         text = 'Changed';
         return 'new';
       },
-    } as unknown as NotebookClient;
-    await chooseName(notebook, source.id, textTokens(original)[0]!);
+    } as unknown as WorkshopClient;
+    await chooseName(workshop, source.id, textTokens(original)[0]!);
     expect(text).toBe('Changed');
     expect(calls).toEqual(['create:Pliny', 'release']);
   });

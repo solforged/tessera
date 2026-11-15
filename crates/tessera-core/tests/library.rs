@@ -1,7 +1,7 @@
 mod common;
 
 use tessera_core::{
-    Actor, Batch, Direction, Error, FieldKind, Notebook, Operation, Query, Reading, ReadingValue,
+    Actor, Batch, Direction, Error, FieldKind, Operation, Query, Reading, ReadingValue, Workshop,
     library::*,
 };
 fn id() -> String {
@@ -15,7 +15,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(n: &mut Notebook, ops: Vec<Operation>) -> tessera_core::Committed {
+fn apply(n: &mut Workshop, ops: Vec<Operation>) -> tessera_core::Committed {
     n.apply(&batch(ops)).unwrap()
 }
 
@@ -85,11 +85,11 @@ fn document() -> ExtractedDocument {
         resources: vec![],
     }
 }
-fn stage(n: &mut Notebook, doc: &ExtractedDocument, bytes: &[u8]) -> String {
+fn stage(n: &mut Workshop, doc: &ExtractedDocument, bytes: &[u8]) -> String {
     let hash = n.put_object(bytes).unwrap();
     n.stage_snapshot(doc, &hash, &[]).unwrap().id
 }
-fn ingest(n: &mut Notebook, doc: &ExtractedDocument, bytes: &[u8]) -> (String, String) {
+fn ingest(n: &mut Workshop, doc: &ExtractedDocument, bytes: &[u8]) -> (String, String) {
     let snapshot = stage(n, doc, bytes);
     let plan = n
         .plan_ingest(&snapshot, None, Some("evidence.epub"))
@@ -100,7 +100,7 @@ fn ingest(n: &mut Notebook, doc: &ExtractedDocument, bytes: &[u8]) -> (String, S
     }
     (source, snapshot)
 }
-fn query(n: &Notebook) -> tessera_core::QueryResult {
+fn query(n: &Workshop) -> tessera_core::QueryResult {
     let author = n
         .fields()
         .unwrap()
@@ -126,7 +126,7 @@ fn query(n: &Notebook) -> tessera_core::QueryResult {
     })
     .unwrap()
 }
-fn field(n: &Notebook, source: &str, name: &str) -> Vec<tessera_core::FieldValue> {
+fn field(n: &Workshop, source: &str, name: &str) -> Vec<tessera_core::FieldValue> {
     let result = query(n);
     let field = &result
         .fields
@@ -144,7 +144,7 @@ fn field(n: &Notebook, source: &str, name: &str) -> Vec<tessera_core::FieldValue
         .cloned()
         .unwrap_or_default()
 }
-fn edit(n: &mut Notebook, id: &str, text: &str) {
+fn edit(n: &mut Workshop, id: &str, text: &str) {
     let rev = n.block(id).unwrap().revision;
     apply(
         n,
@@ -155,7 +155,7 @@ fn edit(n: &mut Notebook, id: &str, text: &str) {
         }],
     );
 }
-fn note(n: &mut Notebook, page: &str, text: &str) -> String {
+fn note(n: &mut Workshop, page: &str, text: &str) -> String {
     let id = id();
     apply(
         n,
@@ -169,7 +169,7 @@ fn note(n: &mut Notebook, page: &str, text: &str) -> String {
     );
     id
 }
-fn cite(n: &mut Notebook, block: &str, snapshot: &str) -> String {
+fn cite(n: &mut Workshop, block: &str, snapshot: &str) -> String {
     let passages = n.passages(snapshot, 0, 500).unwrap().passages;
     let citation = id();
     let rev = n.block(block).unwrap().revision;
@@ -194,9 +194,9 @@ fn cite(n: &mut Notebook, block: &str, snapshot: &str) -> String {
     citation
 }
 
-fn highlighted_source() -> (tempfile::TempDir, Notebook, Citation) {
+fn highlighted_source() -> (tempfile::TempDir, Workshop, Citation) {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, snapshot) = ingest(&mut n, &document(), b"triage");
     let block = note(&mut n, &source, "highlight");
     cite(&mut n, &block, &snapshot);
@@ -205,7 +205,7 @@ fn highlighted_source() -> (tempfile::TempDir, Notebook, Citation) {
 }
 
 fn set_triage(
-    n: &mut Notebook,
+    n: &mut Workshop,
     citation: &Citation,
     triage: Option<&str>,
 ) -> tessera_core::Committed {
@@ -398,7 +398,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
     )
     .unwrap();
     drop(conn);
-    let n = Notebook::open(dir.path()).unwrap();
+    let n = Workshop::open(dir.path()).unwrap();
     assert_eq!(
         n.capabilities(&citation.block_id).unwrap().citations,
         vec![citation]
@@ -410,7 +410,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
 }
 
 fn set_color(
-    n: &mut Notebook,
+    n: &mut Workshop,
     citation: &Citation,
     color: Option<&str>,
 ) -> tessera_core::Committed {
@@ -678,7 +678,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     )
     .unwrap();
     drop(conn);
-    let n = Notebook::open(dir.path()).unwrap();
+    let n = Workshop::open(dir.path()).unwrap();
     assert_eq!(
         n.capabilities(&citation.block_id).unwrap().citations,
         vec![citation]
@@ -691,7 +691,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
 #[test]
 fn staging_ingestion_fields_and_immutable_objects() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let doc = document();
     let hash = n.put_object(b"book").unwrap();
     let path = n.object_path(&hash).unwrap();
@@ -763,7 +763,7 @@ fn staging_ingestion_fields_and_immutable_objects() {
 #[test]
 fn epub_toc_ordinals_match_locate_in_each_snapshot() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     for locator in ["second", "chapter#second", "missing"] {
         doc.toc.push(TocEntry {
@@ -799,7 +799,7 @@ fn epub_toc_ordinals_match_locate_in_each_snapshot() {
 #[test]
 fn reingest_updates_only_extracted_values_and_preserves_state() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     let (source, first) = ingest(&mut n, &doc, b"one");
     let published = field(&n, &source, "Published")[0].id.clone();
@@ -832,7 +832,7 @@ fn reingest_updates_only_extracted_values_and_preserves_state() {
 #[test]
 fn reingest_shorter_list_archives_extracted_surplus() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     let (source, _) = ingest(&mut n, &doc, b"short-before");
     let before = field(&n, &source, "Author");
@@ -852,7 +852,7 @@ fn reingest_shorter_list_archives_extracted_surplus() {
 #[test]
 fn reingest_longer_list_inserts_missing_positions() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata.creators.truncate(1);
     let (source, _) = ingest(&mut n, &doc, b"long-before");
@@ -901,7 +901,7 @@ fn reingest_longer_list_inserts_missing_positions() {
 #[test]
 fn reingest_empty_list_archives_all_extracted_values() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     let (source, _) = ingest(&mut n, &doc, b"empty-before");
     let before = field(&n, &source, "Author");
@@ -918,7 +918,7 @@ fn reingest_empty_list_archives_all_extracted_values() {
 #[test]
 fn reingest_authored_override_survives_shrink() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     let (source, _) = ingest(&mut n, &doc, b"authored-before");
     let before = field(&n, &source, "Author");
@@ -935,7 +935,7 @@ fn reingest_authored_override_survives_shrink() {
     assert!(!n.block(&after[0].id).unwrap().archived);
 }
 
-fn define_field(n: &mut Notebook, name: &str, kind: FieldKind) -> String {
+fn define_field(n: &mut Workshop, name: &str, kind: FieldKind) -> String {
     let fields = n.fields().unwrap();
     let field = fields
         .fields
@@ -959,7 +959,7 @@ fn define_field(n: &mut Notebook, name: &str, kind: FieldKind) -> String {
 fn ingest_preserves_existing_author_kind_and_extracted_text() {
     for kind in [FieldKind::Text, FieldKind::Number, FieldKind::Choice] {
         let dir = tempfile::tempdir().unwrap();
-        let mut n = Notebook::open(dir.path()).unwrap();
+        let mut n = Workshop::open(dir.path()).unwrap();
         let definition = define_field(&mut n, "Author", kind);
         let mut doc = document();
         doc.metadata.creators.truncate(1);
@@ -1014,7 +1014,7 @@ fn ingest_preserves_existing_author_kind_and_extracted_text() {
 #[test]
 fn export_field_kind_matrix() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata = ExtractedMetadata {
         title: Some("Kind matrix".into()),
@@ -1106,7 +1106,7 @@ fn export_field_kind_matrix() {
 #[test]
 fn export_library_metadata_uses_conventional_keys_and_authored_values() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata.url = Some("https://example.test/extracted".into());
     doc.metadata.site = Some("Extracted site".into());
@@ -1220,7 +1220,7 @@ fn export_library_metadata_uses_conventional_keys_and_authored_values() {
 #[test]
 fn export_first_published_preserves_partial_date_precision() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, _) = ingest(&mut n, &document(), b"original-date");
     let definition = define_field(&mut n, "First published", FieldKind::Date);
     let entry = note(&mut n, &source, &format!("[[{definition}]]"));
@@ -1250,7 +1250,7 @@ fn export_first_published_preserves_partial_date_precision() {
 #[test]
 fn export_omits_absent_optional_library_metadata() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata = ExtractedMetadata {
         title: Some("Minimal source".into()),
@@ -1285,7 +1285,7 @@ fn export_omits_absent_optional_library_metadata() {
 #[test]
 fn export_titles_drop_the_root_title_tag_tokens() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let page = id();
     apply(
         &mut n,
@@ -1322,7 +1322,7 @@ fn export_titles_drop_the_root_title_tag_tokens() {
 #[test]
 fn collision_titles_and_keys_and_origin_fallback() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     let (first, _) = ingest(&mut n, &doc, b"one");
     doc.metadata.unique_id = Some("two".into());
@@ -1376,7 +1376,7 @@ fn collision_titles_and_keys_and_origin_fallback() {
 #[test]
 fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let doc = document();
     let (source, snapshot) = ingest(&mut n, &doc, b"one");
     let other = stage(&mut n, &doc, b"other");
@@ -1501,7 +1501,7 @@ fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
 #[test]
 fn reading_position_changes_state_once_and_library_filters_sort() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata.cover = Some("images/cover.jpg".into());
     doc.toc.push(TocEntry {
@@ -1627,7 +1627,7 @@ fn highlight_notes_count_only_nonempty_live_unarchived_children() {
 #[test]
 fn highlight_processing_uses_children_cards_and_incoming_links() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, snapshot) = ingest(&mut n, &document(), b"one");
     let highlight = note(&mut n, &source, "highlight");
     cite(&mut n, &highlight, &snapshot);
@@ -1670,7 +1670,7 @@ fn highlight_processing_uses_children_cards_and_incoming_links() {
 #[test]
 fn export_reads_authored_fields_and_article_doi_and_search_filters() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (book, old) = ingest(&mut n, &document(), b"book");
     let publisher = field(&n, &book, "Publisher")[0].id.clone();
     edit(&mut n, &publisher, "Authored {Press} \\ % & $ # _ ^ ~");
@@ -1738,7 +1738,7 @@ fn export_reads_authored_fields_and_article_doi_and_search_filters() {
 #[test]
 fn passage_search_preserves_literal_brackets_and_marker_characters() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.passages.truncate(1);
     let text = "Structure de la Gaule[1]. \u{1f} \u{1e} \u{1f}\u{1f} \u{1e}\u{1e}";
@@ -1772,7 +1772,7 @@ fn passage_search_preserves_literal_brackets_and_marker_characters() {
 #[test]
 fn passage_search_pages_reach_every_hit_without_crossing_source_scope() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.passages = (0..564)
         .map(|ordinal| ExtractedPassage {
@@ -1850,7 +1850,7 @@ fn passage_search_pages_reach_every_hit_without_crossing_source_scope() {
 #[test]
 fn passage_search_ties_are_stable_across_sources_and_snapshots() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     for passage in &mut doc.passages {
         passage.text = "nature".into();
@@ -1911,7 +1911,7 @@ fn passage_search_ties_are_stable_across_sources_and_snapshots() {
     }
 }
 
-fn freeze_markdown_dates(dir: &std::path::Path, n: &mut Notebook) {
+fn freeze_markdown_dates(dir: &std::path::Path, n: &mut Workshop) {
     apply(
         n,
         vec![Operation::SetSetting {
@@ -1932,7 +1932,7 @@ fn freeze_markdown_dates(dir: &std::path::Path, n: &mut Notebook) {
 #[test]
 fn export_markdown_document_reading_order_notes_and_locations() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata.url = Some("https://example.test/evidence".into());
     doc.toc[0].locator = "second".into();
@@ -2027,7 +2027,7 @@ Second note
 #[test]
 fn markdown_keeps_evidence_once_when_highlight_text_is_unchanged() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, snapshot) = ingest(&mut n, &document(), b"unchanged-markdown");
     let block = note(&mut n, &source, "Temporary");
     cite(&mut n, &block, &snapshot);
@@ -2053,7 +2053,7 @@ fn markdown_keeps_evidence_once_when_highlight_text_is_unchanged() {
 #[test]
 fn export_markdown_empty_sources_and_query() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (first, _) = ingest(&mut n, &document(), b"first");
     let mut doc = document();
     doc.metadata = ExtractedMetadata {
@@ -2142,7 +2142,7 @@ _No highlights._
 #[test]
 fn export_markdown_current_snapshot_before_history_and_offset_order() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, old) = ingest(&mut n, &document(), b"old");
     let old_block = note(&mut n, &source, "Old highlight");
     cite(&mut n, &old_block, &old);
@@ -2225,7 +2225,7 @@ Old highlight
 #[test]
 fn source_validation_revision_noops_and_job_resume_retry() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, snapshot) = ingest(&mut n, &document(), b"book");
     let state = n.source(&source).unwrap().source.source_state();
     let revision = n.block(&source).unwrap().revision;
@@ -2285,7 +2285,7 @@ fn source_validation_revision_noops_and_job_resume_retry() {
         .unwrap();
     assert_eq!(n.claim_ingest().unwrap().unwrap().id, job.id);
     drop(n);
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     n.resume_ingest().unwrap();
     assert_eq!(n.ingest_job(&job.id).unwrap().state, IngestJobState::Queued);
     let claimed = n.claim_ingest().unwrap().unwrap();
@@ -2299,7 +2299,7 @@ fn source_validation_revision_noops_and_job_resume_retry() {
 #[test]
 fn journal_citations_keep_identity_across_split_delete_and_restore() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (_, snapshot) = ingest(&mut n, &document(), b"book");
     let journal = id();
     apply(
@@ -2364,9 +2364,9 @@ fn journal_citations_keep_identity_across_split_delete_and_restore() {
     );
 }
 
-fn resurface_fixture(count: usize) -> (tempfile::TempDir, Notebook, String, String, Vec<String>) {
+fn resurface_fixture(count: usize) -> (tempfile::TempDir, Workshop, String, String, Vec<String>) {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     apply(
         &mut n,
         vec![Operation::SetSetting {
@@ -2405,13 +2405,13 @@ fn resurfacing_keeps_daily_picks_after_new_highlights_and_reload() {
     .unwrap();
     assert_eq!(n.resurfacing("2020-01-01", 3).unwrap(), picks);
     drop(n);
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     assert_eq!(n.resurfacing("2020-01-01", 3).unwrap(), picks);
     assert_eq!(n.resurfacing("2020-01-01", 1).unwrap(), picks[..1]);
 }
 
 #[test]
-fn resurfacing_uses_notebook_date_and_excludes_same_day_and_newer_highlights() {
+fn resurfacing_uses_workshop_date_and_excludes_same_day_and_newer_highlights() {
     let (dir, mut n, _, _, citations) = resurface_fixture(3);
     apply(
         &mut n,
@@ -2629,7 +2629,7 @@ fn resurfacing_prioritizes_never_shown_then_oldest_and_shuffles_by_date() {
 #[test]
 fn sparse_epub_navigation_backfills_without_changing_passage_ids() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
     doc.toc[0].title = "Start".into();
     let mut contents = doc.passages[0].clone();
@@ -2677,7 +2677,7 @@ fn sparse_epub_navigation_backfills_without_changing_passage_ids() {
         .map(|passage| passage.id)
         .collect();
     drop(n);
-    let n = Notebook::open(dir.path()).unwrap();
+    let n = Workshop::open(dir.path()).unwrap();
     assert_eq!(n.source(&source).unwrap().toc.len(), 3);
     assert_eq!(
         n.passages(&snapshot, 0, 100)
@@ -2747,7 +2747,7 @@ fn citation_range_changes_preserve_identity_triage_and_color_and_are_reversible(
     );
 }
 
-fn facet_source(n: &mut Notebook, title: &str, metadata: ExtractedMetadata) -> (String, String) {
+fn facet_source(n: &mut Workshop, title: &str, metadata: ExtractedMetadata) -> (String, String) {
     let mut doc = document();
     doc.metadata = ExtractedMetadata {
         title: Some(title.into()),
@@ -2761,9 +2761,9 @@ fn facet_creator(name: &str, role: CreatorRole) -> ExtractedCreator {
     ExtractedCreator::new(name.into(), role)
 }
 
-fn facet_library() -> (tempfile::TempDir, Notebook, Vec<String>) {
+fn facet_library() -> (tempfile::TempDir, Workshop, Vec<String>) {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (first, _) = facet_source(
         &mut n,
         "Shared first",
@@ -2831,7 +2831,7 @@ fn facet_person_id(result: &LibraryResult, name: &str) -> String {
 }
 
 fn catalogue_value(
-    n: &Notebook,
+    n: &Workshop,
     dir: &tempfile::TempDir,
     source: &str,
     name: &str,
@@ -2852,7 +2852,7 @@ fn catalogue_value(
 #[test]
 fn legacy_calibre_date_is_undated_in_rows_facets_sort_and_exports() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (legacy, _) = facet_source(
         &mut n,
         "Legacy sentinel",
@@ -3276,7 +3276,7 @@ fn library_year_filter_keeps_facets_and_drops_other_years() {
 #[test]
 fn library_reads_plain_author_edits_without_losing_linked_creators() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, _) = ingest(&mut n, &document(), b"plain-author-edit");
     let authors = field(&n, &source, "Author");
     let linked_id = match &authors[1].reading {
@@ -3329,7 +3329,7 @@ fn library_reads_plain_author_edits_without_losing_linked_creators() {
 #[test]
 fn library_unlinked_people_group_exact_names_and_sort_by_family_then_name() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     define_field(&mut n, "Author", FieldKind::Text);
     for title in ["One", "Two"] {
         facet_source(
@@ -3428,7 +3428,7 @@ fn library_query_facet_filters_default_and_round_trip() {
 #[test]
 fn source_index_summary_is_bibliographic_and_counts_citations_across_pages() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, snapshot) = ingest(&mut n, &document(), b"index bibliography");
     let own = note(&mut n, &source, "Own highlight");
     cite(&mut n, &own, &snapshot);
@@ -3597,7 +3597,7 @@ fn collection_filter_uses_whole_instance_values_before_sort_and_limit() {
 #[test]
 fn bibliographic_page_counts_reject_invalid_writes_atomically_and_allow_legacy_repair() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, _) = ingest(&mut n, &document(), b"page count validation");
     let fields_page = n.fields().unwrap().page_id;
     let definition = note(&mut n, &fields_page, "Pages");
@@ -3643,7 +3643,7 @@ fn bibliographic_page_counts_reject_invalid_writes_atomically_and_allow_legacy_r
     edit(&mut n, &value, "");
     edit(&mut n, &value, "360");
 
-    // Existing notebooks may contain counts accepted before validation existed.
+    // Existing workshops may contain counts accepted before validation existed.
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute("UPDATE blocks SET text = '-12' WHERE id = ?1", [&value])
         .unwrap();
@@ -3662,7 +3662,7 @@ fn bibliographic_page_counts_reject_invalid_writes_atomically_and_allow_legacy_r
 #[test]
 fn page_count_constraint_is_bibliographic_and_cannot_be_bypassed_by_reclassification() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let (source, _) = ingest(&mut n, &document(), b"scoped page counts");
     let fields_page = n.fields().unwrap().page_id;
     let definition = note(&mut n, &fields_page, "Temperature");

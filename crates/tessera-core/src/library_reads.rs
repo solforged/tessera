@@ -4,7 +4,7 @@ use crate::library_store::{
 };
 use crate::reads::{fts_query, hidden_blocks};
 use crate::storage::{block_at, block_columns, not_found_as, validation};
-use crate::{Actor, Batch, BlockCapabilities, BlockInPage, Direction, Notebook, Operation, Result};
+use crate::{Actor, Batch, BlockCapabilities, BlockInPage, Direction, Operation, Result, Workshop};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::HashMap;
 
@@ -384,7 +384,7 @@ pub(crate) fn progress(conn: &Connection, snapshot: &str) -> Result<f64> {
         .unwrap_or(0.0)
         .clamp(0.0, 1.0))
 }
-impl Notebook {
+impl Workshop {
     pub fn source(&self, id: &str) -> Result<SourceView> {
         let page = self.block(id)?;
         let source = source(&self.conn, id)?.ok_or_else(|| not_found_as("source", id))?;

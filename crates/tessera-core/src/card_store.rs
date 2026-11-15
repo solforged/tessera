@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::card_text::{CardKind, card_subject, parse_card_text};
 use crate::scheduler;
 use crate::storage::{not_found, not_found_as, validate_id, validation};
-use crate::{CardAnswerBlock, CardUnit, Notebook, Result, Revision};
+use crate::{CardAnswerBlock, CardUnit, Result, Revision, Workshop};
 
 fn text_at<'row>(row: &'row rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<&'row str> {
     row.get_ref(offset)?.as_str().map_err(|error| {
@@ -346,7 +346,7 @@ pub(crate) fn guard_split(conn: &Connection, id: &str, left: &str, right: &str) 
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     /// All retained units, including inactive syntax and hidden/deleted sources.
     pub fn source_cards(&self, id: &str) -> Result<Vec<CardUnit>> {
         validate_id(id)?;
@@ -411,12 +411,12 @@ impl Notebook {
 mod tests {
     use super::{derive_sources, rebuild};
     use crate::scheduler::{Grade, new_card};
-    use crate::{Actor, Batch, Notebook, Operation, Revision};
+    use crate::{Actor, Batch, Operation, Revision, Workshop};
 
     #[test]
     fn derivation_is_scoped_and_rebuild_preserves_hidden_definitions_and_progress() {
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |value: u128| ulid::Ulid::from(value).to_string();
         let batch = |operations| Batch {
             actor: Actor::Person,

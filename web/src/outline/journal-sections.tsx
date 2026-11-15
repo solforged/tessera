@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { CaptureField } from '../capture/CaptureField';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { createPhone } from '../tasks/journal-phone';
 import { isFinished } from '../tasks/task-labels';
 import { captureSection, isWritten, readingRowSource, sectionTarget, writtenSections } from '../tasks/today-template';
@@ -49,13 +49,13 @@ const [captureFocus, setCaptureFocus] = createSignal<string | null>(null);
 /** Matches a journal day's root headings to the template's written sections. */
 export function createJournalLayout(
   doc: PageDocument,
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   active: Accessor<boolean>,
 ): Accessor<JournalLayout | null> {
   const clock = createMemo(
     () =>
       new Intl.DateTimeFormat('en-GB', {
-        timeZone: notebook.settings()?.time_zone,
+        timeZone: workshop.settings()?.time_zone,
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
@@ -64,8 +64,8 @@ export function createJournalLayout(
   const layout = createMemo(() => {
     const root = doc.root();
     if (!active() || root?.kind !== 'journal') return null;
-    const template = notebook.todayTemplate();
-    const today = root.text === notebook.todayDate();
+    const template = workshop.todayTemplate();
+    const today = root.text === workshop.todayDate();
     const written = writtenSections(template);
     const capture = captureSection(template).id;
     const byName = new Map(written.map(section => [foldName(section.name), section]));
@@ -133,7 +133,7 @@ export function createJournalLayout(
     () => [...new Set(layout()?.references.values() ?? [])].sort().join(' '),
     async key => {
       const ids = key ? key.split(' ') : [];
-      const records = await Promise.all(ids.map(id => referenceSource(notebook, id).catch(() => null)));
+      const records = await Promise.all(ids.map(id => referenceSource(workshop, id).catch(() => null)));
       return new Set(ids.filter((_, index) => records[index]));
     },
   );
@@ -187,14 +187,14 @@ function sectionCount(doc: PageDocument, section: TodaySection, children: readon
  * `autofocus` puts the caret in it, for the phone's Add to capsules.
  */
 export function SectionCapture(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   section: TodaySection;
   inline?: boolean;
   autofocus?: boolean;
   onCaptured?(): void;
 }) {
-  const boxed = () => !props.inline && props.section.id === captureSection(props.notebook.todayTemplate()).id;
-  const target = () => sectionTarget(props.notebook.todayTemplate(), props.section.id);
+  const boxed = () => !props.inline && props.section.id === captureSection(props.workshop.todayTemplate()).id;
+  const target = () => sectionTarget(props.workshop.todayTemplate(), props.section.id);
   return (
     <div
       class="section-capture"
@@ -204,8 +204,8 @@ export function SectionCapture(props: {
       onKeyDown={event => event.stopPropagation()}
     >
       <CaptureField
-        notebook={props.notebook}
-        contextDate={() => props.notebook.todayDate()}
+        workshop={props.workshop}
+        contextDate={() => props.workshop.todayDate()}
         section={target()}
         boxed={boxed()}
         trailing={boxed() ? '⌘E from anywhere' : undefined}
@@ -234,7 +234,7 @@ export function SectionCapture(props: {
  * Heads and capture lines for sections the day has not written yet. A phone folds them to one line, "Add to Inbox
  * Reading": a capsule for each section, which opens that section's capture line and writes its heading with the first entry.
  */
-export function MissingSections(props: { notebook: NotebookClient; sections: readonly TodaySection[] }) {
+export function MissingSections(props: { workshop: WorkshopClient; sections: readonly TodaySection[] }) {
   const phone = createPhone();
   const [adding, setAdding] = createSignal<string | null>(null);
   return (
@@ -245,7 +245,7 @@ export function MissingSections(props: { notebook: NotebookClient; sections: rea
           {section => (
             <section class="journal-missing-section" aria-label={section.name}>
               <SectionHead name={section.name} />
-              <SectionCapture notebook={props.notebook} section={section} />
+              <SectionCapture workshop={props.workshop} section={section} />
             </section>
           )}
         </For>
@@ -277,7 +277,7 @@ export function MissingSections(props: { notebook: NotebookClient; sections: rea
             }}
           >
             <SectionCapture
-              notebook={props.notebook}
+              workshop={props.workshop}
               section={section()}
               inline
               autofocus
@@ -294,7 +294,7 @@ export function MissingSections(props: { notebook: NotebookClient; sections: rea
 const creators = new Map<string, Promise<string>>();
 
 /** A Reading row's authors and the reader's position when it was written, in faint after its title. */
-export function ReadingCreators(props: { notebook: NotebookClient; sourceId: string; text: string }) {
+export function ReadingCreators(props: { workshop: WorkshopClient; sourceId: string; text: string }) {
   // The position is the reference's locator, written when the row was: `[[id|title|position]]`.
   const position = () => /^\[\[[^|\]]+\|[^|\]]*\|([^\]]+)\]\]$/.exec(props.text.trim())?.[1];
   const [names] = createResource(
@@ -302,7 +302,7 @@ export function ReadingCreators(props: { notebook: NotebookClient; sourceId: str
     id => {
       let names = creators.get(id);
       if (!names) {
-        names = props.notebook.api.source(id).then(
+        names = props.workshop.api.source(id).then(
           view => {
             const snapshot =
               view.snapshots.find(value => value.id === view.source.current_snapshot_id) ?? view.snapshots[0];

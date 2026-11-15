@@ -4,7 +4,7 @@ import type * as Solid from 'solid-js';
 import { freePort, startService, type WorkshopService } from '../testing/service';
 import { ulid } from 'ulid';
 import type { ChangeSocket } from '../api/client';
-import type { Notebook } from '../document/index';
+import type { Workshop } from '../document/index';
 
 // Dynamic imports are intentional here: mock Solid's SSR boundary before loading its consumers.
 const browserEntry = 'solid-js/dist/solid.js';
@@ -14,7 +14,7 @@ const { createMemo, createRoot } = await import('solid-js');
 const { createApi } = await import('../api/client');
 const { emptyMetadata } = await import('../library/details');
 const { citedSigla } = await import('../library/sigla');
-const { createNotebookClient } = await import('../document/index');
+const { createWorkshopClient } = await import('../document/index');
 const { createCitationSources, createCitedSources } = await import('./source-reads');
 const { textTokens } = await import('../document/text-tokens');
 
@@ -23,8 +23,8 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const actualFetch = globalThis.fetch;
 let service: WorkshopService | undefined;
-let notebook: Notebook;
-let notebookId: string;
+let workshop: Workshop;
+let workshopId: string;
 let held: (() => void)[] | undefined;
 
 // These cross real service and WebSocket boundaries; bounded condition polling is not a debounce assertion.
@@ -38,11 +38,11 @@ async function eventually(predicate: () => boolean, message: string) {
 
 beforeAll(async () => {
   service = await startService({ name: 'source-reads-tests', port });
-  notebookId = service.workshopId;
-  notebook = createNotebookClient({ baseUrl, sessionId: ulid(), notebookId, databaseName: `source-reads-${ulid()}` });
+  workshopId = service.workshopId;
+  workshop = createWorkshopClient({ baseUrl, sessionId: ulid(), workshopId, databaseName: `source-reads-${ulid()}` });
   // Holding stream events back keeps this window's own saves from being announced twice.
-  const stream = notebook.api.stream;
-  notebook.api.stream = after => {
+  const stream = workshop.api.stream;
+  workshop.api.stream = after => {
     const socket = stream(after);
     return {
       get readyState() {
@@ -75,11 +75,11 @@ beforeAll(async () => {
       close: () => socket.close(),
     } as ChangeSocket;
   };
-  await notebook.ready;
+  await workshop.ready;
 }, 60000);
 afterAll(async () => {
   globalThis.fetch = actualFetch;
-  await notebook?.dispose();
+  await workshop?.dispose();
   await service?.stop();
 });
 
@@ -89,7 +89,7 @@ test('an open concept page rereads a cited source only when that source changes'
     title: 'The Open Society',
     creators: [{ name: 'Karl Popper', role: 'author' }],
   });
-  await notebook.commit(plan.operations, 'Add source');
+  await workshop.commit(plan.operations, 'Add source');
   const source = plan.source_id;
   const concept = ulid(),
     unrelated = ulid(),
@@ -120,18 +120,18 @@ test('an open concept page rereads a cited source only when that source changes'
     return actualFetch(input, init);
   }) as typeof fetch;
 
-  const conceptDoc = notebook.open(concept);
-  const sourceDoc = notebook.open(source);
+  const conceptDoc = workshop.open(concept);
+  const sourceDoc = workshop.open(source);
   await eventually(
-    () => conceptDoc.status() === 'ready' && sourceDoc.status() === 'ready' && notebook.connection() === 'live',
+    () => conceptDoc.status() === 'ready' && sourceDoc.status() === 'ready' && workshop.connection() === 'live',
     'pages did not load',
   );
   // The page's sigla, wired as the outline pane wires them.
   const { sigla, dispose } = createRoot(dispose => {
     const texts = () => conceptDoc.outline.children(concept).map(id => conceptDoc.block(id)?.text ?? '');
-    const referenceSources = createCitationSources(notebook, texts);
+    const referenceSources = createCitationSources(workshop, texts);
     const cited = createMemo(() => [...(referenceSources()?.keys() ?? [])]);
-    const records = createCitedSources(notebook, cited);
+    const records = createCitedSources(workshop, cited);
     return { sigla: createMemo(() => citedSigla(records())), dispose };
   });
   try {
@@ -155,7 +155,7 @@ test('an open concept page rereads a cited source only when that source changes'
       ],
     });
     await eventually(
-      () => conceptDoc.block(unrelated)?.text === 'Edited elsewhere' && notebook.changeSequence() >= remote.seq,
+      () => conceptDoc.block(unrelated)?.text === 'Edited elsewhere' && workshop.changeSequence() >= remote.seq,
       'the remote edit did not arrive',
     );
     await Bun.sleep(100);
@@ -164,7 +164,7 @@ test('an open concept page rereads a cited source only when that source changes'
     // Changing the Author on the open source page reaches the concept page's siglum from the save's receipt alone.
     held = [];
     const [author] = sourceDoc.outline.children(source).flatMap(id => sourceDoc.outline.children(id));
-    expect(notebook.lookup(textTokens(sourceDoc.block(author!)!.text)[0]!.id!)()?.text).toBe('Karl Popper');
+    expect(workshop.lookup(textTokens(sourceDoc.block(author!)!.text)[0]!.id!)()?.text).toBe('Karl Popper');
     expect(sourceDoc.edit({ kind: 'text', id: author!, text: `[[${arendt}]]` }).ok).toBe(true);
     await sourceDoc.flush();
     await eventually(() => sigla().get(source) === 'ARE', 'the edited author did not change the siglum');

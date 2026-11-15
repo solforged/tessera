@@ -6,8 +6,8 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tessera_core::{
-    Actor, Batch, Block, BlockKind, ChangeEvent, Committed, Notebook, Operation, PageReferences,
-    PageView, ReferenceCount, Revision, SCHEMA_VERSION,
+    Actor, Batch, Block, BlockKind, ChangeEvent, Committed, Operation, PageReferences, PageView,
+    ReferenceCount, Revision, SCHEMA_VERSION, Workshop,
 };
 
 const GENERATOR_VERSION: u32 = 4;
@@ -249,7 +249,7 @@ impl Corpus {
         if dir.exists() {
             std::fs::remove_dir_all(&dir)?;
         }
-        let mut notebook = Notebook::open(&dir)?;
+        let mut workshop = Workshop::open(&dir)?;
         let mut expected = Model {
             blocks: BTreeMap::new(),
             children: BTreeMap::new(),
@@ -257,7 +257,7 @@ impl Corpus {
         };
         for batch in &self.batches {
             let revisions = expected.apply_model(batch)?;
-            let result = notebook.apply(batch)?;
+            let result = workshop.apply(batch)?;
             expected.check_commit(&result, &revisions)?;
         }
         for page in self
@@ -266,9 +266,9 @@ impl Corpus {
             .values()
             .filter(|block| block.parent.is_none())
         {
-            self.model.check_page(&notebook.page(&page.id)?)?;
+            self.model.check_page(&workshop.page(&page.id)?)?;
         }
-        drop(notebook);
+        drop(workshop);
         std::fs::write(manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
         Ok(dir)
     }

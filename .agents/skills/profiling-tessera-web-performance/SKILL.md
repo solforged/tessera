@@ -1,6 +1,6 @@
 ---
 name: profiling-tessera-web-performance
-description: "Profiles Tessera web client performance on a large notebook in headless Chromium when measuring or fixing page open, typing, Enter/Tab, scroll, table, or journal slowness."
+description: "Profiles Tessera web client performance on a large workshop in headless Chromium when measuring or fixing page open, typing, Enter/Tab, scroll, table, or journal slowness."
 ---
 
 # Profiling Tessera web performance
@@ -68,7 +68,7 @@ binaries; retain measurements, profiles/traces and build/fixture provenance in
 
 ## Known hotspots and their fixes
 
-- Navigation: keep released docs warm in the Notebook (`WARM_DOCUMENTS`).
+- Navigation: keep released docs warm in the Workshop (`WARM_DOCUMENTS`).
   `cachePage` once per view. After merge, `refreshPending` covers only the
   pending, conflicted and resolving ids.
 - Visible rows: the archived flags live in a raw Set plus `archivedVersion()`,

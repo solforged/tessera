@@ -1,5 +1,5 @@
 import type { TaskQuery, TaskQueryResult, TaskRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 export interface PlanningCounts {
   scheduled: number;
@@ -11,8 +11,8 @@ export interface PlanningRange {
   through: string;
 }
 type PlanningField = 'scheduled' | 'deadline';
-type PlanningNotebook = Pick<NotebookClient, 'changeSequence'> & {
-  readonly api: Pick<NotebookClient['api'], 'taskQuery'>;
+type PlanningWorkshop = Pick<WorkshopClient, 'changeSequence'> & {
+  readonly api: Pick<WorkshopClient['api'], 'taskQuery'>;
 };
 interface CachedMonth {
   sequence: number;
@@ -34,7 +34,7 @@ const monthDays: Record<number, number> = {
   11: 30,
   12: 31,
 };
-const cache = new WeakMap<PlanningNotebook, Map<string, CachedMonth>>();
+const cache = new WeakMap<PlanningWorkshop, Map<string, CachedMonth>>();
 // The service rejects task query limits above 2000. Its total is untruncated.
 const queryLimit = 2000;
 
@@ -121,17 +121,17 @@ async function loadPlanningDates(
   return { ...left, ...right };
 }
 
-/** Retain the previous snapshot while the same month refreshes after a notebook change. */
-export function cachedMonthPlanningMarks(notebook: PlanningNotebook, date: string): PlanningMarks | undefined {
-  return cache.get(notebook)?.get(date.slice(0, 7))?.marks;
+/** Retain the previous snapshot while the same month refreshes after a workshop change. */
+export function cachedMonthPlanningMarks(workshop: PlanningWorkshop, date: string): PlanningMarks | undefined {
+  return cache.get(workshop)?.get(date.slice(0, 7))?.marks;
 }
 
-/** Share loads by notebook and month, with changeSequence as the cache revision. */
-export function loadMonthPlanningMarks(notebook: PlanningNotebook, date: string): Promise<PlanningMarks> {
+/** Share loads by workshop and month, with changeSequence as the cache revision. */
+export function loadMonthPlanningMarks(workshop: PlanningWorkshop, date: string): Promise<PlanningMarks> {
   const month = date.slice(0, 7);
-  const sequence = notebook.changeSequence();
-  const months = cache.get(notebook) ?? new Map<string, CachedMonth>();
-  cache.set(notebook, months);
+  const sequence = workshop.changeSequence();
+  const months = cache.get(workshop) ?? new Map<string, CachedMonth>();
+  cache.set(workshop, months);
   const previous = months.get(month);
   if (previous?.sequence === sequence) {
     if (previous.pending) return previous.pending;
@@ -140,7 +140,7 @@ export function loadMonthPlanningMarks(notebook: PlanningNotebook, date: string)
   const entry: CachedMonth = { sequence, marks: previous?.marks };
   months.set(month, entry);
   const range = planningMonthRange(date);
-  const query = (value: TaskQuery) => notebook.api.taskQuery(value);
+  const query = (value: TaskQuery) => workshop.api.taskQuery(value);
   entry.pending = Promise.all([
     loadPlanningDates(query, 'scheduled', range),
     loadPlanningDates(query, 'deadline', range),

@@ -2,7 +2,7 @@ import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
 import { priorities, priorityLabel, statuses, statusLabels } from '../tasks/TaskControls';
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
 import type { FieldDetail, FieldKind, FieldOwner, FieldValueUse } from '../api/types';
-import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
+import type { DocumentChange, WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
 import { plainText } from '../outline/names';
@@ -30,7 +30,7 @@ interface FieldDetailsProps {
   previewKind?: FieldKind;
   section?: 'options' | 'targets';
   inspector?: boolean;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   document?: PageDocument;
   onPreview(kind?: FieldKind): void;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -78,8 +78,8 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [mappings, setMappings] = createSignal<InterpretationMap>({});
   const [impact, setImpact] = createSignal<FieldImpact>();
   const [register] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.fields(),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.fields(),
   );
   const [lastChange, setLastChange] = createSignal<DocumentChange>();
   const [removed, setRemoved] = createSignal(false);
@@ -107,7 +107,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   );
   createEffect(
     on(
-      () => props.notebook.changeSequence(),
+      () => props.workshop.changeSequence(),
       () => {
         const timer = setTimeout(() => setVersion(value => value + 1), 150);
         onCleanup(() => clearTimeout(timer));
@@ -125,7 +125,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       }
       const controller = new AbortController();
       setLoading(true);
-      void props.notebook.api
+      void props.workshop.api
         .fieldDetail(id, kind, 12, controller.signal)
         .then(async value => {
           const mappings: InterpretationMap = {};
@@ -145,7 +145,7 @@ export function FieldDetails(props: FieldDetailsProps) {
               value.interpretations
                 .filter(row => !row.reading.ok)
                 .map(async row => {
-                  const matches = await props.notebook.api.resolveName(row.text, controller.signal);
+                  const matches = await props.workshop.api.resolveName(row.text, controller.signal);
                   if (matches.length === 1) mappings[row.text] = { mode: 'page', value: matches[0]!.page.id };
                 }),
             );
@@ -247,12 +247,12 @@ export function FieldDetails(props: FieldDetailsProps) {
     setApplying(true);
     try {
       if (edit.id === props.fieldId) {
-        const fields = await props.notebook.api.fields();
+        const fields = await props.workshop.api.fields();
         const existing = fields.fields.find(
           field => field.id !== edit.id && field.name.trim().toLocaleLowerCase() === text.toLocaleLowerCase(),
         );
         if (existing) {
-          setImpact(await fieldImpact(props.notebook, edit.id, existing.id));
+          setImpact(await fieldImpact(props.workshop, edit.id, existing.id));
           finishEditing();
           setError('');
           return;
@@ -298,7 +298,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     article.focus({ preventScroll: true });
     setApplying(true);
     try {
-      setLastChange(doc.rememberChange(await changeFieldKind(props.notebook, value, convertValues)));
+      setLastChange(doc.rememberChange(await changeFieldKind(props.workshop, value, convertValues)));
       props.onPreview();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -312,7 +312,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!value || !doc || !ready()) return;
     setApplying(true);
     try {
-      setLastChange(doc.rememberChange(await makeFieldOption(props.notebook, value, text)));
+      setLastChange(doc.rememberChange(await makeFieldOption(props.workshop, value, text)));
       setVersion(value => value + 1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -399,7 +399,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     setApplying(true);
     try {
       await props.document?.flush();
-      setImpact(await fieldImpact(props.notebook, props.fieldId, target));
+      setImpact(await fieldImpact(props.workshop, props.fieldId, target));
       setError('');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -413,7 +413,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!current || !doc || !ready()) return;
     setApplying(true);
     try {
-      setLastChange(doc.rememberChange(await applyFieldImpact(props.notebook, current, action)));
+      setLastChange(doc.rememberChange(await applyFieldImpact(props.workshop, current, action)));
       setRemoved(action !== 'archive');
       setImpact(undefined);
       setError('');
@@ -468,11 +468,11 @@ export function FieldDetails(props: FieldDetailsProps) {
           {item => (
             <tr>
               <td classList={{ 'field-rubric': !item.value.reading.ok }}>
-                {plainText(item.value.text, id => props.notebook.lookup(id))}
+                {plainText(item.value.text, id => props.workshop.lookup(id))}
               </td>
               <td>
                 <Button onClick={event => ownerLink(item.owner, opensBeside(event))}>
-                  {plainText(item.owner.text, id => props.notebook.lookup(id))}
+                  {plainText(item.owner.text, id => props.workshop.lookup(id))}
                 </Button>
               </td>
               <td class="field-apparatus">
@@ -634,7 +634,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                 <FieldImpactPreview
                   impact={current()}
                   fields={register()?.fields ?? []}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   busy={applying()}
                   onTarget={target => void previewImpact(target)}
                   onApply={action => void applyImpact(action)}
@@ -679,7 +679,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                     if (ready()) setTargetsMenu(event.currentTarget);
                   }}
                 >
-                  {linksToSummary(props.notebook, value().field.targets, 'Any atom')} <Icon name="down" />
+                  {linksToSummary(props.workshop, value().field.targets, 'Any atom')} <Icon name="down" />
                 </Button>
               </div>
             </Show>
@@ -848,7 +848,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                       >
                         {example => (
                           <p class="field-apparatus">
-                            {plainText(example().value.text, id => props.notebook.lookup(id))} → {(() => {
+                            {plainText(example().value.text, id => props.workshop.lookup(id))} → {(() => {
                               const reading = example().value.reading;
                               if (!reading.ok) return '';
                               const text = String(reading.value);
@@ -905,7 +905,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                           {item => (
                             <div class="field-owner">
                               <Button onClick={event => ownerLink(item.owner, opensBeside(event))}>
-                                {plainText(item.owner.text, id => props.notebook.lookup(id))}
+                                {plainText(item.owner.text, id => props.workshop.lookup(id))}
                               </Button>
                               <div class="field-owner-values">
                                 <For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>
@@ -915,7 +915,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                                     >
                                       {fieldValue.reading.ok && typeof fieldValue.reading.value !== 'object'
                                         ? readingLabel(fieldValue.reading)
-                                        : plainText(fieldValue.text, id => props.notebook.lookup(id))}
+                                        : plainText(fieldValue.text, id => props.workshop.lookup(id))}
                                     </span>
                                   )}
                                 </For>
@@ -977,7 +977,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                 <ChoiceConversion
                   detail={rawData()!}
                   mappings={mappings()}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   disabled={applying()}
                   onChange={setMappings}
                 />
@@ -1116,7 +1116,7 @@ export function FieldDetails(props: FieldDetailsProps) {
               {anchor => (
                 <LinksToPopup
                   anchor={anchor()}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   targets={value().field.targets}
                   disabled={!ready()}
                   onApply={targets => void applyTargets(targets)}

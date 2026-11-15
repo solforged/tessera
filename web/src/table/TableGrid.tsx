@@ -4,7 +4,7 @@ import type { JSX } from 'solid-js';
 import type { FieldDefinition, QueryRow, TaskState, TaskStatus } from '../api/types';
 import { createGridRows } from './register';
 import type { GroupedRow } from './register';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle, plainText } from '../outline/names';
 import { statusIcons, statusLabels, statuses } from '../tasks/TaskControls';
@@ -19,7 +19,7 @@ import './table.css';
 export interface TableGridProps {
   rows: GroupedRow[];
   columns: string[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   neighbour?: boolean;
   field(id: string): FieldDefinition | undefined;
   fieldName(id: string): string;
@@ -86,7 +86,7 @@ export function TableGrid(props: TableGridProps) {
     const field = props.field(id);
     return (field && taskFieldName(field)) || props.fieldName(id);
   };
-  const lookup = (id: string) => props.notebook.lookup(id);
+  const lookup = (id: string) => props.workshop.lookup(id);
   /** A row's name as a reader sees it: links resolved, a page's identity tag dropped. */
   const rowLabel = (row: QueryRow) =>
     row.block.block.kind === 'block'
@@ -313,7 +313,7 @@ export function TableGrid(props: TableGridProps) {
             const task = createMemo(() => rowTask(row, props.field));
             const facts = createMemo(() => {
               const value = task();
-              const today = props.notebook.todayDate();
+              const today = props.workshop.todayDate();
               return value ? taskFacts(value, { date: today, today }) : [];
             });
             // A phone card lists every field in property rows, so the first two columns need no summary line above them.
@@ -323,7 +323,7 @@ export function TableGrid(props: TableGridProps) {
                 : props.columns.slice(0, 2).flatMap(id => {
                     const values = row.attributes?.[id] ?? row.values[id] ?? [];
                     const text = values
-                      .map(value => plainText(value.text, target => props.notebook.lookup(target)))
+                      .map(value => plainText(value.text, target => props.workshop.lookup(target)))
                       .filter(Boolean)
                       .join(', ');
                     return text ? [{ id, text }] : [];
@@ -396,8 +396,8 @@ export function TableGrid(props: TableGridProps) {
                         </Show>
                         <span class="table-card-text">
                           <BlockText
-                            text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text}
-                            notebook={props.notebook}
+                            text={props.workshop.lookup(row.block.block.id)()?.text ?? row.block.block.text}
+                            workshop={props.workshop}
                             interactive={false}
                             cards
                           />

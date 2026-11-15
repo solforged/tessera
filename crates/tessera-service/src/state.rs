@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
 use crate::agent;
@@ -16,7 +16,7 @@ use crate::sync;
 
 #[derive(Clone)]
 pub(crate) struct AppState {
-    pub(crate) notebook: Arc<Mutex<Notebook>>,
+    pub(crate) workshop: Arc<Mutex<Workshop>>,
     /// Read-only connections, so reads do not queue behind saves.
     pub(crate) readers: Option<tessera_api::Readers>,
     pub(crate) assets: Option<Arc<PathBuf>>,
@@ -36,13 +36,13 @@ pub(crate) struct AppState {
 }
 
 pub(crate) fn hub_objects() -> tessera_api::ObjectReader {
-    Arc::new(|notebook, sha| Box::pin(sync::object_or_fetch(notebook, sha)))
+    Arc::new(|workshop, sha| Box::pin(sync::object_or_fetch(workshop, sha)))
 }
 
 impl axum::extract::FromRef<AppState> for tessera_api::WorkshopState {
     fn from_ref(state: &AppState) -> Self {
         tessera_api::WorkshopState::from_parts(
-            state.notebook.clone(),
+            state.workshop.clone(),
             state.changes.clone(),
             state.library.clone(),
         )
@@ -53,15 +53,15 @@ impl axum::extract::FromRef<AppState> for tessera_api::WorkshopState {
 
 pub(crate) async fn run<T: Send + 'static>(
     state: &AppState,
-    operation: impl FnOnce(&mut tessera_core::Notebook) -> tessera_core::Result<T> + Send + 'static,
+    operation: impl FnOnce(&mut tessera_core::Workshop) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
-    tessera_api::run(&state.notebook, operation).await
+    tessera_api::run(&state.workshop, operation).await
 }
 
 /// Run a read against one snapshot of the workshop, beside the writer.
 pub(crate) async fn read<T: Send + 'static>(
     state: &AppState,
-    operation: impl FnOnce(&tessera_core::Notebook) -> tessera_core::Result<T> + Send + 'static,
+    operation: impl FnOnce(&tessera_core::Workshop) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
     use axum::extract::FromRef;
     tessera_api::read(&tessera_api::WorkshopState::from_ref(state), operation).await

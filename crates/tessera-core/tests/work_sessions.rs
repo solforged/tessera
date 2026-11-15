@@ -1,6 +1,6 @@
 use tessera_core::{
-    Actor, Batch, Committed, DATABASE_FILE, Error, Notebook, Operation, TaskState, TaskStatus,
-    WorkSession,
+    Actor, Batch, Committed, DATABASE_FILE, Error, Operation, TaskState, TaskStatus, WorkSession,
+    Workshop,
 };
 
 fn todo() -> TaskState {
@@ -23,7 +23,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -37,9 +37,9 @@ fn insert(value: u128, parent: u128, text: &str) -> Operation {
     }
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -77,11 +77,11 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     (dir, nb)
 }
 
-fn revision(nb: &Notebook, block: u128) -> i64 {
+fn revision(nb: &Workshop, block: u128) -> i64 {
     nb.block(&id(block)).unwrap().revision
 }
 
-fn start(nb: &Notebook, block: u128, session: u128, at: i64) -> Operation {
+fn start(nb: &Workshop, block: u128, session: u128, at: i64) -> Operation {
     Operation::StartWork {
         id: id(block),
         base_revision: revision(nb, block),
@@ -91,7 +91,7 @@ fn start(nb: &Notebook, block: u128, session: u128, at: i64) -> Operation {
     }
 }
 
-fn stop(nb: &Notebook, session: &WorkSession, at: i64, note: &str) -> Operation {
+fn stop(nb: &Workshop, session: &WorkSession, at: i64, note: &str) -> Operation {
     Operation::StopWork {
         id: session.block_id.clone(),
         base_revision: nb.block(&session.block_id).unwrap().revision,
@@ -102,7 +102,7 @@ fn stop(nb: &Notebook, session: &WorkSession, at: i64, note: &str) -> Operation 
     }
 }
 
-fn state(nb: &Notebook, session: &WorkSession, ended_at: Option<i64>, reversed: bool) -> Operation {
+fn state(nb: &Workshop, session: &WorkSession, ended_at: Option<i64>, reversed: bool) -> Operation {
     Operation::SetWorkSessionState {
         id: session.block_id.clone(),
         base_revision: nb.block(&session.block_id).unwrap().revision,
@@ -113,7 +113,7 @@ fn state(nb: &Notebook, session: &WorkSession, ended_at: Option<i64>, reversed: 
     }
 }
 
-fn note(nb: &Notebook, session: &WorkSession, text: &str) -> Operation {
+fn note(nb: &Workshop, session: &WorkSession, text: &str) -> Operation {
     Operation::EditWorkNote {
         id: session.block_id.clone(),
         base_revision: nb.block(&session.block_id).unwrap().revision,
@@ -123,7 +123,7 @@ fn note(nb: &Notebook, session: &WorkSession, text: &str) -> Operation {
     }
 }
 
-fn session(nb: &Notebook, block: u128, value: u128) -> WorkSession {
+fn session(nb: &Workshop, block: u128, value: u128) -> WorkSession {
     nb.work_sessions(&id(block))
         .unwrap()
         .into_iter()
@@ -196,7 +196,7 @@ fn capabilities_sum_only_ended_non_reversed_work_and_publish_updates() {
 }
 
 #[test]
-fn one_clock_per_notebook_across_connections_without_task_status_changes() {
+fn one_clock_per_workshop_across_connections_without_task_status_changes() {
     let (dir, mut nb) = fixture();
     let waiting = TaskState {
         status: Some(TaskStatus::Waiting),
@@ -217,7 +217,7 @@ fn one_clock_per_notebook_across_connections_without_task_status_changes() {
     assert_eq!(committed.work_sessions, vec![running.clone()]);
     assert_eq!(nb.capabilities(&id(11)).unwrap().task, Some(todo()));
 
-    let mut other = Notebook::open(dir.path()).unwrap();
+    let mut other = Workshop::open(dir.path()).unwrap();
     let competing = start(&other, 12, 101, 1_100);
     assert_validation(other.apply(&batch(vec![competing])).unwrap_err(), 0);
     assert_eq!(other.active_work_session().unwrap(), Some(running.clone()));
@@ -368,7 +368,7 @@ fn delayed_batch_retries_preserve_event_times_and_attribution_without_duplicates
     assert_eq!(changes[0].actor, starting.actor);
 
     drop(nb);
-    let reopened = Notebook::open(dir.path()).unwrap();
+    let reopened = Workshop::open(dir.path()).unwrap();
     assert_eq!(reopened.work_sessions(&id(11)).unwrap(), vec![ended]);
     assert_eq!(reopened.active_work_session().unwrap(), None);
 }
@@ -765,7 +765,7 @@ fn retained_history_is_chronological_through_reversal_archive_move_delete_and_re
     apply(&mut nb, vec![move_visible]);
     assert_eq!(nb.work_sessions(&id(11)).unwrap(), history);
     drop(nb);
-    let reopened = Notebook::open(dir.path()).unwrap();
+    let reopened = Workshop::open(dir.path()).unwrap();
     assert_eq!(reopened.work_sessions(&id(11)).unwrap(), history);
 }
 

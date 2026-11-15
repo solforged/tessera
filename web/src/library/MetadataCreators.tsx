@@ -1,6 +1,6 @@
 import { For, Index, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
 import { documentReady } from '../outline/source-fields';
@@ -22,7 +22,7 @@ const roles: readonly { role: SourceCreator['role']; label: string }[] = [
 ];
 
 export function MetadataCreators(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   docs: readonly PageDocument[];
   value: SourceCreator[];
   disabled: boolean;
@@ -56,16 +56,16 @@ export function MetadataCreators(props: {
   onCleanup(() => {
     disposed = true;
   });
-  const similar = createMemo(() => similarPages(name(), props.notebook.roots()));
+  const similar = createMemo(() => similarPages(name(), props.workshop.roots()));
   const [counts] = createResource(
     () => {
       const id = person()?.id;
-      return id && (menu() || renaming() || merging()) ? ([id, props.notebook.changeSequence()] as const) : undefined;
+      return id && (menu() || renaming() || merging()) ? ([id, props.workshop.changeSequence()] as const) : undefined;
     },
     async ([id]) => {
       const [backlinks, works] = await Promise.all([
-        props.notebook.api.backlinks(id, 1000),
-        props.notebook.api.library({ people: [id], limit: Number.MAX_SAFE_INTEGER }),
+        props.workshop.api.backlinks(id, 1000),
+        props.workshop.api.library({ people: [id], limit: Number.MAX_SAFE_INTEGER }),
       ]);
       const books = new Set(works.rows.map(row => row.page.id));
       const notes = new Set(
@@ -84,9 +84,9 @@ export function MetadataCreators(props: {
   const [mergePages] = createResource(
     () => merging()?.person.id,
     async id => {
-      const library = await props.notebook.api.library({ limit: Number.MAX_SAFE_INTEGER });
+      const library = await props.workshop.api.library({ limit: Number.MAX_SAFE_INTEGER });
       const sources = new Set(library.rows.map(row => row.page.id));
-      return props.notebook
+      return props.workshop
         .roots()
         .filter(
           page =>
@@ -170,7 +170,7 @@ export function MetadataCreators(props: {
   }
   async function rename(id: string, title: string) {
     await props.onChange('Person renamed', counts()?.books ?? props.docs.length, async () => {
-      const doc = props.notebook.open(id);
+      const doc = props.workshop.open(id);
       let previous: string;
       try {
         await documentReady(doc);
@@ -182,7 +182,7 @@ export function MetadataCreators(props: {
         doc.release();
       }
       const apply = async (text: string) => {
-        const held = props.notebook.open(id);
+        const held = props.workshop.open(id);
         try {
           await documentReady(held);
           const result = held.rename(text);
@@ -567,7 +567,7 @@ export function MetadataCreators(props: {
                       setError('');
                       void props
                         .onChange('Person merged', counts()?.books ?? props.docs.length, async () => {
-                          await props.notebook.mergePage(state().person.id, target().id);
+                          await props.workshop.mergePage(state().person.id, target().id);
                           props.onPermanentChange();
                           return undefined;
                         })

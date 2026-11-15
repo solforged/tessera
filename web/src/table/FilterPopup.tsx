@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { Block, FieldDefinition, FieldKind, Filter, FilterOp } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { instancePages, relationMembers } from '../fields/instances';
 import { completeNames, plainText, targetLabel } from '../outline/names';
 import { fieldLabel, kindLabels, partialDatePlaceholder } from '../fields/kinds';
@@ -19,7 +19,7 @@ type FilterRow =
 export function FilterPopup(props: {
   anchor: HTMLElement;
   fields: readonly FieldDefinition[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   initialField: string;
   initialFilter?: Filter;
   label?: string;
@@ -48,8 +48,8 @@ export function FilterPopup(props: {
     initial?.kind === 'checkbox'
       ? ''
       : initialIdentity && resolvedInitial
-        ? (target => (target ? targetLabel(target.text, id => props.notebook.lookup(id)) : ''))(
-            props.notebook.lookup(initialValue!)(),
+        ? (target => (target ? targetLabel(target.text, id => props.workshop.lookup(id)) : ''))(
+            props.workshop.lookup(initialValue!)(),
           )
         : (initialValue ?? ''),
   );
@@ -75,22 +75,22 @@ export function FilterPopup(props: {
   const [pages] = createResource(
     () =>
       identity() &&
-      ([definition()!, props.notebook.changeSequence(), definition()?.id === '@cited_in' ? query() : ''] as const),
+      ([definition()!, props.workshop.changeSequence(), definition()?.id === '@cited_in' ? query() : ''] as const),
     async ([field, , search]) => {
       if (field.id === '@parent' || field.id === '@program' || field.id === '@subject' || field.id === '@question') {
-        const questions = await props.notebook.api.questions({ include_inline: true });
+        const questions = await props.workshop.api.questions({ include_inline: true });
         const candidates = questions
           .filter(row => field.id !== '@program' || !row.info.parent_id)
           .map(row => row.block.block);
         return field.id === '@subject'
-          ? [...(await instancePages(props.notebook, [])), ...candidates.filter(block => block.kind === 'block')]
+          ? [...(await instancePages(props.workshop, [])), ...candidates.filter(block => block.kind === 'block')]
           : candidates;
       }
       if (field.id === '@cited_in') {
         const result = search.trim()
-          ? await props.notebook.api.search(search, 100)
+          ? await props.workshop.api.search(search, 100)
           : (
-              await props.notebook.api.query({
+              await props.workshop.api.query({
                 source: 'positions',
                 type: null,
                 text: null,
@@ -101,31 +101,31 @@ export function FilterPopup(props: {
             ).rows.map(row => row.block);
         return [
           ...new Map(
-            [...props.notebook.roots().filter(block => !block.archived), ...result.map(row => row.block)].map(block => [
+            [...props.workshop.roots().filter(block => !block.archived), ...result.map(row => row.block)].map(block => [
               block.id,
               block,
             ]),
           ).values(),
         ];
       }
-      if (field.id === '@page') return props.notebook.roots().filter(block => !block.archived);
+      if (field.id === '@page') return props.workshop.roots().filter(block => !block.archived);
       if (field.id === '@project') {
-        const projects = await props.notebook.api.projects();
-        return Promise.all(projects.map(project => props.notebook.api.block(project.block_id)));
+        const projects = await props.workshop.api.projects();
+        return Promise.all(projects.map(project => props.workshop.api.block(project.block_id)));
       }
-      const members = await relationMembers(props.notebook, field.targets);
+      const members = await relationMembers(props.workshop, field.targets);
       return [...members.pages, ...members.blocks.map(row => row.block)];
     },
   );
-  const label = (block: Block) => targetLabel(block.text, id => props.notebook.lookup(id)) || 'Empty atom';
+  const label = (block: Block) => targetLabel(block.text, id => props.workshop.lookup(id)) || 'Empty atom';
   const [names] = createResource(
     () => (identity() && pages() ? { pages: pages()!, query: query() } : false),
     async ({ pages, query }) => {
-      const names = await completeNames(props.notebook, query, pages);
+      const names = await completeNames(props.workshop, query, pages);
       const other = pages.filter(block => block.kind !== 'page');
       const matches =
         query.trim() && other.length
-          ? new Set((await props.notebook.api.search(query, 100)).map(row => row.block.id))
+          ? new Set((await props.workshop.api.search(query, 100)).map(row => row.block.id))
           : null;
       return {
         ...names,
@@ -339,7 +339,7 @@ export function FilterPopup(props: {
               <span class="picker-text">{filterOperatorLabel(row.op, definition()?.kind)}</span>
             ) : (
               <span class="picker-text" title={row.value}>
-                {plainText(row.label, id => props.notebook.lookup(id))}
+                {plainText(row.label, id => props.workshop.lookup(id))}
               </span>
             )
           }
@@ -418,7 +418,7 @@ export function FilterPopup(props: {
                       ? `New field “${row.name}”`
                       : row.kind === 'op'
                         ? filterOperatorLabel(row.op, definition()?.kind)
-                        : plainText(row.label, id => props.notebook.lookup(id))}
+                        : plainText(row.label, id => props.workshop.lookup(id))}
                 </span>
                 <Show when={row.kind === 'value' && draftValue() === row.value}>
                   <Icon name="check" />

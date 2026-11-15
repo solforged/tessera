@@ -3,13 +3,13 @@ import { api } from '../api/client';
 import type { BlockKind, FieldDefinition, FieldKind } from '../api/types';
 import { guessFieldKind } from '../fields/value-reading';
 import type { FieldRole } from '../fields/roles';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { Caret } from '../core/contract';
 import { matchFieldEntry } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
 import { extractedResets, sourceFieldName } from './source';
 
-const fieldCreations = new WeakMap<NotebookClient, Map<string, Promise<FieldDefinition>>>();
+const fieldCreations = new WeakMap<WorkshopClient, Map<string, Promise<FieldDefinition>>>();
 
 export function documentReady(doc: PageDocument): Promise<void> {
   if (doc.status() === 'ready') return Promise.resolve();
@@ -27,14 +27,14 @@ export function documentReady(doc: PageDocument): Promise<void> {
   return promise;
 }
 
-const freshFields = new WeakMap<NotebookClient, Set<string>>();
+const freshFields = new WeakMap<WorkshopClient, Set<string>>();
 /** A field `name::` created here whose kind still waits for its first value. */
-export function isFreshField(notebook: NotebookClient, id: string): boolean {
-  return freshFields.get(notebook)?.has(id) ?? false;
+export function isFreshField(workshop: WorkshopClient, id: string): boolean {
+  return freshFields.get(workshop)?.has(id) ?? false;
 }
 /** The first value has been read: the field keeps whatever kind it now has. */
-export function settleField(notebook: NotebookClient, id: string): void {
-  freshFields.get(notebook)?.delete(id);
+export function settleField(workshop: WorkshopClient, id: string): void {
+  freshFields.get(workshop)?.delete(id);
 }
 
 /**
@@ -43,22 +43,22 @@ export function settleField(notebook: NotebookClient, id: string): void {
  * definition as created, not as requested.
  */
 export function ensureField(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   name: string,
   kind: FieldKind = 'text',
   role: FieldRole = 'attribute',
   fresh = false,
 ): Promise<FieldDefinition> {
-  const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
-  fieldCreations.set(notebook, pending);
+  const pending = fieldCreations.get(workshop) ?? new Map<string, Promise<FieldDefinition>>();
+  fieldCreations.set(workshop, pending);
   const key = name.toLowerCase();
   const existing = pending.get(key);
   if (existing) return existing;
   const creation = (async () => {
-    const result = await notebook.api.fields();
+    const result = await workshop.api.fields();
     const definition = result.fields.find(field => field.name.toLowerCase() === key);
     if (definition) return definition;
-    const fieldsDoc = notebook.open(result.page_id);
+    const fieldsDoc = workshop.open(result.page_id);
     try {
       await documentReady(fieldsDoc);
       for (const id of fieldsDoc.outline.children(result.page_id)) {
@@ -71,12 +71,12 @@ export function ensureField(
       if (!written.ok) throw new Error(written.reason);
       await fieldsDoc.flush();
       const id = written.created[0]!;
-      const created = (await notebook.api.fields()).fields.find(field => field.id === id);
+      const created = (await workshop.api.fields()).fields.find(field => field.id === id);
       if (!created) throw new Error(`The field ${name} was not created.`);
       // A built-in field's kind is the core's, never a guess from its first value.
       if (fresh && !created.built_in) {
-        const ids = freshFields.get(notebook) ?? new Set();
-        freshFields.set(notebook, ids);
+        const ids = freshFields.get(workshop) ?? new Set();
+        freshFields.set(workshop, ids);
         ids.add(id);
       }
       return created;
@@ -93,11 +93,11 @@ export function ensureField(
 }
 
 /** Appends a choice option under the field's definition and returns the option's id. */
-export async function addFieldOption(notebook: NotebookClient, field: FieldDefinition, text: string): Promise<string> {
+export async function addFieldOption(workshop: WorkshopClient, field: FieldDefinition, text: string): Promise<string> {
   const existing = field.options.find(option => option.text.toLowerCase() === text.toLowerCase());
   if (existing) return existing.id;
   const definition = await api.block(field.id);
-  const doc = notebook.open(definition.page_id);
+  const doc = workshop.open(definition.page_id);
   try {
     await documentReady(doc);
     const written = doc.edit({
@@ -122,7 +122,7 @@ export interface FieldEntryConversion {
 
 export function createFieldEntryConversion(options: {
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   disposed(): boolean;
   composing(): boolean;
   caret(): Caret | null;
@@ -167,7 +167,7 @@ export function createFieldEntryConversion(options: {
   ) {
     pending.add(id);
     const epoch = options.focusEpoch();
-    const heldDoc = options.notebook.open(options.doc.pageId);
+    const heldDoc = options.workshop.open(options.doc.pageId);
     options.onStart();
     const known = typeof target === 'string' ? options.known(target) : target;
     const finish = () => {
@@ -187,7 +187,7 @@ export function createFieldEntryConversion(options: {
     void (async () => {
       try {
         const field = await ensureField(
-          options.notebook,
+          options.workshop,
           typeof target === 'string' ? target : target.name,
           guess?.kind ?? 'text',
           'attribute',
@@ -246,14 +246,14 @@ export function createFieldEntryConversion(options: {
 /** Both entry actions and source actions apply the same positional reset plan. */
 export function createSourceFieldResets(options: {
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   definitions(): ReadonlyMap<string, FieldDefinition>;
   caret(): Caret | null;
   onError(message: string): void;
 }) {
   const { doc } = options;
   const [extracted] = createResource(
-    () => (doc.root()?.source ? ([doc.pageId, options.notebook.changeSequence()] as const) : false),
+    () => (doc.root()?.source ? ([doc.pageId, options.workshop.changeSequence()] as const) : false),
     ([pageId]) => api.extracted(pageId),
   );
   return (entryId?: string): MenuItem[] => {

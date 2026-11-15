@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
 import type { Block, FieldDefinition, NoteKind, Operation, QuestionState } from '../api/types';
-import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
+import type { WorkshopClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { resolveRelationPick } from '../fields/instances';
 import { filingOperations } from '../notes/finding-aid';
 import type { EntityKind } from '../outline/holders';
@@ -37,7 +37,7 @@ export function draftFieldRows(blocks: readonly Block[], pageId: string, fieldId
 
 /** Append only empty fields, using the same entry/value shape and relation resolver as table edits. */
 export async function draftFieldOperations(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   pageId: string,
   blocks: readonly Block[],
   definitions: readonly FieldDefinition[],
@@ -52,7 +52,7 @@ export async function draftFieldOperations(
     if (current.filled) continue;
     let text = draft.text;
     if (draft.relationPick) {
-      const resolved = await resolveRelationPick(notebook, draft.relationPick);
+      const resolved = await resolveRelationPick(workshop, draft.relationPick);
       operations.push(...resolved.operations);
       text = resolved.text;
     } else if (draft.option) {
@@ -86,23 +86,23 @@ export async function draftFieldOperations(
 
 /** Find and the creation slip share one acknowledged creation batch and body-caret contract. */
 export async function createPageDraft(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   request: { kind: CreateKind; noteKind?: NoteKind; text: string; gist?: string; fields?: DraftFieldsState },
 ): Promise<{ pageId: string; caretId?: string; caretOffset: number; created: boolean }> {
   const text = request.text.trim(),
     typed = request.kind.startsWith('type:');
   if (!text) throw new Error('A title cannot be empty.');
   if (typed && !request.noteKind) throw new Error('Choose a tag.');
-  const existingId = await notebook.pageByTitle(text, false);
-  const recipes = typed && request.noteKind?.type_id ? await notebook.api.cardTemplates(request.noteKind.type_id) : [];
+  const existingId = await workshop.pageByTitle(text, false);
+  const recipes = typed && request.noteKind?.type_id ? await workshop.api.cardTemplates(request.noteKind.type_id) : [];
   if (!existingId && recipes.some(recipe => recipe.applied)) {
-    const pageId = await notebook.today(),
+    const pageId = await workshop.today(),
       atomId = ulid();
-    await notebook.flush();
+    await workshop.flush();
     const [page, type, register] = await Promise.all([
-      notebook.api.page(pageId),
-      notebook.api.type(request.noteKind!.type_id!),
-      notebook.api.fields(),
+      workshop.api.page(pageId),
+      workshop.api.type(request.noteKind!.type_id!),
+      workshop.api.fields(),
     ]);
     const definitions = type.fields.flatMap(id => register.fields.find(field => field.id === id) ?? []);
     const operations: Operation[] = [
@@ -115,9 +115,9 @@ export async function createPageDraft(
         heading: null,
       },
       { op: 'add_type', id: atomId, base_revision: 1, title: request.noteKind!.name },
-      ...(await draftFieldOperations(notebook, atomId, [], definitions, request.fields?.values ?? {}, null)),
+      ...(await draftFieldOperations(workshop, atomId, [], definitions, request.fields?.values ?? {}, null)),
     ];
-    await notebook.commit(operations, 'Add atom and cards', [pageId]);
+    await workshop.commit(operations, 'Add atom and cards', [pageId]);
     return { pageId, caretId: atomId, caretOffset: text.length, created: false };
   }
   const pageId = existingId ?? ulid(),
@@ -129,17 +129,17 @@ export async function createPageDraft(
     let revision = 1,
       blocks: Block[] = [];
     if (existingId) {
-      doc = notebook.open(existingId);
+      doc = workshop.open(existingId);
       await documentReady(doc);
       await doc.flush();
-      const page = await notebook.api.page(pageId);
+      const page = await workshop.api.page(pageId);
       revision = page.root.revision;
       blocks = page.rows.map(row => row.block);
     }
     const filed =
       existingId &&
       (request.kind === 'note' ||
-        (await notebook.api.noteKinds(existingId)).some(kind => kind.key === (request.noteKind?.key ?? request.kind)));
+        (await workshop.api.noteKinds(existingId)).some(kind => kind.key === (request.noteKind?.key ?? request.kind)));
     const operations: Operation[] = [
       ...(existingId ? [] : [{ op: 'create_page' as const, id: pageId, title: text }]),
       ...(caretId
@@ -148,7 +148,7 @@ export async function createPageDraft(
     ];
     if (!filed) {
       if (typed) {
-        const kindPage = await notebook.pageByTitle(request.noteKind!.name, false);
+        const kindPage = await workshop.pageByTitle(request.noteKind!.name, false);
         operations.push(...filingOperations(pageId, revision, request.noteKind!.name, kindPage ? undefined : ulid()));
       } else if (request.kind === 'question')
         operations.push({ op: 'set_question', id: pageId, base_revision: revision, question: fields.question });
@@ -162,15 +162,15 @@ export async function createPageDraft(
     }
     if (typed && Object.keys(fields.values).length) {
       const [type, register] = await Promise.all([
-        request.noteKind!.type_id ? notebook.api.type(request.noteKind!.type_id) : undefined,
-        notebook.api.fields(),
+        request.noteKind!.type_id ? workshop.api.type(request.noteKind!.type_id) : undefined,
+        workshop.api.fields(),
       ]);
       const definitions = (
         recipes.some(recipe => recipe.applied) ? (type?.fields ?? []) : (type?.fields ?? []).slice(0, 4)
       ).flatMap(id => register.fields.find(field => field.id === id) ?? []);
       operations.push(
         ...(await draftFieldOperations(
-          notebook,
+          workshop,
           pageId,
           blocks,
           definitions,
@@ -191,11 +191,11 @@ export async function createPageDraft(
         operations.push({
           op: 'add_type',
           id: holderId,
-          base_revision: (await notebook.api.block(holderId)).revision,
+          base_revision: (await workshop.api.block(holderId)).revision,
           title: holder.file,
         });
-      const gist = await ensureField(notebook, 'gist', 'text', 'standfirst');
-      await ensureField(notebook, 'work', 'instance');
+      const gist = await ensureField(workshop, 'gist', 'text', 'standfirst');
+      await ensureField(workshop, 'work', 'instance');
       const perspective = ulid(),
         entry = ulid();
       operations.push(
@@ -213,7 +213,7 @@ export async function createPageDraft(
       );
     }
     if (operations.length)
-      await notebook.commit(
+      await workshop.commit(
         operations,
         `New ${request.noteKind?.name.toLocaleLowerCase() ?? (request.kind === 'note' ? 'atom' : request.kind)}`,
       );

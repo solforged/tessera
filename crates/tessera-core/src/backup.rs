@@ -11,12 +11,13 @@ use sha2::{Digest, Sha256};
 use crate::notebook::now_ms;
 use crate::storage::validation;
 use crate::{
-    DATABASE_FILE, Error, Notebook, NotebookInfo, NotebookOwnership, Result, SCHEMA_VERSION,
+    DATABASE_FILE, Error, Result, SCHEMA_VERSION, Workshop, WorkshopInfo, WorkshopOwnership,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct BackupManifest {
-    pub notebook_id: String,
+    #[serde(rename = "notebook_id")]
+    pub workshop_id: String,
     pub schema_version: u32,
     /// Time of the backup, in Unix milliseconds.
     pub created_at: i64,
@@ -47,12 +48,12 @@ pub enum Safety {
 /// The destination must be empty, apart from a stale ownership lock.
 pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result<BackupManifest> {
     let (source, destination) = directories(source.as_ref(), destination.as_ref())?;
-    let _ownership = NotebookOwnership::acquire(&destination, 0)?;
+    let _ownership = WorkshopOwnership::acquire(&destination, 0)?;
     require_empty(&destination)?;
     let stage = tempfile::tempdir_in(&destination)?;
     let conn = snapshot(&source, &stage.path().join(DATABASE_FILE))?;
     let schema_version = schema(&conn)?;
-    let notebook_id = conn.query_row("SELECT id FROM notebook WHERE singleton = 1", [], |r| {
+    let workshop_id = conn.query_row("SELECT id FROM notebook WHERE singleton = 1", [], |r| {
         r.get(0)
     })?;
     let db_page_count = conn.pragma_query_value(None, "page_count", |r| r.get(0))?;
@@ -78,7 +79,7 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
             });
     let object_count = copy_objects(&source, &destination)?;
     let manifest = BackupManifest {
-        notebook_id,
+        workshop_id,
         schema_version,
         created_at: now_ms(),
         object_count,
@@ -151,7 +152,7 @@ pub fn finished_backups(store: &Path, id: &str) -> Result<Vec<(PathBuf, BackupMa
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error.into()),
         };
-        if manifest.notebook_id == id {
+        if manifest.workshop_id == id {
             backups.push((entry.path(), manifest));
         }
     }
@@ -167,20 +168,20 @@ pub fn finished_backups(store: &Path, id: &str) -> Result<Vec<(PathBuf, BackupMa
 /// Reads the identity without opening the workshop, so install can back up
 /// before the new build migrates its database.
 pub fn backup_to_store(
-    notebook: impl AsRef<Path>,
+    workshop: impl AsRef<Path>,
     store: impl AsRef<Path>,
 ) -> Result<StoredBackup> {
-    store_backup(notebook.as_ref(), store.as_ref(), None, None)
+    store_backup(workshop.as_ref(), store.as_ref(), None, None)
 }
 
 /// Back up before an update replaces the build, marked so retention keeps it
 /// for a week.
 pub fn backup_before_update(
-    notebook: impl AsRef<Path>,
+    workshop: impl AsRef<Path>,
     store: impl AsRef<Path>,
 ) -> Result<StoredBackup> {
     store_backup(
-        notebook.as_ref(),
+        workshop.as_ref(),
         store.as_ref(),
         None,
         Some(Safety::Update),
@@ -189,12 +190,12 @@ pub fn backup_before_update(
 
 /// Take a safety snapshot without pruning the backup about to be restored.
 pub fn backup_to_store_preserving(
-    notebook: impl AsRef<Path>,
+    workshop: impl AsRef<Path>,
     store: impl AsRef<Path>,
     preserve: &Path,
 ) -> Result<StoredBackup> {
     store_backup(
-        notebook.as_ref(),
+        workshop.as_ref(),
         store.as_ref(),
         Some(preserve),
         Some(Safety::Restore),
@@ -202,15 +203,15 @@ pub fn backup_to_store_preserving(
 }
 
 fn store_backup(
-    notebook: &Path,
+    workshop: &Path,
     store: &Path,
     preserve: Option<&Path>,
     safety: Option<Safety>,
 ) -> Result<StoredBackup> {
-    let notebook = fs::canonicalize(notebook)?;
+    let workshop = fs::canonicalize(workshop)?;
     let id: String = {
         let conn = Connection::open_with_flags(
-            notebook.join(DATABASE_FILE),
+            workshop.join(DATABASE_FILE),
             OpenFlags::SQLITE_OPEN_READ_ONLY,
         )?;
         conn.busy_timeout(Duration::from_secs(5))?;
@@ -224,7 +225,7 @@ fn store_backup(
         return Err(validation("Backup directories must not be symlinks."));
     }
     let stage = tempfile::tempdir_in(&directory)?;
-    let mut manifest = backup(&notebook, stage.path())?;
+    let mut manifest = backup(&workshop, stage.path())?;
     // This private staging directory is no longer owned after backup returns.
     fs::remove_file(stage.path().join("service.lock"))?;
     if let Some((path, mut previous)) = finished_backups(store, &id)?.into_iter().next()
@@ -337,26 +338,26 @@ fn prune_store(store: &Path, id: &str, now: i64, preserve: Option<&Path>) -> Res
     Ok(())
 }
 
-/// Restore into an offline notebook. Hold the same OS lock as the service for
+/// Restore into an offline workshop. Hold the same OS lock as the service for
 /// the entire replacement, including migration. Never unlink `service.lock`.
 pub fn restore(
     source: impl AsRef<Path>,
     destination: impl AsRef<Path>,
     force: bool,
-) -> Result<NotebookInfo> {
+) -> Result<WorkshopInfo> {
     let (source, destination) = directories(source.as_ref(), destination.as_ref())?;
-    let ownership = NotebookOwnership::acquire(&destination, 0)?;
+    let ownership = WorkshopOwnership::acquire(&destination, 0)?;
     restore_with(&ownership, source, destination, force)
 }
 
 /// Restore while the caller holds destination ownership and no open database.
 /// Keep that ownership alive until the replacement has finished migrating.
 pub fn restore_with(
-    _ownership: &NotebookOwnership,
+    _ownership: &WorkshopOwnership,
     source: impl AsRef<Path>,
     destination: impl AsRef<Path>,
     force: bool,
-) -> Result<NotebookInfo> {
+) -> Result<WorkshopInfo> {
     let (source, destination) = directories(source.as_ref(), destination.as_ref())?;
     if !force {
         require_empty(&destination)?;
@@ -365,9 +366,9 @@ pub fn restore_with(
     let conn = snapshot(&source, &stage.path().join(DATABASE_FILE))?;
     schema(&conn)?;
     drop(conn);
-    // Confirm that the database is a notebook and can migrate before replacing
+    // Confirm that the database is a workshop and can migrate before replacing
     // anything at the destination. Closing checkpoints this private WAL.
-    Notebook::open(stage.path())?.info()?;
+    Workshop::open(stage.path())?.info()?;
     copy_objects(&source, &destination)?;
     for suffix in ["-wal", "-shm"] {
         let path = destination.join(format!("{DATABASE_FILE}{suffix}"));
@@ -382,7 +383,7 @@ pub fn restore_with(
         destination.join(DATABASE_FILE),
     )?;
     File::open(&destination)?.sync_all()?;
-    Notebook::open(&destination)?.info()
+    Workshop::open(&destination)?.info()
 }
 
 fn directories(source: &Path, destination: &Path) -> Result<(PathBuf, PathBuf)> {

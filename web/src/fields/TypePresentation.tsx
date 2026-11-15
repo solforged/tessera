@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { Type } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import type { IconName } from '../ui/glyphs';
@@ -31,9 +31,9 @@ const icons = [
 ] as const satisfies readonly IconName[];
 
 /** Type-wide display choices share the type page's document and undo history. */
-export function TypePresentation(props: { type: Type; notebook: NotebookClient; onError(message: string): void }) {
+export function TypePresentation(props: { type: Type; workshop: WorkshopClient; onError(message: string): void }) {
   const doc = createMemo(() => {
-    const value = props.notebook.open(props.type.page.id);
+    const value = props.workshop.open(props.type.page.id);
     onCleanup(() => value.release());
     return value;
   });
@@ -46,7 +46,7 @@ export function TypePresentation(props: { type: Type; notebook: NotebookClient; 
     setBusy(true);
     props.onError('');
     try {
-      const current = await props.notebook.api.type(props.type.page.id);
+      const current = await props.workshop.api.type(props.type.page.id);
       const result = doc().edit({
         kind: 'typePresentation',
         id: current.page.id,

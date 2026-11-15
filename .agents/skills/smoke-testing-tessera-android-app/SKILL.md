@@ -9,7 +9,7 @@ Use for `crates/tessera-mobile` changes. For the Brave and loopback-service
 trial, use `smoke-testing-tessera-android-usb-reader`. Prefer the foldable
 emulator below for fold tests (the user's preference); it folds on command, no
 human needed. Use the real Fold only when the emulator cannot show the thing
-(Samsung cover behavior), and never act in the live notebook there beyond
+(Samsung cover behavior), and never act in the live workshop there beyond
 reading and page turns.
 
 ## Workspace and device ownership
@@ -32,20 +32,20 @@ historical address. It is paired with the Mac and runs the **release** signer
 `distributing-tessera-android-apks`. A debug `android:build` APK fails there
 with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (harmless, nothing lost). Check with
 `adb -s "$SERIAL" shell pm dump dev.tessera.android`; never uninstall or clear
-data, because that deletes the notebook.
+data, because that deletes the workshop.
 
 - Before an authorized install, inspect `adb -s "$SERIAL" shell dumpsys window`
   and `adb -s "$SERIAL" shell dumpsys power`. Tessera focused with the screen
   Awake means the user is probably reading: ask before interrupting, since
   installation restarts the app. Do not create test annotations or change
-  pairing in its live notebook.
+  pairing in its live workshop.
 
 ## Build and install (emulators; debug-signed)
 
 ```sh
 (cd "$TASK_SOURCE" && CARGO_TARGET_DIR="$TASK_TARGET" mise run android:build)  # normal host HOME; serialize the build
 APK="$TASK_SOURCE/crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
-adb -s "$SERIAL" install -r "$APK"  # owned emulator only; -r preserves its throwaway notebook
+adb -s "$SERIAL" install -r "$APK"  # owned emulator only; -r preserves its throwaway workshop
 sleep 2   # launching right after install can lose a race with the package-update close
 adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
 ```
@@ -95,8 +95,8 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
   `SERIAL` (for example `emulator-<owned-even-port>`), AVD name and window
   title. A read-only AVD instance is not a substitute for private writable
   runtime state.
-- Fresh builds since sync stage 4 open a "Where is your notebook?" sheet on an
-  unpaired notebook; in this owned throwaway emulator click **Start a notebook**
+- Fresh builds since sync stage 4 open a "Where is your workshop?" sheet on an
+  unpaired workshop; in this owned throwaway emulator click **Start a workshop**
   before testing. Never join the live hub. Seed the run's own books through
   Library.
 - To make another size, change only the private clone's configuration keys above
@@ -155,7 +155,7 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
    `Read`/`Continue reading` button.
 5. Close the attachment and remove only this inspection binding with
    `adb -s "$SERIAL" forward --remove tcp:<recorded-port>` when done.
-6. Query the notebook from the page:
+6. Query the workshop from the page:
    `__TAURI_INTERNALS__.invoke('notebook_request', {request:{method, path:'/api/...', headers:[], body: base64|null}})`
    returns a frame: u16 status, u16 content-type length, content type, body.
    Useful: `GET /api/pages/<sourceId>`,
@@ -229,7 +229,7 @@ folded on the real Fold.
     write, `am force-stop`, relaunch. The same page must come back, also after a
     second restart.
 - On the owned emulator, force-stop and relaunch: highlight and note persist.
-  Its notebook is at `/data/user/0/dev.tessera.android/notebook`; do not copy
+  Its workshop is at `/data/user/0/dev.tessera.android/notebook`; do not copy
   test data into a physical phone's live container.
 - Fold testing on the real Fold requires the user's participation and separately
   authorized scope; ask for the physical fold and wait. Otherwise report

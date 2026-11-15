@@ -1,4 +1,4 @@
-//! LaunchServices file opens, queued until the notebook page and its service are ready.
+//! LaunchServices file opens, queued until the workshop page and its service are ready.
 
 use std::collections::VecDeque;
 use std::path::PathBuf;

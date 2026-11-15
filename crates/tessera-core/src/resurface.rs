@@ -3,7 +3,7 @@ use crate::library::{HighlightQuery, Surfacing};
 use crate::notebook::now_ms;
 use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validation};
-use crate::{Notebook, Result};
+use crate::{Result, Workshop};
 use jiff::{Timestamp, civil::Date, tz::TimeZone};
 use rusqlite::{TransactionBehavior, params};
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ fn shuffle_key(date: &str, citation: &str) -> u64 {
         })
 }
 
-impl Notebook {
+impl Workshop {
     /// Daily navigation state, independent of edits and the change stream.
     pub fn resurfacing(&mut self, date: &str, limit: usize) -> Result<Vec<Surfacing>> {
         validate_civil_date(date)?;

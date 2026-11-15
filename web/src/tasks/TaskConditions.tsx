@@ -10,7 +10,7 @@ import type {
   TaskSelection,
   TaskStatus,
 } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { FilterPopup } from '../table/FilterPopup';
 import { addFilter, filterLabel, removeFilter, typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
@@ -23,7 +23,7 @@ import { taskRange } from './query';
 import { taskFieldName } from './task-fields';
 
 interface TaskConditionsProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   query: TaskQuery;
   date: string;
   fields: readonly FieldDefinition[];
@@ -107,7 +107,7 @@ export function TaskConditions(props: TaskConditionsProps) {
   ]);
   const types = createMemo((): NamedChoice[] => [
     { id: null, name: 'Any tag' },
-    ...props.notebook
+    ...props.workshop
       .roots()
       .filter(block => block.kind === 'page' && !block.archived && block.text.toLocaleLowerCase().includes(needle()))
       .map(block => ({ id: block.id, name: block.text })),
@@ -146,7 +146,7 @@ export function TaskConditions(props: TaskConditionsProps) {
           <span class="table-chip task-condition-chip">
             <Button
               disabled={props.disabled}
-              label={`Edit ${filterLabel(filter, props.fields, props.notebook)}`}
+              label={`Edit ${filterLabel(filter, props.fields, props.workshop)}`}
               aria-haspopup="dialog"
               onClick={event =>
                 open({
@@ -157,11 +157,11 @@ export function TaskConditions(props: TaskConditionsProps) {
                 })
               }
             >
-              {filterLabel(filter, props.fields, props.notebook)}
+              {filterLabel(filter, props.fields, props.workshop)}
             </Button>
             <Button
               disabled={props.disabled}
-              label={`Remove ${filterLabel(filter, props.fields, props.notebook)}`}
+              label={`Remove ${filterLabel(filter, props.fields, props.workshop)}`}
               onClick={() => updateSource(removeFilter(source(), index()))}
             >
               ×
@@ -219,7 +219,7 @@ export function TaskConditions(props: TaskConditionsProps) {
               <FilterPopup
                 anchor={state.anchor}
                 fields={props.fields}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 initialField={state.field}
                 initialFilter={state.edit?.filter}
                 label={state.edit ? 'Edit condition' : 'Add condition'}
@@ -390,7 +390,7 @@ export function TaskConditions(props: TaskConditionsProps) {
           if (state.kind === 'range')
             return (
               <DatePicker
-                notebook={props.notebook}
+                workshop={props.workshop}
                 anchor={state.anchor}
                 label={`${state.field === 'scheduled' ? 'Scheduled' : 'Deadline'} ${state.edge}`}
                 value={props.query.filter[state.field]?.[state.edge] ?? null}

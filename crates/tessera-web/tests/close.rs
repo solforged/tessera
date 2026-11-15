@@ -1,4 +1,4 @@
-//! Closing releases OPFS ownership without losing committed notebook writes.
+//! Closing releases OPFS ownership without losing committed workshop writes.
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use serde_json::{Value, json};

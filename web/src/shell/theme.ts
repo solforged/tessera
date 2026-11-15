@@ -1,8 +1,8 @@
 import { createSignal } from 'solid-js';
 
 /**
- * Light or dark is a device preference, not a notebook setting: the same
- * notebook can be read on a bright laptop and a dark desk. System follows the
+ * Light or dark is a device preference, not a workshop setting: the same
+ * workshop can be read on a bright laptop and a dark desk. System follows the
  * operating system and is the default.
  */
 export type ThemePreference = 'system' | 'light' | 'dark';

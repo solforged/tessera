@@ -1,6 +1,6 @@
 use tessera_core::scheduler::Grade;
 use tessera_core::{
-    Actor, Batch, CardQuery, CardSelection, CardUnit, ChangeStamp, Error, Notebook, Operation,
+    Actor, Batch, CardQuery, CardSelection, CardUnit, ChangeStamp, Error, Operation, Workshop,
 };
 
 fn id(n: u128) -> String {
@@ -14,7 +14,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&batch(operations)).unwrap();
 }
 fn insert(n: u128, parent: &str, text: &str) -> Operation {
@@ -38,7 +38,7 @@ fn create() -> Operation {
         new_per_day: 2,
     }
 }
-fn applied(nb: &mut Notebook, value: bool) {
+fn applied(nb: &mut Workshop, value: bool) {
     let revision = nb.card_template(&id(50)).unwrap().revision;
     apply(
         nb,
@@ -49,7 +49,7 @@ fn applied(nb: &mut Notebook, value: bool) {
         }],
     );
 }
-fn edit(nb: &mut Notebook, n: u128, text: &str) {
+fn edit(nb: &mut Workshop, n: u128, text: &str) {
     let revision = nb.block(&id(n)).unwrap().revision;
     apply(
         nb,
@@ -60,14 +60,14 @@ fn edit(nb: &mut Notebook, n: u128, text: &str) {
         }],
     );
 }
-fn unit(nb: &Notebook, n: u128) -> CardUnit {
+fn unit(nb: &Workshop, n: u128) -> CardUnit {
     nb.source_cards(&id(n))
         .unwrap()
         .into_iter()
         .find(|c| c.key.starts_with("tpl:"))
         .unwrap()
 }
-fn queue(nb: &Notebook, now: i64) -> Vec<CardUnit> {
+fn queue(nb: &Workshop, now: i64) -> Vec<CardUnit> {
     nb.card_query(
         &CardQuery {
             source: None,
@@ -82,7 +82,7 @@ fn queue(nb: &Notebook, now: i64) -> Vec<CardUnit> {
     .map(|row| row.card)
     .collect()
 }
-fn grade(nb: &mut Notebook, card: &CardUnit, event: u128, at: i64) {
+fn grade(nb: &mut Workshop, card: &CardUnit, event: u128, at: i64) {
     apply(
         nb,
         vec![Operation::GradeCard {
@@ -100,9 +100,9 @@ fn grade(nb: &mut Notebook, card: &CardUnit, event: u128, at: i64) {
     );
 }
 
-fn fixture(count: usize, ready: usize) -> (tempfile::TempDir, Notebook) {
+fn fixture(count: usize, ready: usize) -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -246,7 +246,7 @@ fn disable_enable_delete_undo_and_authored_syntax_exclusion() {
 }
 
 #[test]
-fn daily_limit_counts_first_reviews_in_notebook_zone_and_preserves_authored_cards() {
+fn daily_limit_counts_first_reviews_in_workshop_zone_and_preserves_authored_cards() {
     let (_dir, mut nb) = fixture(5, 5);
     applied(&mut nb, true);
     edit(&mut nb, 100, "one >> two #Vocab");

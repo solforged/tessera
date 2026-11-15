@@ -1,15 +1,15 @@
 use std::path::Path;
 
 use tessera_core::{
-    Actor, Batch, Notebook, NotebookOwnership, Operation, backup, restore, restore_with,
+    Actor, Batch, Operation, Workshop, WorkshopOwnership, backup, restore, restore_with,
 };
 
 const PAGE: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const BLOCK: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
 
-fn seed(path: &Path) -> (Notebook, String) {
-    let mut notebook = Notebook::open(path).unwrap();
-    notebook
+fn seed(path: &Path) -> (Workshop, String) {
+    let mut workshop = Workshop::open(path).unwrap();
+    workshop
         .apply(&Batch {
             actor: Actor::Person,
             reason: None,
@@ -29,12 +29,12 @@ fn seed(path: &Path) -> (Notebook, String) {
             ],
         })
         .unwrap();
-    let sha = notebook.put_object(b"immutable source bytes").unwrap();
-    (notebook, sha)
+    let sha = workshop.put_object(b"immutable source bytes").unwrap();
+    (workshop, sha)
 }
 
-fn assert_copy(original: &Notebook, path: &Path, sha: &str) {
-    let copy = Notebook::open(path).unwrap();
+fn assert_copy(original: &Workshop, path: &Path, sha: &str) {
+    let copy = Workshop::open(path).unwrap();
     assert_eq!(copy.info().unwrap().id, original.info().unwrap().id);
     assert_eq!(
         copy.page(PAGE).unwrap().rows.len(),
@@ -48,72 +48,72 @@ fn assert_copy(original: &Notebook, path: &Path, sha: &str) {
 fn backup_online_preserves_identity_blocks_and_objects() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
-    let (notebook, sha) = seed(&source);
-    let _service = NotebookOwnership::acquire(&source, 4397).unwrap();
+    let (workshop, sha) = seed(&source);
+    let _service = WorkshopOwnership::acquire(&source, 4397).unwrap();
     assert!(source.join("notebook.db-wal").exists());
     let dest = root.path().join("backup");
     let manifest = backup(&source, &dest).unwrap();
-    assert_eq!(manifest.notebook_id, notebook.info().unwrap().id);
+    assert_eq!(manifest.workshop_id, workshop.info().unwrap().id);
     assert_eq!(
         manifest.schema_version,
-        notebook.info().unwrap().schema_version
+        workshop.info().unwrap().schema_version
     );
     assert_eq!(manifest.object_count, 1);
     assert!(manifest.db_page_count > 0);
-    assert!(manifest.created_at >= notebook.info().unwrap().created_at);
+    assert!(manifest.created_at >= workshop.info().unwrap().created_at);
     let json: serde_json::Value =
         serde_json::from_slice(&std::fs::read(dest.join("manifest.json")).unwrap()).unwrap();
     assert_eq!(json["object_count"], 1);
-    assert_eq!(json["notebook_id"], manifest.notebook_id);
+    assert_eq!(json["notebook_id"], manifest.workshop_id);
     assert!(!dest.join("notebook.db-wal").exists());
-    assert_copy(&notebook, &dest, &sha);
+    assert_copy(&workshop, &dest, &sha);
 }
 
 #[test]
-fn restore_round_trip_preserves_notebook() {
+fn restore_round_trip_preserves_workshop() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
-    let (notebook, sha) = seed(&source);
+    let (workshop, sha) = seed(&source);
     let saved = root.path().join("backup");
     backup(&source, &saved).unwrap();
     let restored = root.path().join("restored");
     assert_eq!(
         restore(&saved, &restored, false).unwrap().id,
-        notebook.info().unwrap().id
+        workshop.info().unwrap().id
     );
-    assert_copy(&notebook, &restored, &sha);
+    assert_copy(&workshop, &restored, &sha);
 }
 
 #[test]
 fn restore_with_replaces_the_database_under_the_held_service_lock() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
-    let (notebook, sha) = seed(&source);
+    let (workshop, sha) = seed(&source);
     let saved = root.path().join("backup");
     backup(&source, &saved).unwrap();
     let destination = root.path().join("destination");
-    let old_id = Notebook::open(&destination).unwrap().info().unwrap().id;
-    let ownership = NotebookOwnership::acquire(&destination, 4397).unwrap();
+    let old_id = Workshop::open(&destination).unwrap().info().unwrap().id;
+    let ownership = WorkshopOwnership::acquire(&destination, 4397).unwrap();
     let lock = destination.join("service.lock");
     let contents = std::fs::read(&lock).unwrap();
     std::fs::write(destination.join("restore.pending"), b"pending").unwrap();
 
     let restored = restore_with(&ownership, &saved, &destination, true).unwrap();
     assert_ne!(restored.id, old_id);
-    assert_eq!(restored.id, notebook.info().unwrap().id);
+    assert_eq!(restored.id, workshop.info().unwrap().id);
     assert_eq!(std::fs::read(&lock).unwrap(), contents);
-    assert!(NotebookOwnership::acquire(&destination, 0).is_err());
+    assert!(WorkshopOwnership::acquire(&destination, 0).is_err());
     assert!(destination.join("restore.pending").exists());
-    assert_copy(&notebook, &destination, &sha);
+    assert_copy(&workshop, &destination, &sha);
     drop(ownership);
-    NotebookOwnership::acquire(&destination, 0).unwrap();
+    WorkshopOwnership::acquire(&destination, 0).unwrap();
 }
 
 #[test]
 fn pending_restore_is_ignored_by_empty_destinations_and_snapshots() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
-    let (notebook, sha) = seed(&source);
+    let (workshop, sha) = seed(&source);
     std::fs::write(source.join("restore.pending"), b"pending").unwrap();
     let store = root.path().join("store");
     let saved = tessera_core::backup_to_store(&source, &store).unwrap();
@@ -122,24 +122,24 @@ fn pending_restore_is_ignored_by_empty_destinations_and_snapshots() {
     std::fs::create_dir(&destination).unwrap();
     std::fs::write(destination.join("restore.pending"), b"pending").unwrap();
     restore(&saved.path, &destination, false).unwrap();
-    assert_copy(&notebook, &destination, &sha);
+    assert_copy(&workshop, &destination, &sha);
 }
 
 #[test]
 fn restore_refuses_nonempty_destination_without_force() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
-    let (notebook, sha) = seed(&source);
+    let (workshop, sha) = seed(&source);
     let destination = root.path().join("destination");
-    let old_id = Notebook::open(&destination).unwrap().info().unwrap().id;
+    let old_id = Workshop::open(&destination).unwrap().info().unwrap().id;
     let error = restore(&source, &destination, false).unwrap_err();
     assert!(error.to_string().contains("not empty"));
     assert_eq!(
-        Notebook::open(&destination).unwrap().info().unwrap().id,
+        Workshop::open(&destination).unwrap().info().unwrap().id,
         old_id
     );
     restore(&source, &destination, true).unwrap();
-    assert_copy(&notebook, &destination, &sha);
+    assert_copy(&workshop, &destination, &sha);
 }
 
 #[test]
@@ -148,12 +148,12 @@ fn restore_refuses_live_service_even_with_force() {
     let source = root.path().join("source");
     seed(&source);
     let destination = root.path().join("destination");
-    let old_id = Notebook::open(&destination).unwrap().info().unwrap().id;
-    let service = NotebookOwnership::acquire(&destination, 4397).unwrap();
+    let old_id = Workshop::open(&destination).unwrap().info().unwrap().id;
+    let service = WorkshopOwnership::acquire(&destination, 4397).unwrap();
     let error = restore(&source, &destination, true).unwrap_err();
     assert!(error.to_string().contains("already served"));
     assert_eq!(
-        Notebook::open(&destination).unwrap().info().unwrap().id,
+        Workshop::open(&destination).unwrap().info().unwrap().id,
         old_id
     );
     drop(service);
@@ -172,14 +172,14 @@ fn backup_and_restore_refuse_overlapping_directories() {
 }
 
 #[test]
-fn backup_refuses_existing_notebook_without_changing_it() {
+fn backup_refuses_existing_workshop_without_changing_it() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
     seed(&source);
     let destination = root.path().join("destination");
-    let id = Notebook::open(&destination).unwrap().info().unwrap().id;
+    let id = Workshop::open(&destination).unwrap().info().unwrap().id;
     assert!(backup(&source, &destination).is_err());
-    assert_eq!(Notebook::open(&destination).unwrap().info().unwrap().id, id);
+    assert_eq!(Workshop::open(&destination).unwrap().info().unwrap().id, id);
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("workshop");
     let store = root.path().join("shared-store");
-    let (mut notebook, _) = seed(&source);
+    let (mut workshop, _) = seed(&source);
     let first = tessera_core::backup_to_store(&source, &store).unwrap();
     assert!(first.created);
     assert_eq!(first.manifest.database_sha256.len(), 64);
@@ -200,7 +200,7 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
     assert!(!update.created);
     assert_eq!(update.path, first.path);
     assert_eq!(
-        tessera_core::finished_backups(&store, &first.manifest.notebook_id).unwrap()[0]
+        tessera_core::finished_backups(&store, &first.manifest.workshop_id).unwrap()[0]
             .1
             .safety,
         Some(tessera_core::Safety::Update)
@@ -211,7 +211,7 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
             .count(),
         1
     );
-    notebook
+    workshop
         .apply(&Batch {
             actor: Actor::Person,
             reason: None,
@@ -237,7 +237,7 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
         2
     );
     assert!(first.path.exists());
-    notebook
+    workshop
         .put_object(b"new object without a database edit")
         .unwrap();
     let object = tessera_core::backup_to_store(&source, &store).unwrap();
@@ -254,7 +254,7 @@ fn safety_snapshot_preserves_its_selected_restore_point_during_retention() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("workshop");
     let store = root.path().join("backups");
-    let (mut notebook, _) = seed(&source);
+    let (mut workshop, _) = seed(&source);
     let first = tessera_core::backup_to_store(&source, &store).unwrap();
     let directory = first.path.parent().unwrap();
     for index in 1..=3 {
@@ -267,7 +267,7 @@ fn safety_snapshot_preserves_its_selected_restore_point_during_retention() {
         )
         .unwrap();
     }
-    notebook
+    workshop
         .apply(&Batch {
             actor: Actor::Person,
             reason: None,
@@ -287,7 +287,7 @@ fn safety_snapshot_preserves_its_selected_restore_point_during_retention() {
     assert!(selected.join("manifest.json").is_file());
     assert!(!directory.join("old-2").exists());
     assert_eq!(
-        Notebook::open(selected).unwrap().block(BLOCK).unwrap().text,
+        Workshop::open(selected).unwrap().block(BLOCK).unwrap().text,
         "Retained block"
     );
 }
@@ -298,10 +298,10 @@ fn backup_objects_share_the_live_inode_and_survive_unlinking_the_live_file() {
     use std::os::unix::fs::MetadataExt;
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
-    let (notebook, sha) = seed(&source);
+    let (workshop, sha) = seed(&source);
     let destination = root.path().join("backup");
     backup(&source, &destination).unwrap();
-    let live = notebook.object_path(&sha).unwrap();
+    let live = workshop.object_path(&sha).unwrap();
     let saved = destination.join("objects").join(&sha[..2]).join(&sha[2..]);
     let live_meta = std::fs::metadata(&live).unwrap();
     let saved_meta = std::fs::metadata(&saved).unwrap();
@@ -353,7 +353,7 @@ fn skipped_backups_also_prune_finished_history_without_touching_other_workshops(
         .unwrap();
     }
     let other_source = root.path().join("other");
-    Notebook::open(&other_source).unwrap();
+    Workshop::open(&other_source).unwrap();
     let other = tessera_core::backup_to_store(&other_source, &store).unwrap();
     assert!(
         !tessera_core::backup_to_store(&source, &store)

@@ -1,6 +1,6 @@
 import { createMemo, createResource, createSignal, Show } from 'solid-js';
 import type { Block, BlockCapabilities } from '../api/types';
-import type { BlockState, NotebookClient } from '../document/contract';
+import type { BlockState, WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
@@ -48,7 +48,7 @@ export function pageMergeDisabledReason(
 /** Both the title collision and page menu require the same permanent confirmation. */
 export function PageMergeConfirmation(props: {
   anchor: PopupAnchor;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   from: Page;
   into: Page;
   returnFocus?: () => HTMLElement | null;
@@ -59,7 +59,7 @@ export function PageMergeConfirmation(props: {
   const [error, setError] = createSignal('');
   const [capabilities] = createResource(
     () => props.from.id,
-    id => props.notebook.api.capabilities(id),
+    id => props.workshop.api.capabilities(id),
   );
   const disabled = () =>
     capabilities.error
@@ -76,7 +76,7 @@ export function PageMergeConfirmation(props: {
     setBusy(true);
     setError('');
     try {
-      await props.notebook.mergePage(props.from.id, props.into.id);
+      await props.workshop.mergePage(props.from.id, props.into.id);
       props.onMerged(props.into.id);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -132,7 +132,7 @@ export function PageMergeConfirmation(props: {
 
 export function PageMergePicker(props: {
   anchor: PopupAnchor;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   from: Page;
   returnFocus?: () => HTMLElement | null;
   onDismiss(): void;
@@ -142,8 +142,8 @@ export function PageMergePicker(props: {
   const [target, setTarget] = createSignal<Block>();
   const [pages] = createResource(
     () => {
-      props.notebook.changeSequence();
-      return props.notebook
+      props.workshop.changeSequence();
+      return props.workshop
         .roots()
         .filter(
           page =>
@@ -151,7 +151,7 @@ export function PageMergePicker(props: {
         );
     },
     async roots => {
-      const library = await props.notebook.api.library({ limit: roots.length });
+      const library = await props.workshop.api.library({ limit: roots.length });
       const sources = new Set(library.rows.map(row => row.source.block_id));
       return roots.filter(page => !sources.has(page.id));
     },
@@ -192,7 +192,7 @@ export function PageMergePicker(props: {
         <PageMergeConfirmation
           anchor={props.anchor}
           returnFocus={props.returnFocus}
-          notebook={props.notebook}
+          workshop={props.workshop}
           from={props.from}
           into={into}
           onDismiss={props.onDismiss}

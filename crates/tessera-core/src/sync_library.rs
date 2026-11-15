@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::library_store::{sha256_hex, validate_sha};
 use crate::storage::{not_found, validation};
 use crate::sync::Outbox;
-use crate::{Notebook, Result};
+use crate::{Result, Workshop};
 
 /// A reading position as it travels between devices.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,7 +66,7 @@ fn cover_hashes(text: &str) -> impl Iterator<Item = String> + '_ {
     })
 }
 
-/// Give a merged row its place in this notebook's arrival order, and keep the
+/// Give a merged row its place in this workshop's arrival order, and keep the
 /// clock ahead of every clock it has seen.
 fn arrival(conn: &Connection, hlc: i64) -> Result<i64> {
     Ok(conn.query_row(
@@ -78,7 +78,7 @@ fn arrival(conn: &Connection, hlc: i64) -> Result<i64> {
 }
 
 /// Merge rows from another device: the later clock wins a reading position,
-/// and a surfacing's action. Rows naming records this notebook lacks are
+/// and a surfacing's action. Rows naming records this workshop lacks are
 /// skipped. Returns how many rows changed here.
 fn merge(conn: &Connection, rows: &UnloggedRows) -> Result<usize> {
     let mut changed = 0;
@@ -244,12 +244,12 @@ pub(crate) fn reconcile(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     fn has_object(&self, sha: &str) -> Result<bool> {
         Ok(self.object_path(sha)?.exists())
     }
 
-    /// The files among `shas` this notebook does not have.
+    /// The files among `shas` this workshop does not have.
     pub fn sync_missing_objects(&self, shas: &[String]) -> Result<Vec<String>> {
         let mut missing = Vec::new();
         for sha in shas {
@@ -260,7 +260,7 @@ impl Notebook {
         Ok(missing)
     }
 
-    /// A file by hash, or `None` when this notebook does not have it.
+    /// A file by hash, or `None` when this workshop does not have it.
     pub fn sync_object(&self, sha: &str) -> Result<Option<Vec<u8>>> {
         if !self.has_object(sha)? {
             return Ok(None);
@@ -385,7 +385,7 @@ impl Notebook {
     }
 
     /// Hub side: merge a replica's rows and return the rows that arrived here
-    /// after `after`, with this notebook's latest arrival as the new cursor.
+    /// after `after`, with this workshop's latest arrival as the new cursor.
     pub fn sync_exchange_rows(
         &mut self,
         device: &str,
@@ -408,7 +408,7 @@ impl Notebook {
         Ok(pull)
     }
 
-    /// Capture the row push and its high-water mark while holding the notebook.
+    /// Capture the row push and its high-water mark while holding the workshop.
     pub(crate) fn sync_unlogged_outbox(&self) -> Result<(String, UnloggedRows, i64, i64)> {
         let status = self.require_replica()?;
         let (cursor, pushed, latest): (i64, i64, i64) = self.conn.query_row(

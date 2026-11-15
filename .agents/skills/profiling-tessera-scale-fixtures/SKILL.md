@@ -10,7 +10,7 @@ library feels sluggish on the Fold". First complete
 [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment.
 
-## Quick triage (small notebook, sluggish UI)
+## Quick triage (small workshop, sluggish UI)
 
 - First split JS from native time. A CPU profile of the WebView
   (`tab.profileStart()`/`profileStop()`) that is mostly `(idle)` means the wait

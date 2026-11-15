@@ -4,7 +4,7 @@ import type { JSX } from 'solid-js';
 import type { FieldDefinition, NoteKind } from '../api/types';
 import { Icon } from '../ui/Icon';
 import { noteKindIcon } from './kinds';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { foldName } from '../outline/names';
 import { aliasEntries, aliasNames } from './aliases';
 import type { OpenTarget } from '../core/contract';
@@ -88,9 +88,9 @@ export function NoteAliases(props: { doc: PageDocument; fields: FieldDefinition[
   );
 }
 
-/** The note's apparatus line under its title: created day in the notebook's zone, named like every other list (`today`, `Thu`, `Oct 16`), then any trailing controls such as Revisit. */
-export function NoteLine(props: { pageId: string; notebook: NotebookClient; children?: JSX.Element }) {
-  const root = createMemo(() => props.notebook.roots().find(block => block.id === props.pageId));
+/** The note's apparatus line under its title: created day in the workshop's zone, named like every other list (`today`, `Thu`, `Oct 16`), then any trailing controls such as Revisit. */
+export function NoteLine(props: { pageId: string; workshop: WorkshopClient; children?: JSX.Element }) {
+  const root = createMemo(() => props.workshop.roots().find(block => block.id === props.pageId));
   return (
     <Show when={root()}>
       {page => (
@@ -99,8 +99,8 @@ export function NoteLine(props: { pageId: string; notebook: NotebookClient; chil
             Created{' '}
             <span class="fig">
               {relativeDate(
-                civilDate(page().created_at, props.notebook.settings()?.time_zone),
-                props.notebook.todayDate(),
+                civilDate(page().created_at, props.workshop.settings()?.time_zone),
+                props.workshop.todayDate(),
               )}
             </span>
           </span>

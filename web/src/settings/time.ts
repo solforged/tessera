@@ -1,6 +1,6 @@
 import { createMemo } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 /** Legacy IANA names Intl may still report, and the names Tessera shows instead. */
 export const zoneAliases: Record<string, string> = {
@@ -24,9 +24,9 @@ export function canonicalZone(value: string): string {
 export const deviceZone = () => canonicalZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 /** The workshop's journal zone, or this device's while it has none. */
-export function workshopZone(notebook: NotebookClient): Accessor<string> {
+export function workshopZone(workshop: WorkshopClient): Accessor<string> {
   const device = deviceZone();
-  return createMemo(() => canonicalZone(notebook.settings()?.time_zone ?? device));
+  return createMemo(() => canonicalZone(workshop.settings()?.time_zone ?? device));
 }
 
 /** `2026-10-20 06:51`: a local ISO date and 24-hour minute in `zone`. Settings and History write every time this way. */

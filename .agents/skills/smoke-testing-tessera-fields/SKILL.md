@@ -13,10 +13,10 @@ to prepare/source the field smoke's workspace and run.
    `CARGO_TARGET_DIR="$TASK_TARGET" cargo build --manifest-path "$TASK_SOURCE/Cargo.toml" -p tessera-cli --locked`,
    copy `"$TASK_TARGET/debug/tessera"` to `TASK_BIN`, and build web assets into
    `TASK_DIST` from `TASK_SOURCE/web`.
-2. Serve a fresh notebook as a unique named service (never :4318):
+2. Serve a fresh workshop as a unique named service (never :4318):
    `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/fields" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`.
    Record readiness, both actual ports and origin; do not delete/reuse fixed
-   notebook paths.
+   workshop paths.
 3. Seed via JS `eval` with one POST `/api/batches`
    `{actor:{kind:'client',name}, idempotency_key: ulid(), operations}`:
    - Fields page id: `GET /api/fields` → `page_id`. Each field definition =
@@ -41,7 +41,7 @@ to prepare/source the field smoke's workspace and run.
    ticked), template-order placement, ⌘Z steps, `::` picker ranking, type page
    Template reorder/remove/add, Fill missing fields + its Undo, 420 px viewport.
 6. Retain screenshots and write/API proof in `TASK_EVIDENCE`, then follow shared
-   teardown for the browser launcher and notebook service.
+   teardown for the browser launcher and workshop service.
 
 ## UX audit / clickaround of fields (no code changes)
 

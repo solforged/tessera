@@ -197,7 +197,7 @@ export function highlightLocation(
   return `¶${citation.ordinal + 1}`;
 }
 
-/** The passage and the notebook date; the chapter is the heading the highlight sits under. */
+/** The passage and the workshop date; the chapter is the heading the highlight sits under. */
 export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, timeZone: string): string {
   // Civil dates read as ISO everywhere the apparatus shows them, like journal titles and task plans.
   const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
@@ -246,7 +246,7 @@ export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[]
   return jobs.filter(job => job.state !== 'done' || job.created_at >= now - 24 * 60 * 60 * 1000);
 }
 
-/** A completed job leaves once its source is in the notebook; the source's own row says the rest. */
+/** A completed job leaves once its source is in the workshop; the source's own row says the rest. */
 export function visibleJobs(jobs: readonly IngestJob[], sourceIds: ReadonlySet<string>): IngestJob[] {
   return jobs.filter(job => job.state !== 'done' || !job.source_id || !sourceIds.has(job.source_id));
 }

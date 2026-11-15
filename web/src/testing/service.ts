@@ -95,7 +95,7 @@ async function ready(api: ApiClient, directory: string, child: Service): Promise
       throw new Error(`The workshop service exited before it was ready (${child.exitCode}).${await stderr()}`);
     let info;
     try {
-      info = await api.notebook(AbortSignal.timeout(2_000));
+      info = await api.workshop(AbortSignal.timeout(2_000));
     } catch {
       if (Date.now() > deadline)
         throw new Error(`The workshop service was not ready within ${READY_MS / 1000} s.${await stderr()}`);

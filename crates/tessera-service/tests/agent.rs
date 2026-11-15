@@ -21,7 +21,7 @@ use axum::{
 use futures_util::Stream;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
-use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Notebook};
+use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Workshop};
 use tower::ServiceExt;
 
 async fn request(app: &Router, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
@@ -51,7 +51,7 @@ async fn request(app: &Router, method: &str, path: &str, body: Value) -> (Status
 
 fn embedded(dir: &std::path::Path) -> (Router, tessera_service::EmbeddedHandles) {
     tessera_service::embedded_router_with_paths(
-        Notebook::open(dir.join("notebook")).unwrap(),
+        Workshop::open(dir.join("notebook")).unwrap(),
         dir.join("agent.json"),
         None,
     )
@@ -284,9 +284,9 @@ async fn providers_round_trip_keeps_clears_and_never_returns_keys() {
             0o600
         );
     }
-    // Another notebook on this machine sees the same settings, not notebook data.
+    // Another workshop on this machine sees the same settings, not workshop data.
     let (other, _) = tessera_service::embedded_router_with_paths(
-        Notebook::open(dir.path().join("other")).unwrap(),
+        Workshop::open(dir.path().join("other")).unwrap(),
         dir.path().join("agent.json"),
         None,
     )
@@ -590,7 +590,7 @@ async fn protocol_turn(protocol: &'static str) {
     let dir = tempfile::tempdir().unwrap();
     let (app, handles) = embedded(dir.path());
     let context = handles
-        .notebook
+        .workshop
         .lock()
         .agent_edit(&AgentRequest {
             actor: Actor::Person,
@@ -674,10 +674,10 @@ async fn protocol_turn(protocol: &'static str) {
     assert_eq!(events[2]["delta"], "Saved.");
     assert_eq!(events.last().unwrap()["stop"], "end");
     {
-        let notebook = handles.notebook.lock();
-        let page = notebook.page_by_title("Inbox").unwrap().unwrap();
+        let workshop = handles.workshop.lock();
+        let page = workshop.page_by_title("Inbox").unwrap().unwrap();
         assert_eq!(events[1]["page"], page.id);
-        let page = notebook.page(&page.id).unwrap();
+        let page = workshop.page(&page.id).unwrap();
         assert_eq!(
             page.rows
                 .iter()
@@ -685,7 +685,7 @@ async fn protocol_turn(protocol: &'static str) {
                 .collect::<Vec<_>>(),
             [("First note", 0), ("Child note", 0), ("Second note", 0)]
         );
-        let changes = notebook.history(10, None).unwrap();
+        let changes = workshop.history(10, None).unwrap();
         assert_eq!(
             changes[0].actor,
             Actor::Agent {

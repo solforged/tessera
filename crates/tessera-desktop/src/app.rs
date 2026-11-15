@@ -1,5 +1,5 @@
 //! The window, its menu, and startup: bring the launch agent onto this
-//! build, then show the notebook the service serves.
+//! build, then show the workshop the service serves.
 
 use parking_lot::Mutex;
 use std::io::Write as _;

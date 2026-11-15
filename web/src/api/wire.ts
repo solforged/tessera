@@ -395,7 +395,7 @@ export type Citation = {
  */
 export type Committed = {
   /**
-   * Position in the notebook's change sequence.
+   * Position in the workshop's change sequence.
    */
   seq: number,
   /**
@@ -949,7 +949,7 @@ export type KindIndex = {
  * A workshop the switcher knows. `display_path` writes the home folder as `~`; `named` marks one
  * made by name in the workshops folder.
  */
-export type KnownNotebook = {
+export type KnownWorkshop = {
   path: string,
   name: string,
   display_path: string,
@@ -957,13 +957,13 @@ export type KnownNotebook = {
   current: boolean,
   default: boolean,
   /**
-   * False when the folder no longer holds a notebook database.
+   * False when the folder no longer holds a workshop database.
    */
   available: boolean,
 };
 
-export type KnownNotebooks = {
-  notebooks: Array<KnownNotebook>,
+export type KnownWorkshops = {
+  notebooks: Array<KnownWorkshop>,
 };
 
 export type LastError = {
@@ -1216,18 +1216,6 @@ export type NoteView = {
    * letter, source, link, created, or field:<definition id>.
    */
   grouping: string,
-};
-
-export type NotebookInfo = {
-  id: string,
-  path: string,
-  created_at: number,
-  schema_version: number,
-  sqlite_version: string,
-};
-
-export type NotebookSize = {
-  size: number,
 };
 
 export type Occlusion = {
@@ -2228,7 +2216,7 @@ export type Repeater = {
 };
 
 /**
- * Replica side: this device's copy of a hub's notebook.
+ * Replica side: this device's copy of a hub's workshop.
  */
 export type ReplicaState = {
   hub_url: string,
@@ -2871,6 +2859,18 @@ export type WorkSession = {
   note: string,
   reversed: boolean,
   revision: number,
+};
+
+export type WorkshopInfo = {
+  id: string,
+  path: string,
+  created_at: number,
+  schema_version: number,
+  sqlite_version: string,
+};
+
+export type WorkshopSize = {
+  size: number,
 };
 
 export type YearFacet = {

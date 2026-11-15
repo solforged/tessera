@@ -23,7 +23,7 @@ const failure = (reason: unknown) => {
 };
 
 /**
- * The phone's first choice: copy the Mac's notebook, or keep a notebook of its own. With `again`, a forgotten phone pairs
+ * The phone's first choice: copy the Mac's workshop, or keep a workshop of its own. With `again`, a forgotten phone pairs
  * with the same Mac once more; only the first choice is offered, with the Mac's address filled in. On a phone it is a sheet
  * of two leaves, Type code goes to a form with a way back, and joining is a sheet that cannot be dismissed.
  */

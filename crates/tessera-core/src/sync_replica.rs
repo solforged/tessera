@@ -1,7 +1,7 @@
 //! Local replica state and in-place clone installation.
 use super::CloneTicket;
 use crate::storage::validation;
-use crate::{DATABASE_FILE, Notebook, Result};
+use crate::{DATABASE_FILE, Result, Workshop};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use std::path::Path;
@@ -44,7 +44,7 @@ pub struct OfflineFiles {
     pub bytes: u64,
 }
 
-impl Notebook {
+impl Workshop {
     /// Detect edits and row writes that arrived while pairing was on the network.
     pub fn sync_generation(&self) -> Result<(i64, i64)> {
         Ok((
@@ -207,7 +207,7 @@ impl Notebook {
         super::check_schema(ticket.schema_version)?;
         let cloned = Connection::open(path)?;
         let id: String = cloned.query_row("SELECT id FROM notebook", [], |r| r.get(0))?;
-        if id != ticket.notebook_id {
+        if id != ticket.workshop_id {
             return Err(validation("the snapshot is not the ticket's workshop"));
         }
         // Never overwrite a previous recovery copy; a same-second attempt gets `-2`, `-3`, …
@@ -261,7 +261,7 @@ impl Notebook {
             "UPDATE replica SET device_id = ?1 WHERE singleton = 1",
             [&ticket.device_id],
         )?;
-        cloned.execute("INSERT INTO sync_hub(singleton, notebook_id, url, confirmed_seq, unlogged_cursor, unlogged_pushed) SELECT 1, ?1, ?2, ?3, unlogged_seq, unlogged_seq FROM replica WHERE singleton = 1", params![ticket.notebook_id, url, ticket.seq])?;
+        cloned.execute("INSERT INTO sync_hub(singleton, notebook_id, url, confirmed_seq, unlogged_cursor, unlogged_pushed) SELECT 1, ?1, ?2, ?3, unlogged_seq, unlogged_seq FROM replica WHERE singleton = 1", params![ticket.workshop_id, url, ticket.seq])?;
         if let Some(credentials) = credentials {
             cloned.execute(
                 "UPDATE sync_hub SET key = ?1, hub_name = ?2, device_name = ?3, synced_at = ?4",

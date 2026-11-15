@@ -1,7 +1,7 @@
 import { opensBeside } from '../core/beside';
 import { Show, createEffect, createMemo, createResource, createSignal, on } from 'solid-js';
 import type { Query } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import type { Token } from '../document/text-tokens';
 import { isViewReference, textTokens } from '../document/text-tokens';
@@ -19,7 +19,7 @@ export function viewEmbedTarget(text: string): Token | undefined {
 
 export function ViewEmbed(props: {
   reference: Token;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onReplace(text: string): void;
   onRemove(): void;
@@ -27,8 +27,8 @@ export function ViewEmbed(props: {
   const [relink, setRelink] = createSignal<HTMLElement>();
   const [localQuery, setLocalQuery] = createSignal<Query>();
   const [views] = createResource(
-    () => [props.reference.id, props.notebook.changeSequence()] as const,
-    () => props.notebook.api.views(),
+    () => [props.reference.id, props.workshop.changeSequence()] as const,
+    () => props.workshop.api.views(),
   );
   const view = createMemo(() => views()?.find(view => view.id === props.reference.id));
   createEffect(
@@ -41,9 +41,9 @@ export function ViewEmbed(props: {
   const [result] = createResource(
     () => {
       const saved = view();
-      return saved && saved.query.layout !== 'desk' ? ([saved.query, props.notebook.changeSequence()] as const) : false;
+      return saved && saved.query.layout !== 'desk' ? ([saved.query, props.workshop.changeSequence()] as const) : false;
     },
-    async ([query]) => props.notebook.api.query({ ...query, offset: 0, limit: 12 }),
+    async ([query]) => props.workshop.api.query({ ...query, offset: 0, limit: 12 }),
   );
   const open = (beside: boolean) => {
     const saved = view();
@@ -96,7 +96,7 @@ export function ViewEmbed(props: {
               <ViewBody
                 query={query()!}
                 result={rows()}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 onOpen={props.onOpen}
                 onQueryChange={setLocalQuery}
               />
@@ -126,7 +126,7 @@ export function ViewEmbed(props: {
         {anchor => (
           <ViewPicker
             anchor={anchor}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onDismiss={() => setRelink(undefined)}
             onPick={view => {
               props.onReplace(viewReference(view));

@@ -1,5 +1,5 @@
 import type { TaskRow, TaskState } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 export interface ScheduledWeekTask {
   row: TaskRow;
@@ -21,7 +21,7 @@ export class WeekScheduleHistory {
   private redoStack: Move[] = [];
 
   constructor(
-    private notebook: Pick<NotebookClient, 'commit'>,
+    private workshop: Pick<WorkshopClient, 'commit'>,
     private changed: (id: string, value: ScheduledWeekTask) => void,
   ) {}
 
@@ -70,7 +70,7 @@ export class WeekScheduleHistory {
         const confirmed = this.confirmed.get(id);
         const source = confirmed && confirmed.source.block.revision >= row.source.block.revision ? confirmed : row;
         const label = `${task.scheduled}${task.scheduled_time ? ` at ${task.scheduled_time}` : ', all-day'}`;
-        const receipt = await this.notebook.commit(
+        const receipt = await this.workshop.commit(
           [{ op: 'set_task', id, base_revision: source.source.block.revision, task }],
           `Reschedule task to ${label}`,
         );

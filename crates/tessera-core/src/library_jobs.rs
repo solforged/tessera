@@ -2,7 +2,7 @@ use crate::library::*;
 use crate::library_store::{enum_at, name};
 use crate::notebook::now_ms;
 use crate::storage::{not_found, validation};
-use crate::{Notebook, Result};
+use crate::{Result, Workshop};
 use rusqlite::{OptionalExtension, params};
 
 const JOB_COLUMNS: &str = "id, input_kind, input, name, target_source, state, attempts, error,
@@ -24,7 +24,7 @@ fn job_at(r: &rusqlite::Row<'_>) -> rusqlite::Result<IngestJob> {
         updated_at: r.get(12)?,
     })
 }
-impl Notebook {
+impl Workshop {
     pub fn queue_ingest(
         &self,
         input_kind: IngestInput,

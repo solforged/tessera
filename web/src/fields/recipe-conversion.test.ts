@@ -2,17 +2,17 @@ import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
 import type { Operation } from '../api/types';
-import { createNotebookClient, type Notebook } from '../document';
+import { createWorkshopClient, type Workshop } from '../document';
 import { startService } from '../testing/service';
 import { blankDraftFields, createPageDraft } from '../create/draft';
 import { convertSyntax, syntaxAtom } from './recipe-conversion';
 
 test('syntax conversion and creation use real atomic changes with exact undo and redo', async () => {
   const service = await startService({ name: 'recipe-test' });
-  const { baseUrl, api, workshopId: notebookId } = service;
-  let client: Notebook | undefined;
+  const { baseUrl, api, workshopId } = service;
+  let client: Workshop | undefined;
   try {
-    client = createNotebookClient({ baseUrl, sessionId: 'recipe-test', notebookId, databaseName: `recipe-${ulid()}` });
+    client = createWorkshopClient({ baseUrl, sessionId: 'recipe-test', workshopId, databaseName: `recipe-${ulid()}` });
     await client.ready;
     const tag = await client.createPage('Italian word'),
       page = await client.createPage('Kitchen words');

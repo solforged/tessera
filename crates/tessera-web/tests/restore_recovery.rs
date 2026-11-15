@@ -1,10 +1,10 @@
-//! A staged notebook survives interruption after the live database is removed.
+//! A staged workshop survives interruption after the live database is removed.
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use rusqlite::Connection;
 use serde_json::{Value, json};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
-use tessera_core::{Notebook, SCHEMA_VERSION};
+use tessera_core::{SCHEMA_VERSION, Workshop};
 use tessera_web::{handle, open, upgrade_copy};
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
 
@@ -18,10 +18,10 @@ async fn opening_finishes_a_staged_restore_without_a_live_database() {
     let pool = install::<sqlite_wasm_rs::WasmOsCallback>(&OpfsSAHPoolCfg::default(), true)
         .await
         .unwrap();
-    let mut notebook = Notebook::open("/demo").unwrap();
-    let id = notebook.info().unwrap().id;
+    let mut workshop = Workshop::open("/demo").unwrap();
+    let id = workshop.info().unwrap().id;
     let page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-    notebook
+    workshop
         .apply(
             &serde_json::from_value(json!({
                 "actor": {"kind": "person"}, "operations": [
@@ -31,7 +31,7 @@ async fn opening_finishes_a_staged_restore_without_a_live_database() {
             .unwrap(),
         )
         .unwrap();
-    drop(notebook);
+    drop(workshop);
     // Stage a version that still needs migration, as a crash during validation can.
     let conn = Connection::open("/demo/notebook.db").unwrap();
     common::restore_authored_search(&conn);

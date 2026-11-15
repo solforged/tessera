@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 import type { Block } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { changeCollectionMembers, collectionPages, createCollection, sourceCollections } from '../document/collections';
 import type { CollectionChange } from '../document/collections';
 import { Button } from '../ui/Button';
@@ -187,14 +187,14 @@ export function CollectionNamePopup(props: {
 
 export function CollectionPicker(props: {
   anchor: HTMLElement;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   sourceIds: readonly string[];
   onChanged(change: CollectionChange | null, label: string): void;
   onDismiss(): void;
 }) {
   const [collections] = createResource(
-    () => props.notebook.changeSequence(),
-    () => collectionPages(props.notebook.api),
+    () => props.workshop.changeSequence(),
+    () => collectionPages(props.workshop.api),
   );
   const [query, setQuery] = createSignal('');
   const [creating, setCreating] = createSignal(false);
@@ -205,7 +205,7 @@ export function CollectionPicker(props: {
     setBusy(true);
     setError('');
     try {
-      const change = await changeCollectionMembers(props.notebook, collection.id, props.sourceIds, true);
+      const change = await changeCollectionMembers(props.workshop, collection.id, props.sourceIds, true);
       props.onChanged(change, `Added to ${collection.text}`);
       props.onDismiss();
     } catch (reason) {
@@ -222,7 +222,7 @@ export function CollectionPicker(props: {
           anchor={props.anchor}
           onDismiss={() => setCreating(false)}
           onSave={async name => {
-            const result = await createCollection(props.notebook, name, props.sourceIds);
+            const result = await createCollection(props.workshop, name, props.sourceIds);
             props.onChanged(result.change, `Created ${name}`);
             props.onDismiss();
           }}
@@ -263,13 +263,13 @@ export function CollectionPicker(props: {
 }
 
 /** Ordinary field values, edited immediately as one undoable action per add or remove. */
-export function SourceCollections(props: { notebook: NotebookClient; sourceId: string; actions: CollectionActions }) {
+export function SourceCollections(props: { workshop: WorkshopClient; sourceId: string; actions: CollectionActions }) {
   const [data] = createResource(
-    () => [props.sourceId, props.notebook.changeSequence()] as const,
+    () => [props.sourceId, props.workshop.changeSequence()] as const,
     async ([id]) => {
       const [pages, ids] = await Promise.all([
-        collectionPages(props.notebook.api),
-        sourceCollections(props.notebook.api, id),
+        collectionPages(props.workshop.api),
+        sourceCollections(props.workshop.api, id),
       ]);
       return { sourceId: id, collections: pages.filter(page => ids.includes(page.id)) };
     },
@@ -304,7 +304,7 @@ export function SourceCollections(props: { notebook: NotebookClient; sourceId: s
                   disabled={props.actions.busy()}
                   onClick={() => {
                     void props.actions.run(`Removed from ${collection()?.text}`, () =>
-                      changeCollectionMembers(props.notebook, entry.id, [props.sourceId], false),
+                      changeCollectionMembers(props.workshop, entry.id, [props.sourceId], false),
                     );
                   }}
                 />
@@ -325,7 +325,7 @@ export function SourceCollections(props: { notebook: NotebookClient; sourceId: s
           {anchor => (
             <CollectionPicker
               anchor={anchor()}
-              notebook={props.notebook}
+              workshop={props.workshop}
               sourceIds={[props.sourceId]}
               onChanged={props.actions.record}
               onDismiss={() => setPicker(undefined)}

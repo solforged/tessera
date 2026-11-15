@@ -2,7 +2,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::reads::hidden_blocks;
 use crate::storage::{validate_id, validation};
-use crate::{Error, Notebook, Operation, Result, TaskStatus, WorkSession};
+use crate::{Error, Operation, Result, TaskStatus, WorkSession, Workshop};
 
 fn session_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkSession> {
     Ok(WorkSession {
@@ -262,7 +262,7 @@ pub(crate) fn guard_move(conn: &Connection, id: &str, parent_id: &str) -> Result
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     /// Chronological audit history, including reversed and hidden/deleted sources.
     pub fn work_sessions(&self, block_id: &str) -> Result<Vec<WorkSession>> {
         validate_id(block_id)?;

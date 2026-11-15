@@ -66,7 +66,7 @@ For agent audits and concurrent tasks, use
 [Managing Tessera task workspaces](../.agents/skills/managing-tessera-task-workspaces/SKILL.md)
 before the task-specific skill. Reuse an uncontended owned checkout; otherwise
 use a private worktree at a pinned commit. Each run has separate HOME/XDG state,
-notebook copies, browser profiles, and service identities. Retained evidence
+workshop copies, browser profiles, and service identities. Retained evidence
 lives outside disposable runtime state.
 
 The preparation helper allocates these paths but does not build the app, infer

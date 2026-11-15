@@ -1,14 +1,14 @@
 use serde_json::{Value, json};
 use tessera_core::calendar::{RepeatMode, RepeatUnit, Repeater};
 use tessera_core::{
-    Actor, Batch, DATABASE_FILE, FieldKind, Notebook, Operation, QueryResult, TaskPriority,
-    TaskState, TaskStatus,
+    Actor, Batch, DATABASE_FILE, FieldKind, Operation, QueryResult, TaskPriority, TaskState,
+    TaskStatus, Workshop,
 };
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -17,7 +17,7 @@ fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
     })
     .unwrap();
 }
-fn field(nb: &Notebook, name: &str) -> String {
+fn field(nb: &Workshop, name: &str) -> String {
     nb.fields()
         .unwrap()
         .fields
@@ -27,10 +27,10 @@ fn field(nb: &Notebook, name: &str) -> String {
         .definition
         .id
 }
-fn query(nb: &Notebook, value: Value) -> QueryResult {
+fn query(nb: &Workshop, value: Value) -> QueryResult {
     nb.query(&serde_json::from_value(value).unwrap()).unwrap()
 }
-fn set_task(nb: &mut Notebook, state: TaskState) {
+fn set_task(nb: &mut Workshop, state: TaskState) {
     let revision = nb.block(&id(2)).unwrap().revision;
     apply(
         nb,
@@ -41,9 +41,9 @@ fn set_task(nb: &mut Notebook, state: TaskState) {
         }],
     );
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let directory = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(directory.path()).unwrap();
+    let mut nb = Workshop::open(directory.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -106,7 +106,7 @@ fn task_template_seeds_once_and_keeps_optional_removals() {
         }],
     );
     drop(nb);
-    let nb = Notebook::open(directory.path()).unwrap();
+    let nb = Workshop::open(directory.path()).unwrap();
     assert_eq!(nb.type_info(&task.id).unwrap().fields, kept);
     assert_eq!(
         nb.capabilities(&id(2))
@@ -129,7 +129,7 @@ fn task_template_seeds_once_and_keeps_optional_removals() {
     )
     .unwrap();
     drop(conn);
-    let nb = Notebook::open(directory.path()).unwrap();
+    let nb = Workshop::open(directory.path()).unwrap();
     let restored = nb.type_info(&task.id).unwrap();
     assert_eq!(restored.fields, vec![fields[3].clone(), fields[0].clone()]);
     assert_eq!(restored.required[0].missing, 0);
@@ -155,7 +155,7 @@ fn older_workshop_receives_template_without_changing_task_or_project_entries() {
     conn.execute("DELETE FROM type_fields WHERE type_id = ?1", [&task.id])
         .unwrap();
     drop(conn);
-    let nb = Notebook::open(directory.path()).unwrap();
+    let nb = Workshop::open(directory.path()).unwrap();
     assert_eq!(nb.type_info(&task.id).unwrap().fields.len(), 6);
     assert_eq!(field(&nb, "project"), project);
     assert_eq!(
@@ -530,7 +530,7 @@ fn task_field_names_formats_and_global_deletion_are_protected() {
 #[test]
 fn empty_workshop_defers_task_seed_and_recreated_fields_have_fresh_ids() {
     let empty = tempfile::tempdir().unwrap();
-    let nb = Notebook::open(empty.path()).unwrap();
+    let nb = Workshop::open(empty.path()).unwrap();
     assert!(nb.fields().unwrap().fields.is_empty());
     assert!(nb.page_by_title("Task").unwrap().is_none());
     let (directory, nb) = fixture();
@@ -547,7 +547,7 @@ fn empty_workshop_defers_task_seed_and_recreated_fields_have_fresh_ids() {
              UPDATE blocks SET deletion_id = '{event}' WHERE page_id = '{fields}';"
         ))
         .unwrap();
-    let nb = Notebook::open(directory.path()).unwrap();
+    let nb = Workshop::open(directory.path()).unwrap();
     assert_ne!(field(&nb, "status"), old_status);
     assert!(nb.capabilities(&id(2)).unwrap().task.is_some());
 }
@@ -576,7 +576,7 @@ fn a_register_renamed_before_the_rule_takes_back_its_name_on_open() {
             .unwrap();
         }
         drop(db);
-        let nb = Notebook::open(directory.path()).unwrap();
+        let nb = Workshop::open(directory.path()).unwrap();
         assert_eq!(nb.fields().unwrap().page_id, register);
         assert_eq!(field(&nb, "status"), status);
         assert!(nb.capabilities(&id(2)).unwrap().task.is_some());

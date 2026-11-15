@@ -4,7 +4,7 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use serde_json::{Value, json};
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tower::ServiceExt;
 
 async fn request(app: &Router, method: Method, path: &str, value: Value) -> (StatusCode, Value) {
@@ -30,11 +30,11 @@ async fn request(app: &Router, method: Method, path: &str, value: Value) -> (Sta
 async fn native_and_embedded_spreads_derive_ids_and_list_saved_pages() {
     for embedded in [false, true] {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Notebook::open(dir.path()).unwrap();
+        let workshop = Workshop::open(dir.path()).unwrap();
         let app = if embedded {
-            tessera_service::embedded_router(notebook).unwrap().0
+            tessera_service::embedded_router(workshop).unwrap().0
         } else {
-            tessera_service::router(notebook, 14342, None, None, None).unwrap()
+            tessera_service::router(workshop, 14342, None, None, None).unwrap()
         };
         let id = |n| ulid::Ulid::from(n).to_string();
         let (status, _) = request(&app, Method::POST, "/api/batches", json!({"actor":{"kind":"person"},"operations":[

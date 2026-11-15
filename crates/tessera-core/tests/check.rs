@@ -4,7 +4,7 @@ use rusqlite::{Connection, types::Value};
 use tessera_core::check::ACTOR_NAME;
 use tessera_core::replication::applied_tables;
 use tessera_core::scheduler::Grade;
-use tessera_core::{Actor, Batch, CheckReport, DATABASE_FILE, Error, Notebook, Operation, backup};
+use tessera_core::{Actor, Batch, CheckReport, DATABASE_FILE, Error, Operation, Workshop, backup};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -29,12 +29,12 @@ fn insert(value: u128, parent: &str, text: &str) -> Operation {
     }
 }
 
-/// A notebook with a reference, a tag, a field value, a graded card and a
+/// A workshop with a reference, a tag, a field value, a graded card and a
 /// tombstone: one row in every derived table.
-fn seeded(dir: &Path) -> Notebook {
-    let mut notebook = Notebook::open(dir).unwrap();
-    let fields = notebook.fields().unwrap().page_id;
-    notebook
+fn seeded(dir: &Path) -> Workshop {
+    let mut workshop = Workshop::open(dir).unwrap();
+    let fields = workshop.fields().unwrap().page_id;
+    workshop
         .apply(&batch(vec![
             Operation::CreatePage {
                 id: id(1),
@@ -55,8 +55,8 @@ fn seeded(dir: &Path) -> Notebook {
             insert(6, &id(5), "1970"),
         ]))
         .unwrap();
-    let card = notebook.source_cards(&id(3)).unwrap().remove(0);
-    notebook
+    let card = workshop.source_cards(&id(3)).unwrap().remove(0);
+    workshop
         .apply(&batch(vec![
             Operation::GradeCard {
                 id: card.id.clone(),
@@ -76,7 +76,7 @@ fn seeded(dir: &Path) -> Notebook {
             },
         ]))
         .unwrap();
-    notebook
+    workshop
 }
 
 fn rows(dir: &Path, sql: &str) -> Vec<Vec<Value>> {
@@ -120,11 +120,11 @@ fn differences(report: &CheckReport) -> Vec<(&str, u64, u64)> {
 }
 
 #[test]
-fn a_clean_notebook_reports_no_differences_and_repair_writes_nothing() {
+fn a_clean_workshop_reports_no_differences_and_repair_writes_nothing() {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = seeded(dir.path());
+    let mut workshop = seeded(dir.path());
     let before = authored(dir.path());
-    let report = notebook.check(false).unwrap();
+    let report = workshop.check(false).unwrap();
     assert!(report.ok, "{report:#?}");
     assert!(!report.unresolved());
     assert!(report.quick_check.is_empty());
@@ -167,10 +167,10 @@ fn a_clean_notebook_reports_no_differences_and_repair_writes_nothing() {
     assert_eq!(blocks.sha256.len(), 64);
     assert_eq!(report.repaired, None);
 
-    let repaired = notebook.check(true).unwrap();
+    let repaired = workshop.check(true).unwrap();
     assert_eq!(repaired.repaired, None);
     assert_eq!(repaired.hashes, report.hashes);
-    drop(notebook);
+    drop(workshop);
     assert_eq!(authored(dir.path()), before);
 }
 
@@ -193,10 +193,10 @@ fn hand_corrupted_derived_rows_are_reported_then_repaired() {
             page = id(1),
         ),
     );
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    assert!(notebook.backlinks(&id(2), 10).unwrap().is_empty());
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    assert!(workshop.backlinks(&id(2), 10).unwrap().is_empty());
 
-    let report = notebook.check(false).unwrap();
+    let report = workshop.check(false).unwrap();
     assert!(!report.ok);
     assert!(report.unresolved());
     assert_eq!(report.repaired, None);
@@ -223,38 +223,38 @@ fn hand_corrupted_derived_rows_are_reported_then_repaired() {
     assert_eq!(samples("memberships"), [id(3)]);
     assert_eq!(samples("field_values"), [id(5)]);
     assert_eq!(samples("search_blocks"), [id(3)]);
-    let card = notebook.source_cards(&id(3)).unwrap().remove(0);
+    let card = workshop.source_cards(&id(3)).unwrap().remove(0);
     assert_eq!(samples("card_units"), std::slice::from_ref(&card.id));
     assert_eq!(card.back, "wrong");
     // Reporting wrote nothing: the corruption is still there.
-    assert!(notebook.backlinks(&id(2), 10).unwrap().is_empty());
+    assert!(workshop.backlinks(&id(2), 10).unwrap().is_empty());
     assert_eq!(authored(dir.path()), before);
 
-    let repaired = notebook.check(true).unwrap();
+    let repaired = workshop.check(true).unwrap();
     assert_eq!(differences(&repaired), differences(&report));
     let seq = repaired.repaired.expect("repair wrote a change");
     assert!(!repaired.unresolved());
-    let sources: Vec<String> = notebook
+    let sources: Vec<String> = workshop
         .backlinks(&id(2), 10)
         .unwrap()
         .into_iter()
         .map(|backlink| backlink.source.id)
         .collect();
     assert_eq!(sources, [id(3)]);
-    let card_after = notebook.source_cards(&id(3)).unwrap().remove(0);
+    let card_after = workshop.source_cards(&id(3)).unwrap().remove(0);
     assert_eq!(card_after.id, card.id);
     assert_eq!(
         card_after.back,
         format!(
             "[[{}]] #[[{}|geography]]",
             id(2),
-            notebook.page_by_title("geography").unwrap().unwrap().id,
+            workshop.page_by_title("geography").unwrap().unwrap().id,
         )
     );
     assert_eq!(card_after.revision, card.revision + 1);
     assert_eq!(card_after.schedule, card.schedule);
     assert_eq!(
-        notebook
+        workshop
             .search("capital", 10)
             .unwrap()
             .into_iter()
@@ -262,7 +262,7 @@ fn hand_corrupted_derived_rows_are_reported_then_repaired() {
             .collect::<Vec<_>>(),
         [id(3)]
     );
-    assert!(notebook.check(false).unwrap().ok);
+    assert!(workshop.check(false).unwrap().ok);
 
     // The repair is one change by the check client, with no operations.
     let change = rows(
@@ -282,7 +282,7 @@ fn hand_corrupted_derived_rows_are_reported_then_repaired() {
             Value::Text(card.id),
         ]]
     );
-    let event = notebook.changes_since(0, 100).unwrap().pop().unwrap();
+    let event = workshop.changes_since(0, 100).unwrap().pop().unwrap();
     assert_eq!(
         event.actor,
         Actor::Client {
@@ -290,7 +290,7 @@ fn hand_corrupted_derived_rows_are_reported_then_repaired() {
         }
     );
     assert_eq!(event.pages, Some(vec![id(1)]));
-    drop(notebook);
+    drop(workshop);
     // Authored rows and evidence survive; only the change log grew by the repair.
     let after = authored(dir.path());
     assert_eq!(after[..3], before[..3]);
@@ -315,8 +315,8 @@ fn invariant_violations_are_reported_and_left_for_a_person() {
             entry = id(5),
         ),
     );
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    let report = notebook.check(true).unwrap();
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    let report = workshop.check(true).unwrap();
     assert!(!report.ok);
     assert!(report.unresolved());
     let violated: Vec<(&str, u64, &[String])> = report

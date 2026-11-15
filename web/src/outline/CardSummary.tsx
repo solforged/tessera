@@ -3,7 +3,7 @@ import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, on
 import { createStore, reconcile, unwrap } from 'solid-js/store';
 import { ulid } from 'ulid';
 import type { CardUnit } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { ParsedCard } from '../core/card-text';
 import { cardKindLabel, clozeSegments, occlusionSubject } from '../core/card-text';
 import { CardBack, ClozeText } from '../review/CardSides';
@@ -19,7 +19,7 @@ export function CardSummary(props: {
   cards: ParsedCard[];
   decks?: readonly { id?: string; name: string }[];
   templateCount?: number;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   register?: (control: { open(anchor: HTMLElement): void } | undefined) => void;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
@@ -53,7 +53,7 @@ export function CardSummary(props: {
   createEffect(() => {
     const id = props.blockId;
     const cardKeys = keys();
-    const sequence = props.notebook.changeSequence();
+    const sequence = props.workshop.changeSequence();
     retry();
     const controller = new AbortController();
     onCleanup(() => controller.abort());
@@ -68,11 +68,11 @@ export function CardSummary(props: {
       });
       return;
     }
-    if (props.notebook.lookup(id)()?.revision === 0) {
+    if (props.workshop.lookup(id)()?.revision === 0) {
       setSettled(true);
       return;
     }
-    void props.notebook.api.sourceCards(id, controller.signal).then(
+    void props.workshop.api.sourceCards(id, controller.signal).then(
       cards => {
         if (controller.signal.aborted) return;
         batch(() => {
@@ -108,13 +108,13 @@ export function CardSummary(props: {
   });
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
-    const cards = storedSequence() === props.notebook.changeSequence() ? ordered() : [];
+    const cards = storedSequence() === props.workshop.changeSequence() ? ordered() : [];
     const due = cards.filter(card => !card.held && card.schedule.due_at <= now()).length;
     const held = cards.filter(card => card.held).length;
     return { count, due, held, text: `${count} ${count === 1 ? 'card' : 'cards'}` };
   });
   async function openDeck(deck: { id?: string; name: string }, beside: boolean) {
-    const id = deck.id ?? (await props.notebook.pageByTitle(deck.name, false));
+    const id = deck.id ?? (await props.workshop.pageByTitle(deck.name, false));
     if (!disposed && id) props.onOpen({ kind: 'review', deckId: id }, beside);
   }
   const confirmation = createMemo(() => stored.find(card => card.id === confirm()));
@@ -131,8 +131,8 @@ export function CardSummary(props: {
     setHoldError('');
     let doc;
     try {
-      const source = props.notebook.lookup(props.blockId)() ?? (await props.notebook.api.block(props.blockId));
-      doc = props.notebook.open(source.page_id);
+      const source = props.workshop.lookup(props.blockId)() ?? (await props.workshop.api.block(props.blockId));
+      doc = props.workshop.open(source.page_id);
       if (doc.status() !== 'ready') throw new Error('The atom is not ready.');
       const result = doc.edit({ kind: 'cardHeld', cards, held });
       if (!result.ok) throw new Error(result.reason);
@@ -151,7 +151,7 @@ export function CardSummary(props: {
     setBusy(true);
     setResetError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [
           {
             op: 'reset_card',
@@ -254,7 +254,7 @@ export function CardSummary(props: {
                         {card.template ? 'Recipe' : cardKindLabel(card, ordered())}
                       </span>
                       <div class="outline-cards-content">
-                        <CardPreview card={card} notebook={props.notebook} />
+                        <CardPreview card={card} workshop={props.workshop} />
                         <Show when={card.template}>
                           {template => (
                             <p class="outline-cards-provenance">
@@ -370,10 +370,10 @@ export function CardSummary(props: {
 const previewItems = 5;
 
 /** The card's sides as review shows them, in the popup's smaller type. */
-function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
+function CardPreview(props: { card: CardUnit; workshop: WorkshopClient }) {
   const segments = createMemo(() => {
     if (props.card.kind !== 'cloze') return null;
-    const text = props.notebook.lookup(props.card.source_block_id)()?.text;
+    const text = props.workshop.lookup(props.card.source_block_id)()?.text;
     const parts = text === undefined ? null : clozeSegments(text, props.card.key);
     return parts?.map(part => ('text' in part ? part.text : part.answer)).join('') === props.card.back ? parts : null;
   });
@@ -387,14 +387,14 @@ function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
           fallback={
             <>
               <div class="outline-cards-front">
-                <BlockText text={props.card.front} notebook={props.notebook} interactive={false} />
+                <BlockText text={props.card.front} workshop={props.workshop} interactive={false} />
               </div>
               <div class="outline-cards-answer">
                 <CardBack
                   kind={props.card.kind}
                   back={props.card.back}
                   blocks={props.card.answer_blocks.slice(0, previewItems)}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                 />
                 <Show when={hidden()}>
                   <p class="outline-cards-more">{hidden()} more</p>
@@ -406,17 +406,17 @@ function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
           {parts => (
             <>
               <div class="outline-cards-front">
-                <ClozeText segments={parts()} revealed={false} notebook={props.notebook} />
+                <ClozeText segments={parts()} revealed={false} workshop={props.workshop} />
               </div>
               <div class="outline-cards-answer">
-                <ClozeText segments={parts()} revealed notebook={props.notebook} />
+                <ClozeText segments={parts()} revealed workshop={props.workshop} />
               </div>
             </>
           )}
         </Show>
       }
     >
-      <OcclusionFigure front={props.card.front} back={props.card.back} thumbnail revealed notebook={props.notebook} />
+      <OcclusionFigure front={props.card.front} back={props.card.back} thumbnail revealed workshop={props.workshop} />
       <div class="outline-cards-answer">{occlusionSubject(props.card)}</div>
     </Show>
   );

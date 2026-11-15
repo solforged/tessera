@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
-import { createNotebookClient } from './index';
-import type { Notebook } from './index';
+import { createWorkshopClient } from './index';
+import type { Workshop } from './index';
 import { startService } from '../testing/service';
 import { createInstance, instancePages, relationCandidates, relationMembers } from '../fields/instances';
 import { changeFieldKind } from '../fields/commands';
@@ -20,26 +20,26 @@ async function eventually(predicate: () => boolean) {
 test('target edits undo and redo, while instance choices follow actual page membership', async () => {
   const service = await startService({ name: 'targets-test' });
   const { baseUrl, api } = service;
-  let notebook: Notebook | undefined;
+  let workshop: Workshop | undefined;
   try {
-    notebook = createNotebookClient({
+    workshop = createWorkshopClient({
       baseUrl,
-      notebookId: service.workshopId,
+      workshopId: service.workshopId,
       sessionId: ulid(),
       databaseName: `targets-${ulid()}`,
     });
-    await notebook.ready;
+    await workshop.ready;
     const fields = await api.fields();
     const person = ulid();
     const group = ulid();
     const field = ulid();
-    await notebook.commit([
+    await workshop.commit([
       { op: 'create_page', id: person, title: 'Person' },
       { op: 'create_page', id: group, title: 'Group' },
       { op: 'insert', id: field, parent_id: fields.page_id, after: null, text: 'Related', heading: null },
       { op: 'set_field_kind', id: field, base_revision: 1, kind: 'instance' },
     ]);
-    const doc = notebook.open(fields.page_id);
+    const doc = workshop.open(fields.page_id);
     try {
       await eventually(() => doc.status() === 'ready');
       const definition = (await api.fields()).fields.find(value => value.id === field)!;
@@ -52,13 +52,13 @@ test('target edits undo and redo, while instance choices follow actual page memb
       doc.redo();
       await doc.flush();
       expect((await api.fieldDetail(field)).field.targets).toEqual([person, group]);
-      const human = await createInstance(notebook, 'New person', 'Person');
-      const organization = await createInstance(notebook, 'New group', 'Group');
-      await createInstance(notebook, 'A concept', 'Concept');
-      expect((await instancePages(notebook, [person, group])).map(page => page.id).sort()).toEqual(
+      const human = await createInstance(workshop, 'New person', 'Person');
+      const organization = await createInstance(workshop, 'New group', 'Group');
+      await createInstance(workshop, 'A concept', 'Concept');
+      expect((await instancePages(workshop, [person, group])).map(page => page.id).sort()).toEqual(
         [human.id, organization.id].sort(),
       );
-      expect((await instancePages(notebook, [person])).map(page => page.id)).toEqual([human.id]);
+      expect((await instancePages(workshop, [person])).map(page => page.id)).toEqual([human.id]);
 
       // Block members are offered by label, the owner's page first and the owner left out, with no page creation.
       const proposition = ulid();
@@ -67,7 +67,7 @@ test('target edits undo and redo, while instance choices follow actual page memb
       const a = ulid();
       const b = ulid();
       const c = ulid();
-      await notebook.commit([
+      await workshop.commit([
         { op: 'create_page', id: proposition, title: 'Proposition' },
         { op: 'create_page', id: book, title: 'Structure' },
         { op: 'create_page', id: other, title: 'Elsewhere' },
@@ -89,16 +89,16 @@ test('target edits undo and redo, while instance choices follow actual page memb
           heading: null,
         },
       ]);
-      const members = await relationMembers(notebook, [proposition]);
+      const members = await relationMembers(workshop, [proposition]);
       expect(members.pages).toEqual([]);
-      const offered = await relationCandidates(notebook, members, true, '', { id: a, page: book });
+      const offered = await relationCandidates(workshop, members, true, '', { id: a, page: book });
       expect(offered.rows.map(row => [row.label, row.here])).toEqual([
         ['Anomalies accumulate', true],
         ['A claim from elsewhere', false],
       ]);
       expect(offered.canCreate).toBe(false);
       expect(
-        (await relationCandidates(notebook, members, true, 'elsewhere', { id: a, page: book })).rows.map(
+        (await relationCandidates(workshop, members, true, 'elsewhere', { id: a, page: book })).rows.map(
           row => row.block.id,
         ),
       ).toEqual([c]);
@@ -107,14 +107,14 @@ test('target edits undo and redo, while instance choices follow actual page memb
       const mentor = ulid();
       const entry = ulid();
       const value = ulid();
-      await notebook.commit([
+      await workshop.commit([
         { op: 'insert', id: mentor, parent_id: fields.page_id, after: field, text: 'Mentor', heading: null },
         { op: 'set_field_kind', id: mentor, base_revision: 1, kind: 'instance' },
         { op: 'set_field_targets', id: mentor, base_revision: 2, targets: [person] },
         { op: 'insert', id: entry, parent_id: other, after: c, text: `[[${mentor}]]`, heading: null },
         { op: 'insert', id: value, parent_id: entry, after: null, text: 'Ada', heading: null },
       ]);
-      const mapped = await changeFieldKind(notebook, await api.fieldDetail(mentor, 'instance'), {
+      const mapped = await changeFieldKind(workshop, await api.fieldDetail(mentor, 'instance'), {
         Ada: { mode: 'create', value: 'Ada' },
       });
       expect((await api.fieldDetail(mentor)).problems_total).toBe(0);
@@ -126,7 +126,7 @@ test('target edits undo and redo, while instance choices follow actual page memb
       doc.release();
     }
   } finally {
-    await notebook?.dispose();
+    await workshop?.dispose();
     await service.stop();
   }
 }, 60000);
@@ -134,15 +134,15 @@ test('target edits undo and redo, while instance choices follow actual page memb
 test('work becomes a relation to Sources, and its review makes created pages sources', async () => {
   const service = await startService({ name: 'source-targets-test' });
   const { baseUrl, api } = service;
-  let notebook: Notebook | undefined;
+  let workshop: Workshop | undefined;
   try {
-    notebook = createNotebookClient({
+    workshop = createWorkshopClient({
       baseUrl,
-      notebookId: service.workshopId,
+      workshopId: service.workshopId,
       sessionId: ulid(),
       databaseName: `source-targets-${ulid()}`,
     });
-    await notebook.ready;
+    await workshop.ready;
     const fields = await api.fields();
     const book = ulid();
     const plain = ulid();
@@ -150,7 +150,7 @@ test('work becomes a relation to Sources, and its review makes created pages sou
     const owner = ulid();
     const [linked, linkedValue, written, writtenValue] = [ulid(), ulid(), ulid(), ulid()];
     // An older workshop's text work field: one added as work now starts as the relation, so a rename stands in.
-    await notebook.commit([
+    await workshop.commit([
       { op: 'create_page', id: book, title: 'The Structure of Scientific Revolutions' },
       sourceOperation(book, 1),
       { op: 'create_page', id: plain, title: 'Kuhn' },
@@ -162,29 +162,29 @@ test('work becomes a relation to Sources, and its review makes created pages sou
       { op: 'insert', id: written, parent_id: owner, after: linked, text: `[[${work}]]`, heading: null },
       { op: 'insert', id: writtenValue, parent_id: written, after: null, text: 'Kuhn 1962', heading: null },
     ]);
-    expect((await relationMembers(notebook, [SOURCE_TARGET])).pages.map(page => page.id)).toEqual([book]);
+    expect((await relationMembers(workshop, [SOURCE_TARGET])).pages.map(page => page.id)).toEqual([book]);
 
     // The preview reads values against Sources: the linked source maps across, the plain text needs one.
     const preview = await api.fieldDetail(work, 'instance');
     expect(preview.field.targets).toEqual([SOURCE_TARGET]);
     expect(preview.problems_total).toBe(1);
-    const change = await changeFieldKind(notebook, preview, { 'Kuhn 1962': { mode: 'create', value: 'Kuhn 1962' } });
+    const change = await changeFieldKind(workshop, preview, { 'Kuhn 1962': { mode: 'create', value: 'Kuhn 1962' } });
     const after = await api.fieldDetail(work);
     expect([after.field.kind, after.field.targets, after.problems_total]).toEqual(['instance', [SOURCE_TARGET], 0]);
     await change.undo();
     expect((await api.fieldDetail(work)).field.kind).toBe('text');
     await change.redo();
     expect((await api.fieldDetail(work)).problems_total).toBe(0);
-    expect((await relationMembers(notebook, [SOURCE_TARGET])).pages.map(page => page.text).sort()).toEqual([
+    expect((await relationMembers(workshop, [SOURCE_TARGET])).pages.map(page => page.text).sort()).toEqual([
       'Kuhn 1962',
       'The Structure of Scientific Revolutions',
     ]);
 
     // The picker's Create source makes one too.
-    const created = await createInstance(notebook, 'Against Method', undefined, true);
-    expect((await relationMembers(notebook, [SOURCE_TARGET])).pages.map(page => page.id)).toContain(created.id);
+    const created = await createInstance(workshop, 'Against Method', undefined, true);
+    expect((await relationMembers(workshop, [SOURCE_TARGET])).pages.map(page => page.id)).toContain(created.id);
   } finally {
-    await notebook?.dispose();
+    await workshop?.dispose();
     await service.stop();
   }
 }, 60000);

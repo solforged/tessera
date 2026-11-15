@@ -13,8 +13,8 @@ import type {
   SourceState,
   TaskState,
 } from '../api/types';
-import { createNotebookClient } from './index';
-import type { Notebook } from './index';
+import { createWorkshopClient } from './index';
+import type { Workshop } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';
@@ -43,10 +43,10 @@ import { plainText } from '../outline/names';
 const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
-const clients: Notebook[] = [];
+const clients: Workshop[] = [];
 const actualFetch = globalThis.fetch;
 let service: WorkshopService | undefined;
-let notebookId: string;
+let workshopId: string;
 let serial = 0;
 const eventually = async (predicate: () => boolean, message: string) => {
   const deadline = Date.now() + 5000;
@@ -61,12 +61,12 @@ const success = (result: EditResult) => {
   return result;
 };
 async function client(sessionId = `document-test-${++serial}`) {
-  const instance = createNotebookClient({ baseUrl, sessionId, notebookId, databaseName: 'tessera-document-tests' });
+  const instance = createWorkshopClient({ baseUrl, sessionId, workshopId, databaseName: 'tessera-document-tests' });
   clients.push(instance);
   await instance.ready;
   return instance;
 }
-async function page(instance: Notebook, text = 'left right') {
+async function page(instance: Workshop, text = 'left right') {
   const id = await instance.createPage(`Document test ${++serial}`);
   const doc = instance.open(id);
   await eventually(() => doc.status() === 'ready', doc.statusMessage());
@@ -81,7 +81,7 @@ function ids(doc: PageDocument) {
 
 beforeAll(async () => {
   service = await startService({ name: 'Document-tests', port });
-  notebookId = service.workshopId;
+  workshopId = service.workshopId;
 }, 60000);
 afterAll(async () => {
   globalThis.fetch = actualFetch;
@@ -89,7 +89,7 @@ afterAll(async () => {
   await service?.stop();
 });
 
-describe('real notebook operations and recovery', () => {
+describe('real workshop operations and recovery', () => {
   test('revisit actions undo and redo after the acted-on page closes', async () => {
     const instance = await client();
     const { id, doc } = await page(instance);
@@ -308,7 +308,7 @@ describe('real notebook operations and recovery', () => {
     existing.doc.release();
   });
 
-  test('acknowledged notebook creation publishes canonical roots before opening', async () => {
+  test('acknowledged workshop creation publishes canonical roots before opening', async () => {
     const instance = await client();
     const id = ulid(),
       typeId = ulid(),
@@ -775,13 +775,13 @@ describe('real notebook operations and recovery', () => {
       const base = await api.block(first);
       const headers = {
         'Content-Type': 'application/json',
-        'x-tessera-schema': String((await api.notebook()).schema_version),
+        'x-tessera-schema': String((await api.workshop()).schema_version),
       };
       const clone = await actualFetch(`${baseUrl}/api/sync/clone`, { method: 'POST', headers });
       expect(clone.ok).toBe(true);
       const ticket = JSON.parse(clone.headers.get('x-tessera-clone')!) as { device_id: string };
       await clone.arrayBuffer();
-      success(doc.edit({ kind: 'text', id: first, text: 'Notebook wording' }));
+      success(doc.edit({ kind: 'text', id: first, text: 'Workshop wording' }));
       await instance.flush();
       const push = await actualFetch(`${baseUrl}/api/sync/push`, {
         method: 'POST',
@@ -816,7 +816,7 @@ describe('real notebook operations and recovery', () => {
         expect(bodies[0]!.operations.map(operation => operation.op)).toEqual(
           choice === 'use' ? ['edit_text', 'delete'] : choice === 'discard' ? ['delete'] : ['settle_sync_copy'],
         );
-        expect((await api.block(first)).text).toBe(choice === 'use' ? 'Phone wording' : 'Notebook wording');
+        expect((await api.block(first)).text).toBe(choice === 'use' ? 'Phone wording' : 'Workshop wording');
         if (choice === 'both') {
           expect(doc.block(copy.id)?.keptCopy).toBeNull();
           expect((await api.block(copy.id)).kept_copy).toBeNull();
@@ -824,7 +824,7 @@ describe('real notebook operations and recovery', () => {
         doc.undo();
         await instance.flush();
         expect(bodies).toHaveLength(2);
-        expect((await api.block(first)).text).toBe('Notebook wording');
+        expect((await api.block(first)).text).toBe('Workshop wording');
         expect((await api.block(copy.id)).text).toBe('Phone wording');
         expect((await api.block(copy.id)).kept_copy).toEqual(copy.kept_copy);
         expect(doc.block(copy.id)?.keptCopy).toEqual(copy.kept_copy);
@@ -861,7 +861,7 @@ describe('real notebook operations and recovery', () => {
             reason: 'The original is not on this atom. Both versions are unchanged.',
           });
           expect(instance.queuedChanges()).toBe(queued);
-          expect((await api.block(first)).text).toBe('Notebook wording');
+          expect((await api.block(first)).text).toBe('Workshop wording');
           expect((await api.block(copy.id)).text).toBe('Phone wording');
           expect(doc.block(copy.id)?.keptCopy).toEqual(copy.kept_copy);
         }
@@ -873,7 +873,7 @@ describe('real notebook operations and recovery', () => {
   });
 
   test('own tag saves remove provisional pages from live and recovery caches', async () => {
-    for (const viaNotebook of [false, true]) {
+    for (const viaWorkshop of [false, true]) {
       const instance = await client();
       const { doc, first } = await page(instance);
       const tag = `provisional${++serial}`;
@@ -890,7 +890,7 @@ describe('real notebook operations and recovery', () => {
         requested.push(id);
         return readBlock(id);
       };
-      if (viaNotebook) {
+      if (viaWorkshop) {
         await instance.commit([
           { op: 'edit_text', id: first, base_revision: (await api.block(first)).revision, text: '' },
         ]);
@@ -1987,7 +1987,7 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
-  test('notebook settings share revisions, undo safely, and choose the service journal date', async () => {
+  test('workshop settings share revisions, undo safely, and choose the service journal date', async () => {
     const first = await client();
     const second = await client();
     await eventually(
@@ -3107,10 +3107,10 @@ describe('real notebook operations and recovery', () => {
     success(doc.edit({ kind: 'text', id: first, text: 'my version' }));
     await api.submit({
       actor: { kind: 'agent', name: 'conflict test' },
-      operations: [{ op: 'edit_text', id: first, base_revision: base.revision, text: 'notebook version' }],
+      operations: [{ op: 'edit_text', id: first, base_revision: base.revision, text: 'workshop version' }],
     });
     await eventually(
-      () => doc.block(first)?.conflict?.remoteText === 'notebook version',
+      () => doc.block(first)?.conflict?.remoteText === 'workshop version',
       'remote version was not retained',
     );
     expect(doc.block(first)?.text).toBe('my version');
@@ -3489,7 +3489,7 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
-  test('tag-created pages enter the notebook cache and root list after acknowledgement', async () => {
+  test('tag-created pages enter the workshop cache and root list after acknowledgement', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'base');
     const tag = `DocumentTag${++serial}`;
@@ -3571,7 +3571,7 @@ describe('real notebook operations and recovery', () => {
         return Reflect.get(target, key, receiver);
       },
     });
-    let instance: Notebook | undefined;
+    let instance: Workshop | undefined;
     try {
       instance = await client();
       const doc = instance.open(id);
@@ -3591,7 +3591,7 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
-  test('Use notebook survives an uncertain uncommitted frozen request and retains both versions until its ack', async () => {
+  test('Use workshop survives an uncertain uncommitted frozen request and retains both versions until its ack', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'base');
     await eventually(() => instance.connection() === 'live', 'change stream did not connect');
@@ -3614,17 +3614,17 @@ describe('real notebook operations and recovery', () => {
       const current = await api.block(first);
       await api.submit({
         actor: { kind: 'agent', name: 'frozen conflict' },
-        operations: [{ op: 'edit_text', id: first, base_revision: current.revision, text: 'notebook chosen version' }],
+        operations: [{ op: 'edit_text', id: first, base_revision: current.revision, text: 'workshop chosen version' }],
       });
       await eventually(() => doc.block(first)?.conflict !== null, 'remote conflict did not arrive');
       doc.resolveConflict(first, 'theirs');
       expect(doc.block(first)?.text).toBe('my retained version');
-      expect(doc.block(first)?.conflict?.remoteText).toBe('notebook chosen version');
+      expect(doc.block(first)?.conflict?.remoteText).toBe('workshop chosen version');
       offline = false;
       await instance.flush();
       expect(bodies[1]).toBe(bodies[0]);
-      expect((await api.block(first)).text).toBe('notebook chosen version');
-      expect(doc.block(first)?.text).toBe('notebook chosen version');
+      expect((await api.block(first)).text).toBe('workshop chosen version');
+      expect(doc.block(first)?.text).toBe('workshop chosen version');
       expect(doc.block(first)?.conflict).toBeNull();
       expect(instance.queuedChanges()).toBe(0);
     } finally {
@@ -3659,18 +3659,18 @@ describe('real notebook operations and recovery', () => {
       const current = await api.block(first);
       await api.submit({
         actor: { kind: 'agent', name: 'post-commit conflict' },
-        operations: [{ op: 'edit_text', id: first, base_revision: current.revision, text: 'later notebook version' }],
+        operations: [{ op: 'edit_text', id: first, base_revision: current.revision, text: 'later workshop version' }],
       });
       await eventually(
-        () => doc.block(first)?.conflict?.remoteText === 'later notebook version',
+        () => doc.block(first)?.conflict?.remoteText === 'later workshop version',
         'later remote version did not arrive',
       );
       doc.resolveConflict(first, 'theirs');
       await instance.flush();
       expect(bodies[1]).toBe(bodies[0]);
       expect(JSON.parse(bodies[2]!).idempotency_key).not.toBe(JSON.parse(bodies[0]!).idempotency_key);
-      expect((await api.block(first)).text).toBe('later notebook version');
-      expect(doc.block(first)?.text).toBe('later notebook version');
+      expect((await api.block(first)).text).toBe('later workshop version');
+      expect(doc.block(first)?.text).toBe('later workshop version');
       expect(doc.block(first)?.conflict).toBeNull();
     } finally {
       globalThis.fetch = actualFetch;
@@ -5027,7 +5027,7 @@ describe('durable Action and Learning document commands', () => {
   });
 });
 
-async function sourcePage(instance: Notebook) {
+async function sourcePage(instance: Workshop) {
   const title = `Evidence source ${++serial}`;
   const fixture = Bun.serve({
     hostname: '127.0.0.1',
@@ -5071,7 +5071,7 @@ async function sourcePage(instance: Notebook) {
   }
 }
 
-async function metadataSource(instance: Notebook) {
+async function metadataSource(instance: Workshop) {
   const result = await page(instance);
   success(
     result.doc.edit({
@@ -5973,7 +5973,7 @@ test('images insert, place, remove and clipboard round trip in single undo steps
   expect(inserted.every(id => doc.block(id)?.image?.sha256 === image.sha256)).toBe(true);
   const content = parseBlockClipboard(JSON.stringify(doc.clipboard([first])))!;
   expect(clipboardText(content)).toBe('Image');
-  for (const sameNotebook of [true, false]) {
+  for (const sameWorkshop of [true, false]) {
     const destination = await page(instance, '');
     const at = { id: destination.first, offset: 0 };
     const pasted = success(
@@ -5981,11 +5981,11 @@ test('images insert, place, remove and clipboard round trip in single undo steps
         kind: 'pasteBlocks',
         range: { anchor: at, head: at },
         between: [],
-        content: { ...content, scope: sameNotebook ? content.scope : 'other-notebook' },
+        content: { ...content, scope: sameWorkshop ? content.scope : 'other-notebook' },
       }),
     ).created[0]!;
     await instance.flush();
-    expect(destination.doc.block(pasted)?.image).toEqual(sameNotebook ? image : null);
+    expect(destination.doc.block(pasted)?.image).toEqual(sameWorkshop ? image : null);
     destination.doc.undo();
     await instance.flush();
     expect(destination.doc.block(destination.first)).toBeDefined();
@@ -6034,7 +6034,7 @@ test('image mask edits undo atomically and clipboard keeps masks only with same-
   await doc.flush();
   expect(doc.block(first)?.occlusion).toEqual(occlusion);
   const content = parseBlockClipboard(JSON.stringify(doc.clipboard([first])))!;
-  for (const sameNotebook of [true, false]) {
+  for (const sameWorkshop of [true, false]) {
     const destination = await page(instance, '');
     const at = { id: destination.first, offset: 0 };
     const pasted = success(
@@ -6042,12 +6042,12 @@ test('image mask edits undo atomically and clipboard keeps masks only with same-
         kind: 'pasteBlocks',
         range: { anchor: at, head: at },
         between: [],
-        content: { ...content, scope: sameNotebook ? content.scope : 'other-notebook' },
+        content: { ...content, scope: sameWorkshop ? content.scope : 'other-notebook' },
       }),
     ).created[0]!;
     await destination.doc.flush();
-    expect(destination.doc.block(pasted)?.occlusion).toEqual(sameNotebook ? occlusion : null);
-    expect((await api.sourceCards(pasted)).filter(card => card.active)).toHaveLength(sameNotebook ? 1 : 0);
+    expect(destination.doc.block(pasted)?.occlusion).toEqual(sameWorkshop ? occlusion : null);
+    expect((await api.sourceCards(pasted)).filter(card => card.active)).toHaveLength(sameWorkshop ? 1 : 0);
     destination.doc.release();
   }
   success(doc.edit({ kind: 'image', id: first, image: null }));

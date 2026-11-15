@@ -1,7 +1,7 @@
 import { Show, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { AgendaItem, TaskRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
@@ -19,7 +19,7 @@ import { shiftCalendarDate } from './week-calendar';
  * a quiet `Moved 6 to today · Undo` line elsewhere.
  */
 export function createBulkMove(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   onChanged: () => void,
 ): { move(rows: readonly (TaskRow | AgendaItem)[], date: string): void; Notice: () => JSX.Element } {
   const [moved, setMoved] = createSignal<{ label: string; result: Rescheduled; ids: string[] } | null>(null);
@@ -31,7 +31,7 @@ export function createBulkMove(
     if (busy()) return;
     const movable = movableTo(rows, date),
       count = movable.length,
-      when = relativeDate(date, notebook.todayDate());
+      when = relativeDate(date, workshop.todayDate());
     const ids = movable.map(row => row.source.block.id);
     setBusy(true);
     setError('');
@@ -45,11 +45,11 @@ export function createBulkMove(
     if (exits.some(Boolean)) holdRows(ids, Promise.all(exits.map(exit => exit?.finished)));
     const restore = () => leaving.forEach(element => releaseRow(element));
     const phone = isPhone();
-    void rescheduleTasks(notebook, rows, date, `Move ${count} ${count === 1 ? 'task' : 'tasks'} to ${when}`)
+    void rescheduleTasks(workshop, rows, date, `Move ${count} ${count === 1 ? 'task' : 'tasks'} to ${when}`)
       .then(
         result => {
           if (!result) restore();
-          else if (phone) showMovedNotice({ moved: result, date, today: notebook.todayDate(), onUndone: onChanged });
+          else if (phone) showMovedNotice({ moved: result, date, today: workshop.todayDate(), onUndone: onChanged });
           else setMoved({ label: `Moved ${result.count} to ${when}`, result, ids });
           onChanged();
         },

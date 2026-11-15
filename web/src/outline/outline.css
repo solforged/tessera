@@ -1336,7 +1336,7 @@
   min-width: max-content;
   max-width: 100%;
 }
-/* A card count is a count: apparatus mono, like every other number the notebook reports. */
+/* A card count is a count: apparatus mono, like every other number the workshop reports. */
 .outline-capability-metadata .outline-card-count {
   font: var(--figures);
   letter-spacing: var(--tracking-apparatus);

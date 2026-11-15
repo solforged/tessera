@@ -1,9 +1,9 @@
-use tessera_core::{Actor, Batch, Notebook, Operation};
+use tessera_core::{Actor, Batch, Operation, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -21,9 +21,9 @@ fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operati
         heading: None,
     }
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![

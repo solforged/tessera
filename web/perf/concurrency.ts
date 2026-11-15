@@ -198,7 +198,7 @@ try {
       tasks.push(
         guarded(async () => {
           let revision = 1;
-          let text = 'Seed 0:4 quiet notebook text';
+          let text = 'Seed 0:4 quiet workshop text';
           while (!stop && Date.now() < deadline) {
             if (pause || windows[0]!.offline || windows[1]!.offline) {
               await sleep(25);

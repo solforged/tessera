@@ -376,7 +376,7 @@ try {
   const summary = [
     '# Spike 3 · windowed daily outline',
     '',
-    `Measured ${environment.time}, ${environment.cpu}, ${environment.system}, headless Chrome ${environment.browser}. Real tessera service, seeded 50,000-block notebook, two shared-document panes.`,
+    `Measured ${environment.time}, ${environment.cpu}, ${environment.system}, headless Chrome ${environment.browser}. Real tessera service, seeded 50,000-block workshop, two shared-document panes.`,
     '',
     'Headless Event Timing and double-requestAnimationFrame are proxies, not on-device presentation traces. Event Timing reports only entries ≥16 ms and is 8 ms quantized; unreported entries are not fabricated as zero. Handler p99 covers explicit outline handlers, not total browser frame work. Cold load fetches the production fixture and real page; warm loads are five remounts of the shared cached PageDocument, as on history navigation. Both panes include archived rows. Structural setup/remount and corpus inspection are outside input samples. A retained parent above the viewport is folded while measuring a surviving later anchor.',
     '',

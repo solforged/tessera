@@ -11,11 +11,11 @@ use axum::{
 use futures_util::future::{Either, select};
 use parking_lot::Mutex;
 use serde::Deserialize;
-use tessera_core::{ChangeEvent, Notebook};
+use tessera_core::{ChangeEvent, Workshop};
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
-use crate::run::{NotebookError, read_notebook};
+use crate::run::{WorkshopError, read_workshop};
 use crate::state::WorkshopState;
 
 /// Page size for `GET /api/changes` and the service WebSocket. The phone and the
@@ -35,7 +35,7 @@ pub(crate) struct ChangesQuery {
 }
 
 pub(crate) async fn change_head(State(state): State<WorkshopState>) -> Result<Json<i64>, ApiError> {
-    crate::run::read(&state, |notebook| notebook.editor_cursor())
+    crate::run::read(&state, |workshop| workshop.editor_cursor())
         .await
         .map(Json)
 }
@@ -45,8 +45,8 @@ pub(crate) async fn changes(
     query: Result<Query<ChangesQuery>, QueryRejection>,
 ) -> Result<Json<Vec<ChangeEvent>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    crate::run::read(&state, move |notebook| {
-        notebook.changes_since(query.after, query.limit)
+    crate::run::read(&state, move |workshop| {
+        workshop.changes_since(query.after, query.limit)
     })
     .await
     .map(Json)
@@ -66,7 +66,7 @@ pub trait ChangeSink {
 }
 
 pub enum FollowError<E> {
-    Workshop(NotebookError),
+    Workshop(WorkshopError),
     Encode(serde_json::Error),
     Sink(E),
 }
@@ -82,7 +82,7 @@ pub enum FollowError<E> {
 /// stops a phone stream.
 pub async fn follow_changes<S, G, W>(
     changes: &broadcast::Sender<i64>,
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     mut after: i64,
     page_size: usize,
     mut gate: G,
@@ -96,7 +96,7 @@ where
 {
     let mut wakeups = changes.subscribe();
     let mut watch = std::pin::pin!(watch);
-    if catch_up(&notebook, &mut after, page_size, &mut gate, sink).await? == StreamStop::Stop {
+    if catch_up(&workshop, &mut after, page_size, &mut gate, sink).await? == StreamStop::Stop {
         return Ok(());
     }
     loop {
@@ -108,7 +108,7 @@ where
                 // that has not moved cannot name an event this stream has missed.
                 Ok(seq) if seq <= after => continue,
                 Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {
-                    if catch_up(&notebook, &mut after, page_size, &mut gate, sink).await?
+                    if catch_up(&workshop, &mut after, page_size, &mut gate, sink).await?
                         == StreamStop::Stop
                     {
                         return Ok(());
@@ -121,7 +121,7 @@ where
 }
 
 async fn catch_up<S, G>(
-    notebook: &Arc<Mutex<Notebook>>,
+    workshop: &Arc<Mutex<Workshop>>,
     after: &mut i64,
     page_size: usize,
     gate: &mut G,
@@ -136,8 +136,8 @@ where
             return Ok(StreamStop::Stop);
         }
         let cursor = *after;
-        let changes = read_notebook(notebook, move |notebook| {
-            notebook.changes_since(cursor, page_size)
+        let changes = read_workshop(workshop, move |workshop| {
+            workshop.changes_since(cursor, page_size)
         })
         .await
         .map_err(FollowError::Workshop)?;

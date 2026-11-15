@@ -1,6 +1,6 @@
 use tessera_core::{
-    Actor, Batch, Committed, Error, NO_HOLDER, NOT_ENTITY, Notebook, Operation, PositionInfo,
-    PositionQuery,
+    Actor, Batch, Committed, Error, NO_HOLDER, NOT_ENTITY, Operation, PositionInfo, PositionQuery,
+    Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -14,7 +14,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operation {
@@ -26,14 +26,14 @@ fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operati
         heading: None,
     }
 }
-fn set(nb: &Notebook, value: u128, position: bool) -> Operation {
+fn set(nb: &Workshop, value: u128, position: bool) -> Operation {
     Operation::SetPosition {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,
         position,
     }
 }
-fn edit(nb: &mut Notebook, value: u128, text: &str) -> Committed {
+fn edit(nb: &mut Workshop, value: u128, text: &str) -> Committed {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -44,7 +44,7 @@ fn edit(nb: &mut Notebook, value: u128, text: &str) -> Committed {
         }],
     )
 }
-fn archive(nb: &mut Notebook, value: u128) {
+fn archive(nb: &mut Workshop, value: u128) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,
@@ -55,12 +55,12 @@ fn archive(nb: &mut Notebook, value: u128) {
         }],
     );
 }
-fn info(nb: &Notebook, value: u128) -> PositionInfo {
+fn info(nb: &Workshop, value: u128) -> PositionInfo {
     nb.capabilities(&id(value)).unwrap().position.unwrap()
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -230,7 +230,7 @@ fn deleted_holder_keeps_renamed_attribution_and_an_accurate_repair_problem() {
         }],
     );
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let position = info(&nb, 10);
     assert_eq!(position.holder_id, None);
     assert_eq!(
@@ -482,7 +482,7 @@ fn explicit_subject_criteria_validate_revisions_and_undo_to_derivation() {
     assert_eq!(nb.block(&id(1)).unwrap().revision, revision + 2);
 }
 
-fn file_as(nb: &mut Notebook, value: u128, title: &str) {
+fn file_as(nb: &mut Workshop, value: u128, title: &str) {
     let base_revision = nb.block(&id(value)).unwrap().revision;
     apply(
         nb,

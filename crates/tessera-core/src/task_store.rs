@@ -5,8 +5,8 @@ use crate::calendar::{advance_repeat, advance_window, validate_civil_date, valid
 use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_id, validation};
 use crate::{
-    BlockCapabilities, Notebook, Operation, ProjectRecord, ProjectState, Result, TaskOccurrence,
-    TaskState, TaskStatus,
+    BlockCapabilities, Operation, ProjectRecord, ProjectState, Result, TaskOccurrence, TaskState,
+    TaskStatus, Workshop,
 };
 
 fn json_at<T: DeserializeOwned>(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<T> {
@@ -541,7 +541,7 @@ pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     /// Direct reads retain access to a tombstoned source's capability identity.
     pub fn capabilities(&self, id: &str) -> Result<BlockCapabilities> {
         validate_id(id)?;

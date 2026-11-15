@@ -1,6 +1,6 @@
 import { createMemo, createSignal, Match, Show, Switch } from 'solid-js';
 import type { FieldDefinition } from '../api/types';
-import type { Edit, EditResult, NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
+import type { Edit, EditResult, WorkshopClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { fieldEntryId } from '../core/field-entry';
 import { DatePicker } from '../tasks/DatePicker';
 import { Icon } from '../ui/Icon';
@@ -151,7 +151,7 @@ export function ValueEditor(props: {
   anchor: PopupAnchor;
   field: FieldDefinition;
   text: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   contextDate: string;
   /** The block that owns the value, so a relation picker can lead with its page and leave it out. */
   owner?: { id: string; page: string };
@@ -237,7 +237,7 @@ export function ValueEditor(props: {
         <RelationPicker
           anchor={props.anchor}
           field={props.field}
-          notebook={props.notebook}
+          workshop={props.workshop}
           current={current()}
           owner={props.owner}
           onPick={async intent => {
@@ -250,7 +250,7 @@ export function ValueEditor(props: {
       </Match>
       <Match when={props.field.kind === 'date'}>
         <DatePicker
-          notebook={props.notebook}
+          workshop={props.workshop}
           anchor={props.anchor}
           label={fieldLabel(props.field)}
           value={props.text || null}

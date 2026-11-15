@@ -8,8 +8,8 @@ use crate::reads::hidden_blocks;
 use crate::scheduler::{self, Grade, SchedulingState};
 use crate::storage::{not_found_as, validate_id, validation};
 use crate::{
-    CardPreviews, CardUnit, Error, GradePreview, Notebook, Operation, Result, ReviewEvent,
-    ReviewSession, ReviewSessionState, Revision,
+    CardPreviews, CardUnit, Error, GradePreview, Operation, Result, ReviewEvent, ReviewSession,
+    ReviewSessionState, Revision, Workshop,
 };
 
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
@@ -946,8 +946,8 @@ pub(crate) fn forecast(
         .collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
-impl Notebook {
-    /// Local civil-day statistics use the same notebook timezone as Agenda and resurfacing.
+impl Workshop {
+    /// Local civil-day statistics use the same workshop timezone as Agenda and resurfacing.
     /// Deck scope is its source predicate, not its queue selection or display limit.
     pub fn review_stats(&self, deck_id: Option<&str>, date: &str) -> Result<ReviewStats> {
         crate::calendar::validate_civil_date(date)?;

@@ -15,11 +15,11 @@ impl Drop for ChildGuard {
         let _ = self.0.wait();
     }
 }
-fn command(notebook: &Path) -> Command {
+fn command(workshop: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
     command
         .arg("--workshop")
-        .arg(notebook)
+        .arg(workshop)
         .arg("serve")
         .arg("--port")
         .arg("0")
@@ -48,8 +48,8 @@ struct Service {
     port: u16,
 }
 impl Service {
-    fn start(notebook: &Path) -> Self {
-        Self::spawn(command(notebook))
+    fn start(workshop: &Path) -> Self {
+        Self::spawn(command(workshop))
     }
     fn spawn(mut command: Command) -> Self {
         let mut process = ChildGuard(command.spawn().unwrap());
@@ -93,7 +93,7 @@ impl Service {
 }
 
 #[tokio::test]
-async fn notebook_has_one_service_owner_until_that_process_exits() {
+async fn workshop_has_one_service_owner_until_that_process_exits() {
     let dir = tempfile::tempdir().unwrap();
     let mut first = Service::start(dir.path());
     let info: serde_json::Value = reqwest::get(format!("http://{}/api/notebook", first.host))
@@ -112,7 +112,7 @@ async fn notebook_has_one_service_owner_until_that_process_exits() {
         .unwrap();
     assert!(
         reader.status.success(),
-        "info must remain usable while a service owns the notebook"
+        "info must remain usable while a service owns the workshop"
     );
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&reader.stdout).unwrap()["id"],
@@ -120,7 +120,7 @@ async fn notebook_has_one_service_owner_until_that_process_exits() {
     );
     let mut second = ChildGuard(command(dir.path()).spawn().unwrap());
     let status = wait_for_exit(&mut second.0, Duration::from_secs(2))
-        .expect("a second service must fail fast, not accept another port for the same notebook");
+        .expect("a second service must fail fast, not accept another port for the same workshop");
     assert!(!status.success());
     let mut error = String::new();
     second
@@ -236,10 +236,10 @@ fn cli_backup_and_restore_round_trip_while_service_runs() {
     let backup = root.path().join("backup");
     let restored = root.path().join("restored");
     let mut service = Service::start(&source);
-    let run = |notebook: &Path, args: &[&std::ffi::OsStr]| {
+    let run = |workshop: &Path, args: &[&std::ffi::OsStr]| {
         Command::new(env!("CARGO_BIN_EXE_tessera"))
             .arg("--workshop")
-            .arg(notebook)
+            .arg(workshop)
             .args(args)
             .output()
             .unwrap()
@@ -463,8 +463,8 @@ async fn app_restore_reopens_the_workshop_and_recovers_a_pending_restore() {
     recovered.stop();
 }
 
-/// A service whose platform data directory, and so its notebook list, lives under `home`.
-fn isolated(home: &Path, notebook: Option<&Path>) -> Command {
+/// A service whose platform data directory, and so its workshop list, lives under `home`.
+fn isolated(home: &Path, workshop: Option<&Path>) -> Command {
     let home = std::fs::canonicalize(home).unwrap();
     let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
     command
@@ -473,8 +473,8 @@ fn isolated(home: &Path, notebook: Option<&Path>) -> Command {
         .env("XDG_STATE_HOME", home.join(".local/state"))
         .env("XDG_CACHE_HOME", home.join(".cache"))
         .env_remove("TESSERA_WORKSHOP");
-    if let Some(notebook) = notebook {
-        command.arg("--workshop").arg(notebook);
+    if let Some(workshop) = workshop {
+        command.arg("--workshop").arg(workshop);
     }
     command
         .args(["serve", "--port", "0", "--sync-port", "0"])
@@ -483,7 +483,7 @@ fn isolated(home: &Path, notebook: Option<&Path>) -> Command {
     command
 }
 
-async fn open_notebook(host: &str, path: &Path, create: bool) -> reqwest::Response {
+async fn open_workshop(host: &str, path: &Path, create: bool) -> reqwest::Response {
     reqwest::Client::new()
         .post(format!("http://{host}/api/notebooks/open"))
         .json(&serde_json::json!({ "path": path, "create": create }))
@@ -492,7 +492,7 @@ async fn open_notebook(host: &str, path: &Path, create: bool) -> reqwest::Respon
         .unwrap()
 }
 
-/// Wait for the service at `host` to answer with the notebook at `path`.
+/// Wait for the service at `host` to answer with the workshop at `path`.
 async fn serving(host: &str, path: &Path) -> serde_json::Value {
     let path = std::fs::canonicalize(path).unwrap();
     let deadline = Instant::now() + Duration::from_secs(15);
@@ -520,14 +520,14 @@ async fn switching_reopens_the_same_process_and_port_and_refuses_old_windows() {
     let mut service = Service::spawn(isolated(root.path(), Some(&first)));
     let pid = service.process.0.id();
     let before = serving(&service.host, &first).await;
-    let response = open_notebook(&service.host, &second, false).await;
+    let response = open_workshop(&service.host, &second, false).await;
     assert_eq!(
         response.status(),
         reqwest::StatusCode::NOT_FOUND,
-        "opening must not create a notebook unless asked"
+        "opening must not create a workshop unless asked"
     );
     assert!(!second.exists());
-    let response = open_notebook(&service.host, &second, true).await;
+    let response = open_workshop(&service.host, &second, true).await;
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     let after = serving(&service.host, &second).await;
     assert_ne!(after["id"], before["id"]);
@@ -536,7 +536,7 @@ async fn switching_reopens_the_same_process_and_port_and_refuses_old_windows() {
         "the service process must survive the switch"
     );
     assert_eq!(service.process.0.id(), pid);
-    // A window that opened the first notebook must not read or write the second.
+    // A window that opened the first workshop must not read or write the second.
     let stale = reqwest::Client::new()
         .get(format!("http://{}/api/roots", service.host))
         .header("X-Tessera-Notebook", before["id"].as_str().unwrap())
@@ -553,7 +553,7 @@ async fn switching_reopens_the_same_process_and_port_and_refuses_old_windows() {
         .await
         .unwrap();
     assert_eq!(current.status(), reqwest::StatusCode::OK);
-    // The notebook left behind stays on the list and opens again.
+    // The workshop left behind stays on the list and opens again.
     let list: serde_json::Value = reqwest::get(format!("http://{}/api/notebooks", service.host))
         .await
         .unwrap()
@@ -569,7 +569,7 @@ async fn switching_reopens_the_same_process_and_port_and_refuses_old_windows() {
             .any(|entry| entry["path"].as_str() == first_path.to_str()
                 && entry["current"] == false)
     );
-    let response = open_notebook(&service.host, &first, false).await;
+    let response = open_workshop(&service.host, &first, false).await;
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     assert_eq!(serving(&service.host, &first).await["id"], before["id"]);
     service.stop();
@@ -585,11 +585,11 @@ struct Mcp {
 }
 
 impl Mcp {
-    fn start(notebook: &Path) -> Self {
+    fn start(workshop: &Path) -> Self {
         let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
         command
             .arg("--workshop")
-            .arg(notebook)
+            .arg(workshop)
             .arg("mcp")
             .env_remove("TESSERA_WORKSHOP")
             .env_remove("NO_PROXY")
@@ -686,7 +686,7 @@ async fn mcp_stays_with_its_workshop_when_the_service_switches_away() {
     mcp.send(b"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\",\"x\":\"\xff\"}");
     assert_eq!(mcp.receive()["error"]["code"], -32700);
 
-    let response = open_notebook(&service.host, &second, true).await;
+    let response = open_workshop(&service.host, &second, true).await;
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     serving(&service.host, &second).await;
     let (text, error) = mcp.call(
@@ -701,7 +701,7 @@ async fn mcp_stays_with_its_workshop_when_the_service_switches_away() {
     assert!(!page_exists(&service.host, "After").await);
 
     // Once the service is back on the first workshop, the session works again.
-    let response = open_notebook(&service.host, &first, false).await;
+    let response = open_workshop(&service.host, &first, false).await;
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     serving(&service.host, &first).await;
     let (text, error) = mcp.call(
@@ -713,7 +713,7 @@ async fn mcp_stays_with_its_workshop_when_the_service_switches_away() {
 }
 
 #[tokio::test]
-async fn mcp_refuses_another_notebook_at_its_workshop_path() {
+async fn mcp_refuses_another_workshop_at_its_workshop_path() {
     let root = tempfile::tempdir().unwrap();
     let workshop = root.path().join("workshop");
     let mut service = Service::spawn(isolated(root.path(), Some(&workshop)));
@@ -726,7 +726,7 @@ async fn mcp_refuses_another_notebook_at_its_workshop_path() {
     let mut replaced = Service::spawn(isolated(root.path(), Some(&workshop)));
     let after = serving(&replaced.host, &workshop).await;
     assert_ne!(after["id"], before["id"]);
-    // The change numbers and IDs this session handed out name the old notebook.
+    // The change numbers and IDs this session handed out name the old workshop.
     let (text, error) = mcp.call(
         "tessera_add_note",
         serde_json::json!({ "page": "Replaced", "markdown": "- must not land" }),
@@ -796,18 +796,18 @@ async fn a_cli_clone_counts_as_the_replicas_first_sync() {
 }
 
 #[tokio::test]
-async fn a_switch_without_notebook_argument_becomes_the_startup_notebook() {
+async fn a_switch_without_workshop_argument_becomes_the_startup_workshop() {
     let root = tempfile::tempdir().unwrap();
     let other = root.path().join("other");
     let mut service = Service::spawn(isolated(root.path(), None));
-    let response = open_notebook(&service.host, &other, true).await;
+    let response = open_workshop(&service.host, &other, true).await;
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     let opened = serving(&service.host, &other).await;
     service.stop();
     let mut restarted = Service::spawn(isolated(root.path(), None));
     assert_eq!(serving(&restarted.host, &other).await["id"], opened["id"]);
     restarted.stop();
-    // An explicit notebook still wins over the remembered one.
+    // An explicit workshop still wins over the remembered one.
     let pinned = root.path().join("pinned");
     let mut explicit = Service::spawn(isolated(root.path(), Some(&pinned)));
     serving(&explicit.host, &pinned).await;
@@ -819,7 +819,7 @@ async fn bare_names_open_in_the_xdg_workshops_directory_and_survive_restart() {
     let root = tempfile::tempdir().unwrap();
     let mut service = Service::spawn(isolated(root.path(), None));
     let target = root.path().join(".local/share/tessera/workshops/reading");
-    let response = open_notebook(&service.host, Path::new("reading"), true).await;
+    let response = open_workshop(&service.host, Path::new("reading"), true).await;
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     let opened = serving(&service.host, &target).await;
     let list: serde_json::Value = reqwest::get(format!("http://{}/api/notebooks", service.host))

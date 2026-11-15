@@ -59,11 +59,11 @@ function queryRows(rows: readonly TaskRow[], query: TaskQuery): TaskQueryResult 
   return { rows: filtered.slice(0, query.limit ?? 500), total: filtered.length };
 }
 
-function notebookFixture(initialRows: TaskRow[] = [], query?: (value: TaskQuery) => Promise<TaskQueryResult>) {
+function workshopFixture(initialRows: TaskRow[] = [], query?: (value: TaskQuery) => Promise<TaskQueryResult>) {
   let sequence = 1;
   let rows = initialRows;
   const requests: TaskQuery[] = [];
-  const notebook = {
+  const workshop = {
     api: {
       taskQuery(value: TaskQuery) {
         requests.push(value);
@@ -75,7 +75,7 @@ function notebookFixture(initialRows: TaskRow[] = [], query?: (value: TaskQuery)
     },
   };
   return {
-    notebook,
+    workshop,
     requests,
     advance() {
       sequence++;
@@ -139,11 +139,11 @@ describe('monthly planning counts', () => {
   });
 
   test('scheduled and deadline month queries never AND their ranges or inherit task view filters', async () => {
-    const fixture = notebookFixture([
+    const fixture = workshopFixture([
       taskRow('schedule-only', { scheduled: '2026-10-01' }),
       taskRow('deadline-only', { deadline: '2026-10-31' }),
     ]);
-    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toEqual({
+    expect(await loadMonthPlanningMarks(fixture.workshop, '2026-10-06')).toEqual({
       '2026-10-01': { scheduled: 1, deadline: 0 },
       '2026-10-31': { scheduled: 0, deadline: 1 },
     });
@@ -171,8 +171,8 @@ describe('monthly planning counts', () => {
       taskRow('done', { status: 'done', scheduled: '2026-10-05', deadline: '2026-10-23' }),
       taskRow('cancelled', { status: 'cancelled', scheduled: '2026-10-23' }),
     ];
-    const fixture = notebookFixture(rows);
-    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toEqual({
+    const fixture = workshopFixture(rows);
+    expect(await loadMonthPlanningMarks(fixture.workshop, '2026-10-06')).toEqual({
       '2026-10-05': { scheduled: 2001, deadline: 0 },
       '2026-10-23': { scheduled: 2002, deadline: 2001 },
     });
@@ -193,52 +193,52 @@ describe('monthly planning counts', () => {
 });
 
 describe('planning month cache', () => {
-  test('concurrent and completed month loads share one notebook snapshot, including empty months', async () => {
-    const fixture = notebookFixture();
-    const first = loadMonthPlanningMarks(fixture.notebook, '2026-10-01');
-    expect(loadMonthPlanningMarks(fixture.notebook, '2026-10-31')).toBe(first);
+  test('concurrent and completed month loads share one workshop snapshot, including empty months', async () => {
+    const fixture = workshopFixture();
+    const first = loadMonthPlanningMarks(fixture.workshop, '2026-10-01');
+    expect(loadMonthPlanningMarks(fixture.workshop, '2026-10-31')).toBe(first);
     const marks = await first;
     expect(marks).toEqual({});
-    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toBe(marks);
+    expect(await loadMonthPlanningMarks(fixture.workshop, '2026-10-06')).toBe(marks);
     expect(fixture.requests).toHaveLength(2);
-    await loadMonthPlanningMarks(fixture.notebook, '2026-11-01');
+    await loadMonthPlanningMarks(fixture.workshop, '2026-11-01');
     expect(fixture.requests).toHaveLength(4);
-    const otherNotebook = notebookFixture();
-    await loadMonthPlanningMarks(otherNotebook.notebook, '2026-10-06');
-    expect(otherNotebook.requests).toHaveLength(2);
+    const otherWorkshop = workshopFixture();
+    await loadMonthPlanningMarks(otherWorkshop.workshop, '2026-10-06');
+    expect(otherWorkshop.requests).toHaveLength(2);
   });
 
   test('a new change sequence refreshes counts without discarding the displayed month snapshot', async () => {
-    const fixture = notebookFixture([taskRow('first', { scheduled: '2026-10-06' })]);
-    const first = await loadMonthPlanningMarks(fixture.notebook, '2026-10-06');
+    const fixture = workshopFixture([taskRow('first', { scheduled: '2026-10-06' })]);
+    const first = await loadMonthPlanningMarks(fixture.workshop, '2026-10-06');
     fixture.replace([taskRow('second', { deadline: '2026-10-07' })]);
     fixture.advance();
-    const refreshed = loadMonthPlanningMarks(fixture.notebook, '2026-10-10');
-    expect(cachedMonthPlanningMarks(fixture.notebook, '2026-10-01')).toBe(first);
+    const refreshed = loadMonthPlanningMarks(fixture.workshop, '2026-10-10');
+    expect(cachedMonthPlanningMarks(fixture.workshop, '2026-10-01')).toBe(first);
     const next = await refreshed;
     expect(next).toEqual({ '2026-10-07': { scheduled: 0, deadline: 1 } });
-    expect(cachedMonthPlanningMarks(fixture.notebook, '2026-10-31')).toBe(next);
+    expect(cachedMonthPlanningMarks(fixture.workshop, '2026-10-31')).toBe(next);
     expect(fixture.requests).toHaveLength(4);
   });
 
   test('an old sequence completing after a new load cannot overwrite the fresh cache', async () => {
     const pending: Deferred<TaskQueryResult>[] = [];
-    const fixture = notebookFixture([], () => {
+    const fixture = workshopFixture([], () => {
       const result = deferred<TaskQueryResult>();
       pending.push(result);
       return result.promise;
     });
-    const old = loadMonthPlanningMarks(fixture.notebook, '2026-10-06');
+    const old = loadMonthPlanningMarks(fixture.workshop, '2026-10-06');
     fixture.advance();
-    const fresh = loadMonthPlanningMarks(fixture.notebook, '2026-10-06');
+    const fresh = loadMonthPlanningMarks(fixture.workshop, '2026-10-06');
     pending[2]!.resolve({ rows: [taskRow('fresh', { scheduled: '2026-10-07' })], total: 1 });
     pending[3]!.resolve({ rows: [], total: 0 });
     const marks = await fresh;
     pending[0]!.resolve({ rows: [taskRow('old', { scheduled: '2026-10-06' })], total: 1 });
     pending[1]!.resolve({ rows: [], total: 0 });
     await old;
-    expect(cachedMonthPlanningMarks(fixture.notebook, '2026-10-06')).toBe(marks);
-    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toEqual({
+    expect(cachedMonthPlanningMarks(fixture.workshop, '2026-10-06')).toBe(marks);
+    expect(await loadMonthPlanningMarks(fixture.workshop, '2026-10-06')).toEqual({
       '2026-10-07': { scheduled: 1, deadline: 0 },
     });
     expect(fixture.requests).toHaveLength(4);
@@ -247,16 +247,16 @@ describe('planning month cache', () => {
   test('a failed refresh preserves old marks but is not reused as a successful cache hit', async () => {
     const rows = [taskRow('first', { scheduled: '2026-10-06' })];
     let failed = false;
-    const fixture = notebookFixture(rows, query =>
+    const fixture = workshopFixture(rows, query =>
       failed ? Promise.reject(new Error('Planning unavailable')) : Promise.resolve(queryRows(rows, query)),
     );
-    const first = await loadMonthPlanningMarks(fixture.notebook, '2026-10-06');
+    const first = await loadMonthPlanningMarks(fixture.workshop, '2026-10-06');
     fixture.advance();
     failed = true;
-    await expect(loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).rejects.toThrow('Planning unavailable');
-    expect(cachedMonthPlanningMarks(fixture.notebook, '2026-10-06')).toBe(first);
+    await expect(loadMonthPlanningMarks(fixture.workshop, '2026-10-06')).rejects.toThrow('Planning unavailable');
+    expect(cachedMonthPlanningMarks(fixture.workshop, '2026-10-06')).toBe(first);
     failed = false;
-    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toEqual(first);
+    expect(await loadMonthPlanningMarks(fixture.workshop, '2026-10-06')).toEqual(first);
     expect(fixture.requests).toHaveLength(6);
   });
 });

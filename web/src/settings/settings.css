@@ -1,5 +1,5 @@
 /* Settings pane: a sticky header over short sections, with an index of them beside the measure on wide panes.
-   Preferences come first; facts about the notebook and service come last, since they are read rarely and changed never. */
+   Preferences come first; facts about the workshop and service come last, since they are read rarely and changed never. */
 .settings-pane {
   flex: 1;
   min-height: 0;
@@ -622,7 +622,7 @@
   line-height: var(--line-meta);
 }
 
-/* Notebooks: each known notebook with its folder in mono; Open on the right, Forget waiting for hover. */
+/* Notebooks: each known workshop with its folder in mono; Open on the right, Forget waiting for hover. */
 .settings-pane .settings-label p.notebooks-path {
   color: var(--faint);
   font: var(--figures);

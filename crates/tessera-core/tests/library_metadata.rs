@@ -1,4 +1,4 @@
-use tessera_core::{Actor, Batch, Notebook, Operation, PageView, library::*};
+use tessera_core::{Actor, Batch, Operation, PageView, Workshop, library::*};
 
 fn batch(operations: Vec<Operation>) -> Batch {
     Batch {
@@ -9,9 +9,9 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn source(notebook: &mut Notebook, title: &str, key: Option<&str>) -> String {
+fn source(workshop: &mut Workshop, title: &str, key: Option<&str>) -> String {
     let id = ulid::Ulid::generate().to_string();
-    notebook
+    workshop
         .apply(&batch(vec![
             Operation::CreatePage {
                 id: id.clone(),
@@ -36,14 +36,14 @@ fn source(notebook: &mut Notebook, title: &str, key: Option<&str>) -> String {
 #[test]
 fn citation_collision_names_occupying_source_and_rolls_back_every_operation() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
-    let owner = source(&mut notebook, "Occupied source", Some("reader2026book"));
-    let other = source(&mut notebook, "Edited source", Some("other2026book"));
-    let before = notebook.source(&other).unwrap();
+    let mut workshop = Workshop::open(directory.path()).unwrap();
+    let owner = source(&mut workshop, "Occupied source", Some("reader2026book"));
+    let other = source(&mut workshop, "Edited source", Some("other2026book"));
+    let before = workshop.source(&other).unwrap();
     let mut state = before.source.source_state();
     state.citation_key = Some("READER2026BOOK".into());
     state.state = ReadingState::Reading;
-    let error = notebook
+    let error = workshop
         .apply(&batch(vec![
             Operation::EditText {
                 id: other.clone(),
@@ -61,13 +61,13 @@ fn citation_collision_names_occupying_source_and_rolls_back_every_operation() {
     assert!(error.contains("Occupied source"), "{error}");
     assert!(error.contains(&owner), "{error}");
     assert!(error.contains("READER2026BOOK"), "{error}");
-    let after = notebook.source(&other).unwrap();
+    let after = workshop.source(&other).unwrap();
     assert_eq!(after.page, before.page);
     assert_eq!(after.source, before.source);
 
     let mut state = before.source.source_state();
     state.state = ReadingState::Finished;
-    notebook
+    workshop
         .apply(&batch(vec![Operation::SetSource {
             id: other.clone(),
             base_revision: before.page.revision,
@@ -75,7 +75,7 @@ fn citation_collision_names_occupying_source_and_rolls_back_every_operation() {
         }]))
         .unwrap();
     assert_eq!(
-        notebook.source(&other).unwrap().source.state,
+        workshop.source(&other).unwrap().source.state,
         ReadingState::Finished
     );
 }
@@ -83,13 +83,13 @@ fn citation_collision_names_occupying_source_and_rolls_back_every_operation() {
 #[test]
 fn duplicate_key_within_one_batch_is_atomic_and_names_the_first_source() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
-    let first = source(&mut notebook, "First selected source", None);
-    let second = source(&mut notebook, "Second selected source", None);
+    let mut workshop = Workshop::open(directory.path()).unwrap();
+    let first = source(&mut workshop, "First selected source", None);
+    let second = source(&mut workshop, "Second selected source", None);
     // Each record got its suggested key when it was made; a rejected batch keeps both.
     let assigned: Vec<_> = [&first, &second]
         .into_iter()
-        .map(|id| notebook.source(id).unwrap().source.citation_key)
+        .map(|id| workshop.source(id).unwrap().source.citation_key)
         .collect();
     assert_eq!(
         assigned,
@@ -98,7 +98,7 @@ fn duplicate_key_within_one_batch_is_atomic_and_names_the_first_source() {
     let operations = [&first, &second]
         .into_iter()
         .map(|id| {
-            let view = notebook.source(id).unwrap();
+            let view = workshop.source(id).unwrap();
             let mut state = view.source.source_state();
             state.citation_key = Some("shared2026key".into());
             Operation::SetSource {
@@ -108,20 +108,20 @@ fn duplicate_key_within_one_batch_is_atomic_and_names_the_first_source() {
             }
         })
         .collect();
-    let error = notebook.apply(&batch(operations)).unwrap_err().to_string();
+    let error = workshop.apply(&batch(operations)).unwrap_err().to_string();
     assert!(error.contains("First selected source"), "{error}");
     for (id, key) in [&first, &second].into_iter().zip(&assigned) {
-        assert_eq!(&notebook.source(id).unwrap().source.citation_key, key);
+        assert_eq!(&workshop.source(id).unwrap().source.citation_key, key);
     }
 }
 
 #[test]
 fn page_root_tags_survive_reopen_and_old_page_snapshots_default_to_empty() {
     let directory = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(directory.path()).unwrap();
-    let id = source(&mut notebook, "Tagged source", None);
-    let revision = notebook.block(&id).unwrap().revision;
-    notebook
+    let mut workshop = Workshop::open(directory.path()).unwrap();
+    let id = source(&mut workshop, "Tagged source", None);
+    let revision = workshop.block(&id).unwrap().revision;
+    workshop
         .apply(&batch(vec![
             Operation::AddType {
                 id: id.clone(),
@@ -135,9 +135,9 @@ fn page_root_tags_survive_reopen_and_old_page_snapshots_default_to_empty() {
             },
         ]))
         .unwrap();
-    drop(notebook);
-    let notebook = Notebook::open(directory.path()).unwrap();
-    let view = notebook.page(&id).unwrap();
+    drop(workshop);
+    let workshop = Workshop::open(directory.path()).unwrap();
+    let view = workshop.page(&id).unwrap();
     assert_eq!(view.root_manual_types, ["History", "To read"]);
     let mut old = serde_json::to_value(view).unwrap();
     old.as_object_mut().unwrap().remove("root_manual_types");

@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal } from 'solid-js';
 import type { TaskRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Icon } from '../ui/Icon';
 import { isPhone } from '../ui/phone';
@@ -42,7 +42,7 @@ export function WeekLedger(props: {
   rows: readonly TaskRow[];
   /** Today's overdue agenda rows; the ledger keeps those planned before this week. */
   overdue: readonly TaskRow[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   history: TaskSourceHistory;
   loading: boolean;
   disabled: boolean;
@@ -50,9 +50,9 @@ export function WeekLedger(props: {
   onChanged(): void;
 }) {
   const phone = isPhone();
-  const clock = createClock(props.notebook);
+  const clock = createClock(props.workshop);
   const overdue = createMemo(() => weekLedgerOverdue(props.overdue, props.date));
-  const days = createMemo(() => weekLedgerDays(props.rows, props.date, props.notebook.todayDate(), overdue()));
+  const days = createMemo(() => weekLedgerDays(props.rows, props.date, props.workshop.todayDate(), overdue()));
   const dates = createMemo(() => calendarWeekDates(props.date).filter((day): day is string => day !== null));
   const byDate = createMemo(() => new Map(days().map(day => [day.date, day])));
   const summary = createMemo(() => weekLedgerSummary(props.rows, props.date, overdue()));
@@ -68,7 +68,7 @@ export function WeekLedger(props: {
           const day = createMemo(() => byDate().get(date)!);
           const civil = new Date(`${date}T12:00:00Z`);
           const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(civil);
-          const today = () => props.notebook.todayDate();
+          const today = () => props.workshop.todayDate();
           // Elsewhere only past days fold. On a phone every day but today folds to its head, which opens when it has tasks.
           const foldable = () => (phone ? date !== today() && day().rows.length > 0 : date < today());
           const heading = phone ? (
@@ -122,7 +122,7 @@ export function WeekLedger(props: {
                 <TaskSourceRows
                   rows={day().rows}
                   date={date}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   history={props.history}
                   timetable
                   plan

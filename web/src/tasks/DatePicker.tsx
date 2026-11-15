@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, Show } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { MonthGrid } from './MonthGrid';
 import { Popup } from '../ui/Popup';
@@ -11,7 +11,7 @@ import { partialFieldDate } from '../fields/value-options';
 import './date-picker.css';
 
 export interface DatePickerProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   anchor: PopupAnchor;
   label: string;
   value: string | null;
@@ -160,7 +160,7 @@ export function DatePicker(props: DatePickerProps) {
   const planning =
     props.partialDates || props.presets === 'revisit'
       ? undefined
-      : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
+      : createMonthPlanningMarks(() => props.workshop, preview() ?? props.contextDate);
   // The phone pane already stops above the bottom navigation and system safe area.
   // Reuse that box so an anchored calendar clips its body rather than covering the navigation.
   const bounds = () => {

@@ -1,4 +1,4 @@
-//! In-process replica orchestration. Network work never owns the notebook lock.
+//! In-process replica orchestration. Network work never owns the workshop lock.
 use crate::{
     AppState, EmbeddedHandles,
     sync_client::{HttpHub, HubError, InvalidHubUrl, Pairing},
@@ -18,8 +18,8 @@ use std::sync::{
 };
 use std::time::Duration;
 use tessera_core::{
-    Notebook,
-    sync::{self, Hub, IntegrateReport, NotebookAccess, OfflineFiles, PulledChange},
+    Workshop,
+    sync::{self, Hub, IntegrateReport, OfflineFiles, PulledChange, WorkshopAccess},
 };
 use tokio::sync::{Notify, broadcast};
 
@@ -128,7 +128,7 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/sync/reclone", post(reclone))
         .route("/api/sync/conflicts", get(conflicts))
 }
-/// Replica side: this device's copy of a hub's notebook.
+/// Replica side: this device's copy of a hub's workshop.
 #[derive(Serialize, ts_rs::TS)]
 pub(crate) struct ReplicaState {
     hub_url: String,
@@ -156,14 +156,14 @@ pub(crate) struct SyncState {
     replica: Option<ReplicaState>,
 }
 async fn state(State(state): State<AppState>) -> Result<Json<SyncState>, LastError> {
-    state_value(state.notebook, state.replica).await.map(Json)
+    state_value(state.workshop, state.replica).await.map(Json)
 }
 async fn state_value(
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     runtime: Arc<ReplicaRuntime>,
 ) -> Result<SyncState, LastError> {
     tokio::task::spawn_blocking(move || {
-        let mut n = notebook.lock();
+        let mut n = workshop.lock();
         let status = n.sync_status()?;
         let this_device = crate::SyncVersion::current();
         let Some(status) = status else {
@@ -210,26 +210,26 @@ async fn state_value(
     .map_err(LastError::from_error)
 }
 
-struct LockedNotebook {
-    notebook: Arc<Mutex<Notebook>>,
+struct LockedWorkshop {
+    workshop: Arc<Mutex<Workshop>>,
     changes: broadcast::Sender<i64>,
 }
-impl NotebookAccess for LockedNotebook {
-    fn with_notebook<T>(
+impl WorkshopAccess for LockedWorkshop {
+    fn with_workshop<T>(
         &mut self,
-        step: impl FnOnce(&mut Notebook) -> tessera_core::Result<T>,
+        step: impl FnOnce(&mut Workshop) -> tessera_core::Result<T>,
     ) -> tessera_core::Result<T> {
-        step(&mut self.notebook.lock())
+        step(&mut self.workshop.lock())
     }
     fn integrate(&mut self, changes: &[PulledChange]) -> tessera_core::Result<IntegrateReport> {
-        let mut n = self.notebook.lock();
+        let mut n = self.workshop.lock();
         let result = n.sync_integrate(changes);
         // An interrupted rebase can have applied a page; notify even on failure.
         let _ = self.changes.send(i64::MAX);
         result
     }
 }
-fn hub_for(n: &Notebook) -> anyhow::Result<Option<HttpHub>> {
+fn hub_for(n: &Workshop) -> anyhow::Result<Option<HttpHub>> {
     let Some(status) = n.sync_status()? else {
         return Ok(None);
     };
@@ -241,7 +241,7 @@ fn hub_for(n: &Notebook) -> anyhow::Result<Option<HttpHub>> {
 }
 
 async fn synchronize(
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     changes: broadcast::Sender<i64>,
     runtime: Arc<ReplicaRuntime>,
 ) {
@@ -256,16 +256,16 @@ async fn synchronize(
         let _guard = guard;
         let mut hub = None;
         let result = (|| {
-            hub = hub_for(&notebook.lock())?;
+            hub = hub_for(&workshop.lock())?;
             if let Some(hub) = hub.as_mut() {
                 let report = sync::sync_with(
-                    &mut LockedNotebook {
-                        notebook: notebook.clone(),
+                    &mut LockedWorkshop {
+                        workshop: workshop.clone(),
                         changes,
                     },
                     hub,
                 )?;
-                notebook.lock().sync_mark_synced()?;
+                workshop.lock().sync_mark_synced()?;
                 log_sync(&report);
             }
             anyhow::Ok(())
@@ -350,12 +350,12 @@ fn finish(
 }
 async fn run_now(State(state): State<AppState>) -> Result<Json<SyncState>, LastError> {
     synchronize(
-        state.notebook.clone(),
+        state.workshop.clone(),
         state.changes.clone(),
         state.replica.clone(),
     )
     .await;
-    state_value(state.notebook, state.replica).await.map(Json)
+    state_value(state.workshop, state.replica).await.map(Json)
 }
 
 #[derive(Deserialize)]
@@ -372,7 +372,7 @@ async fn join(
     // Reject before consuming the one-time code, including queued duplicate joins.
     // A replica whose key the hub revoked (Forget) may pair again.
     let replica = state
-        .notebook
+        .workshop
         .lock()
         .sync_status()
         .map_err(|e| LastError::from_error(e.into()))?
@@ -403,7 +403,7 @@ async fn join(
     .map_err(|e| LastError::from_error(e.into()))?;
     result.map_err(LastError::from_error)?;
     state.replica.wake.notify_one();
-    state_value(state.notebook, state.replica).await.map(Json)
+    state_value(state.workshop, state.replica).await.map(Json)
 }
 fn join_blocking(
     state: &AppState,
@@ -447,7 +447,7 @@ async fn reclone(State(state): State<AppState>) -> Result<Json<SyncState>, LastE
         let mut hub = None;
         let result = (|| {
             hub = Some(
-                hub_for(&worker.notebook.lock())?
+                hub_for(&worker.workshop.lock())?
                     .ok_or_else(|| anyhow::anyhow!("this workshop is not a replica"))?,
             );
             replace(&worker, hub.as_mut().expect("replica hub"), None)
@@ -462,12 +462,12 @@ async fn reclone(State(state): State<AppState>) -> Result<Json<SyncState>, LastE
     .await
     .map_err(|e| LastError::from_error(e.into()))?;
     result.map_err(LastError::from_error)?;
-    state_value(state.notebook, state.replica).await.map(Json)
+    state_value(state.workshop, state.replica).await.map(Json)
 }
 
 fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> anyhow::Result<()> {
     let (directory, old, credentials) = {
-        let n = state.notebook.lock();
+        let n = state.workshop.lock();
         (n.info()?.path, n.sync_status()?, n.sync_hub_credentials()?)
     };
     let credentials = paired
@@ -478,15 +478,15 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
             synced_at: None,
         })
         .or(credentials);
-    let mut local = LockedNotebook {
-        notebook: state.notebook.clone(),
+    let mut local = LockedWorkshop {
+        workshop: state.workshop.clone(),
         changes: state.changes.clone(),
     };
-    // Import uses a key-owned temporary replica ID, never the unrelated notebook's ID.
+    // Import uses a key-owned temporary replica ID, never the unrelated workshop's ID.
     let mut importer = None;
     loop {
         let (generation, has_content) = {
-            let n = state.notebook.lock();
+            let n = state.workshop.lock();
             (n.sync_generation()?, n.sync_has_content()?)
         };
         if paired.is_some() && has_content && importer.is_none() {
@@ -494,7 +494,7 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
             std::fs::remove_file(path)?;
             importer = Some(ticket.device_id);
         }
-        // An independent notebook sends its whole log. A re-paired replica's log came
+        // An independent workshop sends its whole log. A re-paired replica's log came
         // from the hub, so it sends only its outbox, under the new key's replica.
         match (&importer, &old) {
             (Some(device), None) => {
@@ -509,7 +509,7 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
             _ => {}
         }
         let (ticket, path) = hub.download(&directory)?;
-        let mut n = state.notebook.lock();
+        let mut n = state.workshop.lock();
         if n.sync_generation()? != generation {
             drop(n);
             hub.retire(&ticket.device_id)?;
@@ -552,17 +552,17 @@ async fn conflicts(
         .map(Json)
 }
 
-/// Start once for a host's embedded notebook. Dropping the router and handles
-/// stops the runner. It is harmless on an unpaired notebook and wakes after join.
+/// Start once for a host's embedded workshop. Dropping the router and handles
+/// stops the runner. It is harmless on an unpaired workshop and wakes after join.
 pub fn start_sync_runner(handles: &EmbeddedHandles) {
     start(
-        handles.notebook.clone(),
+        handles.workshop.clone(),
         handles.changes.clone(),
         &handles.replica,
     );
 }
 pub(crate) fn start(
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     changes: broadcast::Sender<i64>,
     runtime: &Arc<ReplicaRuntime>,
 ) {
@@ -591,7 +591,7 @@ pub(crate) fn start(
             let Some(runtime) = weak.upgrade() else {
                 return;
             };
-            synchronize(notebook.clone(), changes.clone(), runtime.clone()).await;
+            synchronize(workshop.clone(), changes.clone(), runtime.clone()).await;
             let failed = runtime.memory.lock().last_error.is_some();
             if failed {
                 due = tokio::time::Instant::now() + backoff;
@@ -655,13 +655,13 @@ mod tests {
     async fn join_refuses_existing_replica_before_pairing() {
         let hub_dir = tempfile::tempdir().unwrap();
         let phone_dir = tempfile::tempdir().unwrap();
-        let mut hub = Notebook::open(hub_dir.path()).unwrap();
+        let mut hub = Workshop::open(hub_dir.path()).unwrap();
         let ticket = hub
             .sync_clone(&phone_dir.path().join(tessera_core::DATABASE_FILE))
             .unwrap()
             .finish()
             .unwrap();
-        let mut phone = Notebook::open(phone_dir.path()).unwrap();
+        let mut phone = Workshop::open(phone_dir.path()).unwrap();
         phone.sync_adopt("http://127.0.0.1:4519", &ticket).unwrap();
         let (app, _handles) = crate::embedded_router(phone).unwrap();
         let response = app
@@ -723,7 +723,7 @@ mod tests {
     async fn join_failures_answer_in_the_error_envelope_the_client_reads() {
         let phone_dir = tempfile::tempdir().unwrap();
         let (app, _handles) =
-            crate::embedded_router(Notebook::open(phone_dir.path()).unwrap()).unwrap();
+            crate::embedded_router(Workshop::open(phone_dir.path()).unwrap()).unwrap();
         for (status, code, message) in [
             (
                 StatusCode::FORBIDDEN,
@@ -768,13 +768,13 @@ mod tests {
     async fn editor_receipts_keep_their_arrival_cursor_after_rebase_and_retry() {
         let hub_dir = tempfile::tempdir().unwrap();
         let phone_dir = tempfile::tempdir().unwrap();
-        let mut hub = Notebook::open(hub_dir.path()).unwrap();
+        let mut hub = Workshop::open(hub_dir.path()).unwrap();
         let ticket = hub
             .sync_clone(&phone_dir.path().join(tessera_core::DATABASE_FILE))
             .unwrap()
             .finish()
             .unwrap();
-        let mut phone = Notebook::open(phone_dir.path()).unwrap();
+        let mut phone = Workshop::open(phone_dir.path()).unwrap();
         phone.sync_adopt("http://127.0.0.1:4519", &ticket).unwrap();
         let page = |title: &str| tessera_core::Batch {
             actor: tessera_core::Actor::Person,
@@ -813,7 +813,7 @@ mod tests {
         assert!(receipts[0].seq > before);
         assert_eq!(receipts[0].seq, receipts[1].seq);
         assert!(receipts[1].replayed);
-        let events = handles.notebook.lock().changes_since(before, 100).unwrap();
+        let events = handles.workshop.lock().changes_since(before, 100).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].seq, receipts[0].seq);
     }

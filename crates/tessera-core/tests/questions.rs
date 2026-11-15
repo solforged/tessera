@@ -1,7 +1,7 @@
 use tessera_core::question_store::{nearest_question_ancestor, question_status};
 use tessera_core::{
-    Actor, AssessmentState, Batch, Committed, Error, Notebook, Operation, QuestionQuery,
-    QuestionState, QuestionStatus,
+    Actor, AssessmentState, Batch, Committed, Error, Operation, QuestionQuery, QuestionState,
+    QuestionStatus, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -15,7 +15,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 fn insert(value: u128, parent: u128) -> Operation {
@@ -27,14 +27,14 @@ fn insert(value: u128, parent: u128) -> Operation {
         heading: None,
     }
 }
-fn question(nb: &Notebook, value: u128, state: Option<QuestionState>) -> Operation {
+fn question(nb: &Workshop, value: u128, state: Option<QuestionState>) -> Operation {
     Operation::SetQuestion {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,
         question: state,
     }
 }
-fn assessment(nb: &Notebook, value: u128) -> Operation {
+fn assessment(nb: &Workshop, value: u128) -> Operation {
     Operation::SetAssessment {
         id: id(value),
         base_revision: nb.block(&id(value)).unwrap().revision,
@@ -44,43 +44,43 @@ fn assessment(nb: &Notebook, value: u128) -> Operation {
         }),
     }
 }
-fn set_question(nb: &mut Notebook, value: u128, state: QuestionState) -> Committed {
+fn set_question(nb: &mut Workshop, value: u128, state: QuestionState) -> Committed {
     let op = question(nb, value, Some(state));
     apply(nb, vec![op])
 }
-fn status(nb: &Notebook, value: u128) -> QuestionStatus {
+fn status(nb: &Workshop, value: u128) -> QuestionStatus {
     nb.capabilities(&id(value))
         .unwrap()
         .question
         .unwrap()
         .status
 }
-fn state(nb: &Notebook, value: u128) -> QuestionState {
+fn state(nb: &Workshop, value: u128) -> QuestionState {
     nb.capabilities(&id(value)).unwrap().question.unwrap().state
 }
-fn accept(nb: &mut Notebook, value: u128) -> Committed {
+fn accept(nb: &mut Workshop, value: u128) -> Committed {
     let next = QuestionState {
         accepted: Some(id(value)),
         ..state(nb, 10)
     };
     set_question(nb, 10, next)
 }
-fn park(nb: &mut Notebook, parked: bool) {
+fn park(nb: &mut Workshop, parked: bool) {
     let next = QuestionState {
         parked,
         ..state(nb, 10)
     };
     set_question(nb, 10, next);
 }
-fn reject(nb: &mut Notebook, op: Operation, expected: &str) {
+fn reject(nb: &mut Workshop, op: Operation, expected: &str) {
     match nb.apply(&batch(vec![op])) {
         Err(Error::Validation { message, .. }) => assert!(message.contains(expected), "{message}"),
         other => panic!("Expected validation, got {other:?}"),
     }
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![

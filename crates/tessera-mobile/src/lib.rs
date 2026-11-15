@@ -1,4 +1,4 @@
-//! Tessera for Android and iOS. The notebook runs in this app's process, in
+//! Tessera for Android and iOS. The workshop runs in this app's process, in
 //! app-private storage, and the web interface reaches its API over Tauri IPC
 //! rather than a network socket that other apps on the device could connect to.
 

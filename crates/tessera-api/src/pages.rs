@@ -12,26 +12,26 @@ use crate::history::editor_receipt;
 use crate::limits::Limit;
 use crate::run::{read, run};
 use crate::state::WorkshopState;
-use tessera_core::NotebookInfo;
+use tessera_core::WorkshopInfo;
 use tessera_core::{Actor, Block, Committed, NoteKind, PageView};
 
-pub(crate) async fn notebook_info(
+pub(crate) async fn workshop_info(
     State(state): State<WorkshopState>,
-) -> Result<Json<NotebookInfo>, ApiError> {
-    read(&state, |notebook| notebook.info()).await.map(Json)
+) -> Result<Json<WorkshopInfo>, ApiError> {
+    read(&state, |workshop| workshop.info()).await.map(Json)
 }
 
 pub(crate) async fn roots(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<Block>>, ApiError> {
-    read(&state, |notebook| notebook.roots()).await.map(Json)
+    read(&state, |workshop| workshop.roots()).await.map(Json)
 }
 pub(crate) async fn page(
     State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<PageView>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.page(&id))
+    read(&state, move |workshop| workshop.page(&id))
         .await
         .map(Json)
 }
@@ -40,8 +40,8 @@ pub(crate) async fn page_by_title(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Block>, ApiError> {
     let Path(title) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| {
-        notebook
+    read(&state, move |workshop| {
+        workshop
             .page_by_name(&title)?
             .ok_or(tessera_core::Error::NotFound {
                 what: "atom",
@@ -57,8 +57,8 @@ pub(crate) async fn journal(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Block>, ApiError> {
     let Path(date) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| {
-        notebook
+    read(&state, move |workshop| {
+        workshop
             .journal(&date)?
             .ok_or(tessera_core::Error::NotFound {
                 what: "atom",
@@ -74,7 +74,7 @@ pub(crate) async fn block(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Block>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.block(&id))
+    read(&state, move |workshop| workshop.block(&id))
         .await
         .map(Json)
 }
@@ -85,7 +85,7 @@ pub(crate) async fn subtree(
 ) -> Result<Json<tessera_core::Subtree>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.subtree(&id, query.limit))
+    read(&state, move |workshop| workshop.subtree(&id, query.limit))
         .await
         .map(Json)
 }
@@ -108,8 +108,8 @@ pub(crate) async fn subtrees(
     body: Result<Json<SubtreesRead>, JsonRejection>,
 ) -> Result<Json<tessera_core::BatchSubtrees>, ApiError> {
     let Json(body) = body.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.subtrees(&body.ids, body.per_id, body.total)
+    run(&state.workshop, move |workshop| {
+        workshop.subtrees(&body.ids, body.per_id, body.total)
     })
     .await
     .map(Json)
@@ -119,8 +119,8 @@ pub(crate) async fn stream_arrivals(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::StreamArrival>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| {
-        notebook.stream_arrivals(&id, &notebook.today(tessera_core::now_ms())?, 100, 200)
+    read(&state, move |workshop| {
+        workshop.stream_arrivals(&id, &workshop.today(tessera_core::now_ms())?, 100, 200)
     })
     .await
     .map(Json)
@@ -130,8 +130,8 @@ pub(crate) async fn quote_snapshot(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<tessera_core::QuoteState>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| {
-        notebook.quote_snapshot(&id, tessera_core::now_ms())
+    read(&state, move |workshop| {
+        workshop.quote_snapshot(&id, tessera_core::now_ms())
     })
     .await
     .map(Json)
@@ -141,14 +141,14 @@ pub(crate) async fn quote_status(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::QuoteStatus>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.quote_status(&id))
+    read(&state, move |workshop| workshop.quote_status(&id))
         .await
         .map(Json)
 }
 pub(crate) async fn deleted_pages(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<tessera_core::DeletedPage>>, ApiError> {
-    read(&state, |notebook| notebook.deleted_pages())
+    read(&state, |workshop| workshop.deleted_pages())
         .await
         .map(Json)
 }
@@ -164,10 +164,10 @@ pub(crate) async fn add_alias(
     let Path(id) = path.map_err(ApiError::from)?;
     let Json(AliasRequest { name }) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
-    run(&state.notebook, move |notebook| {
-        let mut committed = notebook.add_alias(&id, &name, Actor::Person)?;
+    run(&state.workshop, move |workshop| {
+        let mut committed = workshop.add_alias(&id, &name, Actor::Person)?;
         if let Some(committed) = &mut committed {
-            editor_receipt(notebook, &changes, committed)?;
+            editor_receipt(workshop, &changes, committed)?;
         }
         Ok(committed)
     })
@@ -179,7 +179,7 @@ pub(crate) async fn note_kinds(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<NoteKind>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |notebook| notebook.note_kinds(&id))
+    read(&state, move |workshop| workshop.note_kinds(&id))
         .await
         .map(Json)
 }
@@ -193,8 +193,8 @@ pub(crate) async fn written_journal_dates(
     query: Result<Query<JournalRange>, QueryRejection>,
 ) -> Result<Json<Vec<String>>, ApiError> {
     let Query(range) = query.map_err(ApiError::from)?;
-    read(&state, move |notebook| {
-        notebook.written_journal_dates(&range.from, &range.to)
+    read(&state, move |workshop| {
+        workshop.written_journal_dates(&range.from, &range.to)
     })
     .await
     .map(Json)

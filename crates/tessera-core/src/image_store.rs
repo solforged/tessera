@@ -6,12 +6,12 @@ use rusqlite::{Connection, params};
 use crate::capabilities::ImageRef;
 use crate::library_store::validate_sha;
 use crate::storage::{quote_target, validation};
-use crate::{Block, BlockCapabilities, BlockKind, Notebook, Result};
+use crate::{Block, BlockCapabilities, BlockKind, Result, Workshop};
 
 const CHOOSE_IMAGE: &str = "Choose a PNG, JPEG, WebP or GIF image.";
 const QUOTED_IMAGE: &str = "A quoted copy can't hold an image.";
 
-/// Sniff the raster formats notebooks accept, independent of a supplied MIME type.
+/// Sniff the raster formats workshops accept, independent of a supplied MIME type.
 pub fn image_type(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
@@ -39,7 +39,7 @@ fn validate(image: &ImageRef) -> Result<()> {
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     pub fn put_image(&self, bytes: &[u8]) -> Result<ImageRef> {
         let media_type = image_type(bytes).ok_or_else(|| validation(CHOOSE_IMAGE))?;
         let size = imagesize::blob_size(bytes).map_err(|_| validation(CHOOSE_IMAGE))?;

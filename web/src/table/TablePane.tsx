@@ -32,7 +32,7 @@ import type {
   Type,
   View,
 } from '../api/types';
-import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
+import type { WorkshopClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { titleKey } from '../document/title-key';
 import { BlockText } from '../outline/BlockText';
@@ -109,7 +109,7 @@ export interface TablePaneProps {
   pane: PaneId;
   target: TableTarget;
   view: TableViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   active: boolean;
   neighbour?: boolean;
   onActivate(): void;
@@ -292,7 +292,7 @@ function TableContent(props: TablePaneProps) {
   let savedController: AbortController | undefined;
   onCleanup(() => savedController?.abort());
   createEffect(() => {
-    const change = props.notebook.lastChange();
+    const change = props.workshop.lastChange();
     if (change?.views?.length) setSavedRevision(change.seq);
   });
   const [saved, { refetch: refetchSaved, mutate: setSaved }] = createResource(
@@ -334,7 +334,7 @@ function TableContent(props: TablePaneProps) {
     ...attributes().filter(field => field.id !== '@due'),
     ...fields().filter(field => query().source !== 'tasks' || !taskFieldName(field)),
   ]);
-  /** Sort, Group and Filters offer the type's own fields first, then built-in attributes, then the rest of the notebook's fields. */
+  /** Sort, Group and Filters offer the type's own fields first, then built-in attributes, then the rest of the workshop's fields. */
   const fieldGroups = createMemo(() => {
     const template = new Set(query().type ? (type()?.fields ?? []) : []);
     const own = fields()
@@ -567,8 +567,8 @@ function TableContent(props: TablePaneProps) {
   });
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
   const labelFilter = (filter: Filter) =>
-    plainText(filterLabel(filter, pickerFields(), props.notebook, query().field_names), id =>
-      props.notebook.lookup(id),
+    plainText(filterLabel(filter, pickerFields(), props.workshop, query().field_names), id =>
+      props.workshop.lookup(id),
     );
   const title = () => {
     const kind = typeKind();
@@ -576,7 +576,7 @@ function TableContent(props: TablePaneProps) {
       ? kindLabel(kind)
       : (type()?.plural ??
           (query().type
-            ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '')
+            ? autoPlural(props.workshop.lookup(query().type!)()?.text ?? '')
             : query().source
               ? sourceName(query().source)
               : ''));
@@ -608,13 +608,13 @@ function TableContent(props: TablePaneProps) {
       count === 1
         ? (typeKind()?.name ??
           type()?.page.text ??
-          (query().type ? (props.notebook.lookup(query().type!)()?.text ?? plural) : plural.slice(0, -1)))
+          (query().type ? (props.workshop.lookup(query().type!)()?.text ?? plural) : plural.slice(0, -1)))
         : plural;
     return [
       `${canAppend() ? `${(result()?.rows.length ?? 0).toLocaleString()} of ` : ''}${count.toLocaleString()} ${noun.toLocaleLowerCase()}`,
       ...(query().text ? [`“${query().text}”`] : []),
       ...(['links', 'from', 'cites'] as const).flatMap(key =>
-        (query()[key] ?? []).map(id => `${key} ${props.notebook.lookup(id)()?.text ?? 'Loading…'}`),
+        (query()[key] ?? []).map(id => `${key} ${props.workshop.lookup(id)()?.text ?? 'Loading…'}`),
       ),
       ...query().filters.map(labelFilter),
       ...(query().sort.length ? [`sorted by ${query().sort.map(labelSort).join(', ')}`] : []),
@@ -657,7 +657,7 @@ function TableContent(props: TablePaneProps) {
   let firstQuery = true;
   createEffect(() => {
     const value = copyQuery(query());
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     const controller = new AbortController();
     appendController?.abort();
     setAppending(false);
@@ -802,7 +802,7 @@ function TableContent(props: TablePaneProps) {
   const withDocument = async (pageId: string, action: (doc: PageDocument) => void | Promise<void>) => {
     let doc = documents.get(pageId);
     if (!doc) {
-      doc = props.notebook.open(pageId);
+      doc = props.workshop.open(pageId);
       documents.set(pageId, doc);
     }
     const current = doc;
@@ -1039,7 +1039,7 @@ function TableContent(props: TablePaneProps) {
                 },
               },
               {
-                label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view',
+                label: props.workshop.confirmViewDelete() ? 'Delete view…' : 'Delete view',
                 icon: 'trash' as const,
                 danger: true,
                 disabledReason: !saved() ? 'Loading…' : undefined,
@@ -1047,7 +1047,7 @@ function TableContent(props: TablePaneProps) {
                   const view = saved();
                   if (view) {
                     setError('');
-                    if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, view });
+                    if (props.workshop.confirmViewDelete()) setPopup({ kind: 'delete', anchor, view });
                     else void deleteView(view);
                   }
                 },
@@ -1223,7 +1223,7 @@ function TableContent(props: TablePaneProps) {
     setSelectedRow(row.block.block.id);
     const alongside = beside || listOpensBeside(null, !!props.neighbour);
     if (query().source === 'highlights') {
-      void props.notebook.api
+      void props.workshop.api
         .capabilities(row.block.block.id)
         .then(capabilities => {
           const citation = capabilities.citations?.[0];
@@ -1249,7 +1249,7 @@ function TableContent(props: TablePaneProps) {
     setError('');
     setRowNotice(undefined);
     setSelectedRow(row.block.block.id);
-    setRenaming({ row, text: props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text });
+    setRenaming({ row, text: props.workshop.lookup(row.block.block.id)()?.text ?? row.block.block.text });
   };
   const commitTitle = async (returnFocus = false) => {
     const current = renaming();
@@ -1262,11 +1262,11 @@ function TableContent(props: TablePaneProps) {
     const id = current.row.block.block.id;
     const duplicate =
       current.row.block.block.kind === 'page'
-        ? props.notebook
+        ? props.workshop
             .roots()
             .some(root => root.kind === 'page' && root.id !== id && titleKey(root.text) === titleKey(text))
         : current.row.block.block.kind === 'journal' &&
-          props.notebook.roots().some(root => root.kind === 'journal' && root.id !== id && root.text === text);
+          props.workshop.roots().some(root => root.kind === 'journal' && root.id !== id && root.text === text);
     if (duplicate) {
       setError('An atom already has that title.');
       return;
@@ -1346,7 +1346,7 @@ function TableContent(props: TablePaneProps) {
       anchor,
       label: 'Row actions',
       title: 'Row actions',
-      context: plainText(row.block.block.text, id => props.notebook.lookup(id)),
+      context: plainText(row.block.block.text, id => props.workshop.lookup(id)),
       items: rowItems(row, anchor),
     });
   };
@@ -1354,7 +1354,7 @@ function TableContent(props: TablePaneProps) {
   const rowContext = (row: QueryRow, card: HTMLElement) =>
     openContextMenu({
       source: card,
-      label: `Actions for ${plainText(row.block.block.text, id => props.notebook.lookup(id))}`,
+      label: `Actions for ${plainText(row.block.block.text, id => props.workshop.lookup(id))}`,
       items: rowItems(row, card),
     });
   const revealNewRow = async (target: Extract<OpenTarget, { kind: 'page' }>, beside: boolean) => {
@@ -1367,7 +1367,7 @@ function TableContent(props: TablePaneProps) {
     const id = target.pageId;
     await refreshCells();
     const row = result()?.rows.find(row => row.block.block.id === id);
-    setRowNotice({ id, title: props.notebook.lookup(id)()?.text ?? row?.block.block.text ?? 'Atom' });
+    setRowNotice({ id, title: props.workshop.lookup(id)()?.text ?? row?.block.block.text ?? 'Atom' });
     if (row) {
       // Read-only attributes and phone cards have no inline field editor to receive focus.
       const field =
@@ -1419,7 +1419,7 @@ function TableContent(props: TablePaneProps) {
     }
     const id = fieldEntryId(value.text);
     if (!id) return;
-    const target = props.notebook.lookup(id)() ?? (await props.notebook.api.block(id));
+    const target = props.workshop.lookup(id)() ?? (await props.workshop.api.block(id));
     props.onOpen(
       { kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) },
       beside || listOpensBeside(null, !!props.neighbour),
@@ -1436,7 +1436,7 @@ function TableContent(props: TablePaneProps) {
     const pending = withDocument(row.block.page.id, async doc => {
       if (!option && !relationPick && (value?.text ?? '') === text) return;
       const target = { field, ownerId: row.block.block.id, valueId: value?.id };
-      if (option) await createOptionValue(props.notebook, doc, target, option);
+      if (option) await createOptionValue(props.workshop, doc, target, option);
       else writeFieldValue(doc, target, text, undefined, relationPick);
       history.push({ kind: 'cell', doc, rowId: row.block.block.id, fieldId: field.id });
       undone.length = 0;
@@ -1471,7 +1471,7 @@ function TableContent(props: TablePaneProps) {
       void writeCell(row, field, checkboxValue(values[0]?.text ?? '') ? 'no' : 'yes').catch(message);
       return;
     }
-    if (hasValueEditor(field, values[0]?.text ?? '', props.notebook.todayDate())) {
+    if (hasValueEditor(field, values[0]?.text ?? '', props.workshop.todayDate())) {
       setPopup({ kind: 'value', row, field, anchor });
       return;
     }
@@ -1551,8 +1551,8 @@ function TableContent(props: TablePaneProps) {
         }
         await refetchViews();
       } else if (entry.kind === 'created-row') {
-        if (redo) await props.notebook.restorePage(entry.pageId);
-        else await props.notebook.deletePage(entry.pageId, { retainHistory: true });
+        if (redo) await props.workshop.restorePage(entry.pageId);
+        else await props.workshop.deletePage(entry.pageId, { retainHistory: true });
         setRowNotice(undefined);
         await refreshCells();
         const next = redo
@@ -1661,8 +1661,8 @@ function TableContent(props: TablePaneProps) {
         <TableFieldValue
           field={fieldById(id)}
           values={row.values[id] ?? []}
-          notebook={props.notebook}
-          today={prose ? props.notebook.todayDate() : undefined}
+          workshop={props.workshop}
+          today={prose ? props.workshop.todayDate() : undefined}
           hideCount={hideCount || id === sourceField()?.id}
           onPill={(value, anchor, beside) => {
             const field = fieldById(id);
@@ -1674,9 +1674,9 @@ function TableContent(props: TablePaneProps) {
     >
       <TableAttributeValue
         field={fieldById(id)}
-        today={prose ? props.notebook.todayDate() : undefined}
+        today={prose ? props.workshop.todayDate() : undefined}
         values={row.attributes?.[id] ?? []}
-        notebook={props.notebook}
+        workshop={props.workshop}
         onOpen={props.onOpen}
       />
     </Show>
@@ -1713,8 +1713,8 @@ function TableContent(props: TablePaneProps) {
         <TableCellText>
           {expanded => (
             <BlockText
-              text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)}
-              notebook={props.notebook}
+              text={preview(props.workshop.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)}
+              workshop={props.workshop}
               interactive={false}
               cards
             />
@@ -1965,7 +1965,7 @@ function TableContent(props: TablePaneProps) {
             </SearchWell>
           }
         >
-          <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery}>
+          <NoteFind query={query()} plural={title()} workshop={props.workshop} onChange={updateQuery}>
             {control}
           </NoteFind>
         </Show>
@@ -2077,7 +2077,7 @@ function TableContent(props: TablePaneProps) {
   const queryToolbar = () => (
     <>
       <Show when={query().note_kind}>
-        <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} />
+        <NoteFind query={query()} plural={title()} workshop={props.workshop} onChange={updateQuery} />
       </Show>
       <div class="table-toolbar">
         <Button class="bordered table-chip" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)}>
@@ -2190,12 +2190,12 @@ function TableContent(props: TablePaneProps) {
           )}
           {state.kind === 'task-field' && (
             <TaskFieldEditor
-              notebook={props.notebook}
+              workshop={props.workshop}
               doc={state.doc}
               id={state.row.block.block.id}
               field={taskFieldName(state.field)!}
               anchor={state.anchor}
-              contextDate={props.notebook.todayDate()}
+              contextDate={props.workshop.todayDate()}
               onSaved={async () => {
                 history.push({
                   kind: 'cell',
@@ -2222,7 +2222,7 @@ function TableContent(props: TablePaneProps) {
                 lockKind: true,
               }}
               anchor={state.anchor}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onDismiss={() => setPopup(null)}
               defaultBeside={window.matchMedia('(pointer: coarse)').matches && !!props.neighbour}
               onCreated={pageId => {
@@ -2246,7 +2246,7 @@ function TableContent(props: TablePaneProps) {
               }}
             >
               <p>
-                Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its{' '}
+                Delete “{plainText(state.row.block.block.text, id => props.workshop.lookup(id))}” and all its{' '}
                 {state.row.block.block.kind === 'block' ? 'children' : 'atoms'}?
               </p>
               <p class="muted">You can undo this deletion.</p>
@@ -2300,8 +2300,8 @@ function TableContent(props: TablePaneProps) {
               field={fieldById(state.field.id) ?? state.field}
               owner={{ id: state.row.block.block.id, page: state.row.block.page.id }}
               text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''}
-              notebook={props.notebook}
-              contextDate={props.notebook.todayDate()}
+              workshop={props.workshop}
+              contextDate={props.workshop.todayDate()}
               onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
               onWrite={(text, relationPick) =>
                 writeCell(state.row, state.field, text, state.value, undefined, relationPick)
@@ -2317,7 +2317,7 @@ function TableContent(props: TablePaneProps) {
             <FilterPopup
               anchor={state.anchor}
               fields={fieldGroups().flatMap(group => group.fields)}
-              notebook={props.notebook}
+              workshop={props.workshop}
               initialField={state.field}
               sheet={narrow()}
               onDismiss={() => setPopup(null)}
@@ -2344,7 +2344,7 @@ function TableContent(props: TablePaneProps) {
             <EmbedOnPagePicker
               anchor={state.anchor}
               view={state.view}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
               onDismiss={() => setPopup(null)}
             />
@@ -2493,7 +2493,7 @@ function TableContent(props: TablePaneProps) {
               anchor={state.anchor}
               label={state.label}
               sources={state.sources}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onDismiss={() => setPopup(null)}
             />
           )}
@@ -2755,7 +2755,7 @@ function TableContent(props: TablePaneProps) {
               neighbour={props.neighbour}
               query={query()}
               result={result() ?? { fields: fields(), columns: [], rows: [], total: 0 }}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
               onQueryChange={updateQuery}
               onEdited={doc => {
@@ -2775,7 +2775,7 @@ function TableContent(props: TablePaneProps) {
                   }}
                   rows={groupedRows()}
                   columns={visibleColumns()}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   field={fieldById}
                   fieldName={fieldName}
                   columnWidth={columnWidth}
@@ -2820,7 +2820,7 @@ function TableContent(props: TablePaneProps) {
                   query().links?.length ||
                   query().from?.length ||
                   query().cites?.length
-                    ? `No ${rowNoun()} match ${[...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook, query().field_names)), ...(query().text ? [`“${query().text}”`] : []), ...(['links', 'from', 'cites'] as const).flatMap(key => (query()[key]?.length ? [key] : []))].join(', ')}.`
+                    ? `No ${rowNoun()} match ${[...query().filters.map(filter => filterLabel(filter, pickerFields(), props.workshop, query().field_names)), ...(query().text ? [`“${query().text}”`] : []), ...(['links', 'from', 'cites'] as const).flatMap(key => (query()[key]?.length ? [key] : []))].join(', ')}.`
                     : `No ${rowNoun()} yet.`}
                 </p>
                 <Show
@@ -3029,7 +3029,7 @@ function TableAttributeValue(props: {
   field?: FieldDefinition /** Today's date, when dates read in prose (a phone card) rather than as stored. */;
   today?: string;
   values: QueryAttributeValue[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const choice = () => props.field?.kind === 'choice';
@@ -3055,7 +3055,7 @@ function TableAttributeValue(props: {
                           ? (proseDate(value.text.slice(0, 10), props.today) ?? value.text)
                           : preview(value.text, expanded)
                       }
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       interactive={false}
                     />
                   </span>
@@ -3063,11 +3063,11 @@ function TableAttributeValue(props: {
               >
                 <Button
                   class="table-value-pill"
-                  title={targetLabel(value.text, id => props.notebook.lookup(id)) || value.text}
+                  title={targetLabel(value.text, id => props.workshop.lookup(id)) || value.text}
                   onClick={async event => {
                     const beside = opensBeside(event);
                     const id = value.reading.ok ? value.reading.target! : '';
-                    const target = props.notebook.lookup(id)() ?? (await props.notebook.api.block(id));
+                    const target = props.workshop.lookup(id)() ?? (await props.workshop.api.block(id));
                     props.onOpen(
                       {
                         kind: 'page',
@@ -3078,7 +3078,7 @@ function TableAttributeValue(props: {
                     );
                   }}
                 >
-                  {targetLabel(value.text, id => props.notebook.lookup(id)) || value.text}
+                  {targetLabel(value.text, id => props.workshop.lookup(id)) || value.text}
                 </Button>
               </Show>
             </>
@@ -3108,7 +3108,7 @@ function TableCheckbox(props: { field: FieldDefinition; checked: boolean }) {
 function TableFieldValue(props: {
   field: FieldDefinition | undefined;
   values: FieldValue[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   hideCount?: boolean /** Today's date, when dates read in prose (a phone card) rather than as typed. */;
   today?: string;
   onPill(value: FieldValue, anchor: HTMLElement, beside: boolean): void;
@@ -3155,7 +3155,7 @@ function TableFieldValue(props: {
                           <BlockText
                             text={props.field?.kind === 'instance' ? value.text : preview(value.text, expanded)}
                             blockId={value.id}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             interactive={false}
                           />
                         </span>
@@ -3180,7 +3180,7 @@ function TableFieldValue(props: {
                                   : ''
                               }
                               blockId={value.id}
-                              notebook={props.notebook}
+                              workshop={props.workshop}
                               interactive={false}
                             />
                           </span>
@@ -3206,7 +3206,7 @@ function TableFieldValue(props: {
                                   : value.text
                             }
                             blockId={value.id}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             interactive={false}
                           />
                         </Button>
@@ -3226,9 +3226,9 @@ function TableFieldValue(props: {
                 <div
                   class="table-source-label"
                   classList={{ 'table-reading-problem': !!problems() }}
-                  title={problems() || plainText(source.label, id => props.notebook.lookup(id))}
+                  title={problems() || plainText(source.label, id => props.workshop.lookup(id))}
                 >
-                  <BlockText text={source.label} notebook={props.notebook} interactive={false} />
+                  <BlockText text={source.label} workshop={props.workshop} interactive={false} />
                 </div>
                 <Show when={source.hostname}>
                   <div class="table-source-host">{source.hostname}</div>
@@ -3266,7 +3266,7 @@ function TableFieldValue(props: {
                       >
                         <BlockText
                           text={preview(entry.remainder, expanded)}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           interactive={false}
                         />
                       </span>
@@ -3286,7 +3286,7 @@ function SourcesPopup(props: {
   anchor: HTMLElement;
   label: string;
   sources: TableSource[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onDismiss(): void;
 }) {
   return (
@@ -3324,7 +3324,7 @@ function SourcesPopup(props: {
             {source => (
               <li>
                 <a class="table-source-link" href={source.href} target="_blank" rel="noopener noreferrer" tabIndex={0}>
-                  {plainText(source.label, id => props.notebook.lookup(id))} <span aria-hidden="true">↗</span>
+                  {plainText(source.label, id => props.workshop.lookup(id))} <span aria-hidden="true">↗</span>
                 </a>
                 <Show when={source.hostname}>
                   <span class="table-source-host">{source.hostname}</span>

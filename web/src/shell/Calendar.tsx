@@ -1,5 +1,5 @@
 import { Show } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { createMonthPlanningMarks } from '../tasks/create-planning-marks';
 import { createMonthDayCounts } from '../tasks/month-day-counts';
 import { shiftCalendarDate } from '../tasks/week-calendar';
@@ -17,7 +17,7 @@ type Quick = 'yesterday' | 'today' | 'tomorrow' | 'other';
  * Yesterday, Today and Tomorrow at its foot. Elsewhere it is a small popup with scheduled and deadline marks.
  */
 export function Calendar(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   anchor: PopupAnchor;
   label?: string;
   date: string;
@@ -27,10 +27,10 @@ export function Calendar(props: {
   onSelect(date: string): void;
 }) {
   const sheet = isPhone();
-  const planning = sheet ? undefined : createMonthPlanningMarks(() => props.notebook, props.date);
+  const planning = sheet ? undefined : createMonthPlanningMarks(() => props.workshop, props.date);
   const counts = sheet
     ? createMonthDayCounts(
-        () => props.notebook,
+        () => props.workshop,
         props.date,
         () => props.today,
       )

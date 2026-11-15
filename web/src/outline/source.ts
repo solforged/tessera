@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createResource, createRoot, createSignal, on, type Accessor } from 'solid-js';
 import type { Block, ChangeEvent, FieldDefinition, SourceFormat } from '../api/types';
 import type { IconName } from '../ui/Icon';
-import type { BlockState, NotebookClient } from '../document/contract';
+import type { BlockState, WorkshopClient } from '../document/contract';
 import { plainText, referenceValue } from './names';
 import { textTokens } from '../document/text-tokens';
 import { fieldEntryId } from '../core/field-entry';
@@ -34,7 +34,7 @@ export function formatSourceValue(name: string, value: string): string {
   return value;
 }
 
-export function valueLabel(text: string, lookup: NotebookClient['lookup']): string {
+export function valueLabel(text: string, lookup: WorkshopClient['lookup']): string {
   return textTokens(text)
     .map(token => {
       if (token.kind !== 'reference') return token.value;
@@ -68,7 +68,7 @@ export function shortSourceTitle(title: string): string {
 }
 
 type SourceFormats = Accessor<ReadonlyMap<string, SourceFormat> | undefined>;
-const sourceFormatMaps = new WeakMap<NotebookClient, SourceFormats>();
+const sourceFormatMaps = new WeakMap<WorkshopClient, SourceFormats>();
 
 /** A change can add, drop or reformat a source only through a page the map hasn't seen, a removal, or a changed source capability. */
 export function changeTouchesSources(event: ChangeEvent, formats: ReadonlyMap<string, SourceFormat>): boolean {
@@ -82,12 +82,12 @@ export function changeTouchesSources(event: ChangeEvent, formats: ReadonlyMap<st
 }
 
 /** Every page icon reads one shared Sources index instead of each page's capabilities, so a long list costs one request. */
-function sourceFormats(notebook: NotebookClient): SourceFormats {
-  const cached = sourceFormatMaps.get(notebook);
+function sourceFormats(workshop: WorkshopClient): SourceFormats {
+  const cached = sourceFormatMaps.get(workshop);
   if (cached) return cached;
   const formats = createRoot(() => {
     const [version, setVersion] = createSignal(0);
-    const [index] = createResource(version, () => notebook.api.kindNotes('source'));
+    const [index] = createResource(version, () => workshop.api.kindNotes('source'));
     const map = createMemo(() => {
       if (index.error) return undefined;
       const value = index.latest;
@@ -105,7 +105,7 @@ function sourceFormats(notebook: NotebookClient): SourceFormats {
     let scheduled = false;
     createEffect(
       on(
-        () => notebook.lastChange(),
+        () => workshop.lastChange(),
         event => {
           if (!event || scheduled) return;
           const current = map();
@@ -120,18 +120,18 @@ function sourceFormats(notebook: NotebookClient): SourceFormats {
     );
     return map;
   });
-  sourceFormatMaps.set(notebook, formats);
+  sourceFormatMaps.set(workshop, formats);
   return formats;
 }
 
 /** The same source-aware identity in navigation, Find and reference suggestions. */
 export function createPageIcon(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   block: Accessor<Block>,
   enabled: Accessor<boolean> = () => true,
   journal: IconName = 'calendar',
 ): Accessor<IconName> {
-  const formats = sourceFormats(notebook);
+  const formats = sourceFormats(workshop);
   return () => {
     const kind = block().kind;
     if (kind === 'journal') return journal;
@@ -142,7 +142,7 @@ export function createPageIcon(
 }
 
 /** Whether a page is a work: a source, whose name is set in italics wherever it is named. Reads the same shared Sources index as page icons. */
-export function createWorkTest(notebook: NotebookClient): (pageId: string) => boolean {
-  const formats = sourceFormats(notebook);
+export function createWorkTest(workshop: WorkshopClient): (pageId: string) => boolean {
+  const formats = sourceFormats(workshop);
   return pageId => formats()?.has(pageId) ?? false;
 }

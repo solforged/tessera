@@ -1,4 +1,4 @@
-//! Plain-text renderings of notebook state for agents.
+//! Plain-text renderings of workshop state for agents.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use tessera_core::{
     QuoteState, SettingsView, TaskState, TaskStatus,
 };
 
-/// The notebook's calendar: today and the zone timestamps are shown in.
+/// The workshop's calendar: today and the zone timestamps are shown in.
 pub struct Clock {
     zone: jiff::tz::TimeZone,
     pub today: String,
@@ -28,7 +28,7 @@ impl Clock {
         })
     }
 
-    /// The calendar date of a Unix millisecond timestamp in the notebook zone.
+    /// The calendar date of a Unix millisecond timestamp in the workshop zone.
     pub fn date(&self, ms: i64) -> String {
         jiff::Timestamp::from_millisecond(ms)
             .map(|instant| instant.to_zoned(self.zone.clone()).date().to_string())
@@ -996,9 +996,9 @@ mod tests {
 
     #[test]
     fn page_render_reads_back_as_the_same_text_with_tags_links_and_quotes() {
-        use tessera_core::{Actor, Batch, Notebook, Operation};
+        use tessera_core::{Actor, Batch, Operation, Workshop};
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |n| format!("{n:026}");
         let insert = |n: u32, text: &str, heading: Option<u8>| Operation::Insert {
             id: id(n),
@@ -1103,9 +1103,9 @@ mod tests {
 
     #[test]
     fn page_header_shows_the_root_task_and_revisit_state_and_journal_only_once_assessed() {
-        use tessera_core::{Actor, Batch, Notebook, Operation, RevisitAction};
+        use tessera_core::{Actor, Batch, Operation, RevisitAction, Workshop};
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |n| format!("{n:026}");
         let batch = |operations| Batch {
             actor: Actor::Person,
@@ -1209,9 +1209,9 @@ mod tests {
 
     #[test]
     fn quote_render_uses_frozen_nested_rows_instead_of_the_marker() {
-        use tessera_core::{Actor, Batch, Notebook, Operation};
+        use tessera_core::{Actor, Batch, Operation, Workshop};
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |n| format!("{n:026}");
         let batch = |operations| Batch {
             actor: Actor::Person,
@@ -1285,9 +1285,9 @@ mod tests {
 
     #[test]
     fn page_render_titles_a_tagged_root_by_its_display_title_and_lists_the_tags() {
-        use tessera_core::{Actor, Batch, Notebook, Operation};
+        use tessera_core::{Actor, Batch, Operation, Workshop};
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |n| format!("{n:026}");
         nb.apply(&Batch {
             actor: Actor::Person,
@@ -1324,9 +1324,9 @@ mod tests {
 
     #[test]
     fn page_render_shows_relation_kind_target_and_problem() {
-        use tessera_core::{Actor, Batch, Notebook, Operation, RelationKind};
+        use tessera_core::{Actor, Batch, Operation, RelationKind, Workshop};
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let id = |n| format!("{n:026}");
         nb.apply(&Batch {
             actor: Actor::Person,
@@ -1375,10 +1375,10 @@ mod tests {
     #[test]
     fn choice_values_show_their_option_by_name_where_it_reads_back() {
         use tessera_core::{
-            Actor, AgentEdit, AgentRequest, Batch, NoteBlock, NoteTarget, Notebook, Operation,
+            Actor, AgentEdit, AgentRequest, Batch, NoteBlock, NoteTarget, Operation, Workshop,
         };
         let dir = tempfile::tempdir().unwrap();
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         let receipt = nb
             .agent_edit(&AgentRequest {
                 actor: Actor::Agent {
@@ -1435,7 +1435,7 @@ mod tests {
             zone: jiff::tz::TimeZone::UTC,
             today: "2026-11-01".into(),
         };
-        let rows = |nb: &Notebook, fields: &Fields| -> Vec<String> {
+        let rows = |nb: &Workshop, fields: &Fields| -> Vec<String> {
             let context = PageContext {
                 fields,
                 cards: &[],

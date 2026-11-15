@@ -24,7 +24,7 @@ iOS support is on main since 43a0e6cf (2026-10-24). The pieces:
 
 ## Platform details
 
-- Bundle ID `dev.tessera.ios`. The notebook lives in the app container under
+- Bundle ID `dev.tessera.ios`. The workshop lives in the app container under
   `Library/Application Support/dev.tessera.ios/notebook`, and upgrading the app
   in place keeps it.
 - iPhone 18 Pro: 402×874 pt @3x, with a 62 pt top and 34 pt bottom safe area.
@@ -61,7 +61,7 @@ acceptance stays host-side; resolve tools before runtime HOME changes.
    `xcrun devicectl device install app --device <confirmed-UDID> <verified-ipa>`,
    then launch with
    `xcrun devicectl device process launch --device <same-UDID> --terminate-existing dev.tessera.ios`
-   only within that authorized scope. Never uninstall or replace its notebook
+   only within that authorized scope. Never uninstall or replace its workshop
    for a test.
    - Install works while the phone is locked; launch fails with
      CoreDeviceError 10003. Don't rebuild: the app is installed, so tell the
@@ -285,7 +285,7 @@ opens the keyboard with the Outdent, Indent and Done bar. Tap software keys with
 
 - Opening EPUBs from other apps and sharing are Android only.
 - Development signing expires; rebuild when it does.
-- The iPhone has no Mac sync configured yet; it keeps its own notebook.
+- The iPhone has no Mac sync configured yet; it keeps its own workshop.
 
 ## Design rounds
 

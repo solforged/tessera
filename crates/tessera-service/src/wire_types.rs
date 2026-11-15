@@ -1,5 +1,5 @@
 //! The TypeScript declarations of the wire types, written from the Rust
-//! types that serialize them: the notebook's from `tessera-core`, the
+//! types that serialize them: the workshop's from `tessera-core`, the
 //! workshop routes' from `tessera-api` and the service's own. `mise run wire`
 //! rewrites `web/src/api/wire.ts`; the test fails when that file no longer
 //! matches. It lives here because this crate sees all three.
@@ -258,7 +258,7 @@ fn declarations() -> String {
         tessera_core::NoteState,
         tessera_core::NoteSummary,
         tessera_core::NoteView,
-        tessera_core::NotebookInfo,
+        tessera_core::WorkshopInfo,
         tessera_core::occlusion::Occlusion,
         tessera_core::occlusion::OcclusionGroup,
         tessera_core::occlusion::OcclusionMask,
@@ -394,10 +394,10 @@ fn declarations() -> String {
         crate::backups::CreatedBackup,
         crate::backups::OtherBackups,
         crate::backups::RestoringBackup,
-        crate::info::NotebookSize,
+        crate::info::WorkshopSize,
         crate::info::ServiceInfo,
         crate::notebooks::Entry,
-        crate::notebooks::Notebooks,
+        crate::notebooks::Workshops,
         crate::pairing::DeviceRecord,
         crate::pairing::PairingCode,
         crate::pairing::PairingStatus,

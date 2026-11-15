@@ -93,7 +93,7 @@ describe('provenanceDay', () => {
 });
 
 describe('civilDate', () => {
-  test('reads a timestamp’s date in the notebook zone', () => {
+  test('reads a timestamp’s date in the workshop zone', () => {
     const at = Date.UTC(2026, 9, 25, 23, 30);
     expect(civilDate(at, 'UTC')).toBe('2026-10-25');
     expect(civilDate(at, 'Asia/Tokyo')).toBe('2026-10-26');

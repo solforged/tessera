@@ -1,5 +1,5 @@
 use serde_json::{Value, json};
-use tessera_core::{Actor, Batch, CardUnit, Committed, DATABASE_FILE, Notebook, Operation};
+use tessera_core::{Actor, Batch, CardUnit, Committed, DATABASE_FILE, Operation, Workshop};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -7,7 +7,7 @@ fn id(n: u128) -> String {
 fn op(value: Value) -> Operation {
     serde_json::from_value(value).unwrap()
 }
-fn apply(nb: &mut Notebook, values: Vec<Value>) -> Committed {
+fn apply(nb: &mut Workshop, values: Vec<Value>) -> Committed {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -19,7 +19,7 @@ fn apply(nb: &mut Notebook, values: Vec<Value>) -> Committed {
 fn insert(n: u128, parent: &str, text: &str) -> Value {
     json!({"op":"insert", "id":id(n), "parent_id":parent, "after":null, "text":text, "heading":null})
 }
-fn edit(nb: &Notebook, n: u128, text: &str) -> Value {
+fn edit(nb: &Workshop, n: u128, text: &str) -> Value {
     json!({"op":"edit_text", "id":id(n), "base_revision":nb.block(&id(n)).unwrap().revision, "text":text})
 }
 fn recipe(n: u128, reverse: bool) -> Value {
@@ -28,9 +28,9 @@ fn recipe(n: u128, reverse: bool) -> Value {
 fn enable(n: u128) -> Value {
     json!({"op":"set_card_template_applied", "id":id(n), "base_revision":1, "applied":true})
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let register = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -46,7 +46,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     );
     (dir, nb)
 }
-fn member(nb: &mut Notebook, n: u128, text: &str) {
+fn member(nb: &mut Workshop, n: u128, text: &str) {
     apply(
         nb,
         vec![
@@ -210,7 +210,7 @@ fn conversion_and_inverse_replay_keep_identity_schedule_events_and_paused_direct
         .unwrap()
         .finish()
         .unwrap();
-    let mut replica = Notebook::open(replica_dir.path()).unwrap();
+    let mut replica = Workshop::open(replica_dir.path()).unwrap();
     replica.sync_adopt("in-process", &ticket).unwrap();
     let mut conversion = vec![recipe(50, false), enable(50), recipe(51, true), enable(51)];
     for (n, text, answer) in [

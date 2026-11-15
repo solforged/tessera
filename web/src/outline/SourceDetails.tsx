@@ -1,13 +1,13 @@
 import { Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { glide } from '../ui/pane-motion';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OutlinePaneProps } from './contract';
 import { MetadataInspector } from '../library/MetadataInspector';
 import { Popup } from '../ui/Popup';
 import './source-details.css';
 
 export function SourceDetails(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   pageId: string;
   onOpen: OutlinePaneProps['onOpen'];
   opener?: HTMLElement;
@@ -97,7 +97,7 @@ export function SourceDetails(props: {
               onDismiss={props.onClose}
             >
               <MetadataInspector
-                notebook={props.notebook}
+                workshop={props.workshop}
                 sourceIds={[props.pageId]}
                 onOpen={props.onOpen}
                 onClose={props.onClose}
@@ -118,7 +118,7 @@ export function SourceDetails(props: {
             }}
           >
             <MetadataInspector
-              notebook={props.notebook}
+              workshop={props.workshop}
               sourceIds={[props.pageId]}
               onOpen={props.onOpen}
               onClose={close}

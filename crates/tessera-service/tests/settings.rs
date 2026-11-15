@@ -4,7 +4,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::{Value, json};
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tower::ServiceExt;
 
 const PORT: u16 = 4396;
@@ -31,7 +31,7 @@ async fn request(app: &Router, method: &str, path: &str) -> (StatusCode, Value) 
 async fn service_reports_version_bound_port_assets_and_launch_agent() {
     let dir = tempfile::tempdir().unwrap();
     for assets in [None, Some(dir.path().join("web"))] {
-        let notebook = Notebook::open(dir.path().join("notebook")).unwrap();
+        let workshop = Workshop::open(dir.path().join("notebook")).unwrap();
         let mode = if assets.is_some() {
             "directory"
         } else if cfg!(feature = "embed-web") {
@@ -39,7 +39,7 @@ async fn service_reports_version_bound_port_assets_and_launch_agent() {
         } else {
             "none"
         };
-        let app = tessera_service::router(notebook, PORT, assets, None, None).unwrap();
+        let app = tessera_service::router(workshop, PORT, assets, None, None).unwrap();
         let (status, info) = request(&app, "GET", "/api/service").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
@@ -72,10 +72,10 @@ fn age_a_day(path: &std::path::Path) {
 async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
     let dir = tempfile::tempdir().unwrap();
     let store = dir.path().join("store");
-    let notebook = Notebook::open(dir.path().join("workshop")).unwrap();
-    let info = notebook.info().unwrap();
-    let sha = notebook.put_object(b"backup route object").unwrap();
-    let app = tessera_service::router(notebook, PORT, None, None, Some(store.clone())).unwrap();
+    let workshop = Workshop::open(dir.path().join("workshop")).unwrap();
+    let info = workshop.info().unwrap();
+    let sha = workshop.put_object(b"backup route object").unwrap();
+    let app = tessera_service::router(workshop, PORT, None, None, Some(store.clone())).unwrap();
     assert_eq!(
         request(&app, "GET", "/api/backups").await,
         (
@@ -107,9 +107,9 @@ async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
     age_a_day(path);
 
     // A new object changes the backup even without changing database bytes.
-    let notebook = Notebook::open(&info.path).unwrap();
-    notebook.put_object(b"a second object").unwrap();
-    drop(notebook);
+    let workshop = Workshop::open(&info.path).unwrap();
+    workshop.put_object(b"a second object").unwrap();
+    drop(workshop);
     let (status, edited) = request(&app, "POST", "/api/backups").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(edited["created"], true);
@@ -128,7 +128,7 @@ async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
         listed["store_size"],
         own_sizes + b"backup route object".len() as u64 + b"a second object".len() as u64
     );
-    let snapshot = Notebook::open(path).unwrap();
+    let snapshot = Workshop::open(path).unwrap();
     assert_eq!(snapshot.info().unwrap().id, info.id);
     assert_eq!(snapshot.read_object(&sha).unwrap(), b"backup route object");
 }
@@ -137,17 +137,17 @@ async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
 async fn other_backups_list_and_delete_without_removing_the_open_workshop() {
     let dir = tempfile::tempdir().unwrap();
     let store = dir.path().join("store");
-    let notebook = Notebook::open(dir.path().join("workshop")).unwrap();
-    let info = notebook.info().unwrap();
+    let workshop = Workshop::open(dir.path().join("workshop")).unwrap();
+    let info = workshop.info().unwrap();
     let current = tessera_core::backup_to_store(&info.path, &store).unwrap();
-    let other = Notebook::open(dir.path().join("other")).unwrap();
+    let other = Workshop::open(dir.path().join("other")).unwrap();
     let other_info = other.info().unwrap();
     other.put_object(b"other workshop object").unwrap();
     let first = tessera_core::backup_to_store(&other_info.path, &store).unwrap();
     age_a_day(&first.path);
     other.put_object(b"second other object").unwrap();
     let second = tessera_core::backup_to_store(&other_info.path, &store).unwrap();
-    let app = tessera_service::router(notebook, PORT, None, None, Some(store.clone())).unwrap();
+    let app = tessera_service::router(workshop, PORT, None, None, Some(store.clone())).unwrap();
     let listed = request(&app, "GET", "/api/backups").await.1;
     let expected_size: u64 = [&first.path, &second.path]
         .into_iter()
@@ -195,8 +195,8 @@ async fn other_backups_list_and_delete_without_removing_the_open_workshop() {
 #[tokio::test]
 async fn unavailable_backup_store_returns_not_found() {
     let dir = tempfile::tempdir().unwrap();
-    let notebook = Notebook::open(dir.path()).unwrap();
-    let app = tessera_service::router(notebook, PORT, None, None, None).unwrap();
+    let workshop = Workshop::open(dir.path()).unwrap();
+    let app = tessera_service::router(workshop, PORT, None, None, None).unwrap();
     for (method, path) in [
         ("GET", "/api/backups"),
         ("POST", "/api/backups"),

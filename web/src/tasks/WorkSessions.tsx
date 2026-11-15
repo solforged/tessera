@@ -16,7 +16,7 @@ export interface WorkSessionsProps {
   onEdit(id: string, note: string): void | Promise<void>;
 }
 
-/** Elapsed work as `h:mm:ss`, the one shape every clock in the notebook uses. */
+/** Elapsed work as `h:mm:ss`, the one shape every clock in the workshop uses. */
 export function workDuration(milliseconds: number): string {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
   return `${Math.floor(seconds / 3600)}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;

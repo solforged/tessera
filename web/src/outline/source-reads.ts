@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createResource, createRoot, createSignal, on, untrack } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { BlockCapabilities, ChangeEvent, SourceRecord } from '../api/types';
 import { ApiError } from '../api/client';
 import { isStableReference, textTokens } from '../document/text-tokens';
@@ -26,7 +26,7 @@ interface Reads {
   drop(stale: (id: string, read: Read) => boolean): void;
 }
 
-const notebookReads = new WeakMap<NotebookClient, Reads>();
+const workshopReads = new WeakMap<WorkshopClient, Reads>();
 
 /**
  * Whether a change can alter a cached read. A source's record derives from its own title, the fields on its
@@ -50,8 +50,8 @@ function staleAfter(event: ChangeEvent): (id: string, read: Read) => boolean {
     read.sequence < event.seq && (touches(id) || read.quoted.some(touches) || (read.source && roots));
 }
 
-function notebookCache(notebook: NotebookClient): Reads {
-  const cached = notebookReads.get(notebook);
+function workshopCache(workshop: WorkshopClient): Reads {
+  const cached = workshopReads.get(workshop);
   if (cached) return cached;
   const entries = new Map<string, Read>();
   const [version, setVersion] = createSignal(0);
@@ -65,11 +65,11 @@ function notebookCache(notebook: NotebookClient): Reads {
     if (dropped) setVersion(value => value + 1);
   };
   const reads: Reads = { entries, version, drop };
-  let observed = untrack(() => notebook.changeSequence());
+  let observed = untrack(() => workshop.changeSequence());
   createRoot(() => {
     createEffect(
       on(
-        () => notebook.lastChange(),
+        () => workshop.lastChange(),
         event => {
           if (!event) return;
           observed = Math.max(observed, event.seq);
@@ -81,10 +81,10 @@ function notebookCache(notebook: NotebookClient): Reads {
     // A reload moves the sequence with no event to say what changed. Own receipts move it just before their event, in the same task.
     createEffect(
       on(
-        () => notebook.changeSequence(),
+        () => workshop.changeSequence(),
         () =>
           queueMicrotask(() => {
-            const sequence = untrack(() => notebook.changeSequence());
+            const sequence = untrack(() => workshop.changeSequence());
             if (sequence <= observed) return;
             observed = sequence;
             drop(() => true);
@@ -93,24 +93,24 @@ function notebookCache(notebook: NotebookClient): Reads {
       ),
     );
   });
-  notebookReads.set(notebook, reads);
+  workshopReads.set(workshop, reads);
   return reads;
 }
 
 /** Changes whenever a cached read is dropped; resources built on these reads key on it instead of every change. */
-export function sourceReadsVersion(notebook: NotebookClient): number {
-  return notebookCache(notebook).version();
+export function sourceReadsVersion(workshop: WorkshopClient): number {
+  return workshopCache(workshop).version();
 }
 
-function capabilityRead(notebook: NotebookClient, id: string): Promise<BlockCapabilities | null> {
-  const { entries } = notebookCache(notebook);
+function capabilityRead(workshop: WorkshopClient, id: string): Promise<BlockCapabilities | null> {
+  const { entries } = workshopCache(workshop);
   const existing = entries.get(id);
   if (existing) return existing.request;
-  const request = notebook.api.capabilities(id).catch(error => {
+  const request = workshop.api.capabilities(id).catch(error => {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   });
-  const read: Read = { request, sequence: untrack(() => notebook.changeSequence()), source: true, quoted: [] };
+  const read: Read = { request, sequence: untrack(() => workshop.changeSequence()), source: true, quoted: [] };
   entries.set(id, read);
   request.then(
     value => {
@@ -124,34 +124,34 @@ function capabilityRead(notebook: NotebookClient, id: string): Promise<BlockCapa
   return request;
 }
 
-export function referenceSource(notebook: NotebookClient, id: string): Promise<SourceRecord | null> {
-  return capabilityRead(notebook, id).then(value => value?.source ?? null);
+export function referenceSource(workshop: WorkshopClient, id: string): Promise<SourceRecord | null> {
+  return capabilityRead(workshop, id).then(value => value?.source ?? null);
 }
 
 /** The source a Work or citation names: the source page itself, or the source its referenced highlight quotes. */
-export async function citedSource(notebook: NotebookClient, id: string): Promise<SourceRecord | null> {
-  const value = await capabilityRead(notebook, id);
+export async function citedSource(workshop: WorkshopClient, id: string): Promise<SourceRecord | null> {
+  const value = await capabilityRead(workshop, id);
   if (value?.source) return value.source;
   const quoted = value?.citations?.[0]?.source_id;
-  return quoted ? referenceSource(notebook, quoted) : null;
+  return quoted ? referenceSource(workshop, quoted) : null;
 }
 
 /** The source each ID cites, in the given order for `citedSigla`; empty while loading or after a failed read. */
 export function createCitedSources(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   ids: Accessor<readonly string[]>,
 ): Accessor<{ id: string; source: SourceRecord | null }[]> {
   const key = createMemo(() => ids().join('\u0000'));
   const [records] = createResource(
-    () => (key() ? { ids: untrack(ids), version: sourceReadsVersion(notebook) } : false),
-    ({ ids }) => Promise.all(ids.map(async id => ({ id, source: await citedSource(notebook, id).catch(() => null) }))),
+    () => (key() ? { ids: untrack(ids), version: sourceReadsVersion(workshop) } : false),
+    ({ ids }) => Promise.all(ids.map(async id => ({ id, source: await citedSource(workshop, id).catch(() => null) }))),
   );
   return () => (key() && !records.error ? (records() ?? []) : []);
 }
 
 /** Shared capability reads keep static text, the editor and gutter in agreement. */
 export function createCitationSources(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   texts: () => readonly string[],
   includeBare: () => boolean = () => false,
 ) {
@@ -166,15 +166,15 @@ export function createCitationSources(
           ),
         ),
       ];
-      return [ids, sourceReadsVersion(notebook)] as const;
+      return [ids, sourceReadsVersion(workshop)] as const;
     },
     async ([ids]) =>
       new Map(
         (
           await Promise.all(
             ids.map(async id => {
-              const target = notebook.lookup(id)();
-              const source = target === null || target?.kind === 'block' ? null : await referenceSource(notebook, id);
+              const target = workshop.lookup(id)();
+              const source = target === null || target?.kind === 'block' ? null : await referenceSource(workshop, id);
               return [id, source] as const;
             }),
           )

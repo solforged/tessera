@@ -48,7 +48,7 @@ import { MissingSections, ReadingCreators, SectionCapture } from './journal-sect
 import { requestCreate } from '../create/request';
 import type { JournalLayout } from './journal-sections';
 import { SectionHead } from '../ui/SectionHead';
-import { NotebookImage } from '../ui/NotebookImage';
+import { WorkshopImage } from '../ui/NotebookImage';
 import './image.css';
 
 export function createOutlineRows(
@@ -150,8 +150,8 @@ export function createOutlineRows(
     editedConflicts,
     setEditedConflicts,
   } = context;
-  const quoteStatus = createQuoteStatus(doc, props.notebook);
-  const taskProjects = createTaskProjects(doc, props.notebook);
+  const quoteStatus = createQuoteStatus(doc, props.workshop);
+  const taskProjects = createTaskProjects(doc, props.workshop);
   /**
    * A task's trailing facts: subtask progress, running or logged work, then planning in mono, which opens its field bed.
    * An open task with no plan offers Plan only while its row is hovered or selected; a finished one says when it was done.
@@ -161,7 +161,7 @@ export function createOutlineRows(
     const logged = () => doc.block(propsTask.id)?.loggedWorkMs ?? 0;
     const facts = createMemo(() => {
       const value = task();
-      return value ? taskFacts(value, { date: contextDate(), today: props.notebook.todayDate() }) : [];
+      return value ? taskFacts(value, { date: contextDate(), today: props.workshop.todayDate() }) : [];
     });
     const progress = createMemo(() => {
       let done = 0,
@@ -175,7 +175,7 @@ export function createOutlineRows(
       return total ? { done, total } : null;
     });
     const running = createMemo(() => {
-      const work = props.notebook.runningWork();
+      const work = props.workshop.runningWork();
       return work?.block_id === propsTask.id ? work : undefined;
     });
     // Completing a repeating task moves its dates forward; the facts glow once so the move is seen.
@@ -291,8 +291,8 @@ export function createOutlineRows(
                 <Show when={id() !== doc.pageId}>
                   <span class="outline-task-facts">
                     <BlockText
-                      text={props.notebook.lookup(id())()?.text ?? ''}
-                      notebook={props.notebook}
+                      text={props.workshop.lookup(id())()?.text ?? ''}
+                      workshop={props.workshop}
                       interactive={false}
                     />
                   </span>
@@ -326,7 +326,7 @@ export function createOutlineRows(
                 anchor: event.currentTarget,
                 label: 'Question',
                 title: 'Question',
-                context: plainText(doc.block(propsQuestion.id)?.text ?? '', target => props.notebook.lookup(target)),
+                context: plainText(doc.block(propsQuestion.id)?.text ?? '', target => props.workshop.lookup(target)),
                 items: investigationItems(propsQuestion.id, true),
               })
             }
@@ -356,7 +356,7 @@ export function createOutlineRows(
                 anchor: event.currentTarget,
                 label: 'Assessment',
                 title: 'Assessment',
-                context: plainText(doc.block(propsAnswer.id)?.text ?? '', target => props.notebook.lookup(target)),
+                context: plainText(doc.block(propsAnswer.id)?.text ?? '', target => props.workshop.lookup(target)),
                 items: investigationItems(propsAnswer.id, true),
               })
             }
@@ -379,7 +379,7 @@ export function createOutlineRows(
       valueProps.field.kind === 'instance' ? /^\[\[([^\]]+)\]\]$/.exec(text().trim())?.[1] : undefined,
     );
     const label = () =>
-      target() ? plainText(props.notebook.lookup(target()!)()?.text ?? text(), id => props.notebook.lookup(id)) : '';
+      target() ? plainText(props.workshop.lookup(target()!)()?.text ?? text(), id => props.workshop.lookup(id)) : '';
     const problem = createMemo(() => fieldValueProblem(valueProps.field, text()));
     const edit = (anchor: HTMLElement) => {
       context.setSelected(valueProps.id);
@@ -389,7 +389,7 @@ export function createOutlineRows(
       const targetId = target();
       if (!targetId) return;
       try {
-        const target = props.notebook.lookup(targetId)() ?? (await props.notebook.api.block(targetId));
+        const target = props.workshop.lookup(targetId)() ?? (await props.workshop.api.block(targetId));
         props.onOpen(
           { kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) },
           beside,
@@ -402,7 +402,7 @@ export function createOutlineRows(
     // A phone reads a date in prose, the way every list names a day; the editor still opens on the stored date.
     const day = () =>
       isPhone() && valueProps.field.kind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(text().trim())
-        ? calendarDate(text().trim(), props.notebook.todayDate())
+        ? calendarDate(text().trim(), props.workshop.todayDate())
         : undefined;
     return (
       <span
@@ -452,7 +452,7 @@ export function createOutlineRows(
                   {day() ?? (
                     <BlockText
                       text={text()}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       citationApparatus={fieldRole(valueProps.field) === 'citation'}
                       interactive={false}
                     />
@@ -638,15 +638,15 @@ export function createOutlineRows(
       const tags = [
         ...textTokens(value?.text ?? '')
           .filter(token => token.kind === 'tag')
-          .map(token => ({ id: token.id, name: tagLabel(token, id => props.notebook.lookup(id)) })),
+          .map(token => ({ id: token.id, name: tagLabel(token, id => props.workshop.lookup(id)) })),
         ...(value?.manual_types ?? []).map(name => ({
-          id: props.notebook.roots().find(page => titleKey(page.text) === titleKey(name))?.id,
+          id: props.workshop.roots().find(page => titleKey(page.text) === titleKey(name))?.id,
           name,
         })),
       ];
       for (const tag of tags) {
         const key = tag.id ?? titleKey(tag.name.trim());
-        if (!key || seen.has(key) || (tag.id && props.notebook.lookup(tag.id)() === null)) continue;
+        if (!key || seen.has(key) || (tag.id && props.workshop.lookup(tag.id)() === null)) continue;
         seen.add(key);
         decks.push(tag);
       }
@@ -703,7 +703,7 @@ export function createOutlineRows(
               field={field()}
               deletedHolder={block()?.position?.deleted_holder}
               citationApparatus={fieldRole(valueField()) === 'citation'}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
               onReferenceMenu={referenceMenu}
               selection={selectedOffsets(id())}
@@ -815,7 +815,7 @@ export function createOutlineRows(
         <Show when={missingBefore() || notesHead()}>
           <div class="row-section-banner">
             <Show when={missingBefore()}>
-              {sections => <MissingSections notebook={props.notebook} sections={sections()} />}
+              {sections => <MissingSections workshop={props.workshop} sections={sections()} />}
             </Show>
             <Show when={notesHead()}>{name => <SectionHead class="row-notes-head" name={name()} />}</Show>
           </div>
@@ -840,7 +840,7 @@ export function createOutlineRows(
           <span class="row-sigla">
             <For each={rowSources()}>
               {source => (
-                <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>
+                <span class="row-siglum" title={props.workshop.lookup(source)()?.text}>
                   {sigla().get(source)}
                 </span>
               )}
@@ -961,7 +961,7 @@ export function createOutlineRows(
                     context.openImage(id());
                   }}
                 >
-                  <NotebookImage image={image()} api={props.notebook.api} alt={block()?.text ?? ''} />
+                  <WorkshopImage image={image()} api={props.workshop.api} alt={block()?.text ?? ''} />
                 </button>
               </figure>
             )}
@@ -994,7 +994,7 @@ export function createOutlineRows(
                       id={id()}
                       target={target()!}
                       doc={doc}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       status={quoteStatus().get(id())}
                       onOpen={props.onOpen}
                     />
@@ -1038,7 +1038,7 @@ export function createOutlineRows(
                   <Match when={viewEmbed()}>
                     <ViewEmbed
                       reference={viewEmbed()!}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       onOpen={props.onOpen}
                       onReplace={text => apply({ kind: 'text', id: id(), text }, false)}
                       onRemove={() => apply({ kind: 'delete', ids: [id()] }, false)}
@@ -1049,7 +1049,7 @@ export function createOutlineRows(
                       {target => (
                         <Embed
                           target={target}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           onOpen={props.onOpen}
                           fallback={<StaticText />}
                         />
@@ -1065,7 +1065,7 @@ export function createOutlineRows(
                 {title => (
                   <TypePill
                     title={title}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     onOpen={props.onOpen}
                     onRestoreFocus={restoreFocus}
                     onRemove={() => {
@@ -1133,7 +1133,7 @@ export function createOutlineRows(
                     cards={derivedCards()}
                     decks={cardDecks()}
                     templateCount={block()?.templateCards ?? 0}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     onOpen={props.onOpen}
                     register={control => {
                       cardControl = control;
@@ -1145,7 +1145,7 @@ export function createOutlineRows(
                     <CitationChip
                       citation={citation}
                       pageId={props.pageId}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       onOpen={props.onOpen}
                     />
                   )}
@@ -1156,7 +1156,7 @@ export function createOutlineRows(
           <DiscoveryHints id={id()} />
           <QuestionParent
             info={block()?.question}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
             disabled={capabilities.busy(id())}
             onChange={anchor => capabilities.open(id(), 'question-parent', anchor)}
@@ -1172,10 +1172,10 @@ export function createOutlineRows(
             <AssessmentJournal
               questionId={id()}
               doc={doc}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={props.onOpen}
               onWrite={() =>
-                apply({ kind: 'writeAssessment', parentId: id(), assessedOn: props.notebook.todayDate() }, true)
+                apply({ kind: 'writeAssessment', parentId: id(), assessedOn: props.workshop.todayDate() }, true)
               }
             />
           </Show>
@@ -1294,7 +1294,7 @@ export function createOutlineRows(
           )}
         </Show>
         <Show when={editing() !== id() ? readingSource() : undefined}>
-          {source => <ReadingCreators notebook={props.notebook} sourceId={source()} text={block()?.text ?? ''} />}
+          {source => <ReadingCreators workshop={props.workshop} sourceId={source()} text={block()?.text ?? ''} />}
         </Show>
         <Show when={linkSite() && editing() !== id()}>
           <span class="row-link-site">{linkSite()}</span>
@@ -1352,7 +1352,7 @@ export function createOutlineRows(
         <ReferenceCount id={id()} />
         <sheet.FieldSlots id={id()} />
         <Show when={sectionHead()?.capture ? sectionHead()!.section : undefined}>
-          {section => <SectionCapture notebook={props.notebook} section={section()} />}
+          {section => <SectionCapture workshop={props.workshop} section={section()} />}
         </Show>
       </div>
     );

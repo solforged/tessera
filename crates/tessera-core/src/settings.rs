@@ -2,7 +2,7 @@ use jiff::{Timestamp, tz::TimeZone};
 use rusqlite::OptionalExtension;
 
 use crate::storage::validation;
-use crate::{Notebook, Result, Setting, SettingsView};
+use crate::{Result, Setting, SettingsView, Workshop};
 
 pub(crate) fn validate_setting(key: &str, value: &str) -> Result<()> {
     match key {
@@ -115,7 +115,7 @@ fn validate_today_template(value: &str) -> Result<()> {
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     pub fn settings(&self) -> Result<Vec<Setting>> {
         Ok(self
             .conn
@@ -131,13 +131,13 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
-    /// An unset notebook uses the service host's local zone, discovered by
+    /// An unset workshop uses the service host's local zone, discovered by
     /// Jiff from the operating system. Jiff falls back to UTC if unavailable.
     fn time_zone(&self) -> Result<TimeZone> {
         time_zone(&self.conn)
     }
 
-    /// Calendar date in the notebook zone at a Unix millisecond timestamp.
+    /// Calendar date in the workshop zone at a Unix millisecond timestamp.
     pub fn today(&self, now_ms: i64) -> Result<String> {
         date_in_zone(now_ms, self.time_zone()?)
     }

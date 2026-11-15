@@ -13,7 +13,7 @@ import {
 } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { ExtractedMetadata, FieldDefinition, SourceView } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
 import { textTokens } from '../document/text-tokens';
@@ -104,7 +104,7 @@ interface Evidence {
   extracted: Map<string, string[]>;
 }
 interface InspectorSelection {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   docs: PageDocument[];
   released: boolean;
 }
@@ -206,7 +206,7 @@ function InspectorGroup(props: {
 }
 
 export function MetadataInspector(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   sourceIds: readonly string[];
   onOpen(target: OpenTarget, beside: boolean): void;
   onClose(): void;
@@ -270,12 +270,12 @@ export function MetadataInspector(props: {
   const selection = createMemo(() => [...new Set(props.sourceIds)].join('\0'));
   createEffect(
     on(
-      () => [props.notebook, selection()] as const,
-      ([notebook, ids]) => {
+      () => [props.workshop, selection()] as const,
+      ([workshop, ids]) => {
         let cancelled = false;
         const selected: InspectorSelection = {
-          notebook,
-          docs: ids ? ids.split('\0').map(id => notebook.open(id)) : [],
+          workshop,
+          docs: ids ? ids.split('\0').map(id => workshop.open(id)) : [],
           released: false,
         };
         setRequested(undefined);
@@ -305,8 +305,8 @@ export function MetadataInspector(props: {
     ),
   );
   const [definitions] = createResource(
-    () => [props.notebook, props.notebook.changeSequence()] as const,
-    ([notebook]) => notebook.api.fields(),
+    () => [props.workshop, props.workshop.changeSequence()] as const,
+    ([workshop]) => workshop.api.fields(),
   );
   const evidenceKey = createMemo(
     () =>
@@ -324,8 +324,8 @@ export function MetadataInspector(props: {
         selected.docs.map(async doc => {
           const id = doc.pageId;
           const [view, extracted] = await Promise.all([
-            selected.notebook.api.source(id),
-            selected.notebook.api.extracted(id),
+            selected.workshop.api.source(id),
+            selected.workshop.api.extracted(id),
           ]);
           return [
             id,
@@ -395,7 +395,7 @@ export function MetadataInspector(props: {
       for (const role of ['author', 'editor', 'translator'] as const) {
         for (const text of item.extracted.get(role) ?? []) {
           const reference = textTokens(text).find(token => token.kind === 'reference');
-          creators.push({ id: reference?.id ?? null, name: valueLabel(text, id => props.notebook.lookup(id)), role });
+          creators.push({ id: reference?.id ?? null, name: valueLabel(text, id => props.workshop.lookup(id)), role });
         }
       }
       return creators.length ? creators : snapshot.metadata.creators.map(creator => ({ ...creator, id: null }));
@@ -406,13 +406,13 @@ export function MetadataInspector(props: {
     const raw = item.extracted.get(field === 'identifiers' ? 'identifier' : labels[field].toLocaleLowerCase());
     if (raw)
       return field === 'identifiers'
-        ? raw.map(text => valueLabel(text, id => props.notebook.lookup(id)))
-        : valueLabel(raw[0] ?? '', id => props.notebook.lookup(id));
+        ? raw.map(text => valueLabel(text, id => props.workshop.lookup(id)))
+        : valueLabel(raw[0] ?? '', id => props.workshop.lookup(id));
     const value = snapshot.metadata[key];
     return Array.isArray(value) ? (value as string[]) : (value ?? '');
   }
   function current(doc: PageDocument, field: SourceField): SourceFieldValue {
-    const value = sourceFieldValue(doc, props.notebook, fields(), field);
+    const value = sourceFieldValue(doc, props.workshop, fields(), field);
     if (field === 'published')
       return publicationReading(String(value), evidence()?.get(doc.pageId)?.view.snapshots) ?? '';
     if (
@@ -469,7 +469,7 @@ export function MetadataInspector(props: {
   async function save(selected: readonly PageDocument[], field: SourceField, value: SourceFieldValue) {
     if (selected.every(doc => metadataEqual(current(doc, field), value))) return;
     await perform(`${labels[field]} set`, selected.length, () =>
-      saveSourceField(selected, props.notebook, field, value),
+      saveSourceField(selected, props.workshop, field, value),
     );
   }
   async function travel(redo: boolean) {
@@ -641,7 +641,7 @@ export function MetadataInspector(props: {
     return (
       <>
         <MetadataCreators
-          notebook={props.notebook}
+          workshop={props.workshop}
           docs={selected}
           value={value()}
           disabled={!ready()}
@@ -749,7 +749,7 @@ export function MetadataInspector(props: {
     const selected = docs();
     try {
       await perform('Missing details checked', selected.length, () =>
-        fillMissingSourceDetails(selected, props.notebook),
+        fillMissingSourceDetails(selected, props.workshop),
       );
     } catch (reason) {
       setActionError(reason instanceof Error ? reason.message : String(reason));
@@ -964,7 +964,7 @@ export function MetadataInspector(props: {
           if (!file) return;
           setActionError('');
           void perform('Cover replaced', selected.length, async () =>
-            saveSourceField(selected, props.notebook, 'cover', await props.notebook.api.uploadCover(file)),
+            saveSourceField(selected, props.workshop, 'cover', await props.workshop.api.uploadCover(file)),
           ).catch(reason => setActionError(reason instanceof Error ? reason.message : String(reason)));
         }}
       />

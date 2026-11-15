@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 
 use crate::library::*;
 use crate::storage::{not_found, validate_id, validation};
-use crate::{BlockKind, Notebook, Operation, Result};
+use crate::{BlockKind, Operation, Result, Workshop};
 
 pub(crate) fn json<T: Serialize + ?Sized>(value: &T) -> String {
     serde_json::to_string(value).expect("library values serialize")
@@ -64,7 +64,7 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
 
 /// Content-addressed source bytes live in `objects/` beside the database.
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-impl Notebook {
+impl Workshop {
     pub fn object_path(&self, sha: &str) -> Result<PathBuf> {
         validate_sha(sha)?;
         Ok(self.dir.join("objects").join(&sha[..2]).join(&sha[2..]))
@@ -97,7 +97,7 @@ impl Notebook {
 /// Browsers have no filesystem beside the database, so objects are rows in
 /// the same OPFS-backed SQLite file (`browser_objects`, created on open).
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-impl Notebook {
+impl Workshop {
     pub fn read_object(&self, sha: &str) -> Result<Vec<u8>> {
         validate_sha(sha)?;
         self.conn
@@ -120,7 +120,7 @@ impl Notebook {
     }
 }
 
-impl Notebook {
+impl Workshop {
     pub fn stage_snapshot(
         &mut self,
         doc: &ExtractedDocument,

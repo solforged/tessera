@@ -1,5 +1,5 @@
 use tessera_core::{
-    Actor, Batch, Error, FieldKind, Notebook, Operation, Reading, SOURCE_TARGET, library::*,
+    Actor, Batch, Error, FieldKind, Operation, Reading, SOURCE_TARGET, Workshop, library::*,
 };
 
 fn id(n: u128) -> String {
@@ -28,16 +28,16 @@ fn child(n: u128, parent: &str, text: &str) -> Operation {
         heading: None,
     }
 }
-fn target(nb: &Notebook, targets: Vec<String>) -> Operation {
+fn target(nb: &Workshop, targets: Vec<String>) -> Operation {
     Operation::SetFieldTargets {
         id: id(10),
         base_revision: nb.block(&id(10)).unwrap().revision,
         targets,
     }
 }
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     nb.apply(&batch(vec![
         page(1, "Book"),
@@ -137,7 +137,7 @@ fn opening_backfills_once_through_logged_operations_and_preserves_existing_types
     .unwrap();
     let before = nb.changes_since(0, 1000).unwrap().len();
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert!(
         nb.kind_notes("person")
             .unwrap()
@@ -184,14 +184,14 @@ fn opening_backfills_once_through_logged_operations_and_preserves_existing_types
     let after = nb.changes_since(0, 1000).unwrap().len();
     assert_eq!(after, before + 1);
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.changes_since(0, 1000).unwrap().len(), after);
 }
 
 #[test]
 fn import_files_new_and_matched_untyped_creators_but_keeps_groups() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     nb.apply(&batch(vec![
         page(1, "Existing person"),
         page(2, "Existing group"),
@@ -364,7 +364,7 @@ fn incoming_field_values_read_whole_relation_references_from_live_owners() {
 #[test]
 fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     nb.apply(&batch(vec![
         page(1, "Book"),
@@ -379,7 +379,7 @@ fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() 
     ]))
     .unwrap();
     drop(nb);
-    let nb = Notebook::open(dir.path()).unwrap();
+    let nb = Workshop::open(dir.path()).unwrap();
     let translator = nb
         .field_detail(&id(10), None, None)
         .unwrap()
@@ -402,7 +402,7 @@ fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() 
     );
     let after = nb.changes_since(0, 1000).unwrap().len();
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.changes_since(0, 1000).unwrap().len(), after);
 
     let revision = nb.block(&id(10)).unwrap().revision;
@@ -431,7 +431,7 @@ fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() 
 fn a_client_adding_a_built_in_field_gets_the_core_definition() {
     use tessera_core::{CountsAs, FieldRole, TextRewrite};
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     nb.apply(&batch(vec![page(2, "Person"), page(3, "Group")]))
         .unwrap();
@@ -529,7 +529,7 @@ fn a_client_adding_a_built_in_field_gets_the_core_definition() {
 
     // Undoing a change that only named the field takes away the options the core gave it.
     let other = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(other.path()).unwrap();
+    let mut nb = Workshop::open(other.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let added = nb.apply(&batch(vec![child(30, &fields, "form")])).unwrap();
     let options = nb.fields().unwrap().fields[0].definition.options.clone();
@@ -546,7 +546,7 @@ fn a_client_adding_a_built_in_field_gets_the_core_definition() {
 #[test]
 fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     nb.apply(&batch(vec![
         page(1, "Book"),
@@ -558,7 +558,7 @@ fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
     ]))
     .unwrap();
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let book = nb.type_info(&id(1)).unwrap();
     let author = book.fields[0].clone();
     nb.apply(&batch(vec![
@@ -587,7 +587,7 @@ fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
     assert_eq!(empty.total, 2);
 
     // Reordering keeps it; dropping it is refused with the reason.
-    let set = |nb: &Notebook, fields: Vec<String>| {
+    let set = |nb: &Workshop, fields: Vec<String>| {
         batch(vec![Operation::SetTypeFields {
             type_id: id(1),
             base_revision: nb.block(&id(1)).unwrap().revision,
@@ -675,8 +675,8 @@ fn sources_are_a_links_to_choice_beside_types_and_built_in_work_links_to_them() 
     ]))
     .unwrap();
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
-    let definition = |nb: &Notebook, n| {
+    let mut nb = Workshop::open(dir.path()).unwrap();
+    let definition = |nb: &Workshop, n| {
         nb.field_detail(&id(n), None, None)
             .unwrap()
             .field

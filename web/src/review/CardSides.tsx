@@ -1,13 +1,13 @@
 import { For, Show, createMemo } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import type { CardAnswerBlock, CardKind } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { ClozeSegment } from '../core/card-text';
 import { occlusionSides } from '../core/card-text';
 import { OcclusionFigure } from './OcclusionFigure';
 import './card-sides.css';
-import { NotebookImage } from '../ui/NotebookImage';
+import { WorkshopImage } from '../ui/NotebookImage';
 import '../outline/image.css';
 
 export function CardFront(props: {
@@ -16,7 +16,7 @@ export function CardFront(props: {
   back: string;
   plain?: boolean;
   revealed?: boolean;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
 }) {
   return (
     <Show
@@ -24,13 +24,13 @@ export function CardFront(props: {
       fallback={
         <Show
           when={props.plain}
-          fallback={<BlockText text={props.front} notebook={props.notebook} interactive={false} />}
+          fallback={<BlockText text={props.front} workshop={props.workshop} interactive={false} />}
         >
           {props.front}
         </Show>
       }
     >
-      <OcclusionFigure front={props.front} back={props.back} revealed={props.revealed} notebook={props.notebook} />
+      <OcclusionFigure front={props.front} back={props.back} revealed={props.revealed} workshop={props.workshop} />
     </Show>
   );
 }
@@ -42,7 +42,7 @@ export function CardBack(props: {
   blocks?: CardAnswerBlock[];
   visibleItems?: number;
   plain?: boolean;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
 }) {
   const blocks = createMemo(() => {
     if (props.kind !== 'multiline' && props.kind !== 'list') return null;
@@ -58,9 +58,9 @@ export function CardBack(props: {
           fallback={
             <Show
               when={blocks()}
-              fallback={<BlockText text={props.back} notebook={props.notebook} interactive={false} />}
+              fallback={<BlockText text={props.back} workshop={props.workshop} interactive={false} />}
             >
-              {answer => <AnswerOutline blocks={answer()} numbered={props.kind === 'list'} notebook={props.notebook} />}
+              {answer => <AnswerOutline blocks={answer()} numbered={props.kind === 'list'} workshop={props.workshop} />}
             </Show>
           }
         >
@@ -74,7 +74,7 @@ export function CardBack(props: {
 }
 
 /** A list answer numbers its items in rubric, as a manuscript numbers its points; nested blocks keep plain bullets. */
-function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; notebook: NotebookClient }) {
+function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; workshop: WorkshopClient }) {
   return (
     <Dynamic component={props.numbered ? 'ol' : 'ul'} class="card-answer-outline">
       <For each={props.blocks}>
@@ -82,12 +82,12 @@ function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; n
           <li>
             <Show when={block.image}>
               {image => (
-                <NotebookImage class="card-answer-image" image={image()} api={props.notebook.api} alt={block.text} />
+                <WorkshopImage class="card-answer-image" image={image()} api={props.workshop.api} alt={block.text} />
               )}
             </Show>
-            <BlockText text={block.text} cards notebook={props.notebook} interactive={false} />
+            <BlockText text={block.text} cards workshop={props.workshop} interactive={false} />
             <Show when={block.children.length}>
-              <AnswerOutline blocks={block.children} notebook={props.notebook} />
+              <AnswerOutline blocks={block.children} workshop={props.workshop} />
             </Show>
           </li>
         )}
@@ -97,12 +97,12 @@ function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; n
 }
 
 /** A cloze's gaps read `[…]`, or `[hint]`, until revealed, wherever the card is shown. */
-export function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; notebook: NotebookClient }) {
+export function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; workshop: WorkshopClient }) {
   return (
     <For each={props.segments}>
       {segment =>
         'text' in segment ? (
-          <BlockText text={segment.text} notebook={props.notebook} interactive={false} />
+          <BlockText text={segment.text} workshop={props.workshop} interactive={false} />
         ) : (
           <Show
             when={props.revealed}
@@ -111,7 +111,7 @@ export function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; 
                 <span class="visually-hidden">{segment.hint ? 'Blank, hint: ' : 'Blank'}</span>
                 <span aria-hidden="true">[</span>
                 {segment.hint ? (
-                  <BlockText text={segment.hint} notebook={props.notebook} interactive={false} />
+                  <BlockText text={segment.hint} workshop={props.workshop} interactive={false} />
                 ) : (
                   <span aria-hidden="true">…</span>
                 )}
@@ -120,7 +120,7 @@ export function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; 
             }
           >
             <mark class="card-cloze-answer">
-              <BlockText text={segment.answer} notebook={props.notebook} interactive={false} />
+              <BlockText text={segment.answer} workshop={props.workshop} interactive={false} />
             </mark>
           </Show>
         )

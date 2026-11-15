@@ -4,7 +4,7 @@ use rusqlite::{Connection, params};
 
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, quote_target, validate_id, validation};
-use crate::{Block, Error, Notebook, QuoteState, QuoteStatus, QuotedRow, Result, Row, Subtree};
+use crate::{Block, Error, QuoteState, QuoteStatus, QuotedRow, Result, Row, Subtree, Workshop};
 
 const MAX_ROWS: usize = 200;
 const MAX_TEXT_BYTES: usize = 64 * 1024;
@@ -91,7 +91,7 @@ pub(crate) fn redirect(conn: &Connection, from: &str, into: &str) -> Result<Vec<
     Ok(live)
 }
 
-impl Notebook {
+impl Workshop {
     /// A visible block and its visible descendants in preorder, root depth 0.
     pub fn subtree(&self, id: &str, limit: usize) -> Result<Subtree> {
         validate_id(id)?;

@@ -1,6 +1,6 @@
 import { createSignal, Show } from 'solid-js';
 import { render } from 'solid-js/web';
-import { createNotebookClient } from '../src/document';
+import { createWorkshopClient } from '../src/document';
 import type { PageDocument } from '../src/document/contract';
 import type { Command, CommandRegistry, OpenTarget, ViewState } from '../src/core/contract';
 import { OutlinePane } from '../src/outline/OutlinePane';
@@ -36,7 +36,7 @@ declare global {
 const query = new URLSearchParams(location.search);
 const initialId = query.get('page');
 if (!initialId) throw new Error('The performance fixture requires ?page=LIVE_PAGE_ID from a real tessera service.');
-const client = createNotebookClient();
+const client = createWorkshopClient();
 const doc = client.open(initialId);
 const registrations = new Map<string, Command>();
 const registry: CommandRegistry = {
@@ -114,7 +114,7 @@ render(
   () => (
     <div class="perf-root">
       <header>
-        <strong>Spike 3 · real notebook</strong>
+        <strong>Spike 3 · real workshop</strong>
         <span data-vim-mode>{mode() ? `Vim: ${mode()}` : 'Vim off'}</span>
         <button type="button" onClick={() => setVim(value => !value)}>
           Toggle Vim
@@ -137,7 +137,7 @@ render(
               vim={vim()}
               onVimMode={setMode}
               commands={registry}
-              notebook={client}
+              workshop={client}
             />
           )}
         </Show>
@@ -154,7 +154,7 @@ render(
               vim={vim()}
               onVimMode={() => {}}
               commands={registry}
-              notebook={client}
+              workshop={client}
             />
           )}
         </Show>

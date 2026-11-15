@@ -4,7 +4,7 @@ import type { Subscription } from './pkg/tessera_web.js';
 import type {
   Fields,
   IngestJob,
-  NotebookInfo,
+  WorkshopInfo,
   Operation,
   PageView,
   Passage,
@@ -137,7 +137,7 @@ const boot = (async () => {
     );
   }
   await init();
-  const info = JSON.parse(await wasm.open()) as NotebookInfo;
+  const info = JSON.parse(await wasm.open()) as WorkshopInfo;
   const settings = await json<SettingsView>('GET', '/api/settings');
   const fresh = wasm.is_empty() && !settings.settings.some(value => value.key === 'time_zone');
   send({ type: 'ready', info, fresh });
@@ -224,7 +224,7 @@ async function receive(message: ToWorker): Promise<void> {
         await (message.type === 'restore'
           ? wasm.restore_notebook(new Uint8Array(message.body))
           : wasm.restore_upgrade_copy()),
-      ) as NotebookInfo;
+      ) as WorkshopInfo;
       send({ id: message.id, type: 'restored', info });
       break;
     }

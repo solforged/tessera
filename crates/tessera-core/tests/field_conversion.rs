@@ -1,4 +1,4 @@
-use tessera_core::{Actor, Batch, FieldKind, Notebook, Operation};
+use tessera_core::{Actor, Batch, FieldKind, Operation, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -12,7 +12,7 @@ fn insert(value: u128, parent: &str, text: &str) -> Operation {
         heading: None,
     }
 }
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> tessera_core::Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> tessera_core::Committed {
     nb.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -25,7 +25,7 @@ fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> tessera_core::Committ
 #[test]
 fn choice_conversion_deduplicates_links_and_reverts_in_one_batch() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let mut operations = vec![insert(10, &fields, "Strand")];
     for (index, (title, text)) in [
@@ -116,7 +116,7 @@ fn choice_conversion_deduplicates_links_and_reverts_in_one_batch() {
 #[test]
 fn conversion_candidates_include_all_values_and_reuse_existing_options() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let mut operations = vec![
         insert(10, &fields, "Strand"),
@@ -149,7 +149,7 @@ fn conversion_candidates_include_all_values_and_reuse_existing_options() {
 #[test]
 fn new_definition_never_adopts_a_blank_row_or_its_references() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -198,7 +198,7 @@ fn new_definition_never_adopts_a_blank_row_or_its_references() {
 #[test]
 fn merge_keeps_conflicting_entries_and_archive_keeps_readings() {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -271,7 +271,7 @@ fn span_readings_sort_and_filter_inclusive_ranges() {
         Direction, Filter, FilterOp, Query, Reading, ReadingValue, SortBy, SortKey, YearSpan,
     };
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let mut ops = vec![
         insert(10, &fields, "Lived"),
@@ -359,7 +359,7 @@ fn span_readings_sort_and_filter_inclusive_ranges() {
         );
     }
     drop(nb);
-    let reopened = Notebook::open(dir.path()).unwrap();
+    let reopened = Workshop::open(dir.path()).unwrap();
     assert_eq!(reopened.block(&id(301)).unwrap().text, "c. 200–118 BCE");
     assert_eq!(
         reopened

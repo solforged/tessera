@@ -1,6 +1,6 @@
 import { Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { View } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
@@ -15,15 +15,15 @@ export function viewReference(view: Pick<View, 'id' | 'name'>): string {
 
 export function ViewPicker(props: {
   anchor: PopupAnchor;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onDismiss(): void;
   onPick(view: View): void;
   error?: string;
 }) {
   const [query, setQuery] = createSignal('');
   const [views] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.views(),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.views(),
   );
   const choices = createMemo(() =>
     (views() ?? []).filter(view => view.name.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase())),
@@ -60,7 +60,7 @@ export function ViewPicker(props: {
 export function EmbedOnPagePicker(props: {
   anchor: PopupAnchor;
   view: View;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onDismiss(): void;
 }) {
@@ -68,14 +68,14 @@ export function EmbedOnPagePicker(props: {
   const [error, setError] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [names] = createResource(
-    () => [query(), props.notebook.roots()] as const,
-    ([text, roots]) => completeNames(props.notebook, text, roots),
+    () => [query(), props.workshop.roots()] as const,
+    ([text, roots]) => completeNames(props.workshop, text, roots),
   );
   const insert = async (pageId: string) => {
     if (busy()) return;
     setBusy(true);
     setError('');
-    const doc = props.notebook.open(pageId);
+    const doc = props.workshop.open(pageId);
     try {
       await documentReady(doc);
       const children = doc.outline.children(pageId);
@@ -117,7 +117,7 @@ export function EmbedOnPagePicker(props: {
       row={match => (
         <>
           <Icon name="note" />
-          <span class="picker-text">{displayTitle(match.page.text, id => props.notebook.lookup(id))}</span>
+          <span class="picker-text">{displayTitle(match.page.text, id => props.workshop.lookup(id))}</span>
           <Show when={match.alias}>
             <span class="reference-via">via {match.alias}</span>
           </Show>
@@ -167,7 +167,7 @@ export function createViewEmbedActions(
         {current => (
           <ViewPicker
             anchor={current.anchor}
-            notebook={context.props.notebook}
+            workshop={context.props.workshop}
             onDismiss={() => {
               setState(undefined);
               context.restoreFocus();

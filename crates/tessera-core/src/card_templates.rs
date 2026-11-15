@@ -8,8 +8,8 @@ use crate::fields::{constrained_reading, definitions};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
-    BlockKind, CardUnit, Error, FieldDefinition, Notebook, Operation, Reading, ReadingValue,
-    Result, Revision,
+    BlockKind, CardUnit, Error, FieldDefinition, Operation, Reading, ReadingValue, Result,
+    Revision, Workshop,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
@@ -778,7 +778,7 @@ pub(crate) fn local_day(conn: &Connection, now: i64) -> Result<(String, i64, i64
     ))
 }
 
-impl Notebook {
+impl Workshop {
     pub fn card_template(&self, id: &str) -> Result<CardTemplate> {
         get(&self.conn, id)
     }

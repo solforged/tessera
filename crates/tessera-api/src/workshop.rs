@@ -6,14 +6,14 @@ use axum::{
 
 use crate::capabilities;
 use crate::changes::{change_head, changes};
-use crate::check::{check_notebook, repair_notebook};
+use crate::check::{check_workshop, repair_workshop};
 use crate::error::ApiError;
 use crate::history::{agent_edit, apply, history, undo_change};
 use crate::images;
 use crate::library;
 use crate::pages::{
-    add_alias, block, deleted_pages, journal, note_kinds, notebook_info, page, page_by_title,
-    quote_snapshot, quote_status, roots, stream_arrivals, subtree, subtrees, written_journal_dates,
+    add_alias, block, deleted_pages, journal, note_kinds, page, page_by_title, quote_snapshot,
+    quote_status, roots, stream_arrivals, subtree, subtrees, workshop_info, written_journal_dates,
 };
 use crate::queries::{
     backlinks, card_template_forecast, card_templates, complete, entities, field_detail, fields,
@@ -30,7 +30,7 @@ where
     WorkshopState: FromRef<S>,
 {
     Router::new()
-        .route("/api/notebook", get(notebook_info))
+        .route("/api/notebook", get(workshop_info))
         .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
         .route("/api/pages/deleted", get(deleted_pages))
@@ -120,24 +120,24 @@ where
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
         .route("/api/changes/head", get(change_head))
-        .route("/api/check", get(check_notebook))
-        .route("/api/check/repair", post(repair_notebook))
+        .route("/api/check", get(check_workshop))
+        .route("/api/check/repair", post(repair_workshop))
         .route("/api/batches", post(apply))
         .route("/api/agent-changes", post(agent_edit))
         .route("/api/history", get(history))
         .route("/api/history/{seq}/undo", post(undo_change))
 }
 
-/// Build the notebook and library API for a host that runs the notebook in its own process.
+/// Build the workshop and library API for a host that runs the workshop in its own process.
 /// It has no socket, so it omits the host and origin policy, static assets, service details
 /// and the WebSocket change stream; hosts deliver changes from [`EmbeddedHandles`].
 /// The browser worker ingests queued uploads before this returns.
 pub fn embedded_router(
-    notebook: tessera_core::Notebook,
+    workshop: tessera_core::Workshop,
 ) -> Result<(Router, EmbeddedHandles), String> {
-    let state = WorkshopState::open(notebook)?;
+    let state = WorkshopState::open(workshop)?;
     let handles = EmbeddedHandles {
-        notebook: state.notebook.clone(),
+        workshop: state.workshop.clone(),
         changes: state.changes.clone(),
     };
     let router = workshop_routes()

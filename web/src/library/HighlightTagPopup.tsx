@@ -65,7 +65,7 @@ export function createHighlightTagPrompt() {
           const citationId = value.anchor.dataset.citationId;
           const paneElement = value.anchor.closest<HTMLElement>('.pane');
           let last: DOMRect | null = value.anchor === body ? null : value.anchor.getBoundingClientRect();
-          // Every notebook change re-creates the highlight's span, so the popup follows whichever span is current.
+          // Every workshop change re-creates the highlight's span, so the popup follows whichever span is current.
           const live = () =>
             value.anchor.isConnected || !citationId
               ? value.anchor

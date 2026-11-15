@@ -1,15 +1,15 @@
 import { ApiError } from '../api/client';
 import type { Block, PageView } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { foldName } from '../outline/names';
 import { readingRowSource, writtenSections } from '../tasks/today-template';
 import type { TodayTemplate } from '../tasks/today-template';
 
 /** Today's journal as the service has it, or null before anything is written there. */
-export async function todayJournal(notebook: NotebookClient): Promise<PageView | null> {
+export async function todayJournal(workshop: WorkshopClient): Promise<PageView | null> {
   try {
-    const { id } = await notebook.api.journal(notebook.todayDate());
-    return await notebook.api.page(id);
+    const { id } = await workshop.api.journal(workshop.todayDate());
+    return await workshop.api.page(id);
   } catch (reason) {
     if (reason instanceof ApiError && reason.status === 404) return null;
     throw reason;

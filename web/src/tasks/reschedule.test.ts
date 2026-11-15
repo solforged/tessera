@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 import type { Block, Committed, Operation, TaskRow, TaskState } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { movableTo, movedWhen, moveChoices, rescheduleTasks, shortDay } from './reschedule';
 
 const task: TaskState = {
@@ -49,7 +49,7 @@ function commandBoundary() {
       }),
     }),
   );
-  return { notebook: { commit } as unknown as NotebookClient, commit };
+  return { workshop: { commit } as unknown as WorkshopClient, commit };
 }
 
 describe('agenda rescheduling', () => {
@@ -59,10 +59,10 @@ describe('agenda rescheduling', () => {
     ['2026-10-11', null],
     ['2026-10-12', null],
   ] as const)('changes 19:00 to %s at %s and Undo restores the complete plan', async (date, time) => {
-    const { notebook, commit } = commandBoundary();
+    const { workshop, commit } = commandBoundary();
     const original = row('timed');
     const before = structuredClone(original);
-    const result = await rescheduleTasks(notebook, [original], date, 'Reschedule task', time);
+    const result = await rescheduleTasks(workshop, [original], date, 'Reschedule task', time);
     expect(result?.count).toBe(1);
     expect(commit.mock.calls[0]![0]).toEqual([
       { op: 'set_task', id: 'timed', base_revision: 3, task: { ...task, scheduled: date, scheduled_time: time } },
@@ -73,24 +73,24 @@ describe('agenda rescheduling', () => {
   });
 
   test('adds a time to an all-day task without moving its day', async () => {
-    const { notebook, commit } = commandBoundary();
+    const { workshop, commit } = commandBoundary();
     const original = row('all-day', { scheduled_time: null });
-    expect((await rescheduleTasks(notebook, [original], task.scheduled!, 'Reschedule task', '14:30'))?.count).toBe(1);
+    expect((await rescheduleTasks(workshop, [original], task.scheduled!, 'Reschedule task', '14:30'))?.count).toBe(1);
     expect(commit.mock.calls[0]![0]).toEqual([
       { op: 'set_task', id: 'all-day', base_revision: 3, task: { ...original.task, scheduled_time: '14:30' } },
     ]);
   });
 
   test('date-only day moves preserve time', async () => {
-    const { notebook, commit } = commandBoundary();
-    await rescheduleTasks(notebook, [row('timed')], '2026-10-12', 'Move task');
+    const { workshop, commit } = commandBoundary();
+    await rescheduleTasks(workshop, [row('timed')], '2026-10-12', 'Move task');
     expect(commit.mock.calls[0]![0]).toEqual([
       { op: 'set_task', id: 'timed', base_revision: 3, task: { ...task, scheduled: '2026-10-12' } },
     ]);
   });
 
   test('bulk day moves preserve each original time and Undo restores dates and times together', async () => {
-    const { notebook, commit } = commandBoundary();
+    const { workshop, commit } = commandBoundary();
     const originals = [
       row('evening'),
       row('morning', { scheduled: '2026-10-10', scheduled_time: '08:15' }, 8),
@@ -101,7 +101,7 @@ describe('agenda rescheduling', () => {
       row('done', { status: 'done', completed_on: '2026-10-11' }),
       row('cancelled', { status: 'cancelled' }),
     ];
-    const result = await rescheduleTasks(notebook, [...originals, unchanged, ...finished], '2026-10-12', 'Move tasks');
+    const result = await rescheduleTasks(workshop, [...originals, unchanged, ...finished], '2026-10-12', 'Move tasks');
     expect(result?.count).toBe(3);
     expect(commit).toHaveBeenCalledTimes(1);
     expect(commit.mock.calls[0]![0]).toEqual(
@@ -124,16 +124,16 @@ describe('agenda rescheduling', () => {
   });
 
   test('same-day no-ops and finished tasks never submit a command', async () => {
-    const { notebook, commit } = commandBoundary();
+    const { workshop, commit } = commandBoundary();
     const original = row('timed');
-    expect(await rescheduleTasks(notebook, [original], task.scheduled!, 'Unchanged')).toBeNull();
-    expect(await rescheduleTasks(notebook, [original], task.scheduled!, 'Unchanged', '19:00')).toBeNull();
+    expect(await rescheduleTasks(workshop, [original], task.scheduled!, 'Unchanged')).toBeNull();
+    expect(await rescheduleTasks(workshop, [original], task.scheduled!, 'Unchanged', '19:00')).toBeNull();
     expect(
-      await rescheduleTasks(notebook, [row('all-day', { scheduled_time: null })], task.scheduled!, 'Unchanged', null),
+      await rescheduleTasks(workshop, [row('all-day', { scheduled_time: null })], task.scheduled!, 'Unchanged', null),
     ).toBeNull();
     expect(
       await rescheduleTasks(
-        notebook,
+        workshop,
         [row('done', { status: 'done' }), row('cancelled', { status: 'cancelled' })],
         '2026-10-12',
         'Unchanged',

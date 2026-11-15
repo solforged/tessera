@@ -1,6 +1,6 @@
 ---
 name: capturing-tessera-publication-screenshots
-description: "Captures public Tessera app screenshots from a seeded throwaway notebook in headless Chromium when solforged.io entries or Tessera's README (docs/images) need current images."
+description: "Captures public Tessera app screenshots from a seeded throwaway workshop in headless Chromium when solforged.io entries or Tessera's README (docs/images) need current images."
 ---
 
 # Capturing Tessera publication screenshots
@@ -18,7 +18,7 @@ publication outputs.
 
 ## Rules
 
-- Never use the live notebook, the installed app, or ports 4317/4318/4320/5173.
+- Never use the live workshop, the installed app, or ports 4317/4318/4320/5173.
 - Use public content only: the anacyclosis concept with its six holders, sources
   from the site's `src/data/references.json`, Polybius 6 from LacusCurtius, and
   Machiavelli's _Discourses on Livy_ (Gutenberg 10827, Ninian Hill Thomson
@@ -28,14 +28,14 @@ publication outputs.
 - Seed CSL sources with `Siglum:: <citation-label>` so Tessera's marks match the
   site (IBN, not KHA).
 - Before capturing, ask the ~/src/site `omp` session over intercom whether it is
-  already capturing Tessera. It keeps a public anacyclosis notebook
+  already capturing Tessera. It keeps a public anacyclosis workshop
   (perspectives, sigla, Polybius 6 reader); existing finals at
   `~/Documents/solforge-process/<date>/tessera-current/final/` may be reused
   after confirming their provenance/content and permission. Do not share its
-  mutable notebook, profile or service. New capture originals belong in
+  mutable workshop, profile or service. New capture originals belong in
   `TASK_EVIDENCE`.
 
-## Notebook
+## Workshop
 
 - **Site entries, at a pinned commit:** select the capture checkout through the
   shared procedure rather than create a fixed `/tmp` worktree. Build the release
@@ -111,7 +111,7 @@ Generate IDs as 26-character Crockford ULIDs. Each operation needs the
 
 ## Finish
 
-- Site: captions name the pinned commit, theme and "public example notebook".
+- Site: captions name the pinned commit, theme and "public example workshop".
   Retain the capture manifest in `TASK_EVIDENCE`. Before an authorized site
   commit, verify every Tessera hash in `src/content` is still on `origin/main`;
   coordinate with the site's owner rather than write its shared checkout.

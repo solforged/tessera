@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { AgendaItem } from '../api/types';
 import { groupAgenda } from '../tasks/task-labels';
 
@@ -27,19 +27,19 @@ export interface DeskCounts {
   highlights: number;
 }
 
-export function deskCounts(notebook: NotebookClient, date: Accessor<string>): Accessor<DeskCounts | undefined> {
+export function deskCounts(workshop: WorkshopClient, date: Accessor<string>): Accessor<DeskCounts | undefined> {
   const [counts, setCounts] = createSignal<DeskCounts>();
   createEffect(() => {
     const day = date();
-    notebook.changeSequence();
-    notebook.lastChange();
+    workshop.changeSequence();
+    workshop.lastChange();
     const controller = new AbortController();
     const timer = setTimeout(() => {
       void Promise.all([
-        notebook.api.agenda(day, controller.signal),
-        notebook.api.cardQuery({ source: null, selection: 'due', limit: 1 }, controller.signal),
-        notebook.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
-        notebook.api.revisits(day, controller.signal),
+        workshop.api.agenda(day, controller.signal),
+        workshop.api.cardQuery({ source: null, selection: 'due', limit: 1 }, controller.signal),
+        workshop.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
+        workshop.api.revisits(day, controller.signal),
       ]).then(
         ([agenda, cards, highlights, revisits]) => {
           if (controller.signal.aborted) return;

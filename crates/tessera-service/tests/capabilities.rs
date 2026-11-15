@@ -4,7 +4,7 @@ use axum::{
     http::{Method, Request, StatusCode},
 };
 use serde_json::{Value, json};
-use tessera_core::{Notebook, TaskState};
+use tessera_core::{TaskState, Workshop};
 use tower::ServiceExt;
 
 fn id(value: u128) -> String {
@@ -12,7 +12,7 @@ fn id(value: u128) -> String {
 }
 
 fn app(dir: &std::path::Path) -> Router {
-    tessera_service::router(Notebook::open(dir).unwrap(), 4318, None, None, None).unwrap()
+    tessera_service::router(Workshop::open(dir).unwrap(), 4318, None, None, None).unwrap()
 }
 
 async fn request(

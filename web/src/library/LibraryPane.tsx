@@ -28,7 +28,7 @@ import type {
   LibraryView,
   ReadingState,
 } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { EMBEDDED } from '../core/mode';
 import { BlockText } from '../outline/BlockText';
 import type { LibraryGroup, LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../core/contract';
@@ -89,7 +89,7 @@ import '../table/table.css';
 export interface LibraryPaneProps {
   pane: PaneId;
   view: LibraryViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   active: boolean;
   /** A pane is open to the right of this list. */
   neighbour?: boolean;
@@ -199,7 +199,7 @@ interface CollectionCard {
   covers: LibraryRow[];
 }
 interface LibraryCache {
-  notebookId?: string;
+  workshopId?: string;
   queries: Map<string, LibraryRead>;
   library?: LibraryResult;
   reading?: LibraryRow[];
@@ -211,7 +211,7 @@ interface LibraryCache {
   collectionCards?: CollectionCard[];
 }
 // Reopening either pane paints its last read before the service refreshes it.
-const libraryReads = new WeakMap<NotebookClient, LibraryCache>();
+const libraryReads = new WeakMap<WorkshopClient, LibraryCache>();
 function libraryPreferences(id?: string) {
   const tabKey = id ? `tessera.library.tab.${id}` : undefined;
   const layoutKey = id ? `tessera.library.layout.${id}` : undefined;
@@ -231,12 +231,12 @@ function libraryPreferences(id?: string) {
 }
 
 export function LibraryPane(props: LibraryPaneProps) {
-  const cache: LibraryCache = libraryReads.get(props.notebook) ?? { queries: new Map<string, LibraryRead>() };
-  libraryReads.set(props.notebook, cache);
-  const preferences = libraryPreferences(cache.notebookId);
+  const cache: LibraryCache = libraryReads.get(props.workshop) ?? { queries: new Map<string, LibraryRead>() };
+  libraryReads.set(props.workshop, cache);
+  const preferences = libraryPreferences(cache.workshopId);
   const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
   const initialView = { ...props.view };
-  if (cache.notebookId && !initialView.view && initialView.tab === 'inbox') {
+  if (cache.workshopId && !initialView.view && initialView.tab === 'inbox') {
     const remembered = preferences.remembered;
     const counts = cache.library?.counts;
     const initialTab = coverMedia.matches
@@ -259,15 +259,15 @@ export function LibraryPane(props: LibraryPaneProps) {
   // panel, its headings and filter chips change together, in one step, once the target's rows are ready.
   const [view, setView] = createSignal(initialView);
   const [target, setTarget] = createSignal(initialView);
-  const [preferencesReady, setPreferencesReady] = createSignal(!!cache.notebookId);
+  const [preferencesReady, setPreferencesReady] = createSignal(!!cache.workshopId);
   const tab = createMemo(() => view().tab);
   const text = createMemo(() => view().text);
   const collectionActions = createCollectionActions();
   const collectionsIndex = createMemo(() => tab() === 'collections' && !view().collection);
   const [collections] = createResource(
-    () => props.notebook.changeSequence(),
+    () => props.workshop.changeSequence(),
     async () => {
-      const result = await collectionPages(props.notebook.api);
+      const result = await collectionPages(props.workshop.api);
       cache.collections = result;
       return result;
     },
@@ -277,11 +277,11 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [collectionCards] = createResource(
     () =>
       collectionsIndex() &&
-      collections.latest && { pages: collections.latest, sequence: props.notebook.changeSequence() },
+      collections.latest && { pages: collections.latest, sequence: props.workshop.changeSequence() },
     async ({ pages }) => {
       const result = await Promise.all(
         pages.map(async page => {
-          const result = await props.notebook.api.library({ collection_id: page.id, limit: 4 });
+          const result = await props.workshop.api.library({ collection_id: page.id, limit: 4 });
           return { page, count: result.total, covers: result.rows };
         }),
       );
@@ -438,7 +438,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         setFollowingLoading(true);
         const continuation = async () => {
           const citation = row.citation;
-          let page = await props.notebook.api.passages(
+          let page = await props.workshop.api.passages(
             citation.snapshot_id,
             citation.ordinal,
             citation.start.passage_id === citation.end.passage_id ? 2 : 32,
@@ -451,13 +451,13 @@ export function LibraryPane(props: LibraryPaneProps) {
               let next = page.passages[end + 1];
               if (!next && passage.ordinal + 1 < page.total)
                 next = (
-                  await props.notebook.api.passages(citation.snapshot_id, passage.ordinal + 1, 1, controller.signal)
+                  await props.workshop.api.passages(citation.snapshot_id, passage.ordinal + 1, 1, controller.signal)
                 ).passages[0];
               return [passage.text.slice(citation.end.offset), next?.text ?? ''].filter(text => text.trim());
             }
             const last = page.passages.at(-1);
             if (!last || last.ordinal + 1 >= page.total) throw new Error('The highlighted passage could not be found.');
-            page = await props.notebook.api.passages(citation.snapshot_id, last.ordinal + 1, 32, controller.signal);
+            page = await props.workshop.api.passages(citation.snapshot_id, last.ordinal + 1, 32, controller.signal);
           }
           return [];
         };
@@ -516,7 +516,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           target().tags,
           highlightSource(),
           highlightChapter(),
-          props.notebook.changeSequence(),
+          props.workshop.changeSequence(),
           refresh(),
         ])
       : false,
@@ -530,7 +530,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     ];
     if (chapter !== null) {
       // Sections are a local scope; only this case needs rows rather than the server's count-only query.
-      const result = await props.notebook.api.highlights({ unprocessed, tags, source_id, limit: null });
+      const result = await props.workshop.api.highlights({ unprocessed, tags, source_id, limit: null });
       const counts = new Map<string, number>();
       for (const row of result.rows) {
         if (row.citation.chapter_title !== chapter) continue;
@@ -542,7 +542,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     return new Map(
       await Promise.all(
         [...highlightColors, 'none'].map(async color => {
-          const result = await props.notebook.api.highlights({
+          const result = await props.workshop.api.highlights({
             unprocessed,
             tags,
             source_id,
@@ -563,7 +563,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   let tabKey = preferences.tabKey;
   let layoutKey = preferences.layoutKey;
   let tabChosen = false;
-  // List or Shelf is a device preference per notebook, like the last tab.
+  // List or Shelf is a device preference per workshop, like the last tab.
   const [layout, setLayout] = createSignal<'list' | 'shelf'>(preferences.layout);
   const [coverLayout, setCoverLayout] = createSignal(coverMedia.matches);
   const [searchOpen, setSearchOpen] = createSignal(false);
@@ -573,7 +573,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-        timeZone: props.notebook.settings()?.time_zone,
+        timeZone: props.workshop.settings()?.time_zone,
       }),
   );
   const coverChanged = () => setCoverLayout(coverMedia.matches);
@@ -588,7 +588,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [readingError, setReadingError] = createSignal('');
   createEffect(() => {
     if (!preferencesReady()) return;
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     refresh();
     const includeInbox = coverLayout();
     const controller = new AbortController();
@@ -600,7 +600,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       filters: clearedFilters(),
       collection: null,
     });
-    void props.notebook.api
+    void props.workshop.api
       .library(
         { states: includeInbox ? ['reading', 'inbox'] : ['reading'], sort: order, direction, limit: 100000 },
         controller.signal,
@@ -691,11 +691,11 @@ export function LibraryPane(props: LibraryPaneProps) {
   });
   createEffect(() => {
     const controller = new AbortController();
-    void props.notebook.api
-      .notebook(controller.signal)
+    void props.workshop.api
+      .workshop(controller.signal)
       .then(async info => {
         if (controller.signal.aborted) return;
-        cache.notebookId = info.id;
+        cache.workshopId = info.id;
         if (!untrack(preferencesReady)) {
           const stored = libraryPreferences(info.id);
           dismissedKey = stored.dismissedKey;
@@ -710,7 +710,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             else if (tabs.some(tab => tab.id === stored.remembered))
               update({ tab: stored.remembered as LibraryTab, scroll: 0 });
             else {
-              const result = await props.notebook.api.library({ limit: 0 }, controller.signal);
+              const result = await props.workshop.api.library({ limit: 0 }, controller.signal);
               if (!controller.signal.aborted && !tabChosen)
                 update({ tab: result.counts.inbox ? 'inbox' : result.counts.reading ? 'reading' : 'all', scroll: 0 });
             }
@@ -750,8 +750,8 @@ export function LibraryPane(props: LibraryPaneProps) {
     return state?.kind === 'menu' ? state.source?.page.id : undefined;
   });
   const doneJobs = new Set<string>();
-  const lookup = (id: string) => props.notebook.lookup(id);
-  const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
+  const lookup = (id: string) => props.workshop.lookup(id);
+  const sourceTitles = createMemo(() => new Map(props.workshop.roots().map(root => [root.id, root.text])));
   // Failed jobs belong to the Inbox backlog; active jobs still show during ingestion.
   const shownJobs = createMemo(() =>
     tab() === 'highlights' || tab() === 'collections' || error()
@@ -868,7 +868,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setLinkedCitation(null);
   });
 
-  const highlightActions = createHighlightActions(props.notebook, props.onOpen, setCommandError, row => {
+  const highlightActions = createHighlightActions(props.workshop, props.onOpen, setCommandError, row => {
     if (row.processed) return;
     const next = nextUnprocessedHighlight(highlightQueue(), row.citation.id);
     batch(() => {
@@ -1195,11 +1195,11 @@ export function LibraryPane(props: LibraryPaneProps) {
     };
   }
   createEffect(() => {
-    props.notebook.changeSequence();
-    props.notebook.lastChange();
+    props.workshop.changeSequence();
+    props.workshop.lastChange();
     refresh();
     const controller = new AbortController();
-    void props.notebook.api
+    void props.workshop.api
       .libraryViews(controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
@@ -1220,12 +1220,12 @@ export function LibraryPane(props: LibraryPaneProps) {
     onCleanup(() => controller.abort());
   });
   createEffect(() => {
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     refresh();
     const controller = new AbortController();
     void Promise.all([
-      props.notebook.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
-      props.notebook.api.highlights({ limit: 0 }, controller.signal),
+      props.workshop.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
+      props.workshop.api.highlights({ limit: 0 }, controller.signal),
     ])
       .then(([unprocessed, all]) => {
         if (!controller.signal.aborted) {
@@ -1249,7 +1249,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const key = targetKey();
     const state = untrack(target);
     const query = untrack(() => queryOf(state));
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     refresh();
     const controller = new AbortController();
     setLoading(true);
@@ -1260,9 +1260,9 @@ export function LibraryPane(props: LibraryPaneProps) {
     const timer = setTimeout(
       () => {
         void Promise.all([
-          props.notebook.api.library({ ...query, limit: query.limit ?? 100_000 }, controller.signal),
+          props.workshop.api.library({ ...query, limit: query.limit ?? 100_000 }, controller.signal),
           state.tab === 'highlights'
-            ? props.notebook.api.highlights(
+            ? props.workshop.api.highlights(
                 { unprocessed: state.unprocessedOnly, colors: state.colors, tags: state.tags, limit: 200 },
                 controller.signal,
               )
@@ -1296,12 +1296,12 @@ export function LibraryPane(props: LibraryPaneProps) {
 
   createEffect(() => {
     jobsRefresh();
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     const controller = new AbortController();
     let timer: number | undefined;
     const poll = async () => {
       try {
-        const result = await props.notebook.api.ingestJobs(undefined, controller.signal);
+        const result = await props.workshop.api.ingestJobs(undefined, controller.signal);
         if (controller.signal.aborted) return;
         let completed = false;
         for (const job of result) {
@@ -1338,7 +1338,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const errors: string[] = [];
     for (const file of files) {
       try {
-        recordJob(await props.notebook.api.upload(file, file.name));
+        recordJob(await props.workshop.api.upload(file, file.name));
       } catch (reason) {
         errors.push(`${file.name}: ${reason instanceof Error ? reason.message : String(reason)}`);
       }
@@ -1349,7 +1349,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setRetrying(previous => [...previous, job.id]);
     setCommandError('');
     try {
-      recordJob(await props.notebook.api.retryJob(job.id));
+      recordJob(await props.workshop.api.retryJob(job.id));
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -1374,11 +1374,11 @@ export function LibraryPane(props: LibraryPaneProps) {
                 <Show when={job.state !== 'done' && label().attempt}>
                   <span class="library-message">{label().attempt}</span>
                 </Show>
-                <Show when={job.state !== 'done' && job.next_attempt_at !== null && props.notebook.settings()}>
+                <Show when={job.state !== 'done' && job.next_attempt_at !== null && props.workshop.settings()}>
                   <span class="library-message">
                     retries at{' '}
                     <span class="library-job-time">
-                      {retryTime(job.next_attempt_at!, props.notebook.settings()!.time_zone)}
+                      {retryTime(job.next_attempt_at!, props.workshop.settings()!.time_zone)}
                     </span>
                   </span>
                 </Show>
@@ -1410,7 +1410,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setSaving(true);
     setCommandError('');
     try {
-      await props.notebook.commit([sourceStateOperation(row, state)]);
+      await props.workshop.commit([sourceStateOperation(row, state)]);
       if (!disposed) setRefresh(value => value + 1);
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
@@ -1453,7 +1453,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setSaving(true);
     setCommandError('');
     try {
-      await props.notebook.commit(operations, 'Change reading state');
+      await props.workshop.commit(operations, 'Change reading state');
       if (!disposed) {
         clearSelection();
         setRefresh(value => value + 1);
@@ -1514,7 +1514,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setSaving(true);
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [
           {
             op: 'save_library_view',
@@ -1540,7 +1540,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setSaving(true);
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'delete_library_view', id: value.id, base_revision: value.revision }],
         'Delete library view',
       );
@@ -1564,7 +1564,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setSaving(true);
     setCommandError('');
     try {
-      await props.notebook.commit(
+      await props.workshop.commit(
         [{ op: 'save_library_view', id: value.id, base_revision: null, name: value.name, query: value.query }],
         'Restore library view',
       );
@@ -1609,13 +1609,13 @@ export function LibraryPane(props: LibraryPaneProps) {
           },
         },
         {
-          label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view',
+          label: props.workshop.confirmViewDelete() ? 'Delete view…' : 'Delete view',
           divider: true,
           icon: 'trash',
           danger: true,
           action: () => {
             setCommandError('');
-            if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value });
+            if (props.workshop.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value });
             else void deleteView(value);
           },
         },
@@ -1625,7 +1625,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   async function downloadQuery(format: ExportFormat, query: LibraryQuery) {
     setCommandError('');
     try {
-      const blob = await props.notebook.api.exportQuery(format, query);
+      const blob = await props.workshop.api.exportQuery(format, query);
       if (disposed) return;
       downloadBlob(blob, `library.${exportExtensions[format]}`);
     } catch (reason) {
@@ -1637,7 +1637,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     if (!ids.length) return;
     setCommandError('');
     try {
-      const blob = await props.notebook.api.exportSources(format, ids);
+      const blob = await props.workshop.api.exportSources(format, ids);
       if (disposed) return;
       downloadBlob(blob, `library.${exportExtensions[format]}`);
     } catch (reason) {
@@ -1682,8 +1682,8 @@ export function LibraryPane(props: LibraryPaneProps) {
     let memberships: string[], pages: Block[];
     try {
       [memberships, pages] = await Promise.all([
-        sourceCollections(props.notebook.api, row.page.id),
-        collectionPages(props.notebook.api),
+        sourceCollections(props.workshop.api, row.page.id),
+        collectionPages(props.workshop.api),
       ]);
     } catch (reason) {
       setCommandError(reason instanceof Error ? reason.message : String(reason));
@@ -1730,7 +1730,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           label: `Remove from ${collection.text}`,
           action: () => {
             void collectionActions.run(`Removed from ${collection.text}`, () =>
-              changeCollectionMembers(props.notebook, collection.id, [row.page.id], false),
+              changeCollectionMembers(props.workshop, collection.id, [row.page.id], false),
             );
           },
         })),
@@ -1844,7 +1844,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           </Button>
         </Show>
         <MetadataInspector
-          notebook={props.notebook}
+          workshop={props.workshop}
           sourceIds={selectedIds()}
           onOpen={props.onOpen}
           onClose={clearSelection}
@@ -2238,7 +2238,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                   <div class="library-highlight-authored">
                     <BlockText
                       text={highlightProse(row().block.block.text)}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       interactive={false}
                     />
                   </div>
@@ -2247,7 +2247,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                   {row().citation.quote}
                 </blockquote>
                 <p class="library-highlight-meta">
-                  {highlightMeta(row(), props.notebook.settings()?.time_zone ?? 'UTC')} ·{' '}
+                  {highlightMeta(row(), props.workshop.settings()?.time_zone ?? 'UTC')} ·{' '}
                   {highlightActions.noteCount(row()) === undefined
                     ? 'Loading atoms…'
                     : highlightActions.noteCount(row())
@@ -2660,7 +2660,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                           All
                         </Button>
                       </div>
-                      {/* With no highlights in the notebook there is nothing to filter or scope, so only the processing tabs stay. */}
+                      {/* With no highlights in the workshop there is nothing to filter or scope, so only the processing tabs stay. */}
                       <Show when={highlightDesk()}>
                         <Button
                           class="library-highlight-filters"
@@ -2851,7 +2851,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                         disabled={collectionActions.busy()}
                         onClick={() => {
                           void collectionActions.run('Removed from collection', () =>
-                            changeCollectionMembers(props.notebook, view().collection!, [...selected()], false),
+                            changeCollectionMembers(props.workshop, view().collection!, [...selected()], false),
                           );
                         }}
                       >
@@ -2905,9 +2905,9 @@ export function LibraryPane(props: LibraryPaneProps) {
               </Show>
             </Show>
             <collectionActions.Notice />
-            <Show when={props.notebook.commandState() === 'error'}>
+            <Show when={props.workshop.commandState() === 'error'}>
               <p class="library-error" role="alert">
-                {props.notebook.commandMessage()}
+                {props.workshop.commandMessage()}
               </p>
             </Show>
             <Show when={deleted()}>
@@ -3081,7 +3081,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                             >
                               <ReadingCard
                                 row={row}
-                                notebook={props.notebook}
+                                workshop={props.workshop}
                                 selected={openedSource() === row.page.id || selected().has(row.page.id)}
                                 onOpen={beside => openSource(readingTarget(row), beside)}
                               />
@@ -3276,7 +3276,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                                                         <span class="library-highlight-meta">
                                                           {highlightMeta(
                                                             row,
-                                                            props.notebook.settings()?.time_zone ?? 'UTC',
+                                                            props.workshop.settings()?.time_zone ?? 'UTC',
                                                           )}
                                                           <Show when={(highlightActions.noteCount(row) ?? 0) > 0}>
                                                             {' '}
@@ -3479,7 +3479,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             return (
               <CollectionPicker
                 anchor={state.anchor}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 sourceIds={state.sources}
                 onChanged={(change, label) => {
                   collectionActions.record(change, label);
@@ -3497,11 +3497,11 @@ export function LibraryPane(props: LibraryPaneProps) {
                 onSave={async name => {
                   if (state.collection)
                     collectionActions.record(
-                      await renameCollection(props.notebook, state.collection, name),
+                      await renameCollection(props.workshop, state.collection, name),
                       `Renamed to ${name}`,
                     );
                   else {
-                    const result = await createCollection(props.notebook, name);
+                    const result = await createCollection(props.workshop, name);
                     collectionActions.record(result.change, `Created ${name}`);
                   }
                   dismiss();
@@ -3521,7 +3521,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                     disabled={collectionActions.busy()}
                     onClick={() => {
                       void collectionActions
-                        .run('Deleted collection', () => deleteCollection(props.notebook, state.collection))
+                        .run('Deleted collection', () => deleteCollection(props.workshop, state.collection))
                         .then(done => {
                           if (done) {
                             update({ view: null, tab: 'collections', collection: null, scroll: 0 });
@@ -3900,7 +3900,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <AddSheet
               anchor={state.anchor}
               placement={coverLayout() ? 'sheet' : 'anchor'}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onDismiss={dismiss}
               onChooseFile={() => fileInput.click()}
               onFiles={files => {

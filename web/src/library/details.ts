@@ -6,7 +6,7 @@ import type {
   FieldKind,
   ReadingState,
 } from '../api/types';
-import type { DocumentChange, NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
+import type { DocumentChange, WorkshopClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import { sourceState } from '../document/types';
 import { addFieldOption, documentReady, ensureField } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
@@ -120,17 +120,17 @@ const catalogueFields = new Set([
 ]);
 /** Fields owned by the source header and catalogue card, not the ordinary outline. */
 export const isCatalogueField = (name: string): boolean => catalogueFields.has(name.trim().toLowerCase());
-const writes = new WeakMap<NotebookClient, Promise<unknown>>();
+const writes = new WeakMap<WorkshopClient, Promise<unknown>>();
 interface FieldPreparation {
   pageId: string;
   definitions: FieldDefinition[];
 }
 
 /** Definition/reference creation and metadata commits share a queue, so concurrent fields cannot create duplicate definitions. */
-function prepareWrite<T>(notebook: NotebookClient, work: () => Promise<T>): Promise<T> {
-  const pending = (writes.get(notebook) ?? Promise.resolve()).then(work, work);
+function prepareWrite<T>(workshop: WorkshopClient, work: () => Promise<T>): Promise<T> {
+  const pending = (writes.get(workshop) ?? Promise.resolve()).then(work, work);
   writes.set(
-    notebook,
+    workshop,
     pending.catch(() => undefined),
   );
   return pending;
@@ -150,11 +150,11 @@ export function sourceEntries(doc: PageDocument, definitions: readonly FieldDefi
 
 export function sourceFieldValue(
   doc: PageDocument,
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   definitions: readonly FieldDefinition[],
   field: SourceField,
 ): SourceFieldValue {
-  if (field === 'title') return displayTitle(doc.root()?.text ?? '', id => notebook.lookup(id));
+  if (field === 'title') return displayTitle(doc.root()?.text ?? '', id => workshop.lookup(id));
   if (field === 'citationKey') return doc.root()?.source?.citation_key ?? '';
   if (field === 'state') return doc.root()?.source?.state ?? '';
   if (field === 'tags') return [...(doc.root()?.manual_types ?? [])];
@@ -172,33 +172,33 @@ export function sourceFieldValue(
         const reference = referenceValue(text);
         return {
           id: reference.id,
-          name: reference.id ? valueLabel(text, id => notebook.lookup(id)) : reference.name,
+          name: reference.id ? valueLabel(text, id => workshop.lookup(id)) : reference.name,
           role,
           ...(!reference.id && reference.name !== text.trim() ? { create_page: true } : {}),
         };
       }),
     );
-  const found = values(fields[field][0]).map(text => valueLabel(text, id => notebook.lookup(id)));
+  const found = values(fields[field][0]).map(text => valueLabel(text, id => workshop.lookup(id)));
   return field === 'identifiers' ? found : (found[0] ?? '');
 }
 
 export function sourceMetadata(
   doc: PageDocument,
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   definitions: readonly FieldDefinition[],
 ): ExtractedMetadata {
-  const text = (field: SourceField) => sourceFieldValue(doc, notebook, definitions, field) as string;
+  const text = (field: SourceField) => sourceFieldValue(doc, workshop, definitions, field) as string;
   return {
     ...emptyMetadata(),
     title: text('title'),
     subtitle: text('subtitle') || null,
-    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(
+    creators: (sourceFieldValue(doc, workshop, definitions, 'creators') as SourceCreator[]).map(
       ({ id, name, role, create_page }) => ({ name, role, create_page: create_page ?? id !== null }),
     ),
     published: text('published') || null,
     publisher: text('publisher') || null,
     language: text('language') || null,
-    identifiers: sourceFieldValue(doc, notebook, definitions, 'identifiers') as string[],
+    identifiers: sourceFieldValue(doc, workshop, definitions, 'identifiers') as string[],
     cover: text('cover') || null,
     volume: text('volume') || null,
     issue: text('issue') || null,
@@ -296,7 +296,7 @@ export function validateSourceValue(field: SourceField, value: SourceFieldValue)
 }
 
 async function prepareField(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   context: FieldPreparation,
   label: string,
   kind: FieldKind,
@@ -307,13 +307,13 @@ async function prepareField(
   if (!definition && !values.length) return undefined;
   if (!definition) {
     // The service may give a built-in name its own kind, Links to types and options; work with what it made.
-    definition = await ensureField(notebook, label, kind);
+    definition = await ensureField(workshop, label, kind);
     if (definition.kind === 'instance' && !definition.targets.length) {
-      const doc = notebook.open(context.pageId);
+      const doc = workshop.open(context.pageId);
       try {
         await documentReady(doc);
         const targets = await Promise.all(
-          ['Person', 'Group'].map(async title => (await notebook.pageByTitle(title, true))!),
+          ['Person', 'Group'].map(async title => (await workshop.pageByTitle(title, true))!),
         );
         const targeted = doc.edit({ kind: 'fieldTargets', definition, targets });
         if (!targeted.ok) throw new Error(targeted.reason);
@@ -327,7 +327,7 @@ async function prepareField(
   }
   if (kind === 'instance' || definition.kind === 'instance') {
     // A creator page made a moment ago may still be on its way; the kind checks below read the service.
-    await notebook.flush();
+    await workshop.flush();
     values = await Promise.all(
       values.map(async (value, index) => {
         if (creators?.[index]?.create_page === false) return value;
@@ -342,11 +342,11 @@ async function prepareField(
           : reference.name;
         let id = reference.id;
         if (!id) {
-          const matches = await resolveName(notebook, name);
+          const matches = await resolveName(workshop, name);
           const eligible = (
             await Promise.all(
               matches.map(async match => {
-                const kinds = await notebook.api.noteKinds(match.page.id);
+                const kinds = await workshop.api.noteKinds(match.page.id);
                 return kinds.some(kind => ['person', 'group', 'unfiled'].includes(kind.key)) ? match.page.id : null;
               }),
             )
@@ -354,12 +354,12 @@ async function prepareField(
           if (eligible.length > 1) return `[[${name}]]`;
           id = eligible[0] ?? null;
         }
-        if (!id) id = (await createInstance(notebook, name, entityType)).id;
+        if (!id) id = (await createInstance(workshop, name, entityType)).id;
         else {
-          const kinds = await notebook.api.noteKinds(id);
+          const kinds = await workshop.api.noteKinds(id);
           if (!kinds.some(kind => kind.key !== 'unfiled')) {
-            const page = await notebook.api.block(id);
-            await notebook.commit(
+            const page = await workshop.api.block(id);
+            await workshop.commit(
               [{ op: 'add_type', id, base_revision: page.revision, title: entityType }],
               'File creator',
             );
@@ -370,15 +370,15 @@ async function prepareField(
     );
   } else if (definition.kind === 'choice') {
     const field = definition;
-    values = await Promise.all(values.map(async value => `[[${await addFieldOption(notebook, field, value)}]]`));
+    values = await Promise.all(values.map(async value => `[[${await addFieldOption(workshop, field, value)}]]`));
   }
   return { id: definition.id, values };
 }
 
 /** The catalog edits a source's display title. Tags written in its stored title still file it, so they follow a new name; an unchanged name keeps the authored text. */
-function storedTitle(doc: PageDocument, notebook: NotebookClient, name: string): string {
+function storedTitle(doc: PageDocument, workshop: WorkshopClient, name: string): string {
   const text = doc.root()?.text ?? '';
-  if (name === displayTitle(text, id => notebook.lookup(id))) return text;
+  if (name === displayTitle(text, id => workshop.lookup(id))) return text;
   return [
     name,
     ...textTokens(text)
@@ -389,13 +389,13 @@ function storedTitle(doc: PageDocument, notebook: NotebookClient, name: string):
 
 async function prepareSourceField(
   doc: PageDocument,
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   context: FieldPreparation,
   field: SourceField,
   value: SourceFieldValue,
 ): Promise<SourceDetailsEdit> {
   const edit: SourceDetailsEdit = { kind: 'sourceDetails', fields: [] };
-  if (field === 'title') edit.title = storedTitle(doc, notebook, value as string);
+  if (field === 'title') edit.title = storedTitle(doc, workshop, value as string);
   else if (field === 'tags') edit.tags = value as string[];
   else if (field === 'state' || field === 'citationKey') {
     const source = sourceState(doc.root()?.source);
@@ -406,7 +406,7 @@ async function prepareSourceField(
     };
   } else {
     const entries = sourceEntries(doc, context.definitions);
-    const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(
+    const plain = (sourceFieldValue(doc, workshop, context.definitions, 'creators') as SourceCreator[]).filter(
       creator => !creator.id && !creator.create_page,
     );
     const pending =
@@ -441,7 +441,7 @@ async function prepareSourceField(
                 create_page: creator.create_page ?? (!!creator.id || !plain.some(old => old.name === creator.name)),
               }))
           : undefined;
-      const prepared = await prepareField(notebook, context, label, kind, values, creators);
+      const prepared = await prepareField(workshop, context, label, kind, values, creators);
       if (prepared) edit.fields.push({ ...prepared, entries: entries.get(label.toLowerCase()) ?? [] });
     }
   }
@@ -451,12 +451,12 @@ async function prepareSourceField(
 /** One field, one acknowledged cross-page command, one exact undo step. */
 export async function saveSourceField(
   docs: readonly PageDocument[],
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   field: SourceField,
   value: SourceFieldValue,
 ): Promise<SourceFieldChange> {
   let normalized = validateSourceValue(field, value);
-  return prepareWrite(notebook, async () => {
+  return prepareWrite(workshop, async () => {
     await Promise.all(
       docs.map(async doc => {
         await documentReady(doc);
@@ -465,32 +465,32 @@ export async function saveSourceField(
     );
     if (field === 'identifiers')
       normalized = (
-        await notebook.api.normalizeMetadata({
+        await workshop.api.normalizeMetadata({
           ...emptyMetadata(),
           title: docs[0]?.root()?.text ?? 'Source',
           identifiers: normalized as string[],
         })
       ).identifiers;
-    const definitions = await notebook.api.fields();
+    const definitions = await workshop.api.fields();
     const context: FieldPreparation = { pageId: definitions.page_id, definitions: [...definitions.fields] };
     const edits = [];
     for (const doc of docs)
-      edits.push({ pageId: doc.pageId, edit: await prepareSourceField(doc, notebook, context, field, normalized) });
-    return notebook.editSourceDetails(edits);
+      edits.push({ pageId: doc.pageId, edit: await prepareSourceField(doc, workshop, context, field, normalized) });
+    return workshop.editSourceDetails(edits);
   });
 }
 
 /** Shared preparation for manual details, cover replacement and fill-only-empty lookup. */
 async function prepareMetadata(
   doc: PageDocument,
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   context: FieldPreparation,
   metadata: ExtractedMetadata,
   onlyMissing: boolean,
   coverOnly: boolean,
 ): Promise<{ edit: SourceDetailsEdit; count: number }> {
   const edit: SourceDetailsEdit = { kind: 'sourceDetails', fields: [] };
-  const previous = sourceMetadata(doc, notebook, context.definitions);
+  const previous = sourceMetadata(doc, workshop, context.definitions);
   const entries = sourceEntries(doc, context.definitions);
   const labels = coverOnly
     ? (['cover'] as const)
@@ -513,7 +513,7 @@ async function prepareMetadata(
     const value = validateSourceValue(field, field === 'identifiers' ? metadata.identifiers : (metadata[key] ?? ''));
     const old = field === 'identifiers' ? previous.identifiers : (previous[key] ?? '');
     if ((onlyMissing && old.length) || JSON.stringify(old) === JSON.stringify(value)) continue;
-    const prepared = await prepareSourceField(doc, notebook, context, field, value);
+    const prepared = await prepareSourceField(doc, workshop, context, field, value);
     edit.fields.push(...prepared.fields);
   }
   if (!coverOnly)
@@ -523,28 +523,28 @@ async function prepareMetadata(
       const old = previous.creators.filter(creator => creator.role === role).map(creator => creator.name);
       if ((onlyMissing && old.length) || JSON.stringify(old) === JSON.stringify(names)) continue;
       const label = role[0]!.toUpperCase() + role.slice(1);
-      const prepared = await prepareField(notebook, context, label, 'instance', names, creators);
+      const prepared = await prepareField(workshop, context, label, 'instance', names, creators);
       if (prepared) edit.fields.push({ ...prepared, entries: entries.get(role) ?? [] });
     }
   const title = onlyMissing || coverOnly ? undefined : (validateSourceValue('title', metadata.title ?? '') as string);
-  if (title !== undefined) edit.title = storedTitle(doc, notebook, title);
+  if (title !== undefined) edit.title = storedTitle(doc, workshop, title);
   return { edit, count: edit.fields.length + Number(title !== undefined && title !== previous.title) };
 }
 
 /** Preserve the manual editor's page-local history while sharing the inspector's write path. */
 export async function saveDetails(
   doc: PageDocument,
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   metadata: ExtractedMetadata,
   onlyMissing = false,
   coverOnly = false,
 ): Promise<number> {
-  return prepareWrite(notebook, async () => {
-    const normalized = coverOnly ? metadata : await notebook.api.normalizeMetadata(metadata);
-    const definitions = await notebook.api.fields();
+  return prepareWrite(workshop, async () => {
+    const normalized = coverOnly ? metadata : await workshop.api.normalizeMetadata(metadata);
+    const definitions = await workshop.api.fields();
     const prepared = await prepareMetadata(
       doc,
-      notebook,
+      workshop,
       { pageId: definitions.page_id, definitions: [...definitions.fields] },
       normalized,
       onlyMissing,
@@ -560,23 +560,23 @@ export async function saveDetails(
 /** Lookups prepare separately; every filled source field commits and undoes together. */
 export async function fillMissingSourceDetails(
   docs: readonly PageDocument[],
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
 ): Promise<SourceFieldChange> {
-  return prepareWrite(notebook, async () => {
+  return prepareWrite(workshop, async () => {
     await Promise.all(
       docs.map(async doc => {
         await documentReady(doc);
         await doc.flush();
       }),
     );
-    const definitions = await notebook.api.fields();
+    const definitions = await workshop.api.fields();
     const context: FieldPreparation = { pageId: definitions.page_id, definitions: [...definitions.fields] };
     const edits = [];
     for (const doc of docs) {
-      const current = sourceMetadata(doc, notebook, context.definitions);
+      const current = sourceMetadata(doc, workshop, context.definitions);
       const identifier = current.identifiers[0];
       if (!identifier) continue;
-      const [preview, view] = await Promise.all([notebook.api.lookup(identifier), notebook.api.source(doc.pageId)]);
+      const [preview, view] = await Promise.all([workshop.api.lookup(identifier), workshop.api.source(doc.pageId)]);
       const snapshot = view.snapshots.find(item => item.id === view.source.current_snapshot_id)?.metadata;
       const metadata = { ...preview.metadata, title: current.title, cover: preview.cover_url };
       const entries = sourceEntries(doc, context.definitions);
@@ -584,10 +584,10 @@ export async function fillMissingSourceDetails(
       for (const field of ['url', 'site', 'description', 'cover'] as const) {
         if (!entries.has(fields[field][0].toLowerCase()) && snapshot?.[field]) metadata[field] = null;
       }
-      const normalized = await notebook.api.normalizeMetadata(metadata);
-      const prepared = await prepareMetadata(doc, notebook, context, normalized, true, false);
+      const normalized = await workshop.api.normalizeMetadata(metadata);
+      const prepared = await prepareMetadata(doc, workshop, context, normalized, true, false);
       edits.push({ pageId: doc.pageId, edit: prepared.edit });
     }
-    return notebook.editSourceDetails(edits);
+    return workshop.editSourceDetails(edits);
   });
 }

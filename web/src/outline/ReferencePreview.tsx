@@ -3,7 +3,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import { EditorView } from '@codemirror/view';
 import type { PositionRow } from '../api/types';
 import { ShapeGlyph } from '../compare/ShapeGlyph';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget, PaneId } from '../core/contract';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { displayTitle } from './names';
@@ -53,7 +53,7 @@ interface Entry {
 }
 
 export interface ReferencePreviewsProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   /** Pane navigation retires slips whose source view has gone away. */
   navigationKey: string;
   onOpen(target: OpenTarget, beside: boolean, pane: PaneId | null): void;
@@ -193,7 +193,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     scheduleClose();
   };
   const go = (entry: Entry, beside: boolean) => {
-    const block = props.notebook.lookup(entry.id)();
+    const block = props.workshop.lookup(entry.id)();
     if (!block) return;
     setStack([]);
     props.onOpen(
@@ -468,7 +468,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
                 id={entry.id}
                 citation={entry.citation}
                 locator={entry.locator}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 pinned={pinned().has(entry.key)}
                 keyboard={entry.keyboard}
                 onReady={() => setReady(true)}
@@ -542,7 +542,7 @@ function ReferenceCard(props: {
   id: string;
   citation?: boolean;
   locator?: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   pinned: boolean;
   keyboard: boolean;
   onReady(): void;
@@ -550,12 +550,12 @@ function ReferenceCard(props: {
   onOpen(beside: boolean): void;
   onNested(target: OpenTarget, beside: boolean): void;
 }) {
-  const target = createMemo(() => props.notebook.lookup(props.id)());
+  const target = createMemo(() => props.workshop.lookup(props.id)());
   const pageId = createMemo(() => target()?.page_id);
   const doc = createMemo(() => {
     const id = pageId();
     if (!id) return undefined;
-    const value = props.notebook.open(id);
+    const value = props.workshop.open(id);
     onCleanup(() => value.release());
     return value;
   });
@@ -564,13 +564,13 @@ function ReferenceCard(props: {
   const [citationSource] = createResource(
     () =>
       target()?.revision !== 0 && props.citation && state()?.source
-        ? ([props.id, sourceReadsVersion(props.notebook)] as const)
+        ? ([props.id, sourceReadsVersion(props.workshop)] as const)
         : false,
-    ([id]) => referenceSource(props.notebook, id),
+    ([id]) => referenceSource(props.workshop, id),
   );
   const [fieldList] = createResource(
-    () => (doc()?.status() === 'ready' ? props.notebook.changeSequence() : false),
-    () => props.notebook.api.fields(),
+    () => (doc()?.status() === 'ready' ? props.workshop.changeSequence() : false),
+    () => props.workshop.api.fields(),
   );
   const gloss = createMemo(() => {
     const value = doc();
@@ -614,14 +614,14 @@ function ReferenceCard(props: {
   // One subject query provides the count; the referenced pages are opened only after pinning.
   const [positions] = createResource(
     () => (target() && target()?.revision !== 0 && isPage() ? props.id : false),
-    subject => props.notebook.api.positions({ subject }),
+    subject => props.workshop.api.positions({ subject }),
   );
   const positionRows = () => (positions.error ? [] : (positions()?.rows ?? []));
   const [references] = createResource(
     () => (target()?.revision !== 0 ? props.id : false),
     async id => {
-      const list = await props.notebook.api.backlinks(id, REFERENCE_LIMIT);
-      const works = await loadWorks(props.notebook.api, id, list);
+      const list = await props.workshop.api.backlinks(id, REFERENCE_LIMIT);
+      const works = await loadWorks(props.workshop.api, id, list);
       return {
         works: works.rows.length,
         references: list.length - works.creatorLinks.size,
@@ -683,7 +683,7 @@ function ReferenceCard(props: {
                 <div class="reference-preview-crumbs">
                   <Show
                     when={!citationSource.error && citationSource()}
-                    fallback={<BlockBreadcrumb block={block()} notebook={props.notebook} />}
+                    fallback={<BlockBreadcrumb block={block()} workshop={props.workshop} />}
                   >
                     {source => (
                       <>
@@ -713,12 +713,12 @@ function ReferenceCard(props: {
                   when={state()?.position}
                   fallback={
                     <Show when={isPage()} fallback={<span class="reference-preview-kind">Atom</span>}>
-                      <h2>{displayTitle(block().text, id => props.notebook.lookup(id)) || 'Untitled'}</h2>
+                      <h2>{displayTitle(block().text, id => props.workshop.lookup(id)) || 'Untitled'}</h2>
                     </Show>
                   }
                 >
                   <h2>
-                    <BlockText text={block().text} notebook={props.notebook} interactive={false} />
+                    <BlockText text={block().text} workshop={props.workshop} interactive={false} />
                   </h2>
                 </Show>
               </div>
@@ -727,7 +727,7 @@ function ReferenceCard(props: {
                   <BlockText
                     text={doc()?.block(summaryId() ?? '')?.text ?? ''}
                     blockId={summaryId()}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     onOpen={props.onNested}
                   />
                 </p>
@@ -735,7 +735,7 @@ function ReferenceCard(props: {
               <Show when={readingFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>
                 {work => (
                   <p class="reference-preview-reading-source">
-                    <BlockText text={work()} notebook={props.notebook} onOpen={props.onNested} />
+                    <BlockText text={work()} workshop={props.workshop} onOpen={props.onNested} />
                   </p>
                 )}
               </Show>
@@ -817,7 +817,7 @@ function ReferenceCard(props: {
                           <BlockTree
                             rows={rows()}
                             block={id => doc()?.block(id)}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             onOpen={props.onNested}
                             prose={isPage() || !!state()?.position}
                             rowRef={element => observer.observe(element)}
@@ -835,7 +835,7 @@ function ReferenceCard(props: {
                 </Show>
                 <PinnedReadings
                   rows={positionRows()}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   fieldName={fieldName}
                   standfirst={id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst'}
                   onOpen={props.onNested}
@@ -876,7 +876,7 @@ function ReferenceCard(props: {
 /** Only a pinned slip holds other pages open; summaries and expanded readings follow their live documents. */
 function PinnedReadings(props: {
   rows: readonly PositionRow[];
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   fieldName(id: string): string | undefined;
   standfirst(id: string): boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -884,7 +884,7 @@ function PinnedReadings(props: {
   const [selected, setSelected] = createSignal<string | null>(null);
   const docs = createMemo(() => {
     const pages = new Set(props.rows.map(row => row.block.page.id));
-    const opened = new Map([...pages].map(id => [id, props.notebook.open(id)]));
+    const opened = new Map([...pages].map(id => [id, props.workshop.open(id)]));
     onCleanup(() => {
       for (const doc of opened.values()) doc.release();
     });
@@ -919,7 +919,7 @@ function PinnedReadings(props: {
       };
     }),
   );
-  const siglumRecords = createCitedSources(props.notebook, () => [
+  const siglumRecords = createCitedSources(props.workshop, () => [
     ...new Set(
       readings()
         .map(reading => reading.source)
@@ -944,7 +944,7 @@ function PinnedReadings(props: {
                 ? (reading.doc.block(id)?.position?.holder_id ?? null)
                 : reading.row.holder_id;
             if (!holderId) return 'No holder';
-            const holder = props.notebook.lookup(holderId)();
+            const holder = props.workshop.lookup(holderId)();
             return holder === undefined ? 'Loading holder…' : holder?.text || 'Unavailable holder';
           });
           const summaryId = createMemo(() => (reading.gist ? reading.gistId : (reading.prose[0]?.id ?? id)));
@@ -956,7 +956,7 @@ function PinnedReadings(props: {
               <div class="reference-preview-reading-heading">
                 <Show when={reading.source && sigla().get(reading.source)}>
                   {mark => (
-                    <span class="reference-preview-siglum" title={props.notebook.lookup(reading.source!)()?.text}>
+                    <span class="reference-preview-siglum" title={props.workshop.lookup(reading.source!)()?.text}>
                       {mark()}
                     </span>
                   )}
@@ -990,7 +990,7 @@ function PinnedReadings(props: {
                     <BlockText
                       text={work()}
                       blockId={reading.work?.valueId ?? undefined}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       onOpen={props.onOpen}
                     />
                   </p>
@@ -1003,7 +1003,7 @@ function PinnedReadings(props: {
                     <BlockText
                       text={account()}
                       blockId={reading.account?.valueId ?? undefined}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       onOpen={props.onOpen}
                     />
                   </p>
@@ -1026,7 +1026,7 @@ function PinnedReadings(props: {
                       <BlockText
                         text={text()}
                         blockId={summaryId() ?? undefined}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                         onOpen={props.onOpen}
                       />
                     </p>
@@ -1035,7 +1035,7 @@ function PinnedReadings(props: {
               </Show>
               <OutgoingRelations
                 rows={reading.doc.status() === 'ready' ? positionRelations(reading.doc, id) : []}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 onOpen={props.onOpen}
               />
               <Show when={selected() === id}>
@@ -1046,9 +1046,9 @@ function PinnedReadings(props: {
                         <Button
                           class="reference-preview-reading-source"
                           title={`Open source · ${besideHint}`}
-                          disabled={!props.notebook.lookup(source())()}
+                          disabled={!props.workshop.lookup(source())()}
                           onClick={event => {
-                            const block = props.notebook.lookup(source())();
+                            const block = props.workshop.lookup(source())();
                             if (block)
                               props.onOpen(
                                 {
@@ -1060,8 +1060,8 @@ function PinnedReadings(props: {
                               );
                           }}
                         >
-                          <Show when={props.notebook.lookup(source())() !== undefined} fallback="Loading source…">
-                            {props.notebook.lookup(source())()?.text || 'Unavailable source'}
+                          <Show when={props.workshop.lookup(source())() !== undefined} fallback="Loading source…">
+                            {props.workshop.lookup(source())()?.text || 'Unavailable source'}
                           </Show>
                         </Button>
                       )}
@@ -1072,7 +1072,7 @@ function PinnedReadings(props: {
                           <BlockText
                             text={reading.doc.block(row.id)?.text ?? ''}
                             blockId={row.id}
-                            notebook={props.notebook}
+                            workshop={props.workshop}
                             onOpen={props.onOpen}
                           />
                         </p>

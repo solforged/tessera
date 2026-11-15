@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { exactRepeats, linkedCriteriaDraft, nextCriterionCell, questionReadingIds } from './criteria';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 test('only exact trimmed authored cells repeat, with stable row-local groups', () => {
   const values: Record<string, Record<string, string>> = {
@@ -51,7 +51,7 @@ test('a cell commit keeps edits and resolves names added while the first lookup 
     release = resolve;
   });
   const lookedUp: string[] = [];
-  const notebook = {
+  const workshop = {
     changeSequence: () => 0,
     api: {
       resolveName: async (name: string) => {
@@ -60,8 +60,8 @@ test('a cell commit keeps edits and resolves names added while the first lookup 
         return [{ page: { id: name === 'Anacyclosis' ? 'cycle' : 'language' } }];
       },
     },
-  } as unknown as NotebookClient;
-  const commit = linkedCriteriaDraft(notebook, draft, () => draft);
+  } as unknown as WorkshopClient;
+  const commit = linkedCriteriaDraft(workshop, draft, () => draft);
   draft += ' accepted [[Linguistic relativity]]';
   release();
   expect(await commit).toBe('first [[cycle|Anacyclosis]] accepted [[language|Linguistic relativity]]');
@@ -70,7 +70,7 @@ test('a cell commit keeps edits and resolves names added while the first lookup 
 
 test('a cell commit preserves deletion of a reference while its name is resolving', async () => {
   let draft = '[[Anacyclosis]]';
-  const notebook = {
+  const workshop = {
     changeSequence: () => 0,
     api: {
       resolveName: async () => {
@@ -78,8 +78,8 @@ test('a cell commit preserves deletion of a reference while its name is resolvin
         return [{ page: { id: 'cycle' } }];
       },
     },
-  } as unknown as NotebookClient;
-  expect(await linkedCriteriaDraft(notebook, draft, () => draft)).toBe('replacement');
+  } as unknown as WorkshopClient;
+  expect(await linkedCriteriaDraft(workshop, draft, () => draft)).toBe('replacement');
 });
 
 test('matrix filling follows visible row order and stops at either edge', () => {

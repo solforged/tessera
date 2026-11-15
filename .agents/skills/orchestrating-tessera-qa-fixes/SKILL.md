@@ -35,13 +35,13 @@ owner.
   are part of the pass, using
   `task_run "$TASK_BIN" --workshop <owned-copy> add --wait <epubs> <url>`. Stop
   the baseline service before copying it for lanes.
-- Real data: resolve the requested source notebook read-only rather than assume
+- Real data: resolve the requested source workshop read-only rather than assume
   `main` or a historical workshop name. For context, the 2026-11-01 pass found
   `restored-oct-14` (7303 blocks, objects folder) rather than near-empty `main`.
   Copy with `/usr/bin/sqlite3` read-only `.backup` plus objects into
   `TASK_RUN/notebooks`; verify the destination, strip only its copied
   `service.lock`, and clear copied `sync_hub` before any serve. Never write the
-  live notebook or host registry.
+  live workshop or host registry.
 - Write `TASK_EVIDENCE/qa-contract.md`: pinned build/source and run per lane,
   notebook/profile/service/ports, per-viewport browser recipes, coarse-pointer
   simulation (`matchMedia` plus stylesheet rewrite re-applied after lazy CSS
@@ -138,7 +138,7 @@ entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
   the exact retained paths to the integrator.
 - Write findings and coverage incrementally. A new lane first reads its
   predecessor's findings/coverage, then prepares its own runtime; it never takes
-  over an unowned profile, notebook or process handle.
+  over an unowned profile, workshop or process handle.
 - Verifier contract (`TASK_EVIDENCE/verify-contract.md`): statuses confirmed /
   partial / `not_reproduced` / `spec_mismatch_wrong` / duplicate, adjusted severity,
   refined steps, likely `code` path:line; output retained `verify/<name>.json`.
@@ -217,8 +217,8 @@ entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
   signing and commit-message rules.
 - If individual-commit checks are required, use explicitly based owned checkouts
   with their own dependency/assets setup under the shared procedure.
-- Perform dependent copy/build/serve steps sequentially: a notebook copy and
-  `serve` in the same parallel tool batch race, creating an empty notebook
+- Perform dependent copy/build/serve steps sequentially: a workshop copy and
+  `serve` in the same parallel tool batch race, creating an empty workshop
   (migrations from version 1 in the log is the tell).
 - For an authorized landing, coordinate through intercom and use
   `landing-lane-patches-around-dirty-peer-trees` plus the protected-main

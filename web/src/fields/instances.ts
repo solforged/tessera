@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
 import type { Block, BlockInPage, Operation } from '../api/types';
-import type { NotebookClient, RelationPickIntent } from '../document/contract';
+import type { WorkshopClient, RelationPickIntent } from '../document/contract';
 import { completeNames, foldName, targetLabel } from '../outline/names';
 import { SOURCE_TARGET, sourceOperation } from './targets';
 
@@ -11,16 +11,16 @@ export interface RelationMembers {
 }
 
 /** Target membership is read from the model, not inferred from a page's title. */
-export async function relationMembers(notebook: NotebookClient, targets: readonly string[]): Promise<RelationMembers> {
+export async function relationMembers(workshop: WorkshopClient, targets: readonly string[]): Promise<RelationMembers> {
   if (!targets.length)
-    return { pages: notebook.roots().filter(page => page.kind === 'page' && !page.archived), blocks: [] };
+    return { pages: workshop.roots().filter(page => page.kind === 'page' && !page.archived), blocks: [] };
   const pages = new Map<string, Block>();
   const blocks = new Map<string, BlockInPage>();
   await Promise.all(
     targets.map(async type => {
       let offset = 0;
       while (true) {
-        const result = await notebook.api.query(
+        const result = await workshop.api.query(
           type === SOURCE_TARGET
             ? { type: null, note_kind: SOURCE_TARGET, text: null, filters: [], sort: [], limit: 2000, offset }
             : { type, text: null, filters: [], sort: [], limit: 2000, offset },
@@ -40,8 +40,8 @@ export async function relationMembers(notebook: NotebookClient, targets: readonl
 }
 
 /** The page members of the target types, for interpretations that propose only pages. */
-export async function instancePages(notebook: NotebookClient, targets: readonly string[]): Promise<Block[]> {
-  return (await relationMembers(notebook, targets)).pages;
+export async function instancePages(workshop: WorkshopClient, targets: readonly string[]): Promise<Block[]> {
+  return (await relationMembers(workshop, targets)).pages;
 }
 
 /** A relation picker row: a page, or a block named by its label and placed by its page. */
@@ -63,19 +63,19 @@ export interface RelationCandidates {
  * a few characters. Blocks on the owner's page lead; the owner itself is never offered.
  */
 export async function relationCandidates(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   members: RelationMembers,
   targeted: boolean,
   query: string,
   owner?: { id: string; page: string },
 ): Promise<RelationCandidates> {
-  const lookup: NotebookClient['lookup'] = id => notebook.lookup(id);
+  const lookup: WorkshopClient['lookup'] = id => workshop.lookup(id);
   const needle = foldName(query);
-  const names = await completeNames(notebook, query, members.pages);
+  const names = await completeNames(workshop, query, members.pages);
   const found = targeted
     ? members.blocks
     : needle.length >= 3
-      ? (await notebook.api.search(query.trim(), 30)).filter(row => row.block.kind === 'block' && !row.block.archived)
+      ? (await workshop.api.search(query.trim(), 30)).filter(row => row.block.kind === 'block' && !row.block.archived)
       : [];
   const blocks = found
     .flatMap(row => {
@@ -97,18 +97,18 @@ export async function relationCandidates(
 }
 
 /** Resolve a durable accepted query only when its text command reaches the outbox head. */
-export async function resolveRelationPick(notebook: NotebookClient, intent: RelationPickIntent) {
+export async function resolveRelationPick(workshop: WorkshopClient, intent: RelationPickIntent) {
   if (intent.targetId) return { text: `[[${intent.targetId}]]`, operations: [] as Operation[] };
   let create = intent.create;
   if (!create) {
-    const members = await relationMembers(notebook, intent.targets);
-    const found = await relationCandidates(notebook, members, !!intent.targets.length, intent.query, intent.owner);
+    const members = await relationMembers(workshop, intent.targets);
+    const found = await relationCandidates(workshop, members, !!intent.targets.length, intent.query, intent.owner);
     if (found.rows[0]) return { text: `[[${found.rows[0].block.id}]]`, operations: [] as Operation[] };
     if (!found.canCreate || !intent.query.trim())
       throw new Error('No relation target matched the accepted query. Its text was kept.');
     if (intent.targets.includes(SOURCE_TARGET)) create = { source: true };
     else {
-      const types = await Promise.all(intent.targets.map(id => notebook.api.block(id)));
+      const types = await Promise.all(intent.targets.map(id => workshop.api.block(id)));
       const type = types.find(type => !type.archived);
       if (intent.targets.length && !type)
         throw new Error('The relation target tags are no longer available. Its text was kept.');
@@ -127,13 +127,13 @@ export async function resolveRelationPick(notebook: NotebookClient, intent: Rela
 
 /** Creation and filing travel together, including when the picker is used offline. A page made for Source becomes one. */
 export async function createInstance(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   title: string,
   typeTitle?: string,
   source = false,
 ): Promise<Block> {
   const id = ulid();
-  await notebook.commit(
+  await workshop.commit(
     [
       { op: 'create_page', id, title: title.trim() },
       ...(typeTitle ? [{ op: 'add_type' as const, id, base_revision: 1, title: typeTitle }] : []),
@@ -141,5 +141,5 @@ export async function createInstance(
     ],
     'Create linked atom',
   );
-  return notebook.api.block(id);
+  return workshop.api.block(id);
 }

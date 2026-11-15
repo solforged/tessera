@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, tag_tokens, validate_id, validation};
-use crate::{Block, BlockKind, Notebook, Result};
+use crate::{Block, BlockKind, Result, Workshop};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PageReferences {
@@ -119,7 +119,7 @@ fn check_page(row: Option<&Row<'_>>, id: &str) -> Result<()> {
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     /// External visible references into a page, grouped newest-page-first.
     /// Source order is outline preorder; the limit counts sources, not targets.
     pub fn page_references(&self, page_id: &str, limit: usize) -> Result<PageReferences> {
@@ -318,12 +318,12 @@ mod tests {
     #[test]
     fn reference_plans_use_target_page_and_link_indexes() {
         let directory = tempfile::tempdir().unwrap();
-        let notebook = Notebook::open(directory.path()).unwrap();
+        let workshop = Workshop::open(directory.path()).unwrap();
         for (name, sql) in [
             ("page_references", PAGE_REFERENCES),
             ("reference_counts", REFERENCE_COUNTS),
         ] {
-            let mut statement = notebook
+            let mut statement = workshop
                 .conn
                 .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
                 .unwrap();

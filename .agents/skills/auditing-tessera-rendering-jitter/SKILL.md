@@ -1,6 +1,6 @@
 ---
 name: auditing-tessera-rendering-jitter
-description: "Measures painted frames in WebKit (Tern WKWebView pane or Playwright WebKit) against a throwaway notebook when investigating Tessera or other web UI jitter, flicker, scroll jumps, reflow flashes, or \"re-rendering\" reports."
+description: "Measures painted frames in WebKit (Tern WKWebView pane or Playwright WebKit) against a throwaway workshop when investigating Tessera or other web UI jitter, flicker, scroll jumps, reflow flashes, or \"re-rendering\" reports."
 ---
 
 # Auditing Tessera rendering jitter
@@ -27,7 +27,7 @@ the app's code or the engine.
   makes API requests 10x slower and distorts hold/settle timing. Serve with
   `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/jitter" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`
   and record actual origin/ports.
-- One notebook per server (`service.lock`). Old/patched runs start from
+- One workshop per server (`service.lock`). Old/patched runs start from
   identical stopped pristine fixtures and retain binary/assets provenance plus
   before/after results in `TASK_EVIDENCE`.
 
@@ -94,7 +94,7 @@ that never paint (false positives).
   `new Error().stack`, plus a capturing `scroll` listener. Retain fetched
   minified assets and frame coordinates under `TASK_EVIDENCE`; inspect the
   relevant line/column and search the owned source to map the stack. Do not
-  modify the live origin or source notebook for probes.
+  modify the live origin or source workshop for probes.
 - Compare old vs patched builds with the same action and report a before/after
   table.
 - Library: click `.library-pane .mode-tabs button` by label (layout buttons by

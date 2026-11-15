@@ -404,9 +404,9 @@ fn schema_json_ld_creator_signals_override_unstructured_duplicates() {
     assert_eq!(creators[2].kind, CreatorKind::Person);
     assert_eq!(creators[3].kind, CreatorKind::Organisation);
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = tessera_core::Notebook::open(dir.path()).unwrap();
-    let plan = notebook.plan_source_record(&document.metadata).unwrap();
-    notebook
+    let mut workshop = tessera_core::Workshop::open(dir.path()).unwrap();
+    let plan = workshop.plan_source_record(&document.metadata).unwrap();
+    workshop
         .apply(&tessera_core::Batch {
             actor: tessera_core::Actor::Person,
             reason: None,
@@ -414,7 +414,7 @@ fn schema_json_ld_creator_signals_override_unstructured_duplicates() {
             operations: plan.operations,
         })
         .unwrap();
-    let groups = notebook.kind_notes("group").unwrap();
+    let groups = workshop.kind_notes("group").unwrap();
     assert!(
         groups
             .notes
@@ -422,7 +422,7 @@ fn schema_json_ld_creator_signals_override_unstructured_duplicates() {
             .any(|note| note.title == "Research Institute")
     );
     assert!(
-        !notebook
+        !workshop
             .kind_notes("person")
             .unwrap()
             .notes
@@ -597,9 +597,9 @@ fn gutenberg_ebook_names_the_book_and_its_catalogue_creators() {
         ]
     );
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = tessera_core::Notebook::open(dir.path()).unwrap();
-    let plan = notebook.plan_source_record(&metadata).unwrap();
-    notebook
+    let mut workshop = tessera_core::Workshop::open(dir.path()).unwrap();
+    let plan = workshop.plan_source_record(&metadata).unwrap();
+    workshop
         .apply(&tessera_core::Batch {
             actor: tessera_core::Actor::Person,
             reason: None,
@@ -607,7 +607,7 @@ fn gutenberg_ebook_names_the_book_and_its_catalogue_creators() {
             operations: plan.operations,
         })
         .unwrap();
-    let mut people: Vec<_> = notebook
+    let mut people: Vec<_> = workshop
         .kind_notes("person")
         .unwrap()
         .notes

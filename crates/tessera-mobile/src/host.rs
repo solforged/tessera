@@ -1,4 +1,4 @@
-//! The in-process notebook and the IPC commands the web interface's transport calls.
+//! The in-process workshop and the IPC commands the web interface's transport calls.
 
 use std::collections::HashMap;
 
@@ -13,20 +13,20 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, Response};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager};
-use tessera_core::{Notebook, NotebookOwnership, library::IngestJob};
+use tessera_core::{Workshop, WorkshopOwnership, library::IngestJob};
 use tessera_service::EmbeddedHandles;
 use tokio::sync::OnceCell;
 use tokio::task::AbortHandle;
 use tower::ServiceExt;
 
-/// The open notebook, shared by every activity this process creates.
+/// The open workshop, shared by every activity this process creates.
 struct Host {
     router: Router,
     handles: EmbeddedHandles,
     /// Change streams by the page's subscription id.
     streams: Mutex<HashMap<u32, AbortHandle>>,
-    /// Held for the process lifetime so no second writer opens the notebook.
-    _ownership: NotebookOwnership,
+    /// Held for the process lifetime so no second writer opens the workshop.
+    _ownership: WorkshopOwnership,
 }
 
 static HOST: OnceCell<Host> = OnceCell::const_new();
@@ -38,17 +38,17 @@ async fn host(app: &AppHandle) -> Result<&'static Host, String> {
             .app_data_dir()
             .map_err(|error| format!("cannot find app storage: {error}"))?;
         let dir = data_dir.join("notebook");
-        let (notebook, ownership) = tokio::task::spawn_blocking(move || {
+        let (workshop, ownership) = tokio::task::spawn_blocking(move || {
             let ownership =
-                NotebookOwnership::acquire(&dir, 0).map_err(|error| error.to_string())?;
-            let notebook = Notebook::open(&dir)
-                .map_err(|error| format!("cannot open notebook {}: {error}", dir.display()))?;
-            Ok::<_, String>((notebook, ownership))
+                WorkshopOwnership::acquire(&dir, 0).map_err(|error| error.to_string())?;
+            let workshop = Workshop::open(&dir)
+                .map_err(|error| format!("cannot open workshop {}: {error}", dir.display()))?;
+            Ok::<_, String>((workshop, ownership))
         })
         .await
         .map_err(|error| error.to_string())??;
         let (router, handles) = tessera_service::embedded_router_with_paths(
-            notebook,
+            workshop,
             data_dir.join("agent.json"),
             Some(data_dir.join("backups")),
         )?;
@@ -65,7 +65,7 @@ async fn host(app: &AppHandle) -> Result<&'static Host, String> {
 }
 
 #[derive(Deserialize)]
-struct NotebookRequest {
+struct WorkshopRequest {
     method: String,
     /// Path and query, e.g. `/api/pages/…`.
     path: String,
@@ -74,10 +74,10 @@ struct NotebookRequest {
     body: Option<String>,
 }
 
-/// Dispatch a request to the same notebook handlers as the service. The reply is
+/// Dispatch a request to the same workshop handlers as the service. The reply is
 /// the status (u16 BE), the content type's length (u16 BE), the content type, then the body.
 #[tauri::command]
-async fn notebook_request(app: AppHandle, request: NotebookRequest) -> Result<Response, String> {
+async fn notebook_request(app: AppHandle, request: WorkshopRequest) -> Result<Response, String> {
     let host = host(&app).await?;
     let body = request
         .body
@@ -265,7 +265,7 @@ async fn deliver(host: &'static Host, after: i64, channel: Channel<String>) -> R
     // Aborting this task is how the page closes the stream.
     tessera_api::follow_changes(
         &host.handles.changes,
-        host.handles.notebook.clone(),
+        host.handles.workshop.clone(),
         after,
         100,
         || true,

@@ -1,8 +1,8 @@
 mod common;
 
 use tessera_core::{
-    Actor, AgentEdit, AgentRequest, AssessmentState, Batch, Committed, Error, Notebook, Operation,
-    QuestionState, RelationInfo, RelationKind, RelationQuery,
+    Actor, AgentEdit, AgentRequest, AssessmentState, Batch, Committed, Error, Operation,
+    QuestionState, RelationInfo, RelationKind, RelationQuery, Workshop,
 };
 
 fn id(value: u128) -> String {
@@ -18,7 +18,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
@@ -32,11 +32,11 @@ fn insert(value: u128, parent: u128, text: &str) -> Operation {
     }
 }
 
-fn revision(nb: &Notebook, value: u128) -> i64 {
+fn revision(nb: &Workshop, value: u128) -> i64 {
     nb.block(&id(value)).unwrap().revision
 }
 
-fn relation(nb: &Notebook, value: u128, kind: Option<RelationKind>) -> Operation {
+fn relation(nb: &Workshop, value: u128, kind: Option<RelationKind>) -> Operation {
     Operation::SetRelation {
         id: id(value),
         base_revision: revision(nb, value),
@@ -44,16 +44,16 @@ fn relation(nb: &Notebook, value: u128, kind: Option<RelationKind>) -> Operation
     }
 }
 
-fn set(nb: &mut Notebook, value: u128, kind: Option<RelationKind>) -> Committed {
+fn set(nb: &mut Workshop, value: u128, kind: Option<RelationKind>) -> Committed {
     let op = relation(nb, value, kind);
     apply(nb, vec![op])
 }
 
-fn info(nb: &Notebook, value: u128) -> RelationInfo {
+fn info(nb: &Workshop, value: u128) -> RelationInfo {
     nb.capabilities(&id(value)).unwrap().relation.unwrap()
 }
 
-fn edit(nb: &mut Notebook, value: u128, text: &str) -> Committed {
+fn edit(nb: &mut Workshop, value: u128, text: &str) -> Committed {
     let base_revision = revision(nb, value);
     apply(
         nb,
@@ -65,9 +65,9 @@ fn edit(nb: &mut Notebook, value: u128, text: &str) -> Committed {
     )
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -174,7 +174,7 @@ fn marking_is_explicit_revision_checked_retained_and_merge_protected() {
         Err(Error::Validation { .. })
     ));
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(info(&nb, 13).kind, RelationKind::Disputes);
     set(&mut nb, 13, None);
     assert!(!nb.capabilities(&id(13)).unwrap().merge_protected);
@@ -498,7 +498,7 @@ fn agent_kind_changes_and_removal_undo_without_overwriting_later_edits() {
     let removed = nb.agent_edit(&request(None)).unwrap();
     nb.undo_change(removed.seq, &Actor::Person).unwrap();
     assert_eq!(info(&nb, 13).kind, RelationKind::Disputes);
-    let refused = |nb: &mut Notebook, relation, reason: &str| {
+    let refused = |nb: &mut Workshop, relation, reason: &str| {
         let before = nb.history(500, None).unwrap().len();
         match nb.agent_edit(&request(relation)) {
             Err(Error::Validation { message, .. }) => {
@@ -526,7 +526,7 @@ fn agent_kind_changes_and_removal_undo_without_overwriting_later_edits() {
 }
 
 #[test]
-fn upgrading_old_notebooks_does_not_infer_relations_from_text() {
+fn upgrading_old_workshops_does_not_infer_relations_from_text() {
     for version in [37, 39] {
         let (dir, nb) = fixture();
         drop(nb);
@@ -539,7 +539,7 @@ fn upgrading_old_notebooks_does_not_infer_relations_from_text() {
         }
         conn.pragma_update(None, "user_version", version).unwrap();
         drop(conn);
-        let mut nb = Notebook::open(dir.path()).unwrap();
+        let mut nb = Workshop::open(dir.path()).unwrap();
         assert!(nb.capabilities(&id(13)).unwrap().relation.is_none());
         set(&mut nb, 13, Some(RelationKind::Disputes));
         assert_eq!(info(&nb, 13).target_id, Some(id(20)));

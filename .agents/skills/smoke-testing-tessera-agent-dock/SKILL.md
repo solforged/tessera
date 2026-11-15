@@ -17,7 +17,7 @@ Use a fake OpenAI-compatible server instead.
   [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
   to prepare/source the owned workspace and run, including matching
   `TASK_BIN`/`TASK_DIST`.
-- Prerequisites: an explicitly permitted backup for notebook
+- Prerequisites: an explicitly permitted backup for workshop
   `01M49AC7D8F2M15G81DF22ETZV` containing `Asabiyya`, an installed Chrome for
   Testing, and a fake SSE provider implementing the contract below. The skill
   does not supply that provider or backup. Keep the provider script in
@@ -30,7 +30,7 @@ Use a fake OpenAI-compatible server instead.
   `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/dock" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`.
   Verify `agent.json` is private under `TASK_RUN/state/tessera`, not the user's
   configuration.
-- Allocate the fake-provider port separately from the notebook listeners; the
+- Allocate the fake-provider port separately from the workshop listeners; the
   historical USB trial used 4398. Use the shared owned Chrome launcher/CDP
   procedure with `TASK_RUN/profiles/dock`.
 
@@ -81,4 +81,4 @@ Use a fake OpenAI-compatible server instead.
 
 Retain the fake's request logs, screenshots and configuration-permission
 evidence in `TASK_EVIDENCE`, then follow shared teardown for the browser
-launcher, fake provider and notebook service.
+launcher, fake provider and workshop service.

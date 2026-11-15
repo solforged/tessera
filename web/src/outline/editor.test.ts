@@ -353,7 +353,7 @@ describe('bracket pairing', () => {
   });
 });
 
-test('notebook undo leaves visual lowercase, control motions and pending Vim commands alone', () => {
+test('workshop undo leaves visual lowercase, control motions and pending Vim commands alone', () => {
   const event = { key: 'u', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false };
   const state = {
     insertMode: false,

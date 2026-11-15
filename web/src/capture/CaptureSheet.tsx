@@ -1,6 +1,6 @@
 import { Show, createSignal, onCleanup, onMount } from 'solid-js';
-import { createNotebookClient } from '../document';
-import type { NotebookInfo } from '../api/types';
+import { createWorkshopClient } from '../document';
+import type { WorkshopInfo } from '../api/types';
 import { blankCapture, parseCreateRequest } from '../create/request';
 import { CreateSlipBody } from '../create/CreateSlip';
 
@@ -16,15 +16,15 @@ type CaptureWindow = Window & {
  */
 export function CaptureWindow() {
   const identityKey = `tessera.identity.${location.origin}`;
-  let cachedIdentity: NotebookInfo | undefined;
+  let cachedIdentity: WorkshopInfo | undefined;
   try {
     cachedIdentity = JSON.parse(localStorage.getItem(identityKey) ?? 'null') ?? undefined;
   } catch {
     /* The panel works without a cached identity. */
   }
-  const notebook = createNotebookClient({ notebookId: cachedIdentity?.id });
+  const workshop = createWorkshopClient({ workshopId: cachedIdentity?.id });
   onCleanup(() => {
-    void notebook.dispose();
+    void workshop.dispose();
   });
   const [request, setRequest] = createSignal(blankCapture());
   let body!: HTMLDivElement;
@@ -110,7 +110,7 @@ export function CaptureWindow() {
       <Show keyed when={request()}>
         {value => (
           <CreateSlipBody
-            notebook={notebook}
+            workshop={workshop}
             request={value}
             onDismiss={() => panel.__tesseraCaptureDone?.()}
             onOpen={target => {

@@ -18,9 +18,9 @@ before runtime HOME changes.
 
 - The user prefers Brave and ultimately wants an installable Android app. The
   browser trial is interim verification.
-- Use an isolated notebook; never mutate the installed notebook or
+- Use an isolated workshop; never mutate the installed workshop or
   `.tessera/dev` for trial annotations.
-- Keep the notebook service loopback-only. USB reverse forwarding avoids network
+- Keep the workshop service loopback-only. USB reverse forwarding avoids network
   exposure and preserves its host/origin policy.
 - Do not enable debugging, change security settings, or approve device trust on
   the user's behalf. Ask the user to enable USB debugging and approve this Mac
@@ -54,7 +54,7 @@ task_run "$TASK_BIN" --workshop "$NOTEBOOK" serve --port "$HTTP_PORT" --sync-por
 task_run "$TASK_BIN" --workshop "$NOTEBOOK" add --wait "$TASK_SOURCE/web/src/demo/meditations.epub"
 ```
 
-Keep the notebook service persistent while the user is trying it. Inspect
+Keep the workshop service persistent while the user is trying it. Inspect
 existing reverses before adding a non-rebinding forward:
 
 ```sh
@@ -160,7 +160,7 @@ Release the browser attachment with
 `browser.close({name:'<TASK_ID>-fold-brave-usb'})`; CDP-attached user pages
 remain open. Remove only the recorded inspection forward with
 `"$ADB" -s "$SERIAL" forward --remove tcp:<recorded-port>`. Intentionally leave
-the notebook service and the exact USB reverse active only with an explicit
+the workshop service and the exact USB reverse active only with an explicit
 user-trial handoff naming their next owner, service handle, serial, binding,
 origin and backing `TASK_RUN` path. Explain dependence on the cable and Mac
 service, and do not delete that runtime while the trial is retained. Preserve

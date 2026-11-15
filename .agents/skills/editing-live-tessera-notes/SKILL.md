@@ -1,12 +1,12 @@
 ---
 name: editing-live-tessera-notes
-description: "Writes or edits notes in the live Tessera notebook via POST /api/agent-changes on :4318 (note creation and block editing), not MCP, when the user requests live-notebook changes."
+description: "Writes or edits notes in the live Tessera workshop via POST /api/agent-changes on :4318 (note creation and block editing), not MCP, when the user requests live-notebook changes."
 ---
 
-# Writing or editing notes in the live Tessera notebook
+# Writing or editing notes in the live Tessera workshop
 
 Use this from any working directory when the user asks to put a note in the live
-notebook or to change one. Do not use a throwaway notebook, and do not register
+workshop or to change one. Do not use a throwaway workshop, and do not register
 or spawn `tessera mcp` for this. MCP is not configured for `omp`.
 
 ## Workspace, runtime and authorization
@@ -16,7 +16,7 @@ First complete
 and source its prepared environment. Retain live-edit request manifests,
 receipts and pre-edit backups in `TASK_EVIDENCE`.
 
-Live writes are allowed only for the exact notebook and changes the user
+Live writes are allowed only for the exact workshop and changes the user
 requested; read `/api/service` and the target page immediately before writing,
 record their identities and preserve revision/idempotency safeguards. QA uses a
 private copy, never the live registry, sharing route, pairing state or installed
@@ -24,7 +24,7 @@ service.
 
 ## Service
 
-The launch agent serves the live notebook at `http://127.0.0.1:4318`.
+The launch agent serves the live workshop at `http://127.0.0.1:4318`.
 `GET /api/service` should report that port. Do not write to the sync listener on
 4319, or to 4317.
 
@@ -120,7 +120,7 @@ Other `kind` values are defined by the `AgentEdit` enum in
   `revision`.
 - `GET /api/blocks/{id}` returns a single block. Use it to resolve field ids
   such as `[[01M...]]` to their names.
-- A field entry row's text is `[[<fieldId>]]`. In the live notebook the gloss
+- A field entry row's text is `[[<fieldId>]]`. In the live workshop the gloss
   field id is `01M4RZJX971SKDQGB4JJJ582DM`.
 - A page has a perspective when a block's text is `[[holderId|Name]]` with a
   position on it. Its Gist and Work fields are child field entries of that
@@ -166,4 +166,4 @@ follow shared teardown.
 
 kvasir-box (`tag:kvasir`, `100.67.171.46`) runs the tailnet Grok Bot and has its
 own Tessera replica. SSH to it is refused. Notes written there sync to this Mac,
-so a refused SSH connection does not mean the notebook is missing.
+so a refused SSH connection does not mean the workshop is missing.

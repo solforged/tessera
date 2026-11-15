@@ -1,11 +1,11 @@
 use rusqlite::Connection;
-use tessera_core::{Actor, Batch, DATABASE_FILE, Notebook, Operation};
+use tessera_core::{Actor, Batch, DATABASE_FILE, Operation, Workshop};
 
 #[test]
 fn pairing_hashes_keys_binds_clones_and_strips_device_secrets() {
     let hub_dir = tempfile::tempdir().unwrap();
     let replica_dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(hub_dir.path()).unwrap();
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
     let device = hub.sync_pair_device("Phone", "secret-key").unwrap();
     assert_eq!(
         hub.sync_authenticate("secret-key").unwrap(),
@@ -38,7 +38,7 @@ fn pairing_hashes_keys_binds_clones_and_strips_device_secrets() {
         .query_row("SELECT COUNT(*) FROM sync_devices", [], |row| row.get(0))
         .unwrap();
     assert_eq!(count, 0);
-    let mut replica = Notebook::open(replica_dir.path()).unwrap();
+    let mut replica = Workshop::open(replica_dir.path()).unwrap();
     replica.sync_adopt("https://hub:4319", &ticket).unwrap();
     replica
         .sync_set_hub_credentials(Some("secret-key"), Some("Mac"), Some("Phone"))
@@ -54,7 +54,7 @@ fn pairing_hashes_keys_binds_clones_and_strips_device_secrets() {
 #[test]
 fn forgetting_revokes_keys_retires_all_clones_and_prunes_patches() {
     let dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(dir.path()).unwrap();
+    let mut hub = Workshop::open(dir.path()).unwrap();
     let device = hub.sync_pair_device("Phone", "key").unwrap();
     for filename in ["clone-one.db", "clone-two.db"] {
         hub.sync_clone_for_device(&dir.path().join(filename), Some(&device.id))

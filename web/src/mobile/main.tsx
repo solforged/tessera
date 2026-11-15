@@ -13,15 +13,15 @@ import { setStreamFactory, setTransport } from '../api/client';
 import { setSystemBarsHandler } from '../shell/system-bars';
 import { App } from '../shell/App';
 import { installIosViewport } from '../ui/ios-viewport';
-import { notebookFetch, notebookStream } from './transport';
+import { workshopFetch, workshopStream } from './transport';
 import '../styles.css';
 
 installIosViewport();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');
-setTransport(notebookFetch);
-setStreamFactory(notebookStream);
+setTransport(workshopFetch);
+setStreamFactory(workshopStream);
 setOpenedFilesInbox(() => invoke<OpenedFiles>('take_opened_files'));
 // MainActivity holds launcher, share, widget and tile requests as `{ kind, text }` JSON; taking one clears it.
 const capture = (window as Window & { TesseraCapture?: { take(): string; showKeyboard(): void } }).TesseraCapture;

@@ -1,6 +1,6 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { Citation, LibraryRow, SourceView } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { isFrontMatter, sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import { opensBeside } from '../core/beside';
@@ -24,7 +24,7 @@ const sources = new Map<string, ReadingSource>();
 /** A Reading source's actual chapter and position, with requests owned by the mounted card. */
 export function ReadingCard(props: {
   row: LibraryRow;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   selected?: boolean;
   onOpen(beside: boolean): void;
 }) {
@@ -34,11 +34,11 @@ export function ReadingCard(props: {
   const [error, setError] = createSignal('');
   createEffect(() => {
     const id = props.row.page.id;
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     const controller = new AbortController();
     void Promise.all([
-      props.notebook.api.source(id, controller.signal),
-      props.notebook.api.highlights({ source_id: id, limit: null }, controller.signal),
+      props.workshop.api.source(id, controller.signal),
+      props.workshop.api.highlights({ source_id: id, limit: null }, controller.signal),
     ]).then(
       ([view, highlights]) => {
         if (controller.signal.aborted) return;
@@ -85,9 +85,9 @@ export function ReadingCard(props: {
         <span class="library-reading-text">
           <span
             class="library-reading-title"
-            title={displayTitle(props.row.page.text, id => props.notebook.lookup(id))}
+            title={displayTitle(props.row.page.text, id => props.workshop.lookup(id))}
           >
-            {displayTitle(props.row.page.text, id => props.notebook.lookup(id))}
+            {displayTitle(props.row.page.text, id => props.workshop.lookup(id))}
           </span>
           <span class="library-reading-author" title={sourceByline(props.row)}>
             {sourceByline(props.row)}

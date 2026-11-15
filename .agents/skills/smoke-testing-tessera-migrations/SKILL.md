@@ -1,6 +1,6 @@
 ---
 name: smoke-testing-tessera-migrations
-description: "Proves that an older notebook upgrades cleanly with the new binary before landing a Tessera core migration or stored-text rewrite."
+description: "Proves that an older workshop upgrades cleanly with the new binary before landing a Tessera core migration or stored-text rewrite."
 ---
 
 # Smoke-testing Tessera migrations
@@ -8,7 +8,7 @@ description: "Proves that an older notebook upgrades cleanly with the new binary
 Run when a branch adds `crates/tessera-core/migrations/NNN_*.sql`, a
 `found < NNN` step in `migrate.rs`, or rewrites stored block text (tags,
 references, card syntax). Unit tests fake the old schema; this exercises the
-real upgrade on a notebook the shipped binary wrote.
+real upgrade on a workshop the shipped binary wrote.
 
 ## Shared lifecycle
 

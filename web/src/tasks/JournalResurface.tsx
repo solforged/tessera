@@ -1,6 +1,6 @@
 import { Show, createEffect, createMemo, createRoot, createSignal, createUniqueId, onCleanup } from 'solid-js';
 import type { Surfacing, SurfacingAction } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { highlightSections } from '../library/highlights';
 import type { HighlightSection } from '../library/highlights';
 import { highlightLocation } from '../library/query';
@@ -17,7 +17,7 @@ export interface JournalResurfaceProps {
   /** The template's name for the section. */
   name?: string;
   date: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }
 
@@ -62,7 +62,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
   const [refresh, setRefresh] = createSignal(0);
   const [pending, setPending] = createSignal(false);
   const [failed, setFailed] = createSignal<{ row: Surfacing; action: SurfacingAction }>();
-  const changes = createSettledChanges(props.notebook);
+  const changes = createSettledChanges(props.workshop);
   let generation = 0;
   let loadedDate: string | undefined;
   createEffect(() => {
@@ -81,14 +81,14 @@ export function JournalResurface(props: JournalResurfaceProps) {
       setLoaded(false);
       loadedDate = date;
     }
-    void props.notebook.api
+    void props.workshop.api
       .resurfacing(date, 3, controller.signal)
       .then(async rows => {
         const snapshots = [...new Set(rows.map(row => row.citation.snapshot_id))];
         const entries = await Promise.all(
           snapshots.map(async snapshot => {
             const value =
-              cache.get(snapshot) ?? (await highlightSections(props.notebook.api, snapshot, controller.signal));
+              cache.get(snapshot) ?? (await highlightSections(props.workshop.api, snapshot, controller.signal));
             cache.set(snapshot, value);
             return [snapshot, value] as const;
           }),
@@ -119,7 +119,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
     setError('');
     setFailed(undefined);
     try {
-      await props.notebook.api.recordSurfacing(row.citation.id, date, action);
+      await props.workshop.api.recordSurfacing(row.citation.id, date, action);
       if (current !== generation) return;
       if (action === 'opened')
         props.onOpen(
@@ -212,8 +212,8 @@ export function JournalResurface(props: JournalResurfaceProps) {
                       {shortSourceTitle(row().source_title)} · {location()}
                       {location().startsWith('¶') ? '' : ` · ¶${row().citation.ordinal + 1}`} ·{' '}
                       {relativeDate(
-                        civilDate(row().created_at, props.notebook.settings()?.time_zone),
-                        props.notebook.todayDate(),
+                        civilDate(row().created_at, props.workshop.settings()?.time_zone),
+                        props.workshop.todayDate(),
                       )}
                     </p>
                     <div class="resurface-actions">

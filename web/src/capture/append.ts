@@ -1,14 +1,14 @@
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Operation, PageView } from '../api/types';
-import type { CaptureIntent, NotebookClient } from '../document/contract';
+import type { CaptureIntent, WorkshopClient } from '../document/contract';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 import { foldName } from '../outline/names';
 import { findSectionHeading, readingRowSource, sectionInsertAfter } from '../tasks/today-template';
 
 /** Resolves a durable capture into one batch, including any new journal or reference targets. */
 export async function captureOperations(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   capture: CaptureIntent,
 ): Promise<{ operations: Operation[]; pageId: string }> {
   const operations: Operation[] = [];
@@ -16,7 +16,7 @@ export async function captureOperations(
   const titles = typedTitles(capture.text).filter(title => !picked.has(foldName(title)));
   const targets = new Map([
     ...picked,
-    ...(await titleTargets(notebook, titles, async title => {
+    ...(await titleTargets(workshop, titles, async title => {
       const id = ulid();
       operations.push({ op: 'create_page', id, title });
       operations.push({ op: 'insert', id: ulid(), parent_id: id, after: null, text: '', heading: null });
@@ -28,11 +28,11 @@ export async function captureOperations(
   let page: PageView | undefined;
   if (capture.targetPageId) {
     pageId = capture.targetPageId;
-    page = await notebook.api.page(pageId);
+    page = await workshop.api.page(pageId);
   } else {
     try {
-      pageId = (await notebook.api.journal(capture.date)).id;
-      page = await notebook.api.page(pageId);
+      pageId = (await workshop.api.journal(capture.date)).id;
+      page = await workshop.api.page(pageId);
     } catch (reason) {
       if (!(reason instanceof ApiError) || reason.status !== 404) throw reason;
       pageId = ulid();

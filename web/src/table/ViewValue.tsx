@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal, onMount } from 'solid-js';
 import type { FieldDefinition, QueryRow, QuoteState } from '../api/types';
-import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
+import type { WorkshopClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { CriteriaCellEditor } from '../compare/CriteriaCellEditor';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
@@ -17,7 +17,7 @@ export function ViewValue(props: {
   row: QueryRow;
   field: FieldDefinition;
   doc?: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onEdited(doc: PageDocument): void;
   onError(message: string): void;
   onFill?(field: string, direction: -1 | 1): void;
@@ -73,11 +73,11 @@ export function ViewValue(props: {
     try {
       const original = values().find(value => value.id === valueId())?.text ?? '';
       const titles = relationPick ? [] : typedTitles(draft);
-      const text = titles.length ? withLinkedTitles(draft, await titleTargets(props.notebook, titles)) : draft;
+      const text = titles.length ? withLinkedTitles(draft, await titleTargets(props.workshop, titles)) : draft;
       const changed = text !== original || !!quote || !!option || !!relationPick;
       if (changed) {
         const target = { field: props.field, ownerId: props.row.block.block.id, valueId: valueId() };
-        if (option) await createOptionValue(props.notebook, doc, target, option);
+        if (option) await createOptionValue(props.workshop, doc, target, option);
         else if (quote) {
           const entry = doc.outline
             .children(target.ownerId)
@@ -148,7 +148,7 @@ export function ViewValue(props: {
         return;
       }
     }
-    if (hasValueEditor(props.field, text, props.notebook.todayDate())) setPicker(true);
+    if (hasValueEditor(props.field, text, props.workshop.todayDate())) setPicker(true);
     else setEditing(text);
   }
   onMount(() => props.onReady?.(() => start(undefined, true)));
@@ -194,7 +194,7 @@ export function ViewValue(props: {
                     start(value.id);
                   }}
                 >
-                  <BlockText text={value.text} blockId={value.id} notebook={props.notebook} interactive={false} />
+                  <BlockText text={value.text} blockId={value.id} workshop={props.workshop} interactive={false} />
                 </button>
               )}
             </For>
@@ -205,7 +205,7 @@ export function ViewValue(props: {
           id={valueId() ?? props.row.block.block.id}
           text={editing() ?? ''}
           label={`Edit ${fieldLabel(props.field)} value`}
-          notebook={props.notebook}
+          workshop={props.workshop}
           onCommit={(text, focus, quote) => void write(text, focus, quote)}
           onCancel={() => finish()}
           onTab={props.onFill ? (text, direction, quote) => void write(text, false, quote, direction) : undefined}
@@ -220,8 +220,8 @@ export function ViewValue(props: {
               field={props.field}
               owner={{ id: props.row.block.block.id, page: props.row.block.page.id }}
               text={values().find(value => value.id === valueId())?.text ?? ''}
-              notebook={props.notebook}
-              contextDate={props.notebook.todayDate()}
+              workshop={props.workshop}
+              contextDate={props.workshop.todayDate()}
               onWrite={(text, relationPick) => write(text, true, undefined, undefined, undefined, relationPick)}
               onCreateOption={text => write('', true, undefined, undefined, text)}
               onError={props.onError}
@@ -232,11 +232,11 @@ export function ViewValue(props: {
           {field => (
             <TaskFieldEditor
               doc={props.doc!}
-              notebook={props.notebook}
+              workshop={props.workshop}
               id={props.row.block.block.id}
               field={field()}
               anchor={host}
-              contextDate={props.notebook.todayDate()}
+              contextDate={props.workshop.todayDate()}
               onSaved={() => props.onEdited(props.doc!)}
               onDismiss={() => finish()}
             />

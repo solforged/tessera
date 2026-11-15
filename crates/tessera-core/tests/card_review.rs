@@ -1,7 +1,7 @@
 use tessera_core::scheduler::{Grade, SCHEDULER_VERSION};
 use tessera_core::{
-    Actor, Batch, CardQuery, CardSelection, CardUnit, Committed, Error, Notebook, Operation, Query,
-    ReviewEventKind, ReviewSessionState, Revision, TagDeck,
+    Actor, Batch, CardQuery, CardSelection, CardUnit, Committed, Error, Operation, Query,
+    ReviewEventKind, ReviewSessionState, Revision, TagDeck, Workshop,
 };
 
 fn fsrs(state: &tessera_core::ReviewSchedulingState) -> tessera_core::scheduler::SchedulingState {
@@ -24,13 +24,13 @@ fn batch(operations: Vec<Operation>) -> Batch {
     }
 }
 
-fn apply(nb: &mut Notebook, operations: Vec<Operation>) -> Committed {
+fn apply(nb: &mut Workshop, operations: Vec<Operation>) -> Committed {
     nb.apply(&batch(operations)).unwrap()
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook, CardUnit) {
+fn fixture() -> (tempfile::TempDir, Workshop, CardUnit) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     apply(
         &mut nb,
         vec![
@@ -77,7 +77,7 @@ fn reset(card: &CardUnit, event: u128, session: Option<u128>, at: i64) -> Operat
     }
 }
 
-fn edit(nb: &Notebook, text: &str) -> Operation {
+fn edit(nb: &Workshop, text: &str) -> Operation {
     Operation::EditText {
         id: id(2),
         base_revision: nb.block(&id(2)).unwrap().revision,
@@ -103,7 +103,7 @@ fn save_deck(deck: u128, revision: Option<i64>, name: &str, query: CardQuery) ->
     }
 }
 
-fn invalid(nb: &mut Notebook, operation: Operation) {
+fn invalid(nb: &mut Workshop, operation: Operation) {
     assert!(matches!(
         nb.apply(&batch(vec![operation])),
         Err(Error::Validation { .. })
@@ -278,7 +278,7 @@ fn uncertain_delivery_replays_the_same_session_reset_grade_and_receipt_after_reo
     );
     drop(nb);
 
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let replay = nb.apply(&request).unwrap();
     let mut expected = committed;
     expected.replayed = true;
@@ -597,7 +597,7 @@ fn source_and_deck_removal_hide_reviews_but_retain_session_and_card_history() {
     assert_eq!(nb.review_events(&original.id).unwrap(), evidence);
     drop(nb);
 
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.review_events(&original.id).unwrap(), evidence);
     assert_eq!(nb.card(&original.id).unwrap().schedule, reviewed.schedule);
     let retained = nb.review_session(&id(50)).unwrap();
@@ -960,7 +960,7 @@ fn releasing_a_new_card_preserves_its_original_queue_order() {
         limit: None,
     };
     let now = tessera_core::now_ms();
-    let order = |nb: &Notebook| {
+    let order = |nb: &Workshop| {
         nb.card_query(&query, now)
             .unwrap()
             .rows
@@ -1058,7 +1058,7 @@ fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore
     );
 
     drop(nb);
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     let mut expected = committed;
     expected.replayed = true;
     assert_eq!(nb.apply(&request).unwrap(), expected);
@@ -1072,7 +1072,7 @@ fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore
         false,
     )
     .unwrap();
-    let mut copy = Notebook::open(copies.path().join("restored")).unwrap();
+    let mut copy = Workshop::open(copies.path().join("restored")).unwrap();
     assert_eq!(copy.apply(&request).unwrap(), expected);
     assert_eq!(
         copy.review_events(&original.id).unwrap()[0].undone_by,

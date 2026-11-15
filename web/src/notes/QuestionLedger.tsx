@@ -2,7 +2,7 @@ import { opensBeside } from '../core/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Query, QuestionFilter, QuestionRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { BlockText } from '../outline/BlockText';
 import { questionLabels } from '../outline/Questions';
@@ -15,19 +15,19 @@ import { filterLabel, removeFilter, typeQuery } from '../table/query';
 
 const tabs = ['Active', 'Recurrent', 'Due', 'Answered', 'Parked', 'All'] as const;
 export function QuestionLedger(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   newQuestion?(members: { id: string }[]): JSX.Element;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [tab, setTab] = createSignal<(typeof tabs)[number]>('Active');
   const [query, setQuery] = createSignal<Query>({ ...typeQuery(null), source: 'questions' });
-  const changes = createSettledChanges(props.notebook);
-  const [all] = createResource(changes, () => props.notebook.api.questions({ include_inline: true }));
+  const changes = createSettledChanges(props.workshop);
+  const [all] = createResource(changes, () => props.workshop.api.questions({ include_inline: true }));
   const [questions] = createResource(
     () => [tab(), changes()] as const,
     ([state]) =>
-      props.notebook.api.questions({
+      props.workshop.api.questions({
         include_inline: true,
         ...(state === 'All' ? {} : { state: state.toLowerCase() as QuestionFilter }),
       }),
@@ -44,7 +44,7 @@ export function QuestionLedger(props: {
   );
   const [matches] = createResource(
     () => (filtered() ? ([query(), changes()] as const) : false),
-    ([value]) => props.notebook.api.query({ ...value, offset: 0, limit: null }),
+    ([value]) => props.workshop.api.query({ ...value, offset: 0, limit: null }),
   );
   const visible = createMemo(() => {
     const rows = questions();
@@ -130,13 +130,13 @@ export function QuestionLedger(props: {
             )}
           </For>
         </div>
-        <NoteFind query={query()} plural="Questions" notebook={props.notebook} onChange={setQuery} />
+        <NoteFind query={query()} plural="Questions" workshop={props.workshop} onChange={setQuery} />
         <Show when={query().filters.length}>
           <div class="table-query-chips">
             <For each={query().filters}>
               {(filter, at) => (
                 <span class="table-chip">
-                  {filterLabel(filter, attributeDefinitions('questions'), props.notebook)}
+                  {filterLabel(filter, attributeDefinitions('questions'), props.workshop)}
                   <Button label="Remove filter" onClick={() => setQuery(removeFilter(query(), at()))}>
                     ×
                   </Button>
@@ -164,7 +164,7 @@ export function QuestionLedger(props: {
               <Show when={!group.rows.some(row => row.block.block.id === group.program.block.block.id)}>
                 <h2>
                   <Button onClick={event => open(group.program, event)}>
-                    <BlockText text={group.program.block.block.text} notebook={props.notebook} interactive={false} />
+                    <BlockText text={group.program.block.block.text} workshop={props.workshop} interactive={false} />
                   </Button>
                 </h2>
               </Show>
@@ -176,11 +176,11 @@ export function QuestionLedger(props: {
                     data-branch={row.block.block.id !== group.program.block.block.id}
                   >
                     <Button class="question-ledger-title" onClick={event => open(row, event)}>
-                      <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+                      <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} />
                     </Button>
                     <Show when={row.block.block.kind === 'block'}>
                       <p class="question-ledger-context">
-                        In <BlockText text={row.block.page.text} notebook={props.notebook} interactive={false} /> ·
+                        In <BlockText text={row.block.page.text} workshop={props.workshop} interactive={false} /> ·
                         Inline question
                       </p>
                     </Show>
@@ -192,7 +192,7 @@ export function QuestionLedger(props: {
                       <Show when={row.current} fallback="No current answer">
                         {current => (
                           <>
-                            <BlockText text={current().text} notebook={props.notebook} interactive={false} />
+                            <BlockText text={current().text} workshop={props.workshop} interactive={false} />
                             <span class="index-apparatus"> · {current().assessed_on}</span>
                           </>
                         )}

@@ -1,7 +1,7 @@
 import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createUniqueId } from 'solid-js';
 import type { RelationKind } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 
 const WIDTH = 240;
@@ -85,14 +85,14 @@ function labelLines(text: string): string[] {
  * outside) and the key to the sigla on the page.
  */
 export function Apparatus(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   holders: readonly string[];
   linked: readonly string[];
   relations: readonly HolderRelation[];
   sources: readonly { id: string; siglum: string }[];
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
-  const title = (id: string) => props.notebook.lookup(id)()?.text.trim() || 'Untitled';
+  const title = (id: string) => props.workshop.lookup(id)()?.text.trim() || 'Untitled';
   const inner = () => ring(props.holders, INNER, 0);
   const outer = () => ring(props.linked, OUTER, Math.PI / Math.max(props.linked.length, 1));
   const open = (id: string, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: id }, opensBeside(event));

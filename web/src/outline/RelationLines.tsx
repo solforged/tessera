@@ -2,7 +2,7 @@ import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { FieldOwner, IncomingFieldValue, RelationRow } from '../api/types';
-import type { BlockState, NotebookClient } from '../document/contract';
+import type { BlockState, WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -14,7 +14,7 @@ import { ListGroup, ListRow } from '../ui/List';
 import './relations.css';
 
 interface RelationProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }
 
@@ -29,10 +29,10 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
             const label = createMemo(() => {
               const holder = row.source.holder_id;
               const text = holder
-                ? props.notebook.lookup(holder)()?.text
-                : (props.notebook.lookup(source.id)()?.text ?? source.text);
+                ? props.workshop.lookup(holder)()?.text
+                : (props.workshop.lookup(source.id)()?.text ?? source.text);
               return (
-                plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom')
+                plainText(text ?? '', id => props.workshop.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom')
               );
             });
             return (
@@ -88,7 +88,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
   });
   const [expanded, setExpanded] = createSignal(new Set<string>());
   const label = (owner: FieldOwner) =>
-    targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty atom';
+    targetLabel(props.workshop.lookup(owner.id)()?.text ?? owner.text, id => props.workshop.lookup(id)) || 'Empty atom';
   return (
     <Show when={groups().length}>
       <div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
@@ -162,7 +162,7 @@ const mentionsShown = 5;
 function MentionedIn(
   props: RelationProps & { relations: readonly RelationRow[]; fields: readonly IncomingFieldValue[] },
 ) {
-  const work = createWorkTest(props.notebook);
+  const work = createWorkTest(props.workshop);
   const [all, setAll] = createSignal(false);
   const mentions = createMemo(() => {
     const result: Mention[] = [];
@@ -171,11 +171,11 @@ function MentionedIn(
       const source = row.source.block.block;
       const holder = row.source.holder_id;
       const text = holder
-        ? props.notebook.lookup(holder)()?.text
-        : (props.notebook.lookup(source.id)()?.text ?? source.text);
+        ? props.workshop.lookup(holder)()?.text
+        : (props.workshop.lookup(source.id)()?.text ?? source.text);
       result.push({
         key: `relation:${source.id}:${row.kind}`,
-        name: plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom'),
+        name: plainText(text ?? '', id => props.workshop.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom'),
         relation: incomingRelationLabels[row.kind],
         pageId: row.source.block.page.id,
         blockId: source.kind === 'block' ? source.id : undefined,
@@ -189,7 +189,7 @@ function MentionedIn(
       result.push({
         key,
         name:
-          targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) ||
+          targetLabel(props.workshop.lookup(owner.id)()?.text ?? owner.text, id => props.workshop.lookup(id)) ||
           'Empty atom',
         relation: row.field_name,
         pageId: owner.page_id,
@@ -239,16 +239,16 @@ export function IncomingRelations(
   onCleanup(() => request?.abort());
   const [rows] = createResource(
     () =>
-      props.enabled === false || props.notebook.lookup(props.target)()?.revision === 0
+      props.enabled === false || props.workshop.lookup(props.target)()?.revision === 0
         ? false
-        : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`,
+        : `${props.target}:${props.version}:${props.workshop.connection() === 'live'}`,
     async () => {
       request?.abort();
       request = new AbortController();
       const [relations, fields] = await Promise.all([
-        props.notebook.api.relations({ target: props.target }, request.signal),
+        props.workshop.api.relations({ target: props.target }, request.signal),
         // Relation fields are secondary here; an older service without the route still shows arguments.
-        props.notebook.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
+        props.workshop.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
       ]);
       return { relations, fields };
     },
@@ -270,15 +270,15 @@ export function IncomingRelations(
           when={props.heading && isPhone()}
           fallback={
             <>
-              <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
-              <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+              <IncomingRelationLine rows={rows()?.relations ?? []} workshop={props.workshop} onOpen={props.onOpen} />
+              <IncomingFieldLine rows={rows()?.fields ?? []} workshop={props.workshop} onOpen={props.onOpen} />
             </>
           }
         >
           <MentionedIn
             relations={rows()?.relations ?? []}
             fields={rows()?.fields ?? []}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
           />
         </Show>
@@ -296,11 +296,11 @@ export function OutgoingRelations(props: RelationProps & { rows: readonly BlockS
           {(row, index) => (
             <Show when={row.relation}>
               {relation => {
-                const target = () => (relation().target_id ? props.notebook.lookup(relation().target_id!)() : null);
+                const target = () => (relation().target_id ? props.workshop.lookup(relation().target_id!)() : null);
                 const label = () => {
                   const block = target();
                   return block
-                    ? plainText(block.text, id => props.notebook.lookup(id)) || 'Empty atom'
+                    ? plainText(block.text, id => props.workshop.lookup(id)) || 'Empty atom'
                     : relation().target_id
                       ? 'Loading reference…'
                       : 'No target';

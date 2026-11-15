@@ -188,7 +188,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
             }
             derive_memberships(&tx, &id, source, None)?;
         }
-        // Older notebooks rebuild every card below; here only the rewritten sources need it.
+        // Older workshops rebuild every card below; here only the rewritten sources need it.
         if found >= 34 {
             crate::card_store::derive_sources(&tx, &rewritten, now_ms())?;
         }
@@ -737,11 +737,11 @@ mod tests {
 
     #[test]
     fn display_title_upgrade_renames_newer_collisions_without_changing_memberships_or_history() {
-        use crate::{Actor, Batch, Notebook, Operation};
+        use crate::{Actor, Batch, Operation, Workshop};
 
         for reserve_second in [false, true] {
             let dir = tempfile::tempdir().unwrap();
-            let mut notebook = Notebook::open(dir.path()).unwrap();
+            let mut workshop = Workshop::open(dir.path()).unwrap();
             let id = |n: u128| ulid::Ulid::from(n).to_string();
             let mut operations = vec![
                 Operation::CreatePage {
@@ -768,7 +768,7 @@ mod tests {
                     title: "Lab (2)".into(),
                 });
             }
-            let committed = notebook
+            let committed = workshop
                 .apply(&Batch {
                     actor: Actor::Person,
                     reason: None,
@@ -776,8 +776,8 @@ mod tests {
                     operations,
                 })
                 .unwrap();
-            let first = notebook.block(&id(1)).unwrap();
-            let second = notebook.block(&id(2)).unwrap();
+            let first = workshop.block(&id(1)).unwrap();
+            let second = workshop.block(&id(2)).unwrap();
             let first_text = first.text.replacen("Temporary", "Lab", 1);
             let second_text = second.text.replacen("Another", "Lab", 1);
             // 052 has the same tables, but keys the entire stored title. Restore
@@ -787,7 +787,7 @@ mod tests {
                 (id(1), first_text.clone(), 1),
                 (id(2), second_text.clone(), 1),
             ] {
-                notebook.conn.execute(
+                workshop.conn.execute(
                     "UPDATE blocks SET text = ?1, title_key = ?2, created_at = ?3 WHERE id = ?4",
                     params![text, crate::storage::fold_title(&text), created, page],
                 ).unwrap();
@@ -800,37 +800,37 @@ mod tests {
                     .collect::<rusqlite::Result<Vec<_>>>()
                     .unwrap()
             };
-            let memberships = membership_rows(&notebook.conn);
-            notebook
+            let memberships = membership_rows(&workshop.conn);
+            workshop
                 .conn
                 .pragma_update(None, "user_version", 52)
                 .unwrap();
-            drop(notebook);
+            drop(workshop);
 
-            let mut notebook = Notebook::open(dir.path()).unwrap();
+            let mut workshop = Workshop::open(dir.path()).unwrap();
             let suffix = if reserve_second { 3 } else { 2 };
-            assert_eq!(notebook.page_by_title("Lab").unwrap().unwrap().id, id(10));
+            assert_eq!(workshop.page_by_title("Lab").unwrap().unwrap().id, id(10));
             for (page, before, revision, suffix) in [
                 (id(1), first_text, first.revision, suffix),
                 (id(2), second_text, second.revision, suffix + 1),
             ] {
                 let title = format!("Lab ({suffix})");
-                let block = notebook.page_by_title(&title).unwrap().unwrap();
+                let block = workshop.page_by_title(&title).unwrap().unwrap();
                 assert_eq!(block.id, page);
                 assert_eq!(block.text, format!("{before} ({suffix})"));
                 assert_eq!(block.revision, revision);
-                assert_eq!(notebook.display_title(&block.text).unwrap(), title);
+                assert_eq!(workshop.display_title(&block.text).unwrap(), title);
             }
-            assert_eq!(membership_rows(&notebook.conn), memberships);
+            assert_eq!(membership_rows(&workshop.conn), memberships);
             assert!(
-                notebook
+                workshop
                     .changes_since(committed.seq, 100)
                     .unwrap()
                     .is_empty()
             );
-            let report = notebook.check(false).unwrap();
+            let report = workshop.check(false).unwrap();
             assert!(report.ok, "{report:?}");
-            let repaired = notebook.check(true).unwrap();
+            let repaired = workshop.check(true).unwrap();
             assert!(repaired.ok && repaired.repaired.is_none(), "{repaired:?}");
         }
     }

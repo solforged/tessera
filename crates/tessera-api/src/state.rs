@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use tessera_core::Notebook;
+use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
@@ -13,7 +13,7 @@ use crate::library::{self, Library};
 /// missing file from the replica's hub; the browser reads the local store.
 pub type ObjectReader = Arc<
     dyn Fn(
-            Arc<Mutex<Notebook>>,
+            Arc<Mutex<Workshop>>,
             String,
         ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, ApiError>> + Send>>
         + Send
@@ -23,7 +23,7 @@ pub type ObjectReader = Arc<
 /// The workshop connection, its change wakeups, and the library worker.
 #[derive(Clone)]
 pub struct WorkshopState {
-    pub notebook: Arc<Mutex<Notebook>>,
+    pub workshop: Arc<Mutex<Workshop>>,
     pub changes: broadcast::Sender<i64>,
     pub library: Library,
     /// Read-only connections for [`crate::read`]; absent where the host has
@@ -33,12 +33,12 @@ pub struct WorkshopState {
 }
 
 impl WorkshopState {
-    /// Open the library worker on an already wrapped notebook.
-    pub fn from_notebook(notebook: Arc<Mutex<Notebook>>) -> Result<Self, String> {
+    /// Open the library worker on an already wrapped workshop.
+    pub fn from_workshop(workshop: Arc<Mutex<Workshop>>) -> Result<Self, String> {
         let changes = broadcast::channel(256).0;
-        let library = Library::start(notebook.clone(), changes.clone(), library::extract)?;
+        let library = Library::start(workshop.clone(), changes.clone(), library::extract)?;
         Ok(Self {
-            notebook,
+            workshop,
             changes,
             library,
             readers: None,
@@ -46,18 +46,18 @@ impl WorkshopState {
         })
     }
 
-    pub fn open(notebook: Notebook) -> Result<Self, String> {
-        Self::from_notebook(Arc::new(Mutex::new(notebook)))
+    pub fn open(workshop: Workshop) -> Result<Self, String> {
+        Self::from_workshop(Arc::new(Mutex::new(workshop)))
     }
 
     /// Assemble state when the library worker was already started, as tests do with a fake extractor.
     pub fn from_parts(
-        notebook: Arc<Mutex<Notebook>>,
+        workshop: Arc<Mutex<Workshop>>,
         changes: broadcast::Sender<i64>,
         library: Library,
     ) -> Self {
         Self {
-            notebook,
+            workshop,
             changes,
             library,
             readers: None,
@@ -76,36 +76,36 @@ impl WorkshopState {
     }
 
     pub(crate) async fn read_stored(&self, sha: String) -> Result<Vec<u8>, ApiError> {
-        (self.objects)(self.notebook.clone(), sha).await
+        (self.objects)(self.workshop.clone(), sha).await
     }
 }
 
 fn local_object(
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     sha: String,
 ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, ApiError>> + Send>> {
     Box::pin(async move {
         // A missing file is not found. The native service replaces this reader
         // when a replica should fetch the file from its hub instead.
-        match crate::run::read_notebook(&notebook, move |notebook| notebook.read_object(&sha)).await
+        match crate::run::read_workshop(&workshop, move |workshop| workshop.read_object(&sha)).await
         {
             Ok(bytes) => Ok(bytes),
-            Err(crate::run::NotebookError::Workshop(tessera_core::Error::NotFound { .. })) => {
+            Err(crate::run::WorkshopError::Workshop(tessera_core::Error::NotFound { .. })) => {
                 Err(ApiError::not_found())
             }
-            Err(crate::run::NotebookError::Workshop(tessera_core::Error::Io(error)))
+            Err(crate::run::WorkshopError::Workshop(tessera_core::Error::Io(error)))
                 if error.kind() == std::io::ErrorKind::NotFound =>
             {
                 Err(ApiError::not_found())
             }
-            Err(crate::run::NotebookError::Workshop(error)) => Err(error.into()),
-            Err(crate::run::NotebookError::Interrupted(error)) => Err(ApiError::internal(error)),
+            Err(crate::run::WorkshopError::Workshop(error)) => Err(error.into()),
+            Err(crate::run::WorkshopError::Interrupted(error)) => Err(ApiError::internal(error)),
         }
     })
 }
 
-/// The notebook and commit notifications backing an embedded router.
+/// The workshop and commit notifications backing an embedded router.
 pub struct EmbeddedHandles {
-    pub notebook: Arc<Mutex<Notebook>>,
+    pub workshop: Arc<Mutex<Workshop>>,
     pub changes: broadcast::Sender<i64>,
 }

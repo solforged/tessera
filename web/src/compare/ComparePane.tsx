@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { api } from '../api/client';
 import type { PositionRow } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { citedSigla } from '../library/sigla';
 import { createCitedSources } from '../outline/source-reads';
 import { BlockText } from '../outline/BlockText';
@@ -23,7 +23,7 @@ import './compare.css';
 interface ComparePaneProps {
   subjectId: string;
   view: CompareViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: CompareViewState): void;
@@ -44,7 +44,7 @@ interface Perspective {
 export function ComparePane(props: ComparePaneProps) {
   const [version, setVersion] = createSignal(0);
   createEffect(() => {
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     const timer = setTimeout(() => setVersion(value => value + 1), 300);
     onCleanup(() => clearTimeout(timer));
   });
@@ -79,14 +79,14 @@ export function ComparePane(props: ComparePaneProps) {
   const fieldName = (id: string) => fieldList()?.fields.find(field => field.id === id)?.name;
   const [docs, setDocs] = createSignal(new Map<string, PageDocument>());
   createEffect(() => {
-    const subjectPage = props.notebook.lookup(props.subjectId)()?.page_id ?? props.subjectId;
+    const subjectPage = props.workshop.lookup(props.subjectId)()?.page_id ?? props.subjectId;
     const pages = new Set([
       subjectPage,
       ...rows()
         .filter(row => selectedIds().includes(row.block.block.id))
         .map(row => row.block.page.id),
     ]);
-    const opened = new Map([...pages].map(id => [id, props.notebook.open(id)]));
+    const opened = new Map([...pages].map(id => [id, props.workshop.open(id)]));
     setDocs(opened);
     onCleanup(() => {
       for (const doc of opened.values()) doc.release();
@@ -143,7 +143,7 @@ export function ComparePane(props: ComparePaneProps) {
   const questions = createMemo(() =>
     (result()?.questions ?? []).filter(question => tab() === 'readings' || !question.criterion),
   );
-  const siglumRecords = createCitedSources(props.notebook, () => [
+  const siglumRecords = createCitedSources(props.workshop, () => [
     ...new Set(
       perspectives()
         .map(item => item.source)
@@ -151,10 +151,10 @@ export function ComparePane(props: ComparePaneProps) {
     ),
   ]);
   const sigla = createMemo(() => citedSigla(siglumRecords()));
-  const subject = () => props.notebook.lookup(props.subjectId)();
+  const subject = () => props.workshop.lookup(props.subjectId)();
   const holderName = (row: PositionRow) =>
     row.holder_id
-      ? (props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…')
+      ? (props.workshop.lookup(row.holder_id)()?.text ?? 'Loading holder…')
       : row.deleted_holder
         ? deletedHolderLabel(row.deleted_holder)
         : 'Unattributed';
@@ -231,7 +231,7 @@ export function ComparePane(props: ComparePaneProps) {
                 }}
               >
                 <span>
-                  <BlockText text={subject()?.text ?? 'Loading…'} notebook={props.notebook} interactive={false} />
+                  <BlockText text={subject()?.text ?? 'Loading…'} workshop={props.workshop} interactive={false} />
                 </span>
               </Button>
             </h2>
@@ -264,7 +264,7 @@ export function ComparePane(props: ComparePaneProps) {
         {question => (
           <section class="compare-focus" aria-label="Focused question">
             <Button class="compare-focus-question" onClick={() => focusQuestion(null)}>
-              <BlockText text={question().block.block.text} notebook={props.notebook} interactive={false} />
+              <BlockText text={question().block.block.text} workshop={props.workshop} interactive={false} />
             </Button>
             <div>
               <Button
@@ -346,7 +346,7 @@ export function ComparePane(props: ComparePaneProps) {
                 questions={result()?.questions ?? []}
                 focusedCriterion={focusedQuestion()?.criterion ?? null}
                 onFocusQuestion={id => focusQuestion(id)}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 docs={docs()}
                 field={id => fieldList()?.fields.find(field => field.id === id)}
                 holder={holderName}
@@ -386,7 +386,7 @@ export function ComparePane(props: ComparePaneProps) {
                             }
                           >
                             {mark => (
-                              <span class="compare-siglum" title={props.notebook.lookup(perspective.source!)()?.text}>
+                              <span class="compare-siglum" title={props.workshop.lookup(perspective.source!)()?.text}>
                                 {mark()}
                               </span>
                             )}
@@ -417,7 +417,7 @@ export function ComparePane(props: ComparePaneProps) {
                                       : work()
                                   }
                                   blockId={perspective.work?.valueId ?? undefined}
-                                  notebook={props.notebook}
+                                  workshop={props.workshop}
                                   onOpen={props.onOpen}
                                 />
                               </div>
@@ -434,7 +434,7 @@ export function ComparePane(props: ComparePaneProps) {
                                       : account()
                                   }
                                   blockId={perspective.account?.valueId ?? undefined}
-                                  notebook={props.notebook}
+                                  workshop={props.workshop}
                                   onOpen={props.onOpen}
                                 />
                               </div>
@@ -451,7 +451,7 @@ export function ComparePane(props: ComparePaneProps) {
                                     : gist()
                                 }
                                 blockId={perspective.gist?.valueId ?? undefined}
-                                notebook={props.notebook}
+                                workshop={props.workshop}
                                 onOpen={props.onOpen}
                               />
                             </p>
@@ -463,7 +463,7 @@ export function ComparePane(props: ComparePaneProps) {
                               <BlockText
                                 text={passage.text}
                                 blockId={passage.id}
-                                notebook={props.notebook}
+                                workshop={props.workshop}
                                 onOpen={props.onOpen}
                               />
                             </div>
@@ -471,7 +471,7 @@ export function ComparePane(props: ComparePaneProps) {
                         </For>
                         <OutgoingRelations
                           rows={docs().get(page)?.status() === 'ready' ? positionRelations(docs().get(page)!, id) : []}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                           onOpen={props.onOpen}
                         />
                         <Button class="compare-open" onClick={event => open(page, id, opensBeside(event))}>
@@ -491,7 +491,7 @@ export function ComparePane(props: ComparePaneProps) {
                 {question => (
                   <div class="compare-question">
                     <Button onClick={() => focusQuestion(question.block.block.id)}>
-                      <BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} />
+                      <BlockText text={question.block.block.text} workshop={props.workshop} interactive={false} />
                     </Button>
                     <Button
                       onClick={event => open(question.block.page.id, question.block.block.id, opensBeside(event))}

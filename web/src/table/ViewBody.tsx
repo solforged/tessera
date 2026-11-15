@@ -3,7 +3,7 @@ import { For, Match, Show, Switch, createEffect, createMemo, createResource, cre
 import { scrollBehavior } from '../core/motion';
 import type { JSX } from 'solid-js';
 import type { PositionRow, Query, QueryGroup, QueryResult, QueryRow } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { CriteriaMatrix } from '../compare/CriteriaMatrix';
 import { fieldRole } from '../fields/roles';
@@ -29,7 +29,7 @@ import './view-body.css';
 export interface ViewBodyProps {
   query: Query;
   result: QueryResult;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   neighbour?: boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
   onEdited?(doc: PageDocument): void;
@@ -47,15 +47,15 @@ export function ViewBody(props: ViewBodyProps) {
   const history: PageDocument[] = [],
     undone: PageDocument[] = [];
   const [fields] = createResource(
-    () => props.notebook.changeSequence(),
-    () => props.notebook.api.fields(),
+    () => props.workshop.changeSequence(),
+    () => props.workshop.api.fields(),
   );
   const definitions = createMemo(() => [
     ...new Map([...(fields()?.fields ?? []), ...props.result.fields].map(field => [field.id, field])).values(),
   ]);
   const definition = (id: string) => definitions().find(field => field.id === id);
   const sharedTitleWidth = () => props.query.columns?.find(column => column.key === '@title')?.width ?? 340;
-  const lookup = (id: string) => props.notebook.lookup(id);
+  const lookup = (id: string) => props.workshop.lookup(id);
   /** A page's name as a reader sees it, without its identity tag. */
   const nameOf = (id: string, loading: string) => {
     const text = lookup(id)()?.text;
@@ -98,7 +98,7 @@ export function ViewBody(props: ViewBodyProps) {
       documentPages()
         .split(',')
         .filter(Boolean)
-        .map(id => [id, props.notebook.open(id)]),
+        .map(id => [id, props.workshop.open(id)]),
     );
     setDocs(opened);
     onCleanup(() => {
@@ -126,9 +126,9 @@ export function ViewBody(props: ViewBodyProps) {
   const positionById = createMemo(() => new Map(positions().map(row => [row.block.block.id, row])));
   const subjects = createMemo(() => [...new Set(positions().map(row => row.subject_id))]);
   const [subjectResults] = createResource(
-    () => (positionLayout() ? `${subjects().join(',')}:${props.notebook.changeSequence()}` : false),
+    () => (positionLayout() ? `${subjects().join(',')}:${props.workshop.changeSequence()}` : false),
     () =>
-      Promise.all(subjects().map(async subject => [subject, await props.notebook.api.positions({ subject })] as const)),
+      Promise.all(subjects().map(async subject => [subject, await props.workshop.api.positions({ subject })] as const)),
   );
   const criteria = createMemo(
     () => new Map((subjectResults() ?? []).map(([id, result]) => [id, result.criteria.fields])),
@@ -148,7 +148,7 @@ export function ViewBody(props: ViewBodyProps) {
       };
     }),
   );
-  const sourceRecords = createCitedSources(props.notebook, () =>
+  const sourceRecords = createCitedSources(props.workshop, () =>
     [...new Set(sources().flatMap(row => (row.source ? [row.source] : [])))].sort(),
   );
   const sigla = createMemo(() => citedSigla(sourceRecords()));
@@ -159,7 +159,7 @@ export function ViewBody(props: ViewBodyProps) {
   }
   function openRow(row: QueryRow, beside: boolean) {
     if (props.query.source === 'highlights') {
-      void props.notebook.api
+      void props.workshop.api
         .capabilities(row.block.block.id)
         .then(value => {
           const citation = value.citations?.[0];
@@ -181,7 +181,7 @@ export function ViewBody(props: ViewBodyProps) {
       );
   }
   async function openTarget(id: string, beside: boolean) {
-    const target = props.notebook.lookup(id)() ?? (await props.notebook.api.block(id));
+    const target = props.workshop.lookup(id)() ?? (await props.workshop.api.block(id));
     props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: id } : {}) }, beside);
   }
   const groups = createMemo<QueryGroup[]>(() => {
@@ -306,7 +306,7 @@ export function ViewBody(props: ViewBodyProps) {
                     row={row()}
                     field={field()}
                     doc={doc()}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     onEdited={edited}
                     onError={setError}
                     onFill={fill}
@@ -320,7 +320,7 @@ export function ViewBody(props: ViewBodyProps) {
         <Show when={doc()?.status() === 'ready'}>
           <OutgoingRelations
             rows={positionRelations(doc()!, rowProps.id)}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
           />
         </Show>
@@ -351,7 +351,7 @@ export function ViewBody(props: ViewBodyProps) {
       when={!id.startsWith('@') || (tableField(id) && taskFieldName(tableField(id)!))}
       fallback={
         <For each={row.attributes?.[id] ?? []}>
-          {value => <BlockText text={value.text} notebook={props.notebook} onOpen={props.onOpen} />}
+          {value => <BlockText text={value.text} workshop={props.workshop} onOpen={props.onOpen} />}
         </For>
       }
     >
@@ -361,7 +361,7 @@ export function ViewBody(props: ViewBodyProps) {
             row={row}
             field={field()}
             doc={docs().get(row.block.page.id)}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onEdited={edited}
             onError={setError}
           />
@@ -474,7 +474,7 @@ export function ViewBody(props: ViewBodyProps) {
                       allRows={positions().filter(row => row.subject_id === subject)}
                       criteria={criteria().get(subject) ?? []}
                       questions={[]}
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       docs={docs()}
                       field={definition}
                       focusedCriterion={null}
@@ -525,7 +525,7 @@ export function ViewBody(props: ViewBodyProps) {
                     }}
                     rows={groupedRows()}
                     columns={columns()}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     field={tableField}
                     fieldName={id => {
                       const field = tableField(id);
@@ -537,7 +537,7 @@ export function ViewBody(props: ViewBodyProps) {
                     onOpen={openRow}
                     onGroup={toggleGroup}
                     title={row => (
-                      <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} cards />
+                      <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} cards />
                     )}
                     cell={tableValue}
                     cardFields={phoneFields}

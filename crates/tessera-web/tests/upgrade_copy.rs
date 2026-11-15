@@ -1,10 +1,10 @@
-//! Schema upgrades retain one exportable, restorable pre-upgrade notebook.
+//! Schema upgrades retain one exportable, restorable pre-upgrade workshop.
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use rusqlite::Connection;
 use serde_json::{Value, json};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
-use tessera_core::{Notebook, SCHEMA_VERSION};
+use tessera_core::{SCHEMA_VERSION, Workshop};
 use tessera_web::{
     export_upgrade_copy, handle, is_empty, open, reset, restore_upgrade_copy, upgrade_copy,
 };
@@ -39,10 +39,10 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
     let pool = install::<sqlite_wasm_rs::WasmOsCallback>(&OpfsSAHPoolCfg::default(), true)
         .await
         .unwrap();
-    let mut notebook = Notebook::open("/demo").unwrap();
-    let id = notebook.info().unwrap().id;
+    let mut workshop = Workshop::open("/demo").unwrap();
+    let id = workshop.info().unwrap().id;
     let page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-    notebook
+    workshop
         .apply(
             &serde_json::from_value(json!({
                 "actor": {"kind": "person"}, "operations": [
@@ -52,7 +52,7 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
             .unwrap(),
         )
         .unwrap();
-    drop(notebook);
+    drop(workshop);
     let conn = Connection::open("/demo/notebook.db").unwrap();
     common::restore_authored_search(&conn);
     common::restore_pre_spreads(&conn);

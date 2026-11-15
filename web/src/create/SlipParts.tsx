@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import type { LibraryRow } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle } from '../outline/names';
@@ -34,18 +34,18 @@ export const underText = (choice: UnderChoice) =>
  * Library's Reading shelf, and a search of all sources that also takes a pasted link.
  */
 export function ReadingUnder(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   value?: UnderChoice;
   onChange(choice: UnderChoice): void;
 }) {
   /** A source's stored title carries its `#source` tag; every label and the filed row read the live tagless title. */
-  const title = (text: string) => displayTitle(text, props.notebook.lookup);
+  const title = (text: string) => displayTitle(text, props.workshop.lookup);
   const [options] = createResource(async (): Promise<UnderChoice[]> => {
-    const template = props.notebook.todayTemplate();
+    const template = props.workshop.todayTemplate();
     const [recent, reading, page] = await Promise.all([
-      props.notebook.api.library({ states: [], sort: 'last_read', direction: 'desc', limit: 1 }),
-      props.notebook.api.library({ states: ['reading'], sort: 'last_read', direction: 'desc', limit: 6 }),
-      todayJournal(props.notebook),
+      props.workshop.api.library({ states: [], sort: 'last_read', direction: 'desc', limit: 1 }),
+      props.workshop.api.library({ states: ['reading'], sort: 'last_read', direction: 'desc', limit: 6 }),
+      todayJournal(props.workshop),
     ]);
     const result: UnderChoice[] = [];
     const add = (choice: UnderChoice) => {
@@ -57,7 +57,7 @@ export function ReadingUnder(props: {
       const row = reading.rows.find(value => value.page.id === id);
       add({
         id,
-        title: title(row?.page.text ?? props.notebook.lookup(id)()?.text ?? 'Source'),
+        title: title(row?.page.text ?? props.workshop.lookup(id)()?.text ?? 'Source'),
         reason: 'In Reading today',
         row,
       });
@@ -78,7 +78,7 @@ export function ReadingUnder(props: {
     () => (anchor() ? query() : false),
     async text =>
       (
-        await props.notebook.api.library({
+        await props.workshop.api.library({
           states: [],
           text: text.trim() || null,
           sort: 'last_read',
@@ -94,13 +94,13 @@ export function ReadingUnder(props: {
     setImporting(true);
     setProblem('');
     try {
-      const job = await props.notebook.api.queueUrl(url);
-      const id = await importedSource(props.notebook, job.id);
+      const job = await props.workshop.api.queueUrl(url);
+      const id = await importedSource(props.workshop, job.id);
       if (!id) {
         setProblem('Still importing. Choose it here once it is in the Library.');
         return;
       }
-      const view = await props.notebook.api.source(id);
+      const view = await props.workshop.api.source(id);
       props.onChange({ id, title: title(view.page.text), reason: 'Added from the link' });
       setAnchor(undefined);
     } catch (reason) {
@@ -209,22 +209,22 @@ export function ReadingUnder(props: {
 
 /** The last three lines captured into today's sections, newest first; choosing one opens it in Today. */
 export function CapturedToday(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   refresh: number;
   onOpen(pageId: string, blockId: string): void;
 }) {
   const [lines] = createResource(
-    () => [props.notebook.todayDate(), props.notebook.changeSequence(), props.refresh] as const,
+    () => [props.workshop.todayDate(), props.workshop.changeSequence(), props.refresh] as const,
     async () => {
-      const page = await todayJournal(props.notebook);
-      return page ? { pageId: page.root.id, blocks: recentCaptures(page, props.notebook.todayTemplate()) } : null;
+      const page = await todayJournal(props.workshop);
+      return page ? { pageId: page.root.id, blocks: recentCaptures(page, props.workshop.todayTemplate()) } : null;
     },
   );
   trackSlipLoading(() => lines.loading);
   const clock = createMemo(
     () =>
       new Intl.DateTimeFormat('en-GB', {
-        timeZone: props.notebook.settings()?.time_zone,
+        timeZone: props.workshop.settings()?.time_zone,
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
@@ -241,7 +241,7 @@ export function CapturedToday(props: {
                 <button type="button" onClick={() => props.onOpen(lines.latest!.pageId, block.id)}>
                   <span class="create-recent-time">{clock().format(block.created_at)}</span>
                   <span class="create-recent-text">
-                    <BlockText text={block.text} notebook={props.notebook} interactive={false} />
+                    <BlockText text={block.text} workshop={props.workshop} interactive={false} />
                   </span>
                 </button>
               </li>
@@ -255,7 +255,7 @@ export function CapturedToday(props: {
 
 /** A Link's page title and site once the service has read them, and whether it also goes to the Library. */
 export function LinkPreview(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   url: string;
   library: boolean;
   onLibrary(value: boolean): void;
@@ -265,7 +265,7 @@ export function LinkPreview(props: {
     () => props.url,
     async url => {
       try {
-        return await props.notebook.api.linkPreview(url);
+        return await props.workshop.api.linkPreview(url);
       } catch {
         return null;
       }

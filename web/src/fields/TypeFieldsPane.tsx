@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
 import { typeQuery } from '../table/query';
@@ -16,7 +16,7 @@ import '../notes/notes.css';
 interface TypeFieldsPaneProps {
   typeId: string;
   view: FieldsViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: FieldsViewState): void;
@@ -30,7 +30,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   let restored = false;
   createEffect(
     on(
-      () => props.notebook.changeSequence(),
+      () => props.workshop.changeSequence(),
       () => {
         const timer = setTimeout(() => setVersion(value => value + 1), 150);
         onCleanup(() => clearTimeout(timer));
@@ -43,9 +43,9 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
     async ([id]) => {
       try {
         const [type, fields, index] = await Promise.all([
-          props.notebook.api.type(id),
-          props.notebook.api.fields(),
-          props.notebook.api.noteIndex(),
+          props.workshop.api.type(id),
+          props.workshop.api.fields(),
+          props.workshop.api.noteIndex(),
         ]);
         setError('');
         return { type, fields, kind: index.kinds.find(kind => kind.type_id === id) };
@@ -55,7 +55,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
       }
     },
   );
-  const title = createMemo(() => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag');
+  const title = createMemo(() => data.latest?.type.page.text ?? props.workshop.lookup(props.typeId)()?.text ?? 'Tag');
   const registerName = createMemo(() =>
     data.latest?.kind ? kindLabel(data.latest.kind) : data.latest?.type.plural || autoPlural(title()),
   );
@@ -176,7 +176,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
             <TemplateEditor
               type={value().type}
               fields={value().fields.fields}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onError={setError}
               onOpen={props.onOpen}
               pluralName={value().kind?.plural ?? value().type.plural ?? autoPlural(title())}

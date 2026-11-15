@@ -1,4 +1,4 @@
-//! `tessera sync`: keep a replica of a hub notebook. See `docs/sync.md`.
+//! `tessera sync`: keep a replica of a hub workshop. See `docs/sync.md`.
 
 use std::path::Path;
 
@@ -6,7 +6,7 @@ use anyhow::Context;
 use clap::Subcommand;
 use serde_json::json;
 use tessera_core::sync::Hub;
-use tessera_core::{DATABASE_FILE, Notebook, NotebookOwnership};
+use tessera_core::{DATABASE_FILE, Workshop, WorkshopOwnership};
 use tessera_service::sync_client::{HttpHub, Pairing};
 
 #[derive(Subcommand)]
@@ -42,61 +42,61 @@ pub(crate) enum SyncCommand {
     Reclone,
 }
 
-pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Result<()> {
+pub(crate) fn run(workshop: &Path, command: Option<SyncCommand>) -> anyhow::Result<()> {
     let output = match command {
         Some(SyncCommand::Clone { url, code, name }) => {
-            serde_json::to_value(clone(notebook, &url, code.as_deref(), name.as_deref())?)?
+            serde_json::to_value(clone(workshop, &url, code.as_deref(), name.as_deref())?)?
         }
-        Some(SyncCommand::Status) => match open(notebook) {
-            Ok(replica) => serde_json::to_value(replica.notebook.sync_status()?)?,
-            Err(unowned) => served(notebook, unowned, reqwest::Method::GET, "/api/sync/state")?,
+        Some(SyncCommand::Status) => match open(workshop) {
+            Ok(replica) => serde_json::to_value(replica.workshop.sync_status()?)?,
+            Err(unowned) => served(workshop, unowned, reqwest::Method::GET, "/api/sync/state")?,
         },
-        Some(SyncCommand::Conflicts) => match open(notebook) {
-            Ok(replica) => serde_json::to_value(replica.notebook.sync_conflicts()?)?,
+        Some(SyncCommand::Conflicts) => match open(workshop) {
+            Ok(replica) => serde_json::to_value(replica.workshop.sync_conflicts()?)?,
             Err(unowned) => served(
-                notebook,
+                workshop,
                 unowned,
                 reqwest::Method::GET,
                 "/api/sync/conflicts",
             )?,
         },
         Some(SyncCommand::Pin { source_id }) => {
-            let mut replica = open(notebook)?;
-            replica.notebook.sync_pin(&source_id)?;
-            serde_json::to_value(replica.notebook.sync_pins()?)?
+            let mut replica = open(workshop)?;
+            replica.workshop.sync_pin(&source_id)?;
+            serde_json::to_value(replica.workshop.sync_pins()?)?
         }
         Some(SyncCommand::Unpin { source_id }) => {
-            let mut replica = open(notebook)?;
-            replica.notebook.sync_unpin(&source_id)?;
-            serde_json::to_value(replica.notebook.sync_pins()?)?
+            let mut replica = open(workshop)?;
+            replica.workshop.sync_unpin(&source_id)?;
+            serde_json::to_value(replica.workshop.sync_pins()?)?
         }
         Some(SyncCommand::Pins) => {
-            let replica = open(notebook)?;
-            serde_json::to_value(replica.notebook.sync_pins()?)?
+            let replica = open(workshop)?;
+            serde_json::to_value(replica.workshop.sync_pins()?)?
         }
-        Some(SyncCommand::Reclone) => reclone(notebook)?,
+        Some(SyncCommand::Reclone) => reclone(workshop)?,
         None => {
-            let mut replica = match open(notebook) {
+            let mut replica = match open(workshop) {
                 Ok(replica) => replica,
                 Err(unowned) => {
-                    let state = served(notebook, unowned, reqwest::Method::POST, "/api/sync/run")?;
+                    let state = served(workshop, unowned, reqwest::Method::POST, "/api/sync/run")?;
                     println!("{}", serde_json::to_string_pretty(&state)?);
                     return Ok(());
                 }
             };
-            let status = replica.notebook.sync_status()?.with_context(|| {
+            let status = replica.workshop.sync_status()?.with_context(|| {
                 format!(
                     "{} is not a replica; run tessera sync clone <url>",
-                    notebook.display()
+                    workshop.display()
                 )
             })?;
-            let credentials = replica.notebook.sync_hub_credentials()?;
+            let credentials = replica.workshop.sync_hub_credentials()?;
             let mut hub = HttpHub::new(
                 &status.hub_url,
                 credentials.as_ref().and_then(|c| c.key.as_deref()),
             )?;
-            let report = replica.notebook.sync_with(&mut hub)?;
-            replica.notebook.sync_mark_synced()?;
+            let report = replica.workshop.sync_with(&mut hub)?;
+            replica.workshop.sync_mark_synced()?;
             serde_json::to_value(report)?
         }
     };
@@ -106,29 +106,29 @@ pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Resu
 
 /// A replica opened while no service owns its directory.
 struct Replica {
-    notebook: Notebook,
-    _ownership: NotebookOwnership,
+    workshop: Workshop,
+    _ownership: WorkshopOwnership,
 }
 
-fn open(notebook: &Path) -> anyhow::Result<Replica> {
-    let ownership = NotebookOwnership::acquire(notebook, 0)
+fn open(workshop: &Path) -> anyhow::Result<Replica> {
+    let ownership = WorkshopOwnership::acquire(workshop, 0)
         .context("stop the service using this workshop before syncing it from the command line")?;
     Ok(Replica {
-        notebook: Notebook::open(notebook)?,
+        workshop: Workshop::open(workshop)?,
         _ownership: ownership,
     })
 }
 
-/// Ask the service that owns the notebook, when one is running, for a
+/// Ask the service that owns the workshop, when one is running, for a
 /// route; without one, `unowned` is the error.
 pub(crate) fn served(
-    notebook: &Path,
+    workshop: &Path,
     unowned: anyhow::Error,
     method: reqwest::Method,
     path: &str,
 ) -> anyhow::Result<serde_json::Value> {
     tokio::runtime::Runtime::new()?.block_on(async {
-        let Ok(service) = crate::service(notebook).await else {
+        let Ok(service) = crate::service(workshop).await else {
             return Err(unowned);
         };
         let response = service.request(method, path).send().await?;
@@ -137,23 +137,23 @@ pub(crate) fn served(
 }
 
 fn clone(
-    notebook: &Path,
+    workshop: &Path,
     url: &str,
     code: Option<&str>,
     name: Option<&str>,
 ) -> anyhow::Result<Option<tessera_core::sync::SyncStatus>> {
-    let database = notebook.join(DATABASE_FILE);
+    let database = workshop.join(DATABASE_FILE);
     anyhow::ensure!(
         !database.exists(),
         "{} already holds a workshop; clone into a new directory",
-        notebook.display()
+        workshop.display()
     );
-    let _ownership = NotebookOwnership::acquire(notebook, 0)?;
+    let _ownership = WorkshopOwnership::acquire(workshop, 0)?;
     let pairing = code.map(|code| pair(url, code, name)).transpose()?;
     let hub = HttpHub::new(url, pairing.as_ref().map(|p| p.key.as_str()))?;
-    let (ticket, partial) = hub.download(notebook)?;
+    let (ticket, partial) = hub.download(workshop)?;
     std::fs::rename(&partial, &database)?;
-    let mut replica = Notebook::open(notebook)?;
+    let mut replica = Workshop::open(workshop)?;
     replica.sync_adopt(&hub.base, &ticket)?;
     if let Some(pairing) = pairing {
         replica.sync_set_hub_credentials(
@@ -178,15 +178,15 @@ fn pair(url: &str, code: &str, name: Option<&str>) -> anyhow::Result<Pairing> {
     hub.pair(code, name.unwrap_or(default_name.trim()))
 }
 
-fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
+fn reclone(workshop: &Path) -> anyhow::Result<serde_json::Value> {
     let Replica {
-        notebook: mut old,
+        workshop: mut old,
         _ownership,
-    } = open(notebook)?;
+    } = open(workshop)?;
     let status = old.sync_status()?.with_context(|| {
         format!(
             "{} is not a replica; run tessera sync clone <url>",
-            notebook.display()
+            workshop.display()
         )
     })?;
     let credentials = old.sync_hub_credentials()?;
@@ -197,7 +197,7 @@ fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
     // A retired replica can still send, so nothing made here is lost.
     let sent = old.sync_send(&mut hub)?;
     let pins = old.sync_pins()?;
-    let (ticket, partial) = hub.download(notebook)?;
+    let (ticket, partial) = hub.download(workshop)?;
     let previous = old.sync_install_clone(
         &partial,
         &hub.base,

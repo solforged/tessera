@@ -33,7 +33,7 @@ exercised verification and deviations. Keep evidence/provenance under
   procedure; use release for before/after timing.
 - **Seeded clickaround content** (since a06e130): seed a fresh private copy
   explicitly at `$TASK_RUN/notebooks/clickaround`, not the persistent registered
-  clickaround notebook. It holds the week ending on its seed day: 7 journal
+  clickaround workshop. It holds the week ending on its seed day: 7 journal
   days, Kitchen renovation and Essay projects with tasks (doing, waiting,
   warning, overdue, completed, clocked work), repeating Routines, Person/Concept
   pages, 24 cards with review sessions, Italian deck, Meditations with 6
@@ -179,7 +179,7 @@ exercised verification and deviations. Keep evidence/provenance under
 ## Fields UX audit / clickaround (no code changes)
 
 - Compare a fresh private clickaround copy with a private copy of the requested
-  real notebook, each under the shared lifecycle and copied-lock/sync-detachment
+  real workshop, each under the shared lifecycle and copied-lock/sync-detachment
   safeguards. Real data exposes import artifacts (e.g. Calibre `0101-01-01`
   dates) that seeds do not.
 - Surfaces: person page (Role/Organization/Last contact), concept page (Stage
@@ -201,13 +201,13 @@ exercised verification and deviations. Keep evidence/provenance under
 ## Card-kind captures
 
 Use this for card or review UI audits and for before/after proof of card polish.
-Never point it at :4318 or the live notebook.
+Never point it at :4318 or the live workshop.
 
-### Notebook copy with real cards
+### Workshop copy with real cards
 
 - Select an explicit verified backup read-only and record its
   notebook/schema/build provenance; do not assume a lexically last directory is
-  the intended notebook.
+  the intended workshop.
 - `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/cards" restore <verified-backup>`
   migrates the owned copy to the selected schema. Stop all consumers before
   making a pristine copy for resets after grading. Verify destination, remove

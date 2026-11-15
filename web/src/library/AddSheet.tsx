@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { ExtractedCreator, ExtractedMetadata, IngestJob, LookupPreview } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { formatSourceValue } from '../outline/source';
 import { displayTitle } from '../outline/names';
@@ -19,7 +19,7 @@ export interface AddDraft {
 }
 
 export interface AddSourceBodyProps {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   initialText?: string;
   /** Resumes an earlier unsaved entry (query or hand-entry form). */
   restore?: AddDraft;
@@ -78,10 +78,10 @@ export function AddSourceBody(props: AddSourceBodyProps) {
     } else props.onDraft(query().trim() ? { query: query(), editing: null } : null);
   });
   const [sources] = createResource(
-    () => props.notebook.changeSequence(),
+    () => props.workshop.changeSequence(),
     async () => {
       try {
-        return { rows: (await props.notebook.api.library({ limit: Number.MAX_SAFE_INTEGER })).rows, error: false };
+        return { rows: (await props.workshop.api.library({ limit: Number.MAX_SAFE_INTEGER })).rows, error: false };
       } catch {
         return { rows: [], error: true };
       }
@@ -203,7 +203,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
     setError('');
     try {
       for (const file of files) {
-        const job = await props.notebook.api.upload(file, file.name);
+        const job = await props.workshop.api.upload(file, file.name);
         props.onJob?.(job);
       }
       finish();
@@ -235,11 +235,11 @@ export function AddSourceBody(props: AddSourceBodyProps) {
         ['http:', 'https:'].includes(url.protocol) &&
         !['doi.org', 'dx.doi.org', 'arxiv.org', 'www.arxiv.org'].includes(url.hostname.toLowerCase())
       ) {
-        const job = await props.notebook.api.queueUrl(value);
+        const job = await props.workshop.api.queueUrl(value);
         props.onJob?.(job);
         finish();
       } else {
-        const found = await props.notebook.api.lookup(value);
+        const found = await props.workshop.api.lookup(value);
         if (query().trim() === value) setPreview(found);
       }
     } catch (reason) {
@@ -254,8 +254,8 @@ export function AddSourceBody(props: AddSourceBodyProps) {
     }
   }
   async function add(metadata: ExtractedMetadata, coverUrl?: string | null) {
-    const plan = await props.notebook.api.planRecord(metadata, coverUrl);
-    await props.notebook.commit(plan.operations, 'Add source');
+    const plan = await props.workshop.api.planRecord(metadata, coverUrl);
+    await props.workshop.commit(plan.operations, 'Add source');
     props.onAdded(plan.source_id);
     finish();
   }
@@ -303,7 +303,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
           <>
             <DetailsForm
               metadata={editing()!.metadata}
-              notebook={props.notebook}
+              workshop={props.workshop}
               autofocus
               submitLabel={duplicate() ? 'Add another copy' : 'Add'}
               onChange={setDraft}

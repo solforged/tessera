@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use anyhow::{Context, bail, ensure};
 use serde_json::{Value, json};
-use tessera_core::{Actor, AgentEdit, AgentRequest, Notebook};
+use tessera_core::{Actor, AgentEdit, AgentRequest, Workshop};
 
 use super::{ContextRef, EventKind};
 use crate::agent_render::{self, Clock, Fields, PageContext};
@@ -21,10 +21,10 @@ pub(super) fn definitions() -> Vec<Value> {
         .collect()
 }
 
-pub(super) fn context(notebook: &Notebook, refs: &[ContextRef]) -> anyhow::Result<String> {
+pub(super) fn context(workshop: &Workshop, refs: &[ContextRef]) -> anyhow::Result<String> {
     let mut system = SYSTEM.to_owned();
     for reference in refs {
-        let (_, mut text) = page(notebook, &reference.page_id, reference.block_id.as_deref())?;
+        let (_, mut text) = page(workshop, &reference.page_id, reference.block_id.as_deref())?;
         if let Some((end, _)) = text.char_indices().nth(40_000) {
             text.truncate(end);
             text.push_str("\n(Truncated. Use read_page to read the remaining atoms.)\n");
@@ -37,59 +37,59 @@ pub(super) fn context(notebook: &Notebook, refs: &[ContextRef]) -> anyhow::Resul
 
 /// The page's title and its Markdown, or only the `subtree` block's when given.
 fn page(
-    notebook: &Notebook,
+    workshop: &Workshop,
     page_id: &str,
     subtree: Option<&str>,
 ) -> anyhow::Result<(String, String)> {
-    let view = notebook.page(page_id)?;
-    let fields = Fields::from(notebook.fields()?);
-    let cards = notebook.page_cards(page_id)?;
+    let view = workshop.page(page_id)?;
+    let fields = Fields::from(workshop.fields()?);
+    let cards = workshop.page_cards(page_id)?;
     let text = agent_render::render(
         &view,
         &PageContext {
             fields: &fields,
             cards: &cards,
-            clock: &clock(notebook)?,
+            clock: &clock(workshop)?,
         },
         subtree,
     )?;
     Ok((view.root.text, text))
 }
 
-fn clock(notebook: &Notebook) -> anyhow::Result<Clock> {
-    Clock::new(&notebook.settings_view(tessera_core::now_ms())?)
+fn clock(workshop: &Workshop) -> anyhow::Result<Clock> {
+    Clock::new(&workshop.settings_view(tessera_core::now_ms())?)
 }
 
 /// The page a read_page call names by title, journal date or block ID, as the
 /// MCP server reads it.
-fn read_page(notebook: &Notebook, args: &Value) -> anyhow::Result<(String, String)> {
+fn read_page(workshop: &Workshop, args: &Value) -> anyhow::Result<(String, String)> {
     let id = string(args, "id")?;
     let page_id = match (string(args, "title")?, string(args, "date")?, id) {
         (Some(title), None, None) => {
             let title = title.trim();
             ensure!(!title.is_empty(), "title must not be empty");
-            notebook
+            workshop
                 .page_by_name(title)?
                 .with_context(|| format!("No atom is titled {title:?}."))?
                 .id
         }
         (None, Some(date), None) => {
-            notebook
+            workshop
                 .journal(date)?
                 .with_context(|| format!("No journal day {date}"))?
                 .id
         }
-        (None, None, Some(id)) => notebook.block(id)?.page_id,
+        (None, None, Some(id)) => workshop.block(id)?.page_id,
         _ => bail!("Give exactly one of title, date or id."),
     };
     let subtree = boolean(args, "subtree")?.unwrap_or(false);
     ensure!(!subtree || id.is_some(), "subtree needs id.");
-    page(notebook, &page_id, if subtree { id } else { None })
+    page(workshop, &page_id, if subtree { id } else { None })
 }
 
 /// The edit a write tool asks for. set_task merges into the block's current
 /// task at the revision it reads, so a change made since is refused.
-fn edit(notebook: &Notebook, name: &str, args: &Value) -> anyhow::Result<AgentEdit> {
+fn edit(workshop: &Workshop, name: &str, args: &Value) -> anyhow::Result<AgentEdit> {
     Ok(match name {
         "add_note" => {
             let blocks = crate::agent_outline::outline(&required(args, "markdown")?)?;
@@ -106,11 +106,11 @@ fn edit(notebook: &Notebook, name: &str, args: &Value) -> anyhow::Result<AgentEd
             let id = required(args, "id")?;
             let revision = match integer(args, "revision")? {
                 Some(revision) => revision,
-                None => notebook.block(&id)?.revision,
+                None => workshop.block(&id)?.revision,
             };
-            let current = notebook.capabilities(&id)?.task;
+            let current = workshop.capabilities(&id)?.task;
             let today = if edits::sets_repeat(args)? {
-                Some(clock(notebook)?.today)
+                Some(clock(workshop)?.today)
             } else {
                 None
             };
@@ -125,7 +125,7 @@ fn edit(notebook: &Notebook, name: &str, args: &Value) -> anyhow::Result<AgentEd
 }
 
 pub(super) fn execute(
-    notebook: &mut Notebook,
+    workshop: &mut Workshop,
     changes: &tokio::sync::broadcast::Sender<i64>,
     name: &str,
     args: &Value,
@@ -143,10 +143,10 @@ pub(super) fn execute(
     match name {
         "search" => {
             let query = required(args, "query")?;
-            let mut hits = notebook.search(&query, limit(args, "limit", 20, 200)?)?;
+            let mut hits = workshop.search(&query, limit(args, "limit", 20, 200)?)?;
             for hit in &mut hits {
-                hit.block.text = notebook.render_tag_text(&hit.block.text)?.into_owned();
-                hit.page.text = notebook.render_tag_text(&hit.page.text)?.into_owned();
+                hit.block.text = workshop.render_tag_text(&hit.block.text)?.into_owned();
+                hit.page.text = workshop.render_tag_text(&hit.page.text)?.into_owned();
             }
             let text = serde_json::to_string(&hits)?;
             return Ok((
@@ -158,7 +158,7 @@ pub(super) fn execute(
             ));
         }
         "read_page" => {
-            let (title, text) = read_page(notebook, args)?;
+            let (title, text) = read_page(workshop, args)?;
             return Ok((
                 text,
                 EventKind::Tool {
@@ -169,13 +169,13 @@ pub(super) fn execute(
         }
         _ => {}
     }
-    let edit = edit(notebook, name, args)?;
-    let mut receipt = notebook.agent_edit(&AgentRequest {
+    let edit = edit(workshop, name, args)?;
+    let mut receipt = workshop.agent_edit(&AgentRequest {
         actor: Actor::Agent { name: actor.into() },
         reason: Some(string(args, "reason")?.unwrap_or(reason).into()),
         edit,
     })?;
-    crate::editor_receipt(notebook, changes, &mut receipt.committed)?;
+    crate::editor_receipt(workshop, changes, &mut receipt.committed)?;
     let result = serde_json::to_string(&receipt)?;
     Ok((
         result,
@@ -195,12 +195,12 @@ mod tests {
     #[test]
     fn tools_read_and_edit_the_same_undoable_outline() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let changes = tokio::sync::broadcast::channel(16).0;
         let mut notifications = changes.subscribe();
         let actor = "Local · model";
         let Err(refused) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "add_note",
             &json!({
@@ -215,7 +215,7 @@ mod tests {
             refused.to_string(),
             "add_note does not take target and text; it takes journal, markdown, page, parent_id and reason."
         );
-        let (receipt, event) = execute(&mut notebook, &changes, "add_note", &json!({
+        let (receipt, event) = execute(&mut workshop, &changes, "add_note", &json!({
             "page":"Asabiyya", "markdown":"- Group feeling\n  - Shared purpose\n- Another thought"
         }), actor, "Capture ideas").unwrap();
         let receipt: tessera_core::AgentReceipt = serde_json::from_str(&receipt).unwrap();
@@ -226,7 +226,7 @@ mod tests {
         let child = &receipt.blocks[1].id;
         let last = &receipt.blocks[2].id;
         let (text, event) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "read_page",
             &json!({"id":first,"subtree":true}),
@@ -240,7 +240,7 @@ mod tests {
         )));
         assert!(!text.contains("Another thought"));
         let (text, event) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "search",
             &json!({"query":"group feeling"}),
@@ -253,7 +253,7 @@ mod tests {
             matches!(event, EventKind::Tool { summary, .. } if summary == "Searched “group feeling”")
         );
         execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "edit_block",
             &json!({"id":first,"text":"Solidarity"}),
@@ -261,9 +261,9 @@ mod tests {
             "",
         )
         .unwrap();
-        assert_eq!(notebook.block(first).unwrap().text, "Solidarity");
+        assert_eq!(workshop.block(first).unwrap().text, "Solidarity");
         execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "move_block",
             &json!({"id":child,"parent_id":root,"after":last}),
@@ -271,11 +271,11 @@ mod tests {
             "",
         )
         .unwrap();
-        let view = notebook.page(&root).unwrap();
+        let view = workshop.page(&root).unwrap();
         assert_eq!(view.rows.last().unwrap().block.id, *child);
         assert_eq!(view.rows.last().unwrap().depth, 0);
         execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "set_task",
             &json!({"id":last,"status":"todo","scheduled":"2026-10-13","priority":"high"}),
@@ -283,11 +283,11 @@ mod tests {
             "",
         )
         .unwrap();
-        let task = notebook.capabilities(last).unwrap().task.unwrap();
+        let task = workshop.capabilities(last).unwrap().task.unwrap();
         assert_eq!(task.status, Some(tessera_core::TaskStatus::Todo));
         assert_eq!(task.scheduled.as_deref(), Some("2026-10-13"));
         execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "set_task",
             &json!({"id":last,"status":"none"}),
@@ -295,9 +295,9 @@ mod tests {
             "",
         )
         .unwrap();
-        assert!(notebook.capabilities(last).unwrap().task.is_none());
+        assert!(workshop.capabilities(last).unwrap().task.is_none());
         let (_, event) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "delete_block",
             &json!({"id":child}),
@@ -305,14 +305,14 @@ mod tests {
             "",
         )
         .unwrap();
-        assert!(notebook.block(child).is_err());
+        assert!(workshop.block(child).is_err());
         let EventKind::Edit { seq, .. } = event else {
             panic!("expected edit");
         };
-        notebook.undo_change(seq, &Actor::Person).unwrap();
-        assert_eq!(notebook.block(child).unwrap().text, "Shared purpose");
+        workshop.undo_change(seq, &Actor::Person).unwrap();
+        assert_eq!(workshop.block(child).unwrap().text, "Shared purpose");
         let (_, event) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "add_note",
             &json!({"markdown":"Today's thought"}),
@@ -328,11 +328,11 @@ mod tests {
             panic!("expected journal edit");
         };
         assert_eq!(
-            notebook.block(&journal).unwrap().kind,
+            workshop.block(&journal).unwrap().kind,
             tessera_core::BlockKind::Journal
         );
         execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "add_note",
             &json!({"parent_id":first,"markdown":"More detail"}),
@@ -341,7 +341,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            notebook
+            workshop
                 .page(&root)
                 .unwrap()
                 .rows
@@ -354,10 +354,10 @@ mod tests {
     #[test]
     fn context_uses_shared_markdown_and_truncates_on_character_boundaries() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let changes = tokio::sync::broadcast::channel(16).0;
         let (_, event) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "add_note",
             &json!({
@@ -376,7 +376,7 @@ mod tests {
             panic!("expected edit");
         };
         let rendered = context(
-            &notebook,
+            &workshop,
             &[ContextRef {
                 page_id: id.clone(),
                 block_id: None,
@@ -387,7 +387,7 @@ mod tests {
         assert!(rendered.contains("(Truncated. Use read_page"));
         assert!(!rendered.contains("Last block"));
         let (full, _) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "read_page",
             &json!({"title":"Long page"}),
@@ -398,7 +398,7 @@ mod tests {
         assert!(full.contains("Last block"));
         assert!(full.contains(&blocks[1]));
         let subtree = context(
-            &notebook,
+            &workshop,
             &[ContextRef {
                 page_id: id,
                 block_id: Some(blocks[1].clone()),
@@ -412,11 +412,11 @@ mod tests {
     #[test]
     fn read_page_and_page_targets_find_a_page_by_another_spelling() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let changes = tokio::sync::broadcast::channel(16).0;
         let mut add = |page: &str, text: &str| {
             let (_, event) = execute(
-                &mut notebook,
+                &mut workshop,
                 &changes,
                 "add_note",
                 &json!({"page":page,"markdown":text}),
@@ -432,7 +432,7 @@ mod tests {
         let target = add("Fold repro target", "First");
         assert_eq!(add("Fold-repro target", "Second"), target);
         let (text, event) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "read_page",
             &json!({"title":"fold.repro-target"}),
@@ -445,7 +445,7 @@ mod tests {
         );
         assert!(text.contains("- First <!--") && text.contains("- Second <!--"));
         let Err(missing) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "read_page",
             &json!({"title":"Fold repro"}),
@@ -460,10 +460,10 @@ mod tests {
     #[test]
     fn add_note_reads_a_task_line_and_a_heading_line() {
         let dir = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
         let changes = tokio::sync::broadcast::channel(16).0;
         let (receipt, _) = execute(
-            &mut notebook,
+            &mut workshop,
             &changes,
             "add_note",
             &json!({
@@ -476,12 +476,12 @@ mod tests {
         .unwrap();
         let receipt: tessera_core::AgentReceipt = serde_json::from_str(&receipt).unwrap();
         let page = receipt.page.unwrap().id;
-        let rows = notebook.page(&page).unwrap().rows;
+        let rows = workshop.page(&page).unwrap().rows;
         let heading = rows.iter().find(|row| row.block.text == "Heading").unwrap();
         assert_eq!(heading.block.heading, Some(1));
         let task = rows.iter().find(|row| row.block.text == "task").unwrap();
         assert_eq!(
-            notebook
+            workshop
                 .capabilities(&task.block.id)
                 .unwrap()
                 .task

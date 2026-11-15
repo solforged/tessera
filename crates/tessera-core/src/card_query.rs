@@ -5,8 +5,8 @@ use crate::query::validate_source_query;
 use crate::review_store::{review_event_at, review_pacing};
 use crate::storage::{block_at, block_columns, not_found_as, validate_id, validation};
 use crate::{
-    BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Notebook, Query, Result,
-    TagDeck,
+    BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Query, Result, TagDeck,
+    Workshop,
 };
 
 // Tag decks use the visible inventory, including held cards, rather than the due queue.
@@ -60,7 +60,7 @@ fn stored_deck(row: &rusqlite::Row<'_>) -> rusqlite::Result<Deck> {
     })
 }
 
-impl Notebook {
+impl Workshop {
     pub fn card_query(&self, query: &CardQuery, now: i64) -> Result<CardQueryResult> {
         validate_limit(query)?;
         let source_ids = if let Some(source) = &query.source {

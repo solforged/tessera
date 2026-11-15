@@ -1,6 +1,6 @@
 import type { FieldDefinition, Filter, PageView, Query, QueryRow } from '../api/types';
 import type { OpenTarget, TableViewState } from '../core/contract';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { plainText, targetLabel } from '../outline/names';
 import { copyQuery, filterLabel, typeQuery } from '../table/query';
@@ -71,27 +71,27 @@ export function rowTarget(row: QueryRow): OpenTarget {
   return { kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) };
 }
 /** A linked question as a reader names it: its title without the trailing type tag. */
-export function linkedQuestionName(id: string, notebook: NotebookClient): string {
-  const target = notebook.lookup(id)();
-  return target ? targetLabel(target.text, value => notebook.lookup(value)) || 'Empty atom' : 'the selected question';
+export function linkedQuestionName(id: string, workshop: WorkshopClient): string {
+  const target = workshop.lookup(id)();
+  return target ? targetLabel(target.text, value => workshop.lookup(value)) || 'Empty atom' : 'the selected question';
 }
-/** Restored filters render before query rows arrive; resolve their live references with the notebook receiver intact. */
+/** Restored filters render before query rows arrive; resolve their live references with the workshop receiver intact. */
 export function deskConditionLabel(
   condition: Filter,
   fields: FieldDefinition[],
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   positions: readonly QueryRow[],
 ): string {
   if (condition.field === '@cited_in' && condition.op === 'is') {
     const position = positions.find(row => row.block.block.id === condition.value);
     if (position) {
       const holder = position.attributes?.['@holder']?.map(value => value.text).join(' · ');
-      return `Cited in is ${holder || plainText(position.block.block.text, id => notebook.lookup(id))}`;
+      return `Cited in is ${holder || plainText(position.block.block.text, id => workshop.lookup(id))}`;
     }
   }
   if (condition.field === '@question' && condition.op === 'is' && condition.value)
-    return `Question is ${linkedQuestionName(condition.value, notebook)}`;
-  return plainText(filterLabel(condition, fields, notebook), id => notebook.lookup(id));
+    return `Question is ${linkedQuestionName(condition.value, workshop)}`;
+  return plainText(filterLabel(condition, fields, workshop), id => workshop.lookup(id));
 }
 /** Authored locators and passage locations, restricted to this position's live subtree. */
 export function positionLocators(page: PageView, position: string): Map<string, string[]> {

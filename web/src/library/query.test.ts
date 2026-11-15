@@ -288,7 +288,7 @@ test('completed jobs use the source title and added with attempts only after a r
   }
 });
 
-test('retry times use the notebook time zone and a 24-hour clock', () => {
+test('retry times use the workshop time zone and a 24-hour clock', () => {
   const timestamp = Date.parse('2026-10-05T12:34:00Z');
   expect(retryTime(timestamp, 'UTC')).toBe('12:34');
   expect(retryTime(timestamp, 'Asia/Tokyo')).toBe('21:34');
@@ -305,7 +305,7 @@ test('source selection toggles and extends inclusive ranges in either direction'
   expect([...selectSources(ids, original, 'b', null, false)]).toEqual([]);
 });
 
-test('highlight empty copy distinguishes an empty notebook from an empty queue', () => {
+test('highlight empty copy distinguishes an empty workshop from an empty queue', () => {
   expect(highlightEmptyMessage(0, true)).toBe('Select text in the reader to add highlights.');
   expect(highlightEmptyMessage(0, false)).toBe('Select text in the reader to add highlights.');
   expect(highlightEmptyMessage(8, true)).toBe('No unprocessed highlights.');
@@ -324,7 +324,7 @@ test('highlight location uses the covering chapter, else a one-based passage num
   expect(highlightLocation({ ordinal: 1 }, sections)).toBe('¶2');
 });
 
-test('highlight meta gives the one-based passage and the notebook date', () => {
+test('highlight meta gives the one-based passage and the workshop date', () => {
   const row = { citation: { ordinal: 0 } as Citation, created_at: Date.parse('2026-12-31T16:30:00Z') };
   expect(highlightMeta(row, 'Asia/Tokyo')).toBe('¶1 · 2027-01-01');
   expect(highlightMeta(row, 'UTC')).toBe('¶1 · 2026-12-31');

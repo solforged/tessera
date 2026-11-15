@@ -54,7 +54,7 @@ fresh, owned `0700` task directories:
 | Variable                   | Purpose                                                                                                                                         |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TASK_SOURCE`              | Reused checkout, or a detached worktree at `${XDG_STATE_HOME:-$HOME/.local/state}/agent-worktrees/<repo-key>/<task-id>`.                        |
-| `TASK_RUN`                 | Disposable HOME/XDG, notebooks, profiles, downloads, tools, logs, binary, and assets under the corresponding `agent-runs/<repo-key>/<task-id>`. |
+| `TASK_RUN`                 | Disposable HOME/XDG, workshops, profiles, downloads, tools, logs, binary, and assets under the corresponding `agent-runs/<repo-key>/<task-id>`. |
 | `TASK_EVIDENCE`            | Retained reports, captures, traces, and provenance under `agent-artifacts/<repo-key>/<task-id>`, outside runtime cleanup.                       |
 | `TASK_BASE`, `TASK_ID`     | Full base commit and unique task identity.                                                                                                      |
 | `TASK_MAIN`, `TASK_TARGET` | Main checkout and its absolute Cargo target path, resolved before runtime HOME changes.                                                         |
@@ -124,7 +124,7 @@ task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/hub" serve --port <owned-fr
   not disabled sync. Record the actual listeners. Never take a peer's port or
   kill its listener because an example used that number.
 - Keep the same origin and owned profile within persistence/offline tests. A
-  different concurrent lane needs its own allocation, notebook, origin, and
+  different concurrent lane needs its own allocation, workshop, origin, and
   profile.
 - Dependency installation and ordinary builds stay outside `task_run`; use the
   explicit toolchain/cache environment above for Cargo's combined test gate.
@@ -146,7 +146,7 @@ task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/hub" serve --port <owned-fr
 
 Prefer synthetic fixtures or an explicitly permitted private backup. Browsing
 writes reading positions; a read-only-looking audit is not permission to browse
-a live notebook.
+a live workshop.
 
 - Create a fresh destination directory under `TASK_RUN/notebooks` before running
   SQLite's online backup; `.backup` does not create parent directories. Quote
@@ -154,7 +154,7 @@ a live notebook.
   the source objects there. On macOS, use `/usr/bin/sqlite3`; Android's
   PATH-provided sqlite3 is not a substitute. Do not copy a running database's
   bare file while ignoring its WAL.
-- Never remove the source notebook's `service.lock`. If the selected copying
+- Never remove the source workshop's `service.lock`. If the selected copying
   method includes one, remove it only from the verified owned copy before
   serving; a copied lock can route CLI commands to the original service.
 - For current-schema copies, clear the copy's persistent sync attachment with
@@ -189,7 +189,7 @@ The absence of an integration owner does not grant publish authority.
 1. Save selected reports, screenshots, traces, profiles, and logs to
    `TASK_EVIDENCE`. Include the base/build, engine, OS, viewport/device, seed
    identity, run context, and whether results were simulated. Do not disclose
-   private notebook data without permission.
+   private workshop data without permission.
 2. Stop only the services, browsers, inspection forwards/reverses, and owned
    simulators/AVDs recorded in this run's ledger. A deliberately retained trial
    or gallery needs a named next owner and persistent backing files.

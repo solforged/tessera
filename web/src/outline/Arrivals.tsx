@@ -1,7 +1,7 @@
 import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack } from 'solid-js';
 import type { StreamArrival } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
@@ -11,22 +11,22 @@ import './streams.css';
 
 export function Arrivals(props: {
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
   onAdded(): void;
 }) {
   const added = createAddedTargets(props.doc);
-  const settled = createSettledChanges(props.notebook);
+  const settled = createSettledChanges(props.workshop);
   const [candidates, setCandidates] = createSignal<StreamArrival[]>([]);
   const [error, setError] = createSignal('');
   let request: AbortController | undefined;
   onCleanup(() => request?.abort());
   const [read] = createResource(
-    () => (props.doc.root()?.revision === 0 ? false : `${settled()}:${props.notebook.connection() === 'live'}`),
+    () => (props.doc.root()?.revision === 0 ? false : `${settled()}:${props.workshop.connection() === 'live'}`),
     async () => {
       request?.abort();
       const current = (request = new AbortController());
-      const rows = await props.notebook.api.streamArrivals(props.doc.pageId, current.signal);
+      const rows = await props.workshop.api.streamArrivals(props.doc.pageId, current.signal);
       if (current.signal.aborted) return;
       // Keep locally added candidates through acknowledgements, so undo restores
       // the arrival immediately rather than waiting for a server round trip.
@@ -48,9 +48,9 @@ export function Arrivals(props: {
     return [...days].sort(([left], [right]) => right.localeCompare(left));
   });
   function Arrival(propsRow: { row: StreamArrival }) {
-    const tree = props.notebook.watchSubtree(propsRow.row.block.id);
+    const tree = props.workshop.watchSubtree(propsRow.row.block.id);
     onCleanup(tree.release);
-    const block = () => (tree.value() ? props.notebook.lookup(propsRow.row.block.id)() : propsRow.row.block);
+    const block = () => (tree.value() ? props.workshop.lookup(propsRow.row.block.id)() : propsRow.row.block);
     const children = () => Math.max(0, (tree.value()?.rows.length ?? 1) - 1);
     return (
       <div class="stream-arrival" data-arrival-id={propsRow.row.block.id}>
@@ -58,7 +58,7 @@ export function Arrivals(props: {
           <BlockText
             text={block()?.text ?? propsRow.row.block.text}
             blockId={propsRow.row.block.id}
-            notebook={props.notebook}
+            workshop={props.workshop}
             onOpen={props.onOpen}
           />
         </div>
@@ -99,7 +99,7 @@ export function Arrivals(props: {
                   <Button
                     onClick={event => props.onOpen({ kind: 'page', pageId: rows[0]!.page.id }, opensBeside(event))}
                   >
-                    <time dateTime={day}>{streamDay(day, props.notebook.todayDate())}</time>
+                    <time dateTime={day}>{streamDay(day, props.workshop.todayDate())}</time>
                   </Button>
                 </h3>
                 <For each={rows}>{row => <Arrival row={row} />}</For>

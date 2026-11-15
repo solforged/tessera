@@ -10,7 +10,7 @@ use js_sys::{Function, JsString, Uint8Array};
 use rusqlite::{Connection, OpenFlags};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHError, OpfsSAHPoolCfg, OpfsSAHPoolUtil};
 use tessera_api::EmbeddedHandles;
-use tessera_core::{Notebook, SCHEMA_VERSION};
+use tessera_core::{SCHEMA_VERSION, Workshop};
 use tower::ServiceExt;
 use wasm_bindgen::prelude::*;
 
@@ -72,7 +72,7 @@ fn with_app<T>(operation: impl FnOnce(&App) -> Result<T, JsValue>) -> Result<T, 
         let app = runtime
             .app
             .as_ref()
-            .ok_or_else(|| internal("The notebook is not open."))?;
+            .ok_or_else(|| internal("The workshop is not open."))?;
         operation(app)
     })
 }
@@ -86,7 +86,7 @@ fn with_pool<T>(
             runtime
                 .pool
                 .as_ref()
-                .ok_or_else(|| internal("The notebook is not open."))?,
+                .ok_or_else(|| internal("The workshop is not open."))?,
         )
     })
 }
@@ -97,12 +97,12 @@ fn close_app() {
         for (_, abort) in runtime.subscriptions.drain() {
             abort.abort();
         }
-        // Subscription tasks hold receivers, not notebook handles.
+        // Subscription tasks hold receivers, not workshop handles.
         runtime.app = None;
     });
 }
 
-/// Close the notebook and release its exclusive OPFS access handles.
+/// Close the workshop and release its exclusive OPFS access handles.
 /// The caller must finish outstanding requests before closing.
 #[wasm_bindgen]
 pub fn close() -> Result<(), JsValue> {
@@ -115,7 +115,7 @@ pub fn close() -> Result<(), JsValue> {
     })
 }
 
-fn delete_notebook(pool: &OpfsSAHPoolUtil, database: &str) -> Result<(), JsValue> {
+fn delete_workshop(pool: &OpfsSAHPoolUtil, database: &str) -> Result<(), JsValue> {
     for suffix in ["-journal", "-wal", "-shm", ""] {
         pool.delete_db(&format!("{database}{suffix}"))
             .map_err(pool_error)?;
@@ -179,7 +179,7 @@ fn validate_staged() -> Result<(), JsValue> {
         }
         let has_objects = has_table(&conn, "browser_objects").map_err(invalid_sqlite)?;
         // Sources refer to snapshots; both original bytes and extracted resources
-        // must be embedded. Older notebooks may predate the library tables.
+        // must be embedded. Older workshops may predate the library tables.
         for table in ["snapshots", "snapshot_resources"] {
             if !has_table(&conn, table).map_err(invalid_sqlite)? {
                 continue;
@@ -201,9 +201,9 @@ fn validate_staged() -> Result<(), JsValue> {
             }
         }
     }
-    // Migrate only the private staging notebook, never the current notebook.
-    Notebook::open(STAGED_DIR)
-        .and_then(|notebook| notebook.info())
+    // Migrate only the private staging workshop, never the current workshop.
+    Workshop::open(STAGED_DIR)
+        .and_then(|workshop| workshop.info())
         .map_err(|_| invalid(DAMAGED_BACKUP))?;
     Ok(())
 }
@@ -224,10 +224,10 @@ fn replace_with_staged() -> Result<(), JsValue> {
     let bytes = with_pool(|pool| pool.export_db(STAGED_DB).map_err(pool_error))?;
     close_app();
     with_pool(|pool| {
-        delete_notebook(pool, LIVE_DB)?;
+        delete_workshop(pool, LIVE_DB)?;
         pool.import_db(LIVE_DB, &bytes).map_err(pool_error)?;
         flush_import(LIVE_DB)?;
-        delete_notebook(pool, STAGED_DB)
+        delete_workshop(pool, STAGED_DB)
     })
 }
 
@@ -236,7 +236,7 @@ fn recover_restore() -> Result<(), JsValue> {
         return Ok(());
     }
     if validate_staged().is_err() {
-        return with_pool(|pool| delete_notebook(pool, STAGED_DB));
+        return with_pool(|pool| delete_workshop(pool, STAGED_DB));
     }
     replace_with_staged()
 }
@@ -267,7 +267,7 @@ fn save_upgrade_copy() -> Result<(), JsValue> {
         }
         let bytes = pool.export_db(LIVE_DB).map_err(pool_error)?;
         if let Some((filename, _, _, _)) = upgrade_file(pool) {
-            delete_notebook(pool, &filename)?;
+            delete_workshop(pool, &filename)?;
         }
         let created_at = js_sys::Date::now() as i64;
         let filename = format!("{UPGRADE_PREFIX}{version}-{created_at}-{}.db", bytes.len());
@@ -277,19 +277,19 @@ fn save_upgrade_copy() -> Result<(), JsValue> {
 }
 
 fn reopen() -> Result<String, JsValue> {
-    let notebook = Notebook::open("/demo").map_err(internal)?;
-    let info = serde_json::to_string(&notebook.info().map_err(internal)?).map_err(internal)?;
-    let (router, handles) = tessera_api::embedded_router(notebook).map_err(internal)?;
+    let workshop = Workshop::open("/demo").map_err(internal)?;
+    let info = serde_json::to_string(&workshop.info().map_err(internal)?).map_err(internal)?;
+    let (router, handles) = tessera_api::embedded_router(workshop).map_err(internal)?;
     RUNTIME.with(|runtime| runtime.borrow_mut().app = Some(App { router, handles }));
     Ok(info)
 }
 
-/// Acquire this browser origin's exclusive OPFS pool and open its notebook.
+/// Acquire this browser origin's exclusive OPFS pool and open its workshop.
 #[wasm_bindgen]
 pub async fn open() -> Result<String, JsValue> {
     if RUNTIME.with(|runtime| runtime.borrow().app.is_some()) {
         return with_app(|app| {
-            serde_json::to_string(&app.handles.notebook.lock().info().map_err(internal)?)
+            serde_json::to_string(&app.handles.workshop.lock().info().map_err(internal)?)
                 .map_err(internal)
         });
     }
@@ -321,14 +321,14 @@ pub async fn open() -> Result<String, JsValue> {
     reopen()
 }
 
-/// An empty notebook needs the demo's initial pages and journals.
+/// An empty workshop needs the demo's initial pages and journals.
 #[wasm_bindgen]
 pub fn is_empty() -> Result<bool, JsValue> {
     with_app(|app| {
-        let notebook = app.handles.notebook.lock();
+        let workshop = app.handles.workshop.lock();
         // The Fields page is created by migrations, before any user/demo content.
-        let fields_page = notebook.fields().map_err(internal)?.page_id;
-        Ok(!notebook
+        let fields_page = workshop.fields().map_err(internal)?.page_id;
+        Ok(!workshop
             .roots()
             .map_err(internal)?
             .iter()
@@ -336,12 +336,12 @@ pub fn is_empty() -> Result<bool, JsValue> {
     })
 }
 
-/// Export a complete, committed single-file browser notebook.
+/// Export a complete, committed single-file browser workshop.
 #[wasm_bindgen]
 pub fn export_notebook() -> Result<Uint8Array, JsValue> {
     with_app(|app| {
-        let _notebook = app.handles.notebook.lock();
-        // Notebook methods finish their transactions before releasing this mutex.
+        let _workshop = app.handles.workshop.lock();
+        // Workshop methods finish their transactions before releasing this mutex.
         // The worker serializes requests and this synchronous export cannot yield.
         with_pool(|pool| {
             let bytes = pool.export_db(LIVE_DB).map_err(pool_error)?;
@@ -350,12 +350,12 @@ pub fn export_notebook() -> Result<Uint8Array, JsValue> {
     })
 }
 
-/// Validate and migrate a private copy before replacing the open notebook.
+/// Validate and migrate a private copy before replacing the open workshop.
 #[wasm_bindgen]
 pub async fn restore_notebook(bytes: Vec<u8>) -> Result<String, JsValue> {
     with_app(|_| Ok(()))?;
     with_pool(|pool| {
-        delete_notebook(pool, STAGED_DB)?;
+        delete_workshop(pool, STAGED_DB)?;
         let staged = pool
             .import_db(STAGED_DB, &bytes)
             .map_err(|error| match error {
@@ -364,7 +364,7 @@ pub async fn restore_notebook(bytes: Vec<u8>) -> Result<String, JsValue> {
             })
             .and_then(|()| validate_staged());
         if let Err(error) = staged {
-            delete_notebook(pool, STAGED_DB)?;
+            delete_workshop(pool, STAGED_DB)?;
             return Err(error);
         }
         Ok(())
@@ -374,7 +374,7 @@ pub async fn restore_notebook(bytes: Vec<u8>) -> Result<String, JsValue> {
     reopen()
 }
 
-/// Describe the single notebook copy saved before a schema upgrade.
+/// Describe the single workshop copy saved before a schema upgrade.
 #[wasm_bindgen]
 pub fn upgrade_copy() -> Result<Option<String>, JsValue> {
     with_pool(|pool| {
@@ -392,7 +392,7 @@ pub fn upgrade_copy() -> Result<Option<String>, JsValue> {
     })
 }
 
-/// Export the notebook copy saved before the last schema upgrade.
+/// Export the workshop copy saved before the last schema upgrade.
 #[wasm_bindgen]
 pub fn export_upgrade_copy() -> Result<Uint8Array, JsValue> {
     with_pool(|pool| {
@@ -414,7 +414,7 @@ pub async fn restore_upgrade_copy() -> Result<String, JsValue> {
     restore_notebook(bytes).await
 }
 
-/// A buffered HTTP response from the shared notebook router.
+/// A buffered HTTP response from the shared workshop router.
 #[wasm_bindgen]
 pub struct WebResponse {
     status: u16,
@@ -440,7 +440,7 @@ impl WebResponse {
     }
 }
 
-/// Dispatch an HTTP request to exactly the same notebook handlers as the service.
+/// Dispatch an HTTP request to exactly the same workshop handlers as the service.
 /// `headers` alternates names and values.
 #[wasm_bindgen]
 pub async fn handle(
@@ -514,7 +514,7 @@ struct JsSink {
 impl tessera_api::ChangeSink for JsSink {
     type Error = JsValue;
     async fn emit(&mut self, event: String) -> Result<tessera_api::StreamStop, JsValue> {
-        // The callback may synchronously close its subscription or reset the notebook.
+        // The callback may synchronously close its subscription or reset the workshop.
         if !subscription_open(self.id) {
             return Ok(tessera_api::StreamStop::Stop);
         }
@@ -534,7 +534,7 @@ pub fn subscribe(
     #[wasm_bindgen(unchecked_param_type = "(eventJson: string) => void")] on_change: Function,
 ) -> Result<Subscription, JsValue> {
     let changes = with_app(|app| Ok(app.handles.changes.clone()))?;
-    let notebook = with_app(|app| Ok(app.handles.notebook.clone()))?;
+    let workshop = with_app(|app| Ok(app.handles.workshop.clone()))?;
     let (abort, registration) = AbortHandle::new_pair();
     let id = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
@@ -549,7 +549,7 @@ pub fn subscribe(
             async move {
                 tessera_api::follow_changes(
                     &changes,
-                    notebook,
+                    workshop,
                     after as i64,
                     100,
                     || subscription_open(id),
@@ -568,19 +568,19 @@ pub fn subscribe(
         .await;
         cancel_subscription(id);
         if let Ok(Err(error)) = result {
-            // Do not silently lose a stream when notebook history or a callback fails.
+            // Do not silently lose a stream when workshop history or a callback fails.
             wasm_bindgen::throw_val(error);
         }
     });
     Ok(Subscription { id })
 }
 
-/// Erase the notebook, interrupted restore, and upgrade copy, then reopen empty.
+/// Erase the workshop, interrupted restore, and upgrade copy, then reopen empty.
 #[wasm_bindgen]
 pub async fn reset() -> Result<(), JsValue> {
     close_app();
     with_pool(|pool| {
-        // This dedicated pool belongs to the browser notebook.
+        // This dedicated pool belongs to the browser workshop.
         for filename in pool.list() {
             pool.delete_db(&filename).map_err(pool_error)?;
         }

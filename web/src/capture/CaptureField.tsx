@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, on, 
 import type { JSX } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import type { Block, TaskState } from '../api/types';
-import type { CaptureIntent, CaptureReceipt, NotebookClient } from '../document/contract';
+import type { CaptureIntent, CaptureReceipt, WorkshopClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import type { Token as TextToken } from '../document/text-tokens';
 import { capturePresentation, editCaptureDraft } from './draft';
@@ -45,8 +45,8 @@ function pageTokenAt(text: string, caret: number): Token | null {
 }
 
 export interface CaptureFieldProps {
-  notebook: NotebookClient;
-  /** The default schedule when `schedule` is set; typed dates such as `@today` count from the notebook's today. */
+  workshop: WorkshopClient;
+  /** The default schedule when `schedule` is set; typed dates such as `@today` count from the workshop's today. */
   contextDate(): string;
   /** Schedules a task with no date of its own on the context date, as Agenda's Today does. */
   schedule?: boolean;
@@ -122,9 +122,9 @@ export function CaptureField(props: CaptureFieldProps) {
       const kind = key.slice(0, key.indexOf(':')),
         query = key.slice(key.indexOf(':') + 1);
       // Stored titles carry their tags (`Title #[[id|source]]`); rows, the inserted name and the picked identity all read the tagless live title.
-      const label = (text: string) => displayTitle(text, props.notebook.lookup);
+      const label = (text: string) => displayTitle(text, props.workshop.lookup);
       if (kind === 'type') {
-        const result = await completeTypes(props.notebook, query);
+        const result = await completeTypes(props.workshop, query);
         // A type whose name starts with the query leads, so Enter files under it rather than minting a tag; Create tag comes last.
         const key = foldName(query),
           starts = (title: string) => (foldName(title).startsWith(key) ? 0 : 1);
@@ -133,7 +133,7 @@ export function CaptureField(props: CaptureFieldProps) {
           .sort((a, b) => starts(a.title) - starts(b.title));
         return [...existing, ...(result.canCreate ? [{ title: query.trim(), create: true }] : [])];
       }
-      const result = await completeNames(props.notebook, query, props.notebook.roots());
+      const result = await completeNames(props.workshop, query, props.workshop.roots());
       const rows: Choice[] = result.rows.map(({ page, alias }) => ({
         title: label(page.text),
         id: page.id,
@@ -149,7 +149,7 @@ export function CaptureField(props: CaptureFieldProps) {
   // The registry gives each kind its own glyph; read it only once the draft holds a tag.
   const [kinds] = createResource(
     () => tags().length > 0 || undefined,
-    () => props.notebook.api.noteIndex().then(value => value.kinds),
+    () => props.workshop.api.noteIndex().then(value => value.kinds),
   );
   const tagIcon = (tag: TextToken): IconName => {
     const kind = kinds()?.find(value =>
@@ -175,12 +175,12 @@ export function CaptureField(props: CaptureFieldProps) {
 
   const plan = createMemo(() => {
     const text = bodyText();
-    const found = captureDateToken(text, props.notebook.todayDate());
+    const found = captureDateToken(text, props.workshop.todayDate());
     if (!found) return null;
     // A plain-word date suffix plans only a task; an explicit @ can schedule any atom.
     const explicit = text[found.from] === '@';
     if (!explicit && !isTask()) return null;
-    const choice = found.query ? dateSuggestions(found.query, props.notebook.todayDate())[0] : undefined;
+    const choice = found.query ? dateSuggestions(found.query, props.workshop.todayDate())[0] : undefined;
     return { token: found, choice, explicit };
   });
   const preview = createMemo(() => {
@@ -191,7 +191,7 @@ export function CaptureField(props: CaptureFieldProps) {
         warning: true,
         label: `Not a date: ${bodyText().slice(state.token.from, state.token.to)} · it stays in the text`,
       };
-    const when = `${relativeDate(state.choice.date, props.notebook.todayDate())}${state.choice.time ? ` ${state.choice.time}` : ''}`;
+    const when = `${relativeDate(state.choice.date, props.workshop.todayDate())}${state.choice.time ? ` ${state.choice.time}` : ''}`;
     return { warning: false, label: `${state.token.field === 'deadline' ? `due ${when}` : when}` };
   });
 
@@ -215,7 +215,7 @@ export function CaptureField(props: CaptureFieldProps) {
     let id = choice.id;
     if (choice.create && current.kind === 'page') {
       try {
-        id = await props.notebook.createPage(choice.title);
+        id = await props.workshop.createPage(choice.title);
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason));
         return;
@@ -229,7 +229,7 @@ export function CaptureField(props: CaptureFieldProps) {
     replace(current.from, current.to, `[[${choice.title}]]`);
   };
 
-  // A submission owns its draft until IndexedDB accepts it; delivery then uses the notebook's durable queue.
+  // A submission owns its draft until IndexedDB accepts it; delivery then uses the workshop's durable queue.
   let accepting = false;
   const submit = async (again: boolean) => {
     const text = bodyText();
@@ -246,7 +246,7 @@ export function CaptureField(props: CaptureFieldProps) {
     setPending(count => count + 1);
     setError('');
     try {
-      const receipt = await props.notebook.appendCapture(
+      const receipt = await props.workshop.appendCapture(
         props.prepare ? props.prepare(body.trim()) : body.trim(),
         value,
         [...links],
@@ -453,7 +453,7 @@ export function CaptureField(props: CaptureFieldProps) {
           <div class="picker-list" onMouseDown={event => event.preventDefault()}>
             <For each={choices()}>
               {(choice, row) => {
-                const pageIcon = choice.block ? createPageIcon(props.notebook, () => choice.block!) : undefined;
+                const pageIcon = choice.block ? createPageIcon(props.workshop, () => choice.block!) : undefined;
                 const icon = (): IconName =>
                   choice.create
                     ? 'plus'

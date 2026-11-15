@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { history, undo, redo } from '@codemirror/commands';
 import { StateEffect } from '@codemirror/state';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { QuoteState } from '../api/types';
 import { quoteTarget } from '../document/text-tokens';
 import { PaneEditor } from '../outline/editor';
@@ -22,7 +22,7 @@ export function CriteriaCellEditor(props: {
   id: string;
   text: string;
   label: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onCommit(text: string, restoreFocus: boolean, quote?: QuoteState): void;
   onCancel(): void;
   onTab?(text: string, direction: -1 | 1, quote?: QuoteState): void;
@@ -47,8 +47,8 @@ export function CriteriaCellEditor(props: {
   const [matches] = createResource(key, async key => {
     const query = key.slice(key.indexOf(':') + 1);
     return key.startsWith('blocks:')
-      ? (await props.notebook.api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block')
-      : props.notebook.api.complete(query);
+      ? (await props.workshop.api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block')
+      : props.workshop.api.complete(query);
   });
   const rows = createMemo(() => (matches.error ? [] : (matches() ?? [])).filter(block => block.id !== props.id));
   const updateCompletion = (text: string, at: number) => {
@@ -66,7 +66,7 @@ export function CriteriaCellEditor(props: {
       setCompletion(null);
       setError('');
       try {
-        const captured = await captureQuoteCompletion(props.notebook, block.id);
+        const captured = await captureQuoteCompletion(props.workshop, block.id);
         if (disposed) return;
         if (editor.view.state.doc.toString() !== text) {
           setError('The quote text changed before its snapshot arrived.');
@@ -105,8 +105,8 @@ export function CriteriaCellEditor(props: {
       },
       input: () => false,
       label: id => {
-        const target = props.notebook.lookup(id)();
-        return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined;
+        const target = props.workshop.lookup(id)();
+        return target ? plainText(target.text, reference => props.workshop.lookup(reference)) : undefined;
       },
       selection: caret => updateCompletion(editor.view.state.doc.toString(), caret.offset),
       key: (event, view) => {
@@ -232,14 +232,14 @@ export function CriteriaCellEditor(props: {
                   onClick={() => void choose(at())}
                 >
                   <span class="picker-text">
-                    <BlockText text={block.text} notebook={props.notebook} interactive={false} />
+                    <BlockText text={block.text} workshop={props.workshop} interactive={false} />
                   </span>
                   <Show when={'alias' in block && block.alias}>
                     {alias => <span class="reference-via">via {String(alias())}</span>}
                   </Show>
                   <Show when={block.kind === 'block'}>
                     <span class="picker-meta">
-                      <BlockBreadcrumb block={block} notebook={props.notebook} />
+                      <BlockBreadcrumb block={block} workshop={props.workshop} />
                     </span>
                   </Show>
                 </div>

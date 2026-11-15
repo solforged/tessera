@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { completeTypes, typeChoiceSpelling, typeSpelling, typeTokenAt } from './type-completion';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { Block } from '../api/types';
 
 const atEnd = (text: string) => typeTokenAt(text, text.length);
@@ -95,7 +95,7 @@ test('type completion excludes note bodies, matches registered type aliases and 
     { key: 'question', name: 'Question', icon: 'question-open', type_id: null, tag: false },
     { key: 'type:type', name: 'idea', icon: null, type_id: 'type', tag: true },
   ];
-  const notebook = {
+  const workshop = {
     roots: () => [type],
     changeSequence: () => 0,
     api: {
@@ -107,8 +107,8 @@ test('type completion excludes note bodies, matches registered type aliases and 
       ],
       resolveName: async () => [{ page: type, alias: 'idéa' }],
     },
-  } as unknown as NotebookClient;
-  expect(await completeTypes(notebook, 'idéa')).toEqual({
+  } as unknown as WorkshopClient;
+  expect(await completeTypes(workshop, 'idéa')).toEqual({
     rows: [{ ...type, alias: 'idéa', icon: null }],
     canCreate: false,
   });
@@ -121,7 +121,7 @@ test('type completion excludes note bodies, matches registered type aliases and 
       complete: async () => [],
       resolveName: async () => [],
     },
-  } as unknown as NotebookClient;
+  } as unknown as WorkshopClient;
   const person = await completeTypes(absent, 'pers');
   expect(person.rows.map(row => [row.text, row.icon, row.id])).toEqual([['Person', 'person', '']]);
   expect(person.canCreate).toBe(true);
@@ -139,13 +139,13 @@ test('a bare hash puts the four behavior tags first, retaining existing IDs and 
     { key: 'project', name: 'Project', icon: 'flag', type_id: null, tag: true },
     { key: 'question', name: 'Question', icon: 'question-open', type_id: null, tag: true },
   ];
-  const notebook = {
+  const workshop = {
     api: {
       types: async () => [{ page: essay }, { page: task }],
       noteIndex: async () => ({ kinds }),
     },
-  } as unknown as NotebookClient;
-  const result = await completeTypes(notebook, '');
+  } as unknown as WorkshopClient;
+  const result = await completeTypes(workshop, '');
   expect(result.rows.map(row => [row.text, row.icon, row.id])).toEqual([
     ['Task', 'task', task.id],
     ['Question', 'question-open', ''],

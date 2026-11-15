@@ -29,7 +29,7 @@ emulator.
 2. Serve
    `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/ime" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`
    as a unique named service (never 4317/4318/4320/5173). Record readiness and
-   both actual ports. Use only this run's fresh notebook, never shared dev data.
+   both actual ports. Use only this run's fresh workshop, never shared dev data.
 3. Inspect `adb -s "$SERIAL" reverse --list`, then
    `adb -s "$SERIAL" reverse --no-rebind tcp:<owned-http> tcp:<owned-http>` and
    record that exact binding.

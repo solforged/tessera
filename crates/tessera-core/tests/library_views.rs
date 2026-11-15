@@ -1,4 +1,4 @@
-use tessera_core::{Actor, Batch, Error, Notebook, Operation, library::*};
+use tessera_core::{Actor, Batch, Error, Operation, Workshop, library::*};
 
 fn id() -> String {
     ulid::Ulid::generate().to_string()
@@ -11,7 +11,7 @@ fn batch(operations: Vec<Operation>) -> Batch {
         operations,
     }
 }
-fn source(n: &mut Notebook, title: &str, state: ReadingState) -> String {
+fn source(n: &mut Workshop, title: &str, state: ReadingState) -> String {
     let id = id();
     n.apply(&batch(vec![
         Operation::CreatePage {
@@ -37,7 +37,7 @@ fn source(n: &mut Notebook, title: &str, state: ReadingState) -> String {
 #[test]
 fn saved_library_views_validate_revisions_replay_and_survive_reload() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let view_id = id();
     let query = LibraryQuery {
         text: Some("Reading".into()),
@@ -74,7 +74,7 @@ fn saved_library_views_validate_revisions_replay_and_survive_reload() {
         );
     }
     drop(n);
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let views = n.library_views().unwrap();
     assert_eq!(views.len(), 1);
     assert_eq!(views[0].name, "Reading list");
@@ -118,7 +118,7 @@ fn saved_library_views_validate_revisions_replay_and_survive_reload() {
 #[test]
 fn library_query_export_ignores_display_limits_and_preserves_empty_results() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let first = source(&mut n, "Reading one", ReadingState::Reading);
     source(&mut n, "Reading two", ReadingState::Reading);
     source(&mut n, "Reading inbox", ReadingState::Inbox);
@@ -157,7 +157,7 @@ fn library_query_export_ignores_display_limits_and_preserves_empty_results() {
 #[test]
 fn failed_and_queued_jobs_are_not_hidden_by_the_completed_job_limit() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let job = n
         .queue_ingest(
             IngestInput::Url,
@@ -179,7 +179,7 @@ fn failed_and_queued_jobs_are_not_hidden_by_the_completed_job_limit() {
         .unwrap();
     }
     drop(n);
-    let n = Notebook::open(dir.path()).unwrap();
+    let n = Workshop::open(dir.path()).unwrap();
     let jobs = n.ingest_jobs(1).unwrap();
     assert_eq!(jobs.len(), 4);
     let failed = jobs.iter().find(|value| value.id == job.id).unwrap();
@@ -190,8 +190,8 @@ fn failed_and_queued_jobs_are_not_hidden_by_the_completed_job_limit() {
 #[test]
 fn completed_jobs_leave_with_their_deleted_source() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
-    let finished = |n: &mut Notebook, title: &str| {
+    let mut n = Workshop::open(dir.path()).unwrap();
+    let finished = |n: &mut Workshop, title: &str| {
         let page = source(n, title, ReadingState::Inbox);
         let url = format!("https://example.org/{title}");
         let job = n.queue_ingest(IngestInput::Url, &url, title, None).unwrap();
@@ -218,7 +218,7 @@ fn completed_jobs_leave_with_their_deleted_source() {
 #[test]
 fn library_and_source_tables_file_accented_titles_with_their_base_letters() {
     let dir = tempfile::tempdir().unwrap();
-    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
     let z = source(&mut n, "Zana", ReadingState::Reading);
     let accented = source(&mut n, "Ābhās क", ReadingState::Reading);
     let a = source(&mut n, "Aava", ReadingState::Reading);

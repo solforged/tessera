@@ -1,6 +1,6 @@
 import { opensBeside } from '../core/beside';
 import { Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { QuoteStatus } from '../api/types';
 import type { OpenTarget } from '../core/contract';
 import { quoteTarget } from '../document/text-tokens';
@@ -12,21 +12,21 @@ import type { TreeRow } from './BlockTree';
 import './quote.css';
 
 /** One status read per page, not one request per visible quote. Text typing does not scan the outline. */
-export function createQuoteStatus(doc: PageDocument, notebook: NotebookClient) {
+export function createQuoteStatus(doc: PageDocument, workshop: WorkshopClient) {
   const hasQuotes = createMemo(() => {
     doc.outline.version();
     for (let index = 0; index < doc.outline.size(); index++) if (doc.block(doc.outline.idAt(index))?.quote) return true;
     return false;
   });
-  const settled = createSettledChanges(notebook);
+  const settled = createSettledChanges(workshop);
   let request: AbortController | undefined;
   onCleanup(() => request?.abort());
   const [status] = createResource(
-    () => hasQuotes() && `${doc.pageId}:${settled()}:${notebook.connection() === 'live'}`,
+    () => hasQuotes() && `${doc.pageId}:${settled()}:${workshop.connection() === 'live'}`,
     async () => {
       request?.abort();
       request = new AbortController();
-      return notebook.api.quoteStatus(doc.pageId, request.signal);
+      return workshop.api.quoteStatus(doc.pageId, request.signal);
     },
   );
   return createMemo(() => new Map((status.error ? [] : (status() ?? [])).map(value => [value.block_id, value])));
@@ -36,17 +36,17 @@ export function Quote(props: {
   id: string;
   target: string;
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   status?: QuoteStatus;
   onOpen(target: OpenTarget, beside: boolean): void;
   onEdited?(doc: PageDocument): void;
 }) {
   const block = () => props.doc.block(props.id);
   const quote = () => (block()?.quote?.target_id === props.target ? block()!.quote : null);
-  const source = () => props.notebook.lookup(props.target)();
+  const source = () => props.workshop.lookup(props.target)();
   // Keep the last known page while mounted; snapshots deliberately contain no live page metadata.
   const sourcePageId = createMemo<string | undefined>(previous => source()?.page_id ?? previous);
-  const page = () => (sourcePageId() ? props.notebook.lookup(sourcePageId()!)() : undefined);
+  const page = () => (sourcePageId() ? props.workshop.lookup(sourcePageId()!)() : undefined);
   const deleted = () => props.status?.source_live === false || source() === null;
   const rows = createMemo<TreeRow[]>(
     () => quote()?.rows.map(row => ({ id: row.id, depth: row.depth, role: 'body' })) ?? [],
@@ -55,7 +55,7 @@ export function Quote(props: {
   const date = createMemo(
     () =>
       new Intl.DateTimeFormat('en-CA', {
-        timeZone: props.notebook.settings()?.time_zone ?? 'UTC',
+        timeZone: props.workshop.settings()?.time_zone ?? 'UTC',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -77,7 +77,7 @@ export function Quote(props: {
     setBusy(true);
     setError('');
     try {
-      const value = await props.notebook.api.quoteSnapshot(target);
+      const value = await props.workshop.api.quoteSnapshot(target);
       if (disposed) return;
       if (block()?.text !== text || block()?.revision !== revision || quoteTarget(text) !== target)
         throw new Error('The quote row changed. Capture again.');
@@ -110,7 +110,7 @@ export function Quote(props: {
                 when={source()}
                 fallback={<span class="outline-quote-unresolved">Unresolved quote {props.target}</span>}
               >
-                <BlockText text={source()?.text ?? ''} notebook={props.notebook} onOpen={props.onOpen} />
+                <BlockText text={source()?.text ?? ''} workshop={props.workshop} onOpen={props.onOpen} />
               </Show>
             </div>
             <Show when={source() && !deleted()}>
@@ -126,7 +126,7 @@ export function Quote(props: {
         {captured => (
           <>
             <div class="outline-quote-frame">
-              <BlockTree rows={rows()} block={id => frozen().get(id)} notebook={props.notebook} onOpen={props.onOpen} />
+              <BlockTree rows={rows()} block={id => frozen().get(id)} workshop={props.workshop} onOpen={props.onOpen} />
               <Show when={captured().truncated}>
                 <p class="outline-quote-truncated">… truncated at capture</p>
               </Show>

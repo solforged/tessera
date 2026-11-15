@@ -1,5 +1,5 @@
 use base64::Engine;
-use tessera_core::{Actor, Batch, Error, ImageRef, Notebook, Operation};
+use tessera_core::{Actor, Batch, Error, ImageRef, Operation, Workshop};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -15,9 +15,9 @@ fn batch(operations: Vec<Operation>) -> Batch {
 fn png() -> Vec<u8> {
     base64::engine::general_purpose::STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=").unwrap()
 }
-fn setup() -> (tempfile::TempDir, Notebook, ImageRef) {
+fn setup() -> (tempfile::TempDir, Workshop, ImageRef) {
     let dir = tempfile::tempdir().unwrap();
-    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
     nb.apply(&batch(vec![
         Operation::CreatePage {
             id: id(1),
@@ -42,14 +42,14 @@ fn setup() -> (tempfile::TempDir, Notebook, ImageRef) {
     let image = nb.put_image(&png()).unwrap();
     (dir, nb, image)
 }
-fn set(nb: &Notebook, n: u128, image: Option<ImageRef>) -> Operation {
+fn set(nb: &Workshop, n: u128, image: Option<ImageRef>) -> Operation {
     Operation::SetImage {
         id: id(n),
         base_revision: nb.block(&id(n)).unwrap().revision,
         image,
     }
 }
-fn invalid(nb: &mut Notebook, op: Operation, expected: &str) {
+fn invalid(nb: &mut Workshop, op: Operation, expected: &str) {
     assert!(
         matches!(nb.apply(&batch(vec![op])), Err(Error::Validation { message, op_index: Some(0) }) if message == expected)
     );

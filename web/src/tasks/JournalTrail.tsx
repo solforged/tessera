@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { shiftCalendarDate } from './week-calendar';
 import { Figures } from './Figures';
@@ -31,7 +31,7 @@ export function JournalTrail(props: {
   date: string;
   today?: boolean;
   journalPeriod?: Period;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onSelect(date: string): Promise<void>;
 }) {
   const [ledger, setLedger] = createSignal<{ kind: Period; date: string } | null>(null);
@@ -48,7 +48,7 @@ export function JournalTrail(props: {
   const [writtenError, setWrittenError] = createSignal('');
   createEffect(() => {
     const open = ledger();
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     if (!open) {
       setWritten(new Set<string>());
       setWrittenError('');
@@ -67,7 +67,7 @@ export function JournalTrail(props: {
           );
     const controller = new AbortController();
     setWrittenError('');
-    void props.notebook.api
+    void props.workshop.api
       .writtenJournalDates(dates[0]!, dates[dates.length - 1]!, controller.signal)
       .then(value => {
         if (!controller.signal.aborted) setWritten(new Set(value));
@@ -148,7 +148,7 @@ export function JournalTrail(props: {
       <Button
         class={`journal-ledger-day${written().has(propsDay.date) ? ' journal-day-written' : ''}${propsDay.date === props.date ? ' journal-day-current' : ''}`}
         disabled={busy()}
-        aria-current={propsDay.date === props.notebook.todayDate() ? 'date' : undefined}
+        aria-current={propsDay.date === props.workshop.todayDate() ? 'date' : undefined}
         aria-pressed={propsDay.date === props.date}
         label={`${journalDayLabel(propsDay.date)}${written().has(propsDay.date) ? ', journal written' : ''}`}
         onClick={() => {
@@ -235,7 +235,7 @@ export function JournalTrail(props: {
                       classList={{
                         'journal-day-written': !!date && written().has(date),
                         'journal-day-current': date === props.date,
-                        'journal-day-today': date === props.notebook.todayDate(),
+                        'journal-day-today': date === props.workshop.todayDate(),
                       }}
                     >
                       {date ? Number(date.slice(8)) : ''}

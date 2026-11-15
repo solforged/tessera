@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { besideHint, opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
@@ -13,14 +13,14 @@ import './backlinks.css';
 interface SourceProps {
   block: Block;
   page: Block;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }
 
 /** Mounted only while a source is expanded (or its count popup is open). */
 function SourceContext(props: SourceProps) {
   const doc = createMemo(() => {
-    const value = props.notebook.open(props.page.id);
+    const value = props.workshop.open(props.page.id);
     onCleanup(() => value.release());
     return value;
   });
@@ -30,27 +30,27 @@ function SourceContext(props: SourceProps) {
       when={doc().status() === 'ready'}
       fallback={<p role="status">{doc().status() === 'loading' ? 'Loading context…' : doc().statusMessage()}</p>}
     >
-      <BlockTree rows={rows()} block={id => doc().block(id)} notebook={props.notebook} onOpen={props.onOpen} />
+      <BlockTree rows={rows()} block={id => doc().block(id)} workshop={props.workshop} onOpen={props.onOpen} />
     </Show>
   );
 }
 
 export function BacklinkSource(props: SourceProps & { context?: boolean; breadcrumb?: boolean }) {
   const [expanded, setExpanded] = createSignal(false);
-  const live = createMemo(() => props.notebook.lookup(props.block.id)());
+  const live = createMemo(() => props.workshop.lookup(props.block.id)());
   const target = (): OpenTarget => ({ kind: 'page', pageId: props.page.id, blockId: props.block.id });
   return (
     <div class="backlink-source">
       <Show when={props.breadcrumb}>
         <div class="related-breadcrumb">
-          <BlockBreadcrumb block={live() ?? props.block} notebook={props.notebook} omitParent={props.context} />
+          <BlockBreadcrumb block={live() ?? props.block} workshop={props.workshop} omitParent={props.context} />
         </div>
       </Show>
       <div
         class="backlink-source-line"
         data-open-page={props.page.id}
         data-open-block={props.block.id}
-        data-open-label={displayTitle(props.page.text, id => props.notebook.lookup(id))}
+        data-open-label={displayTitle(props.page.text, id => props.workshop.lookup(id))}
       >
         <Show when={!props.context}>
           <Button
@@ -78,7 +78,7 @@ export function BacklinkSource(props: SourceProps & { context?: boolean; breadcr
               <BlockText
                 text={live()?.text ?? props.block.text}
                 blockId={props.block.id}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 onOpen={props.onOpen}
               />
             }
@@ -102,7 +102,7 @@ export function BlockReferenceCount(props: {
   id: string;
   count: number;
   version: number;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [anchor, setAnchor] = createSignal<HTMLElement>();
@@ -114,7 +114,7 @@ export function BlockReferenceCount(props: {
       async ([id]) => {
         request?.abort();
         request = new AbortController();
-        return props.notebook.api.backlinks(id, 100, request.signal);
+        return props.workshop.api.backlinks(id, 100, request.signal);
       },
     );
     const values = createMemo(() => new Map((rows.error ? [] : (rows() ?? [])).map(row => [row.source.id, row])));
@@ -132,7 +132,7 @@ export function BlockReferenceCount(props: {
             <BacklinkSource
               block={values().get(id)!.source}
               page={values().get(id)!.page}
-              notebook={props.notebook}
+              workshop={props.workshop}
               onOpen={(target, beside) => {
                 setAnchor(undefined);
                 props.onOpen(target, beside);

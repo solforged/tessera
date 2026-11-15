@@ -17,7 +17,7 @@ import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtua
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import { ulid } from 'ulid';
 import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../core/contract';
 import { setSystemBarsHidden } from '../shell/system-bars';
 import { createRetained } from '../core/retained';
@@ -72,7 +72,7 @@ export interface ReaderPaneProps {
   pane: PaneId;
   target: Extract<OpenTarget, { kind: 'reader' }>;
   view: ReaderViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   active: boolean;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -119,7 +119,7 @@ function deferred(run: () => void) {
 }
 
 export function ReaderPane(props: ReaderPaneProps) {
-  const api = props.notebook.api;
+  const api = props.workshop.api;
   const [source, setSource] = createSignal<SourceView>();
   const [snapshot, setSnapshot] = createSignal('');
   const [allContents, setContents] = createSignal<TocEntry[]>([]);
@@ -172,11 +172,11 @@ export function ReaderPane(props: ReaderPaneProps) {
     const timer = setTimeout(() => setRemovedNotice(false), 8000);
     onCleanup(() => clearTimeout(timer));
   });
-  const readerDocument = props.notebook.open(props.target.sourceId);
+  const readerDocument = props.workshop.open(props.target.sourceId);
   // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
   // what the file said at import, and stands in only until the page has loaded.
-  const [fieldDefinitions] = createResource(() => props.notebook.api.fields());
-  const details = createMemo(() => sourceMetadata(readerDocument, props.notebook, fieldDefinitions()?.fields ?? []));
+  const [fieldDefinitions] = createResource(() => props.workshop.api.fields());
+  const details = createMemo(() => sourceMetadata(readerDocument, props.workshop, fieldDefinitions()?.fields ?? []));
   const title = () => details().title?.trim() || currentSnapshot()?.metadata.title || '';
   /** The book's title as the source page and the file record it. */
   const book = createMemo(() =>
@@ -222,7 +222,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
   const actions = createHighlightActions(
-    props.notebook,
+    props.workshop,
     props.onOpen,
     setError,
     undefined,
@@ -623,7 +623,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   createEffect(() => {
     const sourceId = props.target.sourceId;
-    props.notebook.changeSequence();
+    props.workshop.changeSequence();
     const controller = new AbortController();
     setHighlightsLoading(true);
     setHighlightsError('');
@@ -1481,7 +1481,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   createEffect(
     on(
-      () => props.notebook.changeSequence(),
+      () => props.workshop.changeSequence(),
       () => {
         for (const from of pages.keys())
           void loadPage(from, true).catch(reason => {
@@ -1638,7 +1638,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   async function openCitation(citation: Citation) {
     try {
-      const block = props.notebook.lookup(citation.block_id)() ?? (await api.block(citation.block_id));
+      const block = props.workshop.lookup(citation.block_id)() ?? (await api.block(citation.block_id));
       if (!disposed) props.onOpen({ kind: 'page', pageId: block.page_id, blockId: citation.block_id }, true);
     } catch (reason) {
       if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
@@ -3509,7 +3509,7 @@ export function ReaderPane(props: ReaderPaneProps) {
                 at={here()}
                 highlights={marks()}
                 added={source()?.source.added_at ?? null}
-                today={props.notebook.todayDate()}
+                today={props.workshop.todayDate()}
                 onDismiss={() => setPopup(null)}
                 onJump={chapter => {
                   const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null);
@@ -3711,7 +3711,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={composing()} keyed>
         {draft => (
           <HighlightComposer
-            notebook={props.notebook}
+            workshop={props.workshop}
             draft={draft}
             onClose={() => {
               setComposing(null);

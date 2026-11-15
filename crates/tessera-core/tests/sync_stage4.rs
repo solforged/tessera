@@ -1,12 +1,12 @@
 use parking_lot::Mutex;
 use std::sync::{Arc, mpsc};
 use tessera_core::sync::*;
-use tessera_core::{Actor, Batch, DATABASE_FILE, Notebook, Operation, Result};
+use tessera_core::{Actor, Batch, DATABASE_FILE, Operation, Result, Workshop};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
 }
-fn apply(n: &mut Notebook, operations: Vec<Operation>) {
+fn apply(n: &mut Workshop, operations: Vec<Operation>) {
     n.apply(&Batch {
         actor: Actor::Person,
         reason: None,
@@ -15,7 +15,7 @@ fn apply(n: &mut Notebook, operations: Vec<Operation>) {
     })
     .unwrap();
 }
-fn page(n: &mut Notebook, root: u128, title: &str, text: &str) {
+fn page(n: &mut Workshop, root: u128, title: &str, text: &str) {
     apply(
         n,
         vec![
@@ -33,14 +33,14 @@ fn page(n: &mut Notebook, root: u128, title: &str, text: &str) {
         ],
     );
 }
-struct Locked(Arc<Mutex<Notebook>>);
-impl NotebookAccess for Locked {
-    fn with_notebook<T>(&mut self, step: impl FnOnce(&mut Notebook) -> Result<T>) -> Result<T> {
+struct Locked(Arc<Mutex<Workshop>>);
+impl WorkshopAccess for Locked {
+    fn with_workshop<T>(&mut self, step: impl FnOnce(&mut Workshop) -> Result<T>) -> Result<T> {
         step(&mut self.0.lock())
     }
 }
 struct BlockingHub {
-    hub: Notebook,
+    hub: Workshop,
     entered: mpsc::Sender<()>,
     edited: mpsc::Receiver<()>,
 }
@@ -52,7 +52,7 @@ impl Hub for BlockingHub {
         self.entered.send(()).unwrap();
         self.edited
             .recv_timeout(std::time::Duration::from_secs(5))
-            .expect("editor could not acquire notebook during network pull");
+            .expect("editor could not acquire workshop during network pull");
         self.hub.pull(device, acknowledged, after)
     }
     fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>> {
@@ -86,17 +86,17 @@ impl Hub for BlockingHub {
     }
 }
 #[test]
-fn network_pull_releases_notebook_for_edits() {
+fn network_pull_releases_workshop_for_edits() {
     let hub_dir = tempfile::tempdir().unwrap();
     let replica_dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(hub_dir.path()).unwrap();
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
     page(&mut hub, 1, "Shared", "initial");
     let ticket = hub
         .sync_clone(&replica_dir.path().join(DATABASE_FILE))
         .unwrap()
         .finish()
         .unwrap();
-    let mut replica = Notebook::open(replica_dir.path()).unwrap();
+    let mut replica = Workshop::open(replica_dir.path()).unwrap();
     replica.sync_adopt("in-process", &ticket).unwrap();
     apply(
         &mut hub,
@@ -124,7 +124,7 @@ fn network_pull_releases_notebook_for_edits() {
     entered_rx
         .recv_timeout(std::time::Duration::from_secs(5))
         .unwrap();
-    let mut n = shared.try_lock().expect("network call held notebook lock");
+    let mut n = shared.try_lock().expect("network call held workshop lock");
     page(&mut n, 20, "While waiting", "still editable");
     drop(n);
     edited_tx.send(()).unwrap();
@@ -138,8 +138,8 @@ fn network_pull_releases_notebook_for_edits() {
 fn independent_import_merges_natural_keys_then_clones_and_keeps_old_database() {
     let hub_dir = tempfile::tempdir().unwrap();
     let phone_dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(hub_dir.path()).unwrap();
-    let mut phone = Notebook::open(phone_dir.path()).unwrap();
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
+    let mut phone = Workshop::open(phone_dir.path()).unwrap();
     for (n, root, text) in [(&mut hub, 1, "Mac"), (&mut phone, 10, "Phone")] {
         page(n, root, "Same title", text);
         apply(
@@ -180,7 +180,7 @@ fn independent_import_merges_natural_keys_then_clones_and_keeps_old_database() {
         );
     }
     // Histories predating migration 022 have no global stamps. Import assigns
-    // stable IDs from the original notebook identity and local seq.
+    // stable IDs from the original workshop identity and local seq.
     rusqlite::Connection::open(phone_dir.path().join(DATABASE_FILE))
         .unwrap()
         .execute(
@@ -224,14 +224,14 @@ fn independent_import_merges_natural_keys_then_clones_and_keeps_old_database() {
 fn rebase_keeps_editor_cursor_monotonic_and_marks_same_revision_changes() {
     let hub_dir = tempfile::tempdir().unwrap();
     let replica_dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(hub_dir.path()).unwrap();
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
     page(&mut hub, 1, "Same revision", "initial");
     let ticket = hub
         .sync_clone(&replica_dir.path().join(DATABASE_FILE))
         .unwrap()
         .finish()
         .unwrap();
-    let mut replica = Notebook::open(replica_dir.path()).unwrap();
+    let mut replica = Workshop::open(replica_dir.path()).unwrap();
     replica.sync_adopt("in-process", &ticket).unwrap();
     apply(
         &mut replica,
@@ -273,9 +273,9 @@ fn rebase_keeps_editor_cursor_monotonic_and_marks_same_revision_changes() {
 #[test]
 fn clone_recovery_keeps_only_the_latest_copy_of_each_kind() {
     let root = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(root.path().join("hub")).unwrap();
+    let mut hub = Workshop::open(root.path().join("hub")).unwrap();
     let phone_dir = root.path().join("phone");
-    let mut phone = Notebook::open(&phone_dir).unwrap();
+    let mut phone = Workshop::open(&phone_dir).unwrap();
     let clone = root.path().join("clone.db");
     let mut saved = Vec::new();
     for suffix in ["before-pairing", "retired", "before-pairing", "retired"] {
@@ -304,12 +304,12 @@ fn clone_recovery_keeps_only_the_latest_copy_of_each_kind() {
 fn independently_seeded_task_fields_merge_without_rejected_changes() {
     let hub_dir = tempfile::tempdir().unwrap();
     let phone_dir = tempfile::tempdir().unwrap();
-    let mut hub = Notebook::open(hub_dir.path()).unwrap();
-    let mut phone = Notebook::open(phone_dir.path()).unwrap();
-    for (notebook, root, title) in [(&mut hub, 1, "Mac tasks"), (&mut phone, 10, "Phone tasks")] {
-        page(notebook, root, title, "A task");
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
+    let mut phone = Workshop::open(phone_dir.path()).unwrap();
+    for (workshop, root, title) in [(&mut hub, 1, "Mac tasks"), (&mut phone, 10, "Phone tasks")] {
+        page(workshop, root, title, "A task");
         apply(
-            notebook,
+            workshop,
             vec![Operation::SetTask {
                 id: id(root + 1),
                 base_revision: 1,

@@ -1140,7 +1140,7 @@ kbd {
   line-height: var(--line-meta);
   color: var(--muted);
 }
-/* The foot names the open notebook and how it reaches other devices, apart from the places you work in. */
+/* The foot names the open workshop and how it reaches other devices, apart from the places you work in. */
 .sidebar-foot {
   display: flex;
   align-items: center;
@@ -1915,7 +1915,7 @@ span.pane-breadcrumbs {
   font-size: var(--text-control);
   animation: rise-in var(--motion-ui) var(--motion-ease) both;
 }
-/* Between a notebook switch and the reload, the window is covered so nothing is edited in the notebook being left. */
+/* Between a workshop switch and the reload, the window is covered so nothing is edited in the workshop being left. */
 .notebook-opening {
   position: fixed;
   inset: 0;

@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { RevisitAction, RevisitRow } from '../api/types';
-import type { DocumentChange, NotebookClient } from '../document/contract';
+import type { DocumentChange, WorkshopClient } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { BlockText } from '../outline/BlockText';
 import { DatePicker } from '../tasks/DatePicker';
@@ -16,7 +16,7 @@ import './revisits.css';
 interface RevisitsPaneProps {
   pane: PaneId;
   view: RevisitsViewState;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   commands: CommandRegistry;
   active: boolean;
   onActivate(): void;
@@ -25,7 +25,7 @@ interface RevisitsPaneProps {
 }
 
 export function NotesReview(props: RevisitsPaneProps) {
-  const queue = createRevisits(props.notebook);
+  const queue = createRevisits(props.workshop);
   const groups = createMemo(() => {
     const dates = new Map<string, RevisitRow[]>();
     for (const row of queue.rows()) {
@@ -97,7 +97,7 @@ export function NotesReview(props: RevisitsPaneProps) {
     setError('');
     setConfirm(undefined);
     try {
-      setHistory(await changeRevisit(props.notebook, row.block.block.id, action, date));
+      setHistory(await changeRevisit(props.workshop, row.block.block.id, action, date));
       setUndone(false);
       const after = groups()
         .flatMap(([, rows]) => rows)
@@ -233,7 +233,7 @@ export function NotesReview(props: RevisitsPaneProps) {
                         props.onViewChange({ ...props.view, revisitId: row.block.block.id });
                       })}
                     >
-                      <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+                      <BlockText text={row.block.block.text} workshop={props.workshop} interactive={false} />
                       <span class="revisit-meta">{revisitKind(row)}</span>
                     </Button>
                   )}
@@ -291,11 +291,11 @@ export function NotesReview(props: RevisitsPaneProps) {
                   <OutlinePane
                     pane={props.pane}
                     pageId={entry.pageId}
-                    notebook={props.notebook}
+                    workshop={props.workshop}
                     active={props.active}
                     onActivate={props.onActivate}
                     onOpen={props.onOpen}
-                    vim={props.notebook.vim()}
+                    vim={props.workshop.vim()}
                     onVimMode={() => {}}
                     commands={props.commands}
                     view={{
@@ -346,12 +346,12 @@ export function NotesReview(props: RevisitsPaneProps) {
       <Show keyed when={picker()}>
         {state => (
           <DatePicker
-            notebook={props.notebook}
+            workshop={props.workshop}
             anchor={state.anchor}
             label="Set revisit date"
             presets="revisit"
             value={state.later ? state.row.revisit_on : next()}
-            contextDate={props.notebook.todayDate()}
+            contextDate={props.workshop.todayDate()}
             onDismiss={() => setPicker(undefined)}
             onSelect={async value => {
               if (state.later) await act(state.row, 'later', value.date);

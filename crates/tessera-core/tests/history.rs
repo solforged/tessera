@@ -1,4 +1,4 @@
-use tessera_core::{Actor, Batch, ChangeStamp, Error, Notebook, Operation};
+use tessera_core::{Actor, Batch, ChangeStamp, Error, Operation, Workshop};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -25,10 +25,10 @@ fn insert(value: u128, parent: u128, after: Option<u128>, text: &str) -> Operati
     }
 }
 
-fn fixture() -> (tempfile::TempDir, Notebook) {
+fn fixture() -> (tempfile::TempDir, Workshop) {
     let dir = tempfile::tempdir().unwrap();
-    let mut notebook = Notebook::open(dir.path()).unwrap();
-    notebook
+    let mut workshop = Workshop::open(dir.path()).unwrap();
+    workshop
         .apply(&batch(vec![
             Operation::CreatePage {
                 id: id(1),
@@ -41,11 +41,11 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
             insert(6, 5, None, "Deleted child"),
         ]))
         .unwrap();
-    (dir, notebook)
+    (dir, workshop)
 }
 
-fn outline(notebook: &Notebook) -> Vec<(String, String, u32)> {
-    notebook
+fn outline(workshop: &Workshop) -> Vec<(String, String, u32)> {
+    workshop
         .page(&id(1))
         .unwrap()
         .rows
@@ -54,8 +54,8 @@ fn outline(notebook: &Notebook) -> Vec<(String, String, u32)> {
         .collect()
 }
 
-fn refused(notebook: &mut Notebook, seq: i64, message: &str) {
-    match notebook.undo_change(seq, &Actor::Person) {
+fn refused(workshop: &mut Workshop, seq: i64, message: &str) {
+    match workshop.undo_change(seq, &Actor::Person) {
         Err(Error::Validation {
             message: actual, ..
         }) => assert!(actual.contains(message), "{actual}"),
@@ -65,9 +65,9 @@ fn refused(notebook: &mut Notebook, seq: i64, message: &str) {
 
 #[test]
 fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
-    let (_dir, mut notebook) = fixture();
-    let before = outline(&notebook);
-    let committed = notebook
+    let (_dir, mut workshop) = fixture();
+    let before = outline(&workshop);
+    let committed = workshop
         .apply(&batch(vec![
             Operation::EditText {
                 id: id(2),
@@ -86,8 +86,8 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
             },
         ]))
         .unwrap();
-    let edited = outline(&notebook);
-    let history = notebook.history(1, None).unwrap();
+    let edited = outline(&workshop);
+    let history = workshop.history(1, None).unwrap();
     let entry = &history[0];
     assert_eq!(entry.seq, committed.seq);
     assert_eq!(entry.actor, batch(vec![]).actor);
@@ -100,10 +100,10 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
     assert_eq!(entry.page.as_ref().unwrap().id, id(1));
     assert_eq!(entry.undoes, None);
 
-    let undone = notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-    assert_eq!(outline(&notebook), before);
-    assert_eq!(notebook.block(&id(6)).unwrap().parent_id, Some(id(5)));
-    let history = notebook.history(2, None).unwrap();
+    let undone = workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+    assert_eq!(outline(&workshop), before);
+    assert_eq!(workshop.block(&id(6)).unwrap().parent_id, Some(id(5)));
+    let history = workshop.history(2, None).unwrap();
     assert_eq!(history[0].seq, undone.committed.seq);
     assert_eq!(undone.seq, history[0].seq);
     assert_eq!(history[0].undoes, Some(committed.seq));
@@ -112,25 +112,25 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
     assert!(history[0].undoable);
     assert_eq!(history[1].undone_by, Some(undone.committed.seq));
     assert!(!history[1].undoable);
-    refused(&mut notebook, committed.seq, "already undone");
+    refused(&mut workshop, committed.seq, "already undone");
     assert!(matches!(
-        notebook.undo_change(999, &Actor::Person),
+        workshop.undo_change(999, &Actor::Person),
         Err(Error::NotFound { what: "change", id, .. }) if id == "999"
     ));
-    notebook
+    workshop
         .undo_change(undone.committed.seq, &Actor::Person)
         .unwrap();
-    assert_eq!(outline(&notebook), edited);
+    assert_eq!(outline(&workshop), edited);
     assert_eq!(
-        notebook.history(1, None).unwrap()[0].summary,
+        workshop.history(1, None).unwrap()[0].summary,
         format!("Redid: {}", entry.summary)
     );
 }
 
 #[test]
 fn a_merge_makes_the_entire_editor_batch_non_undoable() {
-    let (_dir, mut notebook) = fixture();
-    let committed = notebook
+    let (_dir, mut workshop) = fixture();
+    let committed = workshop
         .apply(&batch(vec![
             Operation::EditText {
                 id: id(2),
@@ -145,17 +145,17 @@ fn a_merge_makes_the_entire_editor_batch_non_undoable() {
             },
         ]))
         .unwrap();
-    let entry = notebook.history(1, None).unwrap().remove(0);
+    let entry = workshop.history(1, None).unwrap().remove(0);
     assert_eq!(entry.seq, committed.seq);
     assert!(!entry.undoable);
     assert!(!entry.summary.is_empty());
-    refused(&mut notebook, committed.seq, "not undoable");
-    assert_eq!(notebook.block(&id(2)).unwrap().text, "Edited first");
+    refused(&mut workshop, committed.seq, "not undoable");
+    assert_eq!(workshop.block(&id(2)).unwrap().text, "Edited first");
 }
 
 #[test]
 fn remote_stamped_changes_keep_their_origin_without_local_inverses() {
-    let (_dir, mut notebook) = fixture();
+    let (_dir, mut workshop) = fixture();
     let stamp = ChangeStamp {
         id: id(100),
         origin: id(101),
@@ -166,48 +166,48 @@ fn remote_stamped_changes_keep_their_origin_without_local_inverses() {
         base_revision: 1,
         text: "From the phone".into(),
     }]);
-    let committed = notebook.apply_stamped(&remote, &stamp).unwrap();
-    let entry = notebook.history(1, None).unwrap().remove(0);
+    let committed = workshop.apply_stamped(&remote, &stamp).unwrap();
+    let entry = workshop.history(1, None).unwrap().remove(0);
     assert_eq!(entry.seq, committed.seq);
     assert_eq!(entry.change_id.as_deref(), Some(stamp.id.as_str()));
     assert_eq!(entry.origin.as_deref(), Some(stamp.origin.as_str()));
     assert_eq!(entry.created_at, stamp.at);
     assert!(!entry.undoable);
-    refused(&mut notebook, committed.seq, "not undoable");
-    let replay = notebook.apply_stamped(&remote, &stamp).unwrap();
+    refused(&mut workshop, committed.seq, "not undoable");
+    let replay = workshop.apply_stamped(&remote, &stamp).unwrap();
     assert!(replay.replayed);
-    assert_eq!(notebook.history(1, None).unwrap()[0], entry);
+    assert_eq!(workshop.history(1, None).unwrap()[0], entry);
 }
 
 #[test]
 fn history_pages_exclusively_and_replays_do_not_replace_inverses() {
-    let (_dir, mut notebook) = fixture();
+    let (_dir, mut workshop) = fixture();
     let mut edit = batch(vec![Operation::EditText {
         id: id(2),
         base_revision: 1,
         text: "Updated".into(),
     }]);
     edit.idempotency_key = Some("history-editor-edit".into());
-    let committed = notebook.apply(&edit).unwrap();
-    let entry = notebook.history(1, None).unwrap().remove(0);
-    assert!(notebook.apply(&edit).unwrap().replayed);
-    assert_eq!(notebook.history(1, None).unwrap()[0], entry);
-    let previous = notebook.history(500, Some(committed.seq)).unwrap();
+    let committed = workshop.apply(&edit).unwrap();
+    let entry = workshop.history(1, None).unwrap().remove(0);
+    assert!(workshop.apply(&edit).unwrap().replayed);
+    assert_eq!(workshop.history(1, None).unwrap()[0], entry);
+    let previous = workshop.history(500, Some(committed.seq)).unwrap();
     assert!(previous.iter().all(|entry| entry.seq < committed.seq));
     assert!(
         previous
             .windows(2)
             .all(|entries| entries[0].seq > entries[1].seq)
     );
-    assert!(notebook.history(0, None).unwrap().is_empty());
-    notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-    assert_eq!(notebook.block(&id(2)).unwrap().text, "First");
+    assert!(workshop.history(0, None).unwrap().is_empty());
+    workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+    assert_eq!(workshop.block(&id(2)).unwrap().text, "First");
 }
 
 #[test]
 fn creation_batches_remove_nested_blocks_without_deleting_their_existing_page() {
-    let (_dir, mut notebook) = fixture();
-    let committed = notebook
+    let (_dir, mut workshop) = fixture();
+    let committed = workshop
         .apply(&batch(vec![
             insert(10, 1, Some(5), "New parent"),
             insert(11, 10, None, "New child"),
@@ -218,10 +218,10 @@ fn creation_batches_remove_nested_blocks_without_deleting_their_existing_page() 
             },
         ]))
         .unwrap();
-    notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-    assert!(notebook.block(&id(10)).is_err());
-    assert!(notebook.block(&id(11)).is_err());
-    assert!(notebook.block(&id(1)).is_ok());
+    workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+    assert!(workshop.block(&id(10)).is_err());
+    assert!(workshop.block(&id(11)).is_err());
+    assert!(workshop.block(&id(1)).is_ok());
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn undoing_an_addition_refuses_while_a_nested_block_it_added_holds_a_later_edit(
     // A new block under an existing page is removed directly; one under a
     // new page goes with the page. Either delete takes the whole subtree.
     for new_page in [false, true] {
-        let (_dir, mut notebook) = fixture();
+        let (_dir, mut workshop) = fixture();
         let mut operations = Vec::new();
         let parent = if new_page {
             operations.push(Operation::CreatePage {
@@ -244,8 +244,8 @@ fn undoing_an_addition_refuses_while_a_nested_block_it_added_holds_a_later_edit(
             insert(10, parent, None, "New parent"),
             insert(11, 10, None, "New child"),
         ]);
-        let added = notebook.apply(&batch(operations)).unwrap();
-        let edited = notebook
+        let added = workshop.apply(&batch(operations)).unwrap();
+        let edited = workshop
             .apply(&batch(vec![Operation::EditText {
                 id: id(11),
                 base_revision: 1,
@@ -253,58 +253,58 @@ fn undoing_an_addition_refuses_while_a_nested_block_it_added_holds_a_later_edit(
             }]))
             .unwrap();
         refused(
-            &mut notebook,
+            &mut workshop,
             added.seq,
             &format!("atom {} changed after change {}", id(11), added.seq),
         );
-        assert_eq!(notebook.block(&id(11)).unwrap().text, "Someone else's edit");
-        notebook.undo_change(edited.seq, &Actor::Person).unwrap();
-        notebook.undo_change(added.seq, &Actor::Person).unwrap();
-        assert!(notebook.block(&id(10)).is_err());
-        assert!(notebook.block(&id(11)).is_err());
+        assert_eq!(workshop.block(&id(11)).unwrap().text, "Someone else's edit");
+        workshop.undo_change(edited.seq, &Actor::Person).unwrap();
+        workshop.undo_change(added.seq, &Actor::Person).unwrap();
+        assert!(workshop.block(&id(10)).is_err());
+        assert!(workshop.block(&id(11)).is_err());
     }
 }
 
 #[test]
 fn undoing_a_deletion_names_what_took_its_date_or_title_since() {
-    let (_dir, mut notebook) = fixture();
+    let (_dir, mut workshop) = fixture();
     let journal = |value| Operation::CreateJournal {
         id: id(value),
         date: "2026-10-30".into(),
     };
-    notebook.apply(&batch(vec![journal(30)])).unwrap();
-    let deleted = notebook
+    workshop.apply(&batch(vec![journal(30)])).unwrap();
+    let deleted = workshop
         .apply(&batch(vec![Operation::Delete {
             id: id(30),
             base_revision: 1,
         }]))
         .unwrap();
-    let again = notebook.apply(&batch(vec![journal(31)])).unwrap();
+    let again = workshop.apply(&batch(vec![journal(31)])).unwrap();
     refused(
-        &mut notebook,
+        &mut workshop,
         deleted.seq,
         &format!(
             "journal 2026-10-30 was created again by change {}; undo change {}",
             again.seq, again.seq
         ),
     );
-    notebook.undo_change(again.seq, &Actor::Person).unwrap();
-    notebook.undo_change(deleted.seq, &Actor::Person).unwrap();
-    assert!(notebook.block(&id(30)).is_ok());
+    workshop.undo_change(again.seq, &Actor::Person).unwrap();
+    workshop.undo_change(deleted.seq, &Actor::Person).unwrap();
+    assert!(workshop.block(&id(30)).is_ok());
 
-    notebook
+    workshop
         .apply(&batch(vec![Operation::CreatePage {
             id: id(40),
             title: "Notes".into(),
         }]))
         .unwrap();
-    let deleted = notebook
+    let deleted = workshop
         .apply(&batch(vec![Operation::Delete {
             id: id(1),
             base_revision: 1,
         }]))
         .unwrap();
-    let renamed = notebook
+    let renamed = workshop
         .apply(&batch(vec![Operation::EditText {
             id: id(40),
             base_revision: 1,
@@ -312,22 +312,22 @@ fn undoing_a_deletion_names_what_took_its_date_or_title_since() {
         }]))
         .unwrap();
     refused(
-        &mut notebook,
+        &mut workshop,
         deleted.seq,
         "another atom is now titled \"work\"; rename or delete that atom first",
     );
-    notebook.undo_change(renamed.seq, &Actor::Person).unwrap();
-    notebook.undo_change(deleted.seq, &Actor::Person).unwrap();
-    assert_eq!(notebook.block(&id(1)).unwrap().text, "Work");
+    workshop.undo_change(renamed.seq, &Actor::Person).unwrap();
+    workshop.undo_change(deleted.seq, &Actor::Person).unwrap();
+    assert_eq!(workshop.block(&id(1)).unwrap().text, "Work");
 }
 
 #[test]
 fn subtree_inverses_advance_revisions_of_independently_edited_descendants() {
     for cross_page in [false, true] {
-        let (_dir, mut notebook) = fixture();
-        let before = outline(&notebook);
+        let (_dir, mut workshop) = fixture();
+        let before = outline(&workshop);
         let second = if cross_page {
-            notebook
+            workshop
                 .apply(&batch(vec![Operation::CreatePage {
                     id: id(10),
                     title: "Other page".into(),
@@ -345,7 +345,7 @@ fn subtree_inverses_advance_revisions_of_independently_edited_descendants() {
                 base_revision: 1,
             }
         };
-        let committed = notebook
+        let committed = workshop
             .apply(&batch(vec![
                 Operation::EditText {
                     id: id(3),
@@ -355,17 +355,17 @@ fn subtree_inverses_advance_revisions_of_independently_edited_descendants() {
                 second,
             ]))
             .unwrap();
-        notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-        assert_eq!(outline(&notebook), before);
-        assert_eq!(notebook.block(&id(3)).unwrap().page_id, id(1));
+        workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+        assert_eq!(outline(&workshop), before);
+        assert_eq!(workshop.block(&id(3)).unwrap().page_id, id(1));
     }
 }
 
 #[test]
 fn mixed_creations_and_moves_evacuate_existing_subtrees_before_removing_new_parents() {
-    let (_dir, mut notebook) = fixture();
-    let before = outline(&notebook);
-    let committed = notebook
+    let (_dir, mut workshop) = fixture();
+    let before = outline(&workshop);
+    let committed = workshop
         .apply(&batch(vec![
             insert(10, 1, Some(5), "New parent"),
             Operation::Move {
@@ -376,16 +376,16 @@ fn mixed_creations_and_moves_evacuate_existing_subtrees_before_removing_new_pare
             },
         ]))
         .unwrap();
-    notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-    assert_eq!(outline(&notebook), before);
-    assert!(notebook.block(&id(10)).is_err());
+    workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+    assert_eq!(outline(&workshop), before);
+    assert!(workshop.block(&id(10)).is_err());
 }
 
 #[test]
 fn deck_batches_restore_their_initial_state_even_after_multiple_saves_or_deletion() {
     for delete in [false, true] {
-        let (_dir, mut notebook) = fixture();
-        notebook
+        let (_dir, mut workshop) = fixture();
+        workshop
             .apply(&batch(vec![Operation::SaveDeck {
                 id: id(20),
                 base_revision: None,
@@ -406,7 +406,7 @@ fn deck_batches_restore_their_initial_state_even_after_multiple_saves_or_deletio
                 query: tessera_core::CardQuery::default(),
             }
         };
-        let committed = notebook
+        let committed = workshop
             .apply(&batch(vec![
                 Operation::SaveDeck {
                     id: id(20),
@@ -417,39 +417,39 @@ fn deck_batches_restore_their_initial_state_even_after_multiple_saves_or_deletio
                 final_op,
             ]))
             .unwrap();
-        notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-        assert_eq!(notebook.deck(&id(20)).unwrap().name, "Original deck");
+        workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+        assert_eq!(workshop.deck(&id(20)).unwrap().name, "Original deck");
     }
 }
 
 #[test]
 fn removing_a_task_restores_both_its_state_and_its_authored_tag_on_undo() {
-    let (_dir, mut notebook) = fixture();
-    notebook
+    let (_dir, mut workshop) = fixture();
+    workshop
         .apply(&batch(vec![Operation::EditText {
             id: id(2),
             base_revision: 1,
             text: "#Task First".into(),
         }]))
         .unwrap();
-    let before_text = notebook.block(&id(2)).unwrap().text;
-    let before_state = notebook.capabilities(&id(2)).unwrap().task;
-    let committed = notebook
+    let before_text = workshop.block(&id(2)).unwrap().text;
+    let before_state = workshop.capabilities(&id(2)).unwrap().task;
+    let committed = workshop
         .apply(&batch(vec![Operation::SetTask {
             id: id(2),
-            base_revision: notebook.block(&id(2)).unwrap().revision,
+            base_revision: workshop.block(&id(2)).unwrap().revision,
             task: None,
         }]))
         .unwrap();
-    notebook.undo_change(committed.seq, &Actor::Person).unwrap();
-    assert_eq!(notebook.block(&id(2)).unwrap().text, before_text);
-    assert_eq!(notebook.capabilities(&id(2)).unwrap().task, before_state);
+    workshop.undo_change(committed.seq, &Actor::Person).unwrap();
+    assert_eq!(workshop.block(&id(2)).unwrap().text, before_text);
+    assert_eq!(workshop.capabilities(&id(2)).unwrap().task, before_state);
 }
 
 #[test]
 fn migration_preserves_previous_agent_inverses() {
-    let (_dir, mut notebook) = fixture();
-    let receipt = notebook
+    let (_dir, mut workshop) = fixture();
+    let receipt = workshop
         .agent_edit(&tessera_core::AgentRequest {
             actor: Actor::Agent {
                 name: "Migration test".into(),
@@ -463,12 +463,12 @@ fn migration_preserves_previous_agent_inverses() {
             },
         })
         .unwrap();
-    let path = notebook
+    let path = workshop
         .info()
         .unwrap()
         .path
         .join(tessera_core::DATABASE_FILE);
-    drop(notebook);
+    drop(workshop);
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch("ALTER TABLE change_history RENAME TO saved_history;")
         .unwrap();
@@ -482,42 +482,42 @@ fn migration_preserves_previous_agent_inverses() {
     )
     .unwrap();
     drop(conn);
-    let mut notebook = Notebook::open(path.parent().unwrap()).unwrap();
-    let entry = notebook.history(1, None).unwrap().remove(0);
+    let mut workshop = Workshop::open(path.parent().unwrap()).unwrap();
+    let entry = workshop.history(1, None).unwrap().remove(0);
     assert_eq!(entry.seq, receipt.seq);
     assert_eq!(entry.summary, receipt.summary);
     assert!(entry.undoable);
-    notebook.undo_change(receipt.seq, &Actor::Person).unwrap();
-    assert_eq!(notebook.block(&id(2)).unwrap().text, "First");
+    workshop.undo_change(receipt.seq, &Actor::Person).unwrap();
+    assert_eq!(workshop.block(&id(2)).unwrap().text, "First");
 }
 
 #[test]
 fn undoing_an_undo_does_not_let_older_inverses_overwrite_reactivated_edits() {
-    let (_dir, mut notebook) = fixture();
-    let first = notebook
+    let (_dir, mut workshop) = fixture();
+    let first = workshop
         .apply(&batch(vec![Operation::EditText {
             id: id(2),
             base_revision: 1,
             text: "First edit".into(),
         }]))
         .unwrap();
-    let second = notebook
+    let second = workshop
         .apply(&batch(vec![Operation::EditText {
             id: id(2),
             base_revision: 2,
             text: "Second edit".into(),
         }]))
         .unwrap();
-    let undo = notebook.undo_change(second.seq, &Actor::Person).unwrap();
-    let redo = notebook
+    let undo = workshop.undo_change(second.seq, &Actor::Person).unwrap();
+    let redo = workshop
         .undo_change(undo.committed.seq, &Actor::Person)
         .unwrap();
-    assert_eq!(notebook.block(&id(2)).unwrap().text, "Second edit");
-    refused(&mut notebook, first.seq, "changed after change");
-    notebook
+    assert_eq!(workshop.block(&id(2)).unwrap().text, "Second edit");
+    refused(&mut workshop, first.seq, "changed after change");
+    workshop
         .undo_change(redo.committed.seq, &Actor::Person)
         .unwrap();
-    assert_eq!(notebook.block(&id(2)).unwrap().text, "First edit");
-    notebook.undo_change(first.seq, &Actor::Person).unwrap();
-    assert_eq!(notebook.block(&id(2)).unwrap().text, "First");
+    assert_eq!(workshop.block(&id(2)).unwrap().text, "First edit");
+    workshop.undo_change(first.seq, &Actor::Person).unwrap();
+    assert_eq!(workshop.block(&id(2)).unwrap().text, "First");
 }

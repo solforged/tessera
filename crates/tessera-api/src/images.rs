@@ -27,7 +27,7 @@ async fn upload(
     State(state): State<WorkshopState>,
     body: Bytes,
 ) -> Result<(StatusCode, Json<ImageRef>), ApiError> {
-    let image = run(&state.notebook, move |n| n.put_image(&body)).await?;
+    let image = run(&state.workshop, move |n| n.put_image(&body)).await?;
     Ok((StatusCode::CREATED, Json(image)))
 }
 
@@ -71,7 +71,7 @@ mod tests {
     async fn uploads_sniff_images_enforce_limit_and_serve_immutable_private_bytes() {
         let dir = tempfile::tempdir().unwrap();
         let (app, handles) =
-            crate::embedded_router(tessera_core::Notebook::open(dir.path()).unwrap()).unwrap();
+            crate::embedded_router(tessera_core::Workshop::open(dir.path()).unwrap()).unwrap();
         let bytes = b"GIF89a\x01\0\x01\0\x80\0\0\0\0\0\xff\xff\xff!\xf9\x04\x01\0\0\0\0,\0\0\0\0\x01\0\x01\0\0\x02\x02D\x01\0;";
         let uploaded = app
             .clone()
@@ -159,7 +159,7 @@ mod tests {
                 .status(),
             StatusCode::CREATED
         );
-        let sha = handles.notebook.lock().put_object(b"not an image").unwrap();
+        let sha = handles.workshop.lock().put_object(b"not an image").unwrap();
         for sha in [sha, "0".repeat(64)] {
             assert_eq!(
                 app.clone()

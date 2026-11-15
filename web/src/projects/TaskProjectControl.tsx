@@ -1,6 +1,6 @@
 import { createMemo, createSignal } from 'solid-js';
 import { ulid } from 'ulid';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { WorkshopClient, PageDocument } from '../document/contract';
 import { ensureField } from '../outline/source-fields';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
@@ -8,7 +8,7 @@ import type { PopupAnchor } from '../ui/Popup';
 import { createTaskProjects } from './task-project';
 
 export function TaskProjectPicker(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   doc: PageDocument;
   id: string;
   anchor: PopupAnchor;
@@ -16,7 +16,7 @@ export function TaskProjectPicker(props: {
   onDismiss(): void;
   onSaved?(): void | Promise<void>;
 }) {
-  const projects = createTaskProjects(props.doc, props.notebook);
+  const projects = createTaskProjects(props.doc, props.workshop);
   const [search, setSearch] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -27,7 +27,7 @@ export function TaskProjectPicker(props: {
       { id: null, name: 'None' },
       ...(projects.metadata.error ? [] : (projects.metadata()?.projects ?? [])).map(project => ({
         id: project.block_id,
-        name: props.notebook.lookup(project.block_id)()?.text ?? project.state.outcome,
+        name: props.workshop.lookup(project.block_id)()?.text ?? project.state.outcome,
       })),
     ]
       .filter(item => item.name.toLowerCase().includes(query.toLowerCase()))
@@ -42,10 +42,10 @@ export function TaskProjectPicker(props: {
     setError('');
     try {
       if (create) {
-        const existing = await props.notebook.pageByTitle(create, false);
+        const existing = await props.workshop.pageByTitle(create, false);
         projectId = existing ?? ulid();
-        const revision = existing ? (await props.notebook.api.block(existing)).revision : 1;
-        await props.notebook.commit(
+        const revision = existing ? (await props.workshop.api.block(existing)).revision : 1;
+        await props.workshop.commit(
           [
             ...(existing ? [] : [{ op: 'create_page' as const, id: projectId, title: create }]),
             {
@@ -59,7 +59,7 @@ export function TaskProjectPicker(props: {
         );
       }
       const field = projectId
-        ? await ensureField(props.notebook, 'project', 'instance')
+        ? await ensureField(props.workshop, 'project', 'instance')
         : projects
             .metadata()
             ?.fields.find(field => field.name.toLowerCase() === 'project' && field.kind === 'instance');

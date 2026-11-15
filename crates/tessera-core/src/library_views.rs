@@ -3,7 +3,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::library::LibraryView;
 use crate::library_store::json_at;
 use crate::storage::{not_found, validate_id, validation};
-use crate::{Error, Notebook, Operation, Result, Revision};
+use crate::{Error, Operation, Result, Revision, Workshop};
 
 fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<LibraryView> {
     Ok(LibraryView {
@@ -83,7 +83,7 @@ pub(crate) fn apply_view(
     })
 }
 
-impl Notebook {
+impl Workshop {
     pub fn library_views(&self) -> Result<Vec<LibraryView>> {
         let mut views = self
             .conn

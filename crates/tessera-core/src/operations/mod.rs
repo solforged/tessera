@@ -10,8 +10,8 @@ use crate::storage::{
     resolve_type, stored, validate_id, validate_tag_title, validate_text, validation,
 };
 use crate::{
-    Batch, BlockCapabilities, BlockKind, ChangeStamp, Committed, Error, Notebook, Operation,
-    Result, ReviewSession, Revision, SettingRevision, TextRewrite, WorkSession,
+    Batch, BlockCapabilities, BlockKind, ChangeStamp, Committed, Error, Operation, Result,
+    ReviewSession, Revision, SettingRevision, TextRewrite, WorkSession, Workshop,
 };
 
 /// Grades, resets and holds read a card revision earlier edits in the batch may have moved.
@@ -198,7 +198,7 @@ mod views;
 
 const GAP: i64 = 1024;
 
-impl Notebook {
+impl Workshop {
     /// Commit a revision-checked batch atomically, including derived indexes,
     /// as a new change made on this device now.
     pub fn apply(&mut self, batch: &Batch) -> Result<Committed> {
@@ -1839,7 +1839,7 @@ mod tests {
     #[test]
     fn legacy_persisted_receipt_replays_and_streams_without_new_sidecars() {
         let directory = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(directory.path()).unwrap();
+        let mut workshop = Workshop::open(directory.path()).unwrap();
         let id = ulid::Ulid::from(1u128).to_string();
         let batch = Batch {
             actor: crate::Actor::Person,
@@ -1850,7 +1850,7 @@ mod tests {
                 title: "Legacy".into(),
             }],
         };
-        let committed = notebook.apply(&batch).unwrap();
+        let committed = workshop.apply(&batch).unwrap();
         let mut legacy = serde_json::to_value(&committed).unwrap();
         for field in [
             "capabilities",
@@ -1865,17 +1865,17 @@ mod tests {
         ] {
             legacy.as_object_mut().unwrap().remove(field);
         }
-        notebook
+        workshop
             .conn
             .execute(
                 "UPDATE changes SET committed = ?1 WHERE seq = ?2",
                 params![serde_json::to_string(&legacy).unwrap(), committed.seq],
             )
             .unwrap();
-        drop(notebook);
+        drop(workshop);
 
-        let mut notebook = Notebook::open(directory.path()).unwrap();
-        let replayed = notebook.apply(&batch).unwrap();
+        let mut workshop = Workshop::open(directory.path()).unwrap();
+        let replayed = workshop.apply(&batch).unwrap();
         assert!(replayed.replayed);
         assert_eq!(replayed.seq, committed.seq);
         assert_eq!(replayed.revisions, committed.revisions);
@@ -1886,10 +1886,10 @@ mod tests {
         assert!(replayed.decks.is_empty());
         assert!(replayed.task_views.is_empty());
         assert!(replayed.library_views.is_empty());
-        let changes = notebook.changes_since(0, 10).unwrap();
+        let changes = workshop.changes_since(0, 10).unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].seq, committed.seq);
-        assert_eq!(changes[0].blocks, vec![notebook.block(&id).unwrap()]);
+        assert_eq!(changes[0].blocks, vec![workshop.block(&id).unwrap()]);
         assert!(changes[0].capabilities.is_empty());
         assert!(changes[0].cards.is_empty());
         assert!(changes[0].work_sessions.is_empty());

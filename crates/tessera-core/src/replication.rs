@@ -3,7 +3,7 @@
 /// The class of a table for sync.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Replication {
-    /// Fixed when the notebook is created; a clone copies it.
+    /// Fixed when the workshop is created; a clone copies it.
     Identity,
     /// Written only by applying changes, including the change log itself and
     /// what applying derives from text. Each change's effect on these tables
@@ -20,7 +20,7 @@ pub enum Replication {
     Local,
 }
 
-/// Every table in a notebook database. FTS5's shadow tables follow their
+/// Every table in a workshop database. FTS5's shadow tables follow their
 /// virtual table.
 pub const TABLES: &[(&str, Replication)] = &[
     ("notebook", Replication::Identity),

@@ -4,8 +4,8 @@ import { openDB } from 'idb';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
-import { createNotebookClient } from './index';
-import type { Notebook } from './index';
+import { createWorkshopClient } from './index';
+import type { Workshop } from './index';
 import { Outbox } from './outbox';
 import type { Batch } from '../api/types';
 import type { PageCommand } from './types';
@@ -14,11 +14,11 @@ const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const actualFetch = globalThis.fetch;
-const clients: Notebook[] = [];
+const clients: Workshop[] = [];
 const pageId = ulid(),
   blockId = ulid();
 let service: WorkshopService | undefined;
-let notebookId: string;
+let workshopId: string;
 
 // These cross real service and WebSocket boundaries; bounded condition polling is not a debounce assertion.
 async function eventually(predicate: () => boolean, message: string) {
@@ -29,7 +29,7 @@ async function eventually(predicate: () => boolean, message: string) {
   }
 }
 function client(databaseName = `replay-${ulid()}`) {
-  const instance = createNotebookClient({ baseUrl, notebookId, databaseName, sessionId: databaseName });
+  const instance = createWorkshopClient({ baseUrl, workshopId, databaseName, sessionId: databaseName });
   clients.push(instance);
   return instance;
 }
@@ -55,7 +55,7 @@ async function cachePage(database: string) {
   await eventually(() => doc.status() === 'ready' && instance.connection() === 'live', 'initial page did not load');
   await instance.dispose();
   const outbox = new Outbox(
-    notebookId,
+    workshopId,
     database,
     error => {
       throw error;
@@ -86,7 +86,7 @@ async function offlineRestore(database: string) {
 
 beforeAll(async () => {
   service = await startService({ name: 'replay-tests', port });
-  notebookId = service.workshopId;
+  workshopId = service.workshopId;
   await api.submit({
     actor: { kind: 'person' },
     operations: [
@@ -196,7 +196,7 @@ test('reload replays an acknowledged-in-flight text prefix before its durable co
     after: null,
   };
   const stored = new Outbox(
-    notebookId,
+    workshopId,
     database,
     error => {
       throw error;
@@ -242,7 +242,7 @@ test('a recovered accepted relation query resolves from its durable intent witho
     after: null,
   };
   const stored = new Outbox(
-    notebookId,
+    workshopId,
     database,
     error => {
       throw error;
@@ -314,7 +314,7 @@ for (const kind of ['ahead', 'unknown', 'large gap'] as const) {
     await cachePage(database);
     const head = await api.changeHead();
     const db = await openDB(database);
-    const key = `${notebookId}:${pageId}`;
+    const key = `${workshopId}:${pageId}`;
     const record = await db.get('pages', key);
     record.cursor = kind === 'ahead' ? head + 1000 : kind === 'unknown' ? undefined : head - 501;
     await db.put('pages', record);

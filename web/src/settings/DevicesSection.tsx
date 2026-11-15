@@ -8,7 +8,7 @@ import { ListRow } from '../ui/List';
 import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { SyncExplanation, SyncFix, currentHealth } from '../sync/SyncStatus';
 import { attemptResult, rejectionReason, syncHealth, versionLine } from '../sync/health';
 import { settleRejection } from '../sync/rejections';
@@ -21,7 +21,7 @@ const message = (reason: unknown) => (reason instanceof Error ? reason.message :
 
 interface DeviceProps {
   heading: JSX.Element;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   deviceId?: string | null;
   when(value: number): string;
   onOpenPage(pageId: string): void;
@@ -251,7 +251,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
             </>
           )}
         </Show>
-        <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
+        <NeedsReview workshop={props.workshop} onOpenPage={props.onOpenPage} onError={props.onError} />
       </Group>
     </>
   );
@@ -540,7 +540,7 @@ export function PhoneDevices(props: DeviceProps) {
             </Show>
           )}
         </Show>
-        <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
+        <NeedsReview workshop={props.workshop} onOpenPage={props.onOpenPage} onError={props.onError} />
       </Group>
     </>
   );
@@ -589,18 +589,18 @@ function AttemptLedger(props: { attempts: SyncAttempt[]; when(value: number): st
 }
 
 function NeedsReview(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onOpenPage(pageId: string): void;
   onError(message: string): void;
 }) {
   const [busy, setBusy] = createSignal(false);
-  const lookup = (id: string) => props.notebook.lookup(id);
+  const lookup = (id: string) => props.workshop.lookup(id);
   const [undo, setUndo] = createSignal<{ label: string; run(): Promise<void> } | null>(null);
   const settle = async (change: RejectedChange, copy: boolean) => {
     if (busy()) return;
     setBusy(true);
     try {
-      const receipt = await settleRejection(props.notebook, change, copy);
+      const receipt = await settleRejection(props.workshop, change, copy);
       setUndo({ label: copy ? 'Text copied back.' : 'Change dismissed.', run: receipt.undo });
       await sync.refresh();
       await syncConflicts.refresh();

@@ -1,5 +1,5 @@
 import type { Block, QuoteState } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 import { titleKey } from '../document/title-key';
 import { mapTextOffset } from '../document/text-patch';
@@ -11,10 +11,10 @@ export interface CapturedQuoteCompletion {
 
 /** Whole-block quote choices share their frozen payload and authored token across projections. */
 export async function captureQuoteCompletion(
-  notebook: NotebookClient,
+  workshop: WorkshopClient,
   target: string,
 ): Promise<CapturedQuoteCompletion> {
-  const quote = await notebook.api.quoteSnapshot(target);
+  const quote = await workshop.api.quoteSnapshot(target);
   return { text: `((${target}))`, quote };
 }
 
@@ -210,18 +210,18 @@ function rootIndex(roots: readonly Block[]): RootIndex {
   return result;
 }
 
-function liveRoot(notebook: NotebookClient, id: string, index: RootIndex): Block | null {
-  const cached = notebook.lookup(id)();
+function liveRoot(workshop: WorkshopClient, id: string, index: RootIndex): Block | null {
+  const cached = workshop.lookup(id)();
   const block = cached === undefined ? index.ids.get(id) : cached;
   return block && block.kind !== 'block' && block.parent_id === null ? block : null;
 }
 
-export function cachedExactPage(notebook: NotebookClient, query: string): Block | null {
+export function cachedExactPage(workshop: WorkshopClient, query: string): Block | null {
   const key = titleKey(query.trim());
   if (!key) return null;
-  const index = rootIndex(notebook.roots());
+  const index = rootIndex(workshop.roots());
   const candidate = index.titles.get(key);
   if (!candidate) return null;
-  const block = liveRoot(notebook, candidate.id, index);
+  const block = liveRoot(workshop, candidate.id, index);
   return block?.kind === 'page' && titleKey(block.text) === key ? block : null;
 }

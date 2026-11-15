@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js';
 import type { CardTemplateInfo, FieldDefinition } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { checkboxValue } from '../fields/kinds';
 import { PlainValueInput, ValueEditor } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
@@ -29,7 +29,7 @@ type Editing = { anchor: HTMLElement } & (
 );
 
 export function DraftFields(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   kind: CreateKind;
   fieldIds: readonly string[];
   existingId?: string;
@@ -42,12 +42,12 @@ export function DraftFields(props: {
   const [editing, setEditing] = createSignal<Editing>();
   const [error, setError] = createSignal('');
   const [register] = createResource(
-    () => (props.kind.startsWith('type:') && props.fieldIds.length ? props.notebook.changeSequence() : false),
-    () => props.notebook.api.fields(),
+    () => (props.kind.startsWith('type:') && props.fieldIds.length ? props.workshop.changeSequence() : false),
+    () => props.workshop.api.fields(),
   );
   const [page] = createResource(
-    () => (props.existingId ? ([props.existingId, props.notebook.changeSequence()] as const) : false),
-    async ([id]) => ({ id, page: await props.notebook.api.page(id) }),
+    () => (props.existingId ? ([props.existingId, props.workshop.changeSequence()] as const) : false),
+    async ([id]) => ({ id, page: await props.workshop.api.page(id) }),
   );
   const definitions = createMemo(() =>
     (props.recipes?.length ? props.fieldIds : props.fieldIds.slice(0, 4)).flatMap(
@@ -89,7 +89,7 @@ export function DraftFields(props: {
           field.id,
           reference
             ? (field.options.find(option => option.id === reference)?.text ??
-              props.notebook.lookup(reference)()?.text ??
+              props.workshop.lookup(reference)()?.text ??
               text)
             : text,
         ];
@@ -110,7 +110,7 @@ export function DraftFields(props: {
       <span class="create-field-label">{label}</span>
       <span class="create-field-value" classList={{ 'create-field-empty': !text }}>
         <Show when={text} fallback="Add…">
-          <BlockText text={text!} notebook={props.notebook} interactive={false} />
+          <BlockText text={text!} workshop={props.workshop} interactive={false} />
         </Show>
       </span>
     </Button>
@@ -173,7 +173,7 @@ export function DraftFields(props: {
                       <Show when={text()} fallback="Add…">
                         <Show
                           when={field.kind === 'checkbox'}
-                          fallback={<BlockText text={text()} notebook={props.notebook} interactive={false} />}
+                          fallback={<BlockText text={text()} workshop={props.workshop} interactive={false} />}
                         >
                           <Icon name={checkboxValue(text()) ? 'check' : 'stop'} />
                         </Show>
@@ -235,7 +235,7 @@ export function DraftFields(props: {
             <Match when={state.kind === 'parent'}>
               <QuestionParentPicker
                 id={props.existingId ?? ''}
-                notebook={props.notebook}
+                workshop={props.workshop}
                 anchor={state.anchor}
                 onDismiss={dismiss}
                 onPick={async parent => {
@@ -257,7 +257,7 @@ export function DraftFields(props: {
                   ].map(preset => ({
                     label: preset.label,
                     action: () => {
-                      const parsed = parseTaskDate(preset.input, props.notebook.todayDate());
+                      const parsed = parseTaskDate(preset.input, props.workshop.todayDate());
                       if (parsed.ok) question({ review_on: parsed.date });
                       else setError(parsed.error);
                     },
@@ -269,10 +269,10 @@ export function DraftFields(props: {
             </Match>
             <Match when={state.kind === 'review-date' || state.kind === 'deadline'}>
               <DatePicker
-                notebook={props.notebook}
+                workshop={props.workshop}
                 anchor={state.anchor}
                 label={state.kind === 'deadline' ? 'Deadline' : 'Revisit'}
-                contextDate={props.notebook.todayDate()}
+                contextDate={props.workshop.todayDate()}
                 value={state.kind === 'deadline' ? props.value.deadline : props.value.question.review_on}
                 onDismiss={dismiss}
                 onSelect={value => {
@@ -283,7 +283,7 @@ export function DraftFields(props: {
             </Match>
             <Match when={state.kind === 'holder'}>
               <HolderPicker
-                notebook={props.notebook}
+                workshop={props.workshop}
                 anchor={state.anchor}
                 onDismiss={dismiss}
                 onPick={choice => {
@@ -301,7 +301,7 @@ export function DraftFields(props: {
                 const text = () => props.value.values[field.id]?.text ?? '';
                 return (
                   <Show
-                    when={hasValueEditor(field, text(), props.notebook.todayDate())}
+                    when={hasValueEditor(field, text(), props.workshop.todayDate())}
                     fallback={
                       <PlainDraftValue
                         field={field}
@@ -313,11 +313,11 @@ export function DraftFields(props: {
                     }
                   >
                     <ValueEditor
-                      notebook={props.notebook}
+                      workshop={props.workshop}
                       anchor={state.anchor}
                       field={field}
                       text={text()}
-                      contextDate={props.notebook.todayDate()}
+                      contextDate={props.workshop.todayDate()}
                       owner={props.existingId ? { id: props.existingId, page: props.existingId } : undefined}
                       onDismiss={dismiss}
                       onError={setError}
@@ -381,15 +381,15 @@ function PlainDraftValue(props: {
 }
 
 function HolderPicker(props: {
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   anchor: HTMLElement;
   onDismiss(): void;
   onPick(choice: HolderChoice): void;
 }) {
   const [query, setQuery] = createSignal('');
   const [choices] = createResource(
-    () => [query(), props.notebook.changeSequence()] as const,
-    ([text]) => holderChoices(props.notebook, text),
+    () => [query(), props.workshop.changeSequence()] as const,
+    ([text]) => holderChoices(props.workshop, text),
   );
   return (
     <Picker
@@ -412,7 +412,7 @@ function HolderPicker(props: {
           <span class="picker-text">
             <Show when={choice.create}>{kind => <>Create {entityLabel(kind())} “</>}</Show>
             <Show when={choice.file}>File “</Show>
-            <BlockText text={choice.block.text} notebook={props.notebook} interactive={false} />
+            <BlockText text={choice.block.text} workshop={props.workshop} interactive={false} />
             <Show when={choice.create}>”</Show>
             <Show when={choice.file}>{kind => <>” as {entityLabel(kind())}</>}</Show>
           </span>

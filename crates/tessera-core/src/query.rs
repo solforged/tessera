@@ -7,9 +7,9 @@ use crate::fields::{constrained_reading, definition_map, definitions};
 use crate::reads::{fts_query, hidden_blocks};
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
-    Block, BlockKind, Direction, FieldDefinition, FieldKind, FieldValue, Filter, FilterOp,
-    Notebook, Query, QueryResult, QueryRow, Reading, ReadingValue, RequiredField, Result, SortBy,
-    SortKey, TypeInfo, View,
+    Block, BlockKind, Direction, FieldDefinition, FieldKind, FieldValue, Filter, FilterOp, Query,
+    QueryResult, QueryRow, Reading, ReadingValue, RequiredField, Result, SortBy, SortKey, TypeInfo,
+    View, Workshop,
 };
 
 pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<FieldDefinition>> {
@@ -384,7 +384,7 @@ fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<View> {
     })
 }
 
-impl Notebook {
+impl Workshop {
     pub fn type_info(&self, id: &str) -> Result<TypeInfo> {
         let page = self.block(id)?;
         if page.kind != BlockKind::Page {
@@ -1116,10 +1116,10 @@ mod tests {
     #[test]
     fn migrated_instance_filters_keep_other_predicates_and_query_metadata() {
         let directory = tempfile::tempdir().unwrap();
-        let mut notebook = Notebook::open(directory.path()).unwrap();
+        let mut workshop = Workshop::open(directory.path()).unwrap();
         let field = ulid::Ulid::from(10_u128).to_string();
         let person = ulid::Ulid::from(20_u128).to_string();
-        notebook
+        workshop
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
@@ -1131,7 +1131,7 @@ mod tests {
                     },
                     Operation::Insert {
                         id: field.clone(),
-                        parent_id: notebook.fields().unwrap().page_id,
+                        parent_id: workshop.fields().unwrap().page_id,
                         after: None,
                         text: "Author".into(),
                         heading: None,
@@ -1160,11 +1160,11 @@ mod tests {
             } else {
                 serde_json::json!({"source": source, "other": true})
             };
-            notebook.conn.execute(&format!("INSERT INTO {table}(id, name, query, revision, created_at, updated_at) VALUES ('test', 'test', ?1, 4, 1, 2)"), [json.to_string()]).unwrap();
+            workshop.conn.execute(&format!("INSERT INTO {table}(id, name, query, revision, created_at, updated_at) VALUES ('test', 'test', ?1, 4, 1, 2)"), [json.to_string()]).unwrap();
         }
-        migrate_instance_filters(&notebook.conn).unwrap();
+        migrate_instance_filters(&workshop.conn).unwrap();
         for table in ["views", "decks", "task_views", "library_views"] {
-            let (json, revision, updated): (String, i64, i64) = notebook
+            let (json, revision, updated): (String, i64, i64) = workshop
                 .conn
                 .query_row(
                     &format!("SELECT query, revision, updated_at FROM {table} WHERE id = 'test'"),

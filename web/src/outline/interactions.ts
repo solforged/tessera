@@ -144,7 +144,7 @@ export function createOutlineInteractions(
     if (content && !content.blocks.length) return;
     event.clipboardData.setData(
       'text/plain',
-      content ? clipboardText(content, id => props.notebook.lookup(id)()?.text) : selectedText(doc, ids(), range!),
+      content ? clipboardText(content, id => props.workshop.lookup(id)()?.text) : selectedText(doc, ids(), range!),
     );
     if (content) event.clipboardData.setData(BLOCK_CLIPBOARD_MIME, JSON.stringify(content));
     event.preventDefault();

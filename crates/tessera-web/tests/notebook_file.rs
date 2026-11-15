@@ -1,4 +1,4 @@
-//! Notebook files include committed pages and embedded library objects.
+//! Workshop files include committed pages and embedded library objects.
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use rusqlite::Connection;
@@ -53,7 +53,7 @@ fn message(error: JsValue) -> String {
 }
 
 #[wasm_bindgen_test]
-async fn round_trip_and_invalid_files_leave_the_current_notebook_untouched() {
+async fn round_trip_and_invalid_files_leave_the_current_workshop_untouched() {
     let info: Value = serde_json::from_str(&open().await.unwrap()).unwrap();
     let pool = install::<sqlite_wasm_rs::WasmOsCallback>(&OpfsSAHPoolCfg::default(), true)
         .await
@@ -92,7 +92,7 @@ async fn round_trip_and_invalid_files_leave_the_current_notebook_untouched() {
     let truncated = bytes[..bytes.len() / 2].to_vec();
     let mut damaged = bytes.clone();
     damaged[100] = 0;
-    let no_notebook = modify(&pool, &bytes, "DROP TABLE notebook;");
+    let no_workshop = modify(&pool, &bytes, "DROP TABLE notebook;");
     let missing_book = modify(&pool, &bytes, SNAPSHOT);
     let desktop = modify(
         &pool,
@@ -113,7 +113,7 @@ async fn round_trip_and_invalid_files_leave_the_current_notebook_untouched() {
             b"not a database".to_vec(),
             "This file is not a Tessera backup.",
         ),
-        (no_notebook, "This file is not a Tessera backup."),
+        (no_workshop, "This file is not a Tessera backup."),
         (
             newer,
             "This backup comes from a newer version of Tessera than this page runs.",

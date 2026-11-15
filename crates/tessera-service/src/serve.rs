@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use tessera_core::{Notebook, NotebookOwnership};
+use tessera_core::{Workshop, WorkshopOwnership};
 
 use crate::daily_backup;
 use crate::notebooks;
@@ -11,8 +11,8 @@ use crate::router::routers;
 use crate::security::validate_dev_origin;
 
 pub struct Config {
-    /// Notebook directory; created if missing.
-    pub notebook: PathBuf,
+    /// Workshop directory; created if missing.
+    pub workshop: PathBuf,
     pub port: u16,
     /// Separate authenticated sync listener; defaults to the editor port plus one.
     pub sync_port: Option<u16>,
@@ -20,10 +20,10 @@ pub struct Config {
     pub assets: Option<PathBuf>,
     /// Extra allowed browser origin for the Vite dev server.
     pub dev_origin: Option<String>,
-    /// Known notebooks for the in-app switcher; without it the service cannot switch.
+    /// Known workshops for the in-app switcher; without it the service cannot switch.
     pub registry: Option<notebooks::Registry>,
-    /// The notebook came from the registry rather than `--workshop`, so a switch also changes
-    /// which notebook later starts open.
+    /// The workshop came from the registry rather than `--workshop`, so a switch also changes
+    /// which workshop later starts open.
     pub follows_registry: bool,
     /// Machine-local provider settings; defaults to the registry's sibling `agent.json`.
     pub agent_path: Option<PathBuf>,
@@ -33,29 +33,29 @@ pub struct Config {
 
 /// A switch the service drained for: restart on `notebook` at the ports it had bound.
 pub struct Restart {
-    pub notebook: PathBuf,
+    pub workshop: PathBuf,
     pub port: u16,
     pub sync_port: u16,
 }
 
-/// Hold exclusive notebook ownership, bind loopback, and drain on termination. Returns the
-/// restart a notebook switch asked for, after draining and releasing this notebook.
+/// Hold exclusive workshop ownership, bind loopback, and drain on termination. Returns the
+/// restart a workshop switch asked for, after draining and releasing this workshop.
 pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     if let Some(origin) = &config.dev_origin {
         validate_dev_origin(origin).map_err(anyhow::Error::msg)?;
     }
-    let dir = config.notebook.clone();
+    let dir = config.workshop.clone();
     let requested_port = config.port;
-    let (notebook, mut ownership) = tokio::task::spawn_blocking(move || {
-        let ownership = NotebookOwnership::acquire(&dir, requested_port)?;
+    let (workshop, mut ownership) = tokio::task::spawn_blocking(move || {
+        let ownership = WorkshopOwnership::acquire(&dir, requested_port)?;
         apply_pending_restore(&ownership, &dir)?;
-        let notebook = Notebook::open(&dir)
+        let workshop = Workshop::open(&dir)
             .with_context(|| format!("cannot open workshop {}", dir.display()))?;
-        Ok::<_, anyhow::Error>((notebook, ownership))
+        Ok::<_, anyhow::Error>((workshop, ownership))
     })
     .await??;
     let shutdown = shutdown_signal().context("cannot register service shutdown signals")?;
-    let path = notebook.info()?.path;
+    let path = workshop.info()?.path;
     let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, config.port))
         .await
         .context("cannot bind the local HTTP port")?;
@@ -80,7 +80,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
         .registry
         .map(|registry| notebooks::Switcher::new(registry, config.follows_registry, switch));
     let (app, sync_app, state) = routers(
-        notebook,
+        workshop,
         port,
         sync_port,
         config.assets,
@@ -129,7 +129,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
                 Ok(result) => { result?; }
                 Err(_) => tracing::warn!("connections still open after 5 s; switching anyway"),
             }
-            restart = target.map(|notebook| Restart { notebook, port, sync_port });
+            restart = target.map(|workshop| Restart { workshop, port, sync_port });
         }
     }
     if let Some(task) = daily_backup {
@@ -147,7 +147,7 @@ struct PendingRestore {
 }
 
 fn apply_pending_restore(
-    ownership: &NotebookOwnership,
+    ownership: &WorkshopOwnership,
     workshop: &std::path::Path,
 ) -> anyhow::Result<()> {
     let marker = workshop.join("restore.pending");

@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createResource, createSignal, createUniqueId, For, Show, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Query } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { displayTitle, foldName } from '../outline/names';
 import { BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
@@ -17,7 +17,7 @@ import './notes.css';
 export function NoteFind(props: {
   query: Query;
   plural: string;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   onChange(query: Query): void;
   children?: JSX.Element;
 }) {
@@ -37,18 +37,18 @@ export function NoteFind(props: {
   const pending = createMemo(() => /\b(links|from|cites):"?([^"\n]*)$/.exec(draft()));
   const [sources] = createResource(
     () => pending()?.[1] === 'cites',
-    enabled => (enabled ? props.notebook.api.kindNotes('source') : undefined),
+    enabled => (enabled ? props.workshop.api.kindNotes('source') : undefined),
   );
   const [completion] = createResource(
     () => pending()?.[2] ?? false,
     async text => {
-      return props.notebook.api.complete(text, 8);
+      return props.workshop.api.complete(text, 8);
     },
   );
   const options = createMemo(() => {
     const result = (completion() ?? []).map(page => ({
       id: page.id,
-      title: displayTitle(page.text, props.notebook.lookup),
+      title: displayTitle(page.text, props.workshop.lookup),
       alias: page.alias,
     }));
     if (pending()?.[1] === 'cites') {
@@ -96,10 +96,10 @@ export function NoteFind(props: {
     for (const term of parsed.filters) remaining = remaining.replace(term.raw, '').trim();
     let missing = '';
     for (const term of parsed.terms) {
-      const matches = await props.notebook.api.resolveName(term.value);
+      const matches = await props.workshop.api.resolveName(term.value);
       const ids = new Set(matches.map(match => match.page.id));
       if (term.key === 'cites') {
-        const source = sources() ?? (await props.notebook.api.kindNotes('source'));
+        const source = sources() ?? (await props.workshop.api.kindNotes('source'));
         for (const note of source.notes) {
           const detail = source.summaries[note.id]?.source;
           if (
@@ -228,7 +228,7 @@ export function NoteFind(props: {
                       onClick={() => choose(item.id)}
                     >
                       <span class="picker-text">
-                        <BlockText text={item.title} notebook={props.notebook} interactive={false} />
+                        <BlockText text={item.title} workshop={props.workshop} interactive={false} />
                       </span>
                       <Show when={item.alias}>
                         <span class="picker-meta">{item.alias}</span>
@@ -254,9 +254,9 @@ export function NoteFind(props: {
               <For each={props.query[key] ?? []}>
                 {id => (
                   <span class="table-chip">
-                    {key}: {props.notebook.lookup(id)()?.text ?? id}
+                    {key}: {props.workshop.lookup(id)()?.text ?? id}
                     <Button
-                      label={`Remove ${key}: ${props.notebook.lookup(id)()?.text ?? id}`}
+                      label={`Remove ${key}: ${props.workshop.lookup(id)()?.text ?? id}`}
                       onClick={() =>
                         props.onChange({
                           ...props.query,

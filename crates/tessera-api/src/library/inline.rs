@@ -1,8 +1,8 @@
-/// its requests are already serialized around the one notebook connection.
+/// its requests are already serialized around the one workshop connection.
 #[cfg(browser)]
 #[derive(Clone)]
 pub struct Library {
-    notebook: Arc<Mutex<Notebook>>,
+    workshop: Arc<Mutex<Workshop>>,
     changes: broadcast::Sender<i64>,
     extractor: Extractor,
 }
@@ -10,7 +10,7 @@ pub struct Library {
 impl Library {
     /// Run every due job to completion before returning.
     pub fn kick(&self) {
-        let mut n = self.notebook.lock();
+        let mut n = self.workshop.lock();
         loop {
             let job = match n.claim_ingest() {
                 Ok(Some(job)) => job,
@@ -29,7 +29,7 @@ impl Library {
             }
         }
     }
-    fn process(&self, n: &mut Notebook, job: &IngestJob) -> Result<(), String> {
+    fn process(&self, n: &mut Workshop, job: &IngestJob) -> Result<(), String> {
         if job.input_kind != IngestInput::File {
             return Err("The browser demo can only add uploaded EPUB files.".to_owned());
         }
@@ -38,13 +38,13 @@ impl Library {
         commit(n, job, &doc, &job.input, Vec::new(), &self.changes).map_err(|e| e.to_string())
     }
     pub fn start(
-        notebook: Arc<Mutex<Notebook>>,
+        workshop: Arc<Mutex<Workshop>>,
         changes: broadcast::Sender<i64>,
         extractor: Extractor,
     ) -> Result<Self, String> {
-        notebook.lock().resume_ingest().map_err(|e| e.to_string())?;
+        workshop.lock().resume_ingest().map_err(|e| e.to_string())?;
         let library = Self {
-            notebook,
+            workshop,
             changes,
             extractor,
         };

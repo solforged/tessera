@@ -11,7 +11,7 @@ import {
   onMount,
 } from 'solid-js';
 import type { CardRow, Grade } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 import { BlockBreadcrumb } from '../outline/BlockText';
 import { displayTitle } from '../outline/names';
 import { besideHint, opensBeside } from '../core/beside';
@@ -33,7 +33,7 @@ import './review-card.css';
 
 export interface ReviewCardProps {
   item: CardRow;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   previews: readonly { grade: Grade; interval_days: number }[];
   resetPreviews: readonly { grade: Grade; interval_days: number }[];
   busy?: boolean;
@@ -83,7 +83,7 @@ export function ReviewCard(props: ReviewCardProps) {
     !props.item.card.answer_blocks.length && terse(props.item.card.front) && terse(props.item.card.back);
   const [siblings] = createResource(
     () => (props.item.card.kind === 'occlusion' ? props.item.card.source_block_id : false),
-    id => props.notebook.api.sourceCards(id).then(cards => cards.filter(card => card.active)),
+    id => props.workshop.api.sourceCards(id).then(cards => cards.filter(card => card.active)),
   );
   const kindLabel = createMemo(() =>
     cardKindLabel(props.item.card, siblings() ?? parseCardText(props.item.source.block.text).cards),
@@ -323,7 +323,7 @@ export function ReviewCard(props: ReviewCardProps) {
               fallback={
                 <BlockBreadcrumb
                   block={props.item.source.block}
-                  notebook={props.notebook}
+                  workshop={props.workshop}
                   omitParent={props.item.card.kind === 'descriptor'}
                 />
               }
@@ -331,7 +331,7 @@ export function ReviewCard(props: ReviewCardProps) {
               {context => (
                 <span>
                   {context().source.source.siglum} ·{' '}
-                  {displayTitle(context().source.page.text, id => props.notebook.lookup(id))}
+                  {displayTitle(context().source.page.text, id => props.workshop.lookup(id))}
                   <Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}
                 </span>
               )}
@@ -373,7 +373,7 @@ export function ReviewCard(props: ReviewCardProps) {
                         front={props.item.card.front}
                         back={props.item.card.back}
                         revealed={revealed()}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </section>
                     <Show when={revealedItems() > 0}>
@@ -389,7 +389,7 @@ export function ReviewCard(props: ReviewCardProps) {
                           back={props.item.card.back}
                           blocks={props.item.card.answer_blocks}
                           visibleItems={revealedItems()}
-                          notebook={props.notebook}
+                          workshop={props.workshop}
                         />
                       </section>
                     </Show>
@@ -403,7 +403,7 @@ export function ReviewCard(props: ReviewCardProps) {
                     classList={{ 'review-card-terse': large() }}
                     aria-label={revealed() ? 'Answer' : 'Front'}
                   >
-                    <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
+                    <ClozeText segments={segments()} revealed={revealed()} workshop={props.workshop} />
                   </section>
                 )}
               </Show>
@@ -514,7 +514,7 @@ export function ReviewCard(props: ReviewCardProps) {
                         front={last().shown_front}
                         back={last().shown_back}
                         plain={!!props.item.card.template}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </dd>
                     <dt>Answer</dt>
@@ -524,7 +524,7 @@ export function ReviewCard(props: ReviewCardProps) {
                         kind={props.item.card.kind}
                         front={last().shown_front}
                         back={last().shown_back}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </dd>
                   </dl>
@@ -539,7 +539,7 @@ export function ReviewCard(props: ReviewCardProps) {
                         front={props.item.card.front}
                         back={props.item.card.back}
                         plain={!!props.item.card.template}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </dd>
                     <dt>Answer</dt>
@@ -550,7 +550,7 @@ export function ReviewCard(props: ReviewCardProps) {
                         front={props.item.card.front}
                         back={props.item.card.back}
                         blocks={props.item.card.answer_blocks}
-                        notebook={props.notebook}
+                        workshop={props.workshop}
                       />
                     </dd>
                   </dl>

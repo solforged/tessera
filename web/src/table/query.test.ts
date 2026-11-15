@@ -24,7 +24,7 @@ import {
 } from './query';
 import { attributeDefinitions } from './attributes';
 import type { FieldDefinition } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { WorkshopClient } from '../document/contract';
 
 describe('query edits', () => {
   test('switching a saved field-grouped index to table retains grouping without mutating the recipe', () => {
@@ -74,13 +74,13 @@ describe('query edits', () => {
       { id: 'author', name: 'Author', kind: 'instance', revision: 1, options: [], targets: [] },
     ];
     let title = 'Aristotle';
-    const notebook = { lookup: () => () => ({ text: title }) } as unknown as NotebookClient;
+    const workshop = { lookup: () => () => ({ text: title }) } as unknown as WorkshopClient;
     const filter = { field: 'author', op: 'is' as const, value: 'person-id' };
-    expect(filterLabel(filter, fields, notebook)).toBe('Author is Aristotle');
+    expect(filterLabel(filter, fields, workshop)).toBe('Author is Aristotle');
     title = 'Aristotle QA';
-    expect(filterLabel(filter, fields, notebook)).toBe('Author is Aristotle QA');
+    expect(filterLabel(filter, fields, workshop)).toBe('Author is Aristotle QA');
     expect(filter.value).toBe('person-id');
-    expect(filterLabel({ ...filter, op: 'contains', value: 'Aristotle' }, fields, notebook)).toBe(
+    expect(filterLabel({ ...filter, op: 'contains', value: 'Aristotle' }, fields, workshop)).toBe(
       'Author contains Aristotle',
     );
   });
@@ -95,7 +95,7 @@ describe('query edits', () => {
         targets: [],
       },
     ];
-    expect(filterLabel({ field: '@kind', op: 'is', value: 'type:books' }, fields, {} as NotebookClient)).toBe(
+    expect(filterLabel({ field: '@kind', op: 'is', value: 'type:books' }, fields, {} as WorkshopClient)).toBe(
       'Tag is Book',
     );
     expect(
@@ -106,13 +106,13 @@ describe('query edits', () => {
   });
   test('note predicates use semantic attributes and civil-date comparisons', () => {
     const fields = attributeDefinitions('notes');
-    const notebook = {} as NotebookClient;
-    expect(filterLabel({ field: '@resolved', op: 'is', value: 'true' }, fields, notebook)).toBe('Resolved');
-    expect(filterLabel({ field: '@resolved', op: 'is_not', value: 'true' }, fields, notebook)).toBe('Not resolved');
-    expect(filterLabel({ field: '@revisit', op: 'lte', value: 'today' }, fields, notebook)).toBe(
+    const workshop = {} as WorkshopClient;
+    expect(filterLabel({ field: '@resolved', op: 'is', value: 'true' }, fields, workshop)).toBe('Resolved');
+    expect(filterLabel({ field: '@resolved', op: 'is_not', value: 'true' }, fields, workshop)).toBe('Not resolved');
+    expect(filterLabel({ field: '@revisit', op: 'lte', value: 'today' }, fields, workshop)).toBe(
       'Revisit on or before today',
     );
-    expect(filterLabel({ field: '@revisit', op: 'gte', value: '+7d' }, fields, notebook)).toBe(
+    expect(filterLabel({ field: '@revisit', op: 'gte', value: '+7d' }, fields, workshop)).toBe(
       'Revisit on or after a week from now',
     );
   });
@@ -145,11 +145,11 @@ describe('query edits', () => {
     const fields: FieldDefinition[] = [
       { id: 'owned', name: 'Owned', kind: 'checkbox', revision: 1, options: [], targets: [] },
     ];
-    const notebook = {} as NotebookClient;
-    expect(filterLabel({ field: 'owned', op: 'is', value: 'true' }, fields, notebook)).toBe('Owned is checked');
-    expect(filterLabel({ field: 'owned', op: 'is_not', value: 'true' }, fields, notebook)).toBe('Owned is not checked');
-    expect(filterLabel({ field: 'owned', op: 'present', value: null }, fields, notebook)).toBe('Owned has the field');
-    expect(filterLabel({ field: 'owned', op: 'set', value: null }, fields, notebook)).toBe('Owned has a value');
+    const workshop = {} as WorkshopClient;
+    expect(filterLabel({ field: 'owned', op: 'is', value: 'true' }, fields, workshop)).toBe('Owned is checked');
+    expect(filterLabel({ field: 'owned', op: 'is_not', value: 'true' }, fields, workshop)).toBe('Owned is not checked');
+    expect(filterLabel({ field: 'owned', op: 'present', value: null }, fields, workshop)).toBe('Owned has the field');
+    expect(filterLabel({ field: 'owned', op: 'set', value: null }, fields, workshop)).toBe('Owned has a value');
   });
   test('saved equality compares all fields and preserves ordered filters and sort precedence', () => {
     const query = chooseSort(
@@ -247,7 +247,7 @@ describe('query edits', () => {
     expect(query.filters[0]!.field).toBe('old');
     const missing = { ...query, field_names: { old: 'Publisher' } };
     expect(missingQueryFields(missing, [])).toEqual([{ id: 'old', name: 'Publisher' }]);
-    expect(filterLabel(missing.filters[0]!, [], {} as NotebookClient, missing.field_names)).toBe(
+    expect(filterLabel(missing.filters[0]!, [], {} as WorkshopClient, missing.field_names)).toBe(
       'Publisher has the field',
     );
     expect(sortLabel(missing.sort[0]!, [], missing.field_names)).toBe('Publisher ↓');

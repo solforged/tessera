@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use tessera_core::{Batch, Committed, Notebook};
+use tessera_core::{Batch, Committed, Workshop};
 
 pub struct Http {
     base: String,
@@ -12,10 +12,10 @@ pub struct Http {
 
 impl Http {
     pub async fn start(dir: &Path) -> Result<Self> {
-        let notebook = Notebook::open(dir)?;
+        let workshop = Workshop::open(dir)?;
         let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
         let port = listener.local_addr()?.port();
-        let router = tessera_service::router(notebook, port, None, None, None)
+        let router = tessera_service::router(workshop, port, None, None, None)
             .map_err(anyhow::Error::msg)?;
         let task = tokio::spawn(async move { axum::serve(listener, router).await });
         let client = reqwest::Client::builder().no_proxy().build()?;

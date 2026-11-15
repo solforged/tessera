@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { TaskStatus, WorkSession } from '../api/types';
-import type { Edit, NotebookClient, PageDocument } from '../document/contract';
+import type { Edit, WorkshopClient, PageDocument } from '../document/contract';
 import type { Caret, OpenTarget } from '../core/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
@@ -30,14 +30,14 @@ export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
 
 export function createOutlineCapabilities(options: {
   doc: PageDocument;
-  notebook: NotebookClient;
+  workshop: WorkshopClient;
   contextDate(): string;
   caret(): Caret | null;
   anchor(id: string): PopupAnchor | null;
   onOpen(target: OpenTarget, beside: boolean): void;
   onTaskFields?(id: string, field?: TaskFieldName, opener?: HTMLElement): void;
 }) {
-  const { doc, notebook } = options;
+  const { doc, workshop } = options;
   const [popup, setPopup] = createSignal<CapabilityPopup | null>(null);
   const [pending, setPending] = createSignal<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = createSignal<ReadonlyMap<string, string>>(new Map());
@@ -103,9 +103,9 @@ export function createOutlineCapabilities(options: {
       }
       if (status === 'done') {
         let active: WorkSession | null | undefined;
-        if (notebook.connection() !== 'offline') {
+        if (workshop.connection() !== 'offline') {
           try {
-            active = await notebook.api.activeWorkSession();
+            active = await workshop.api.activeWorkSession();
           } catch (reason) {
             if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
           }
@@ -178,7 +178,7 @@ export function createOutlineCapabilities(options: {
     await run(id, async () => {
       if (!doc.block(id)?.task) await save({ kind: 'task', id, value: newTask('todo') });
       await doc.flush();
-      const active = await notebook.api.activeWorkSession();
+      const active = await workshop.api.activeWorkSession();
       const now = Date.now();
       if (active && !active.reversed && active.ended_at === null) {
         if (active.block_id !== id) throw new Error('Work is already running on another task.');

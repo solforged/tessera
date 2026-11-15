@@ -69,9 +69,9 @@ import type {
   Query,
   QueryResult,
   View,
-  NotebookInfo,
-  NotebookSize,
-  KnownNotebooks,
+  WorkshopInfo,
+  WorkshopSize,
+  KnownWorkshops,
   PageView,
   ProjectRecord,
   PositionQueryResult,
@@ -164,25 +164,25 @@ interface ErrorEnvelope {
 }
 
 /**
- * The notebook each service base was opened on. Requests name it, so a service that has since
- * switched notebooks refuses them instead of mixing this window's edits into another notebook.
+ * The workshop each service base was opened on. Requests name it, so a service that has since
+ * switched workshops refuses them instead of mixing this window's edits into another workshop.
  */
-const boundNotebooks = new Map<string, string>();
-export function bindNotebook(base: string, notebookId: string): void {
-  boundNotebooks.set(base, notebookId);
+const boundWorkshops = new Map<string, string>();
+export function bindWorkshop(base: string, workshopId: string): void {
+  boundWorkshops.set(base, workshopId);
 }
 let reloading = false;
-/** The service now has another notebook open: start over on it. Unsent edits stay in this notebook's outbox. */
-function notebookChanged() {
+/** The service now has another workshop open: start over on it. Unsent edits stay in this workshop's outbox. */
+function workshopChanged() {
   if (reloading || typeof location === 'undefined') return;
   reloading = true;
   location.reload();
 }
 
-/** `headers` plus the notebook this window opened on `base`, once known. */
-function notebookHeaders(base: string, headers: Record<string, string> = {}): Record<string, string> {
-  const notebook = boundNotebooks.get(base);
-  return notebook ? { ...headers, 'X-Tessera-Notebook': notebook } : headers;
+/** `headers` plus the workshop this window opened on `base`, once known. */
+function workshopHeaders(base: string, headers: Record<string, string> = {}): Record<string, string> {
+  const workshop = boundWorkshops.get(base);
+  return workshop ? { ...headers, 'X-Tessera-Notebook': workshop } : headers;
 }
 
 async function request<T>(
@@ -194,7 +194,7 @@ async function request<T>(
   frozen?: string,
 ): Promise<T> {
   const json = frozen ?? (body === undefined ? undefined : JSON.stringify(body));
-  const headers = notebookHeaders(base, json === undefined ? {} : { 'Content-Type': 'application/json' });
+  const headers = workshopHeaders(base, json === undefined ? {} : { 'Content-Type': 'application/json' });
   return send<T>(`${base}/api${path}`, { method, signal, headers, body: json });
 }
 
@@ -221,7 +221,7 @@ async function send<T>(
     throw init.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
   if (!response.ok) {
     const envelope = (parsed as ErrorEnvelope | null)?.error;
-    if (envelope?.code === 'notebook_changed') notebookChanged();
+    if (envelope?.code === 'notebook_changed') workshopChanged();
     throw new ApiError(
       envelope?.message ?? statusMessage(response.status),
       response.status,
@@ -241,20 +241,20 @@ const query = (params: Record<string, string | number | undefined>) => {
 const segment = encodeURIComponent;
 
 export interface ApiClient {
-  notebook(signal?: AbortSignal): Promise<NotebookInfo>;
+  workshop(signal?: AbortSignal): Promise<WorkshopInfo>;
   /** Bytes the workshop's folder holds on disk. The browser build keeps it in the page and cannot say. */
-  notebookSize(signal?: AbortSignal): Promise<NotebookSize>;
+  workshopSize(signal?: AbortSignal): Promise<WorkshopSize>;
   service(signal?: AbortSignal): Promise<ServiceInfo>;
   backups(signal?: AbortSignal): Promise<Backups>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
   deleteBackup(name: string, signal?: AbortSignal): Promise<Backups>;
   restoreBackup(name: string, signal?: AbortSignal): Promise<RestoringBackup>;
   deleteOtherBackups(workshopId: string, signal?: AbortSignal): Promise<Backups>;
-  /** The Mac service only: known notebooks, and switching the service to one. */
-  notebooks(signal?: AbortSignal): Promise<KnownNotebooks>;
+  /** The Mac service only: known workshops, and switching the service to one. */
+  workshops(signal?: AbortSignal): Promise<KnownWorkshops>;
   /** Resolves once the service has accepted; it then restarts on `path`, and this window reloads. */
-  openNotebook(path: string, create: boolean, signal?: AbortSignal): Promise<{ path: string }>;
-  forgetNotebook(path: string, signal?: AbortSignal): Promise<KnownNotebooks>;
+  openWorkshop(path: string, create: boolean, signal?: AbortSignal): Promise<{ path: string }>;
+  forgetWorkshop(path: string, signal?: AbortSignal): Promise<KnownWorkshops>;
   /** Hub side, the Mac only: paired devices and tailnet sharing. */
   syncDevices(signal?: AbortSignal): Promise<SyncDevices>;
   setSharing(on: boolean, signal?: AbortSignal): Promise<SyncSharing>;
@@ -400,9 +400,9 @@ type NativeMethod =
   | 'deleteBackup'
   | 'restoreBackup'
   | 'deleteOtherBackups'
-  | 'notebooks'
-  | 'openNotebook'
-  | 'forgetNotebook'
+  | 'workshops'
+  | 'openWorkshop'
+  | 'forgetWorkshop'
   | 'queueUrl'
   | 'syncDevices'
   | 'setSharing'
@@ -427,13 +427,13 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
       ? `${base}${href}`
       : `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
   return {
-    notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
-    notebookSize: (signal?: AbortSignal) =>
+    workshop: (signal?: AbortSignal) => get<WorkshopInfo>('/notebook', signal),
+    workshopSize: (signal?: AbortSignal) =>
       DEMO
         ? Promise.reject(
             new ApiError('The workshop lives in this page, which has no folder to measure.', 400, 'unsupported'),
           )
-        : get<NotebookSize>('/notebook/size', signal),
+        : get<WorkshopSize>('/notebook/size', signal),
     ...(!EMBEDDED
       ? {
           service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
@@ -445,11 +445,11 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
             request<RestoringBackup>(base, 'POST', `/backups/${segment(name)}/restore`, undefined, signal),
           deleteOtherBackups: (workshopId: string, signal?: AbortSignal) =>
             request<Backups>(base, 'DELETE', `/backups/others/${segment(workshopId)}`, undefined, signal),
-          notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
-          openNotebook: (path: string, create: boolean, signal?: AbortSignal) =>
+          workshops: (signal?: AbortSignal) => get<KnownWorkshops>('/notebooks', signal),
+          openWorkshop: (path: string, create: boolean, signal?: AbortSignal) =>
             request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
-          forgetNotebook: (path: string, signal?: AbortSignal) =>
-            request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),
+          forgetWorkshop: (path: string, signal?: AbortSignal) =>
+            request<KnownWorkshops>(base, 'POST', '/notebooks/forget', { path }, signal),
           queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) =>
             request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
           syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
@@ -617,7 +617,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     stream: (after: number) => {
       if (streamFactory) return streamFactory(after);
       const url = new URL(
-        `${base}/api/changes/stream${query({ after, notebook: boundNotebooks.get(base) })}`,
+        `${base}/api/changes/stream${query({ after, notebook: boundWorkshops.get(base) })}`,
         typeof location === 'undefined' ? 'http://127.0.0.1' : location.href,
       );
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -639,20 +639,20 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
       send<string>(`${base}/api/library/covers`, {
         method: 'POST',
         body: file,
-        headers: notebookHeaders(base, { 'Content-Type': file.type }),
+        headers: workshopHeaders(base, { 'Content-Type': file.type }),
       }),
     uploadImage: (file: Blob, signal?: AbortSignal) =>
       send<ImageRef>(`${base}/api/images`, {
         method: 'POST',
         body: file,
         signal,
-        headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream' }),
+        headers: workshopHeaders(base, { 'Content-Type': file.type || 'application/octet-stream' }),
       }),
     imageUrl: (sha: string) => `${base}/api/images/${segment(sha)}`,
     image: (sha: string, signal?: AbortSignal) =>
       send<Blob>(
         `${base}/api/images/${segment(sha)}`,
-        { method: 'GET', signal, headers: notebookHeaders(base) },
+        { method: 'GET', signal, headers: workshopHeaders(base) },
         response => response.blob(),
       ),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
@@ -663,7 +663,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
         method: 'POST',
         signal,
         body: file,
-        headers: notebookHeaders(base, {
+        headers: workshopHeaders(base, {
           'Content-Type': file.type || 'application/octet-stream',
           'X-Filename': encodeURIComponent(name),
         }),
@@ -685,7 +685,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
         method: 'POST',
         signal,
         keepalive: true,
-        headers: notebookHeaders(base, { 'Content-Type': 'application/json' }),
+        headers: workshopHeaders(base, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ordinal }),
       }),
     searchPassages: (q: string, sourceId?: string, limit = 40, offset = 0, signal?: AbortSignal) =>

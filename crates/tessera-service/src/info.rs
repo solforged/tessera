@@ -8,19 +8,19 @@ use crate::state::{AppState, read};
 use crate::{BUILD, VERSION, launch_agent_path};
 
 #[derive(Serialize, ts_rs::TS)]
-pub(crate) struct NotebookSize {
+pub(crate) struct WorkshopSize {
     size: u64,
 }
 
 /// What the workshop takes on disk, for Settings › About. Each file counts once, including its write-ahead log.
-pub(crate) async fn notebook_size(
+pub(crate) async fn workshop_size(
     State(state): State<AppState>,
-) -> Result<Json<NotebookSize>, ApiError> {
-    let info = read(&state, |notebook| notebook.info()).await?;
+) -> Result<Json<WorkshopSize>, ApiError> {
+    let info = read(&state, |workshop| workshop.info()).await?;
     tokio::task::spawn_blocking(move || crate::backups::backup_size(&info.path, false))
         .await
         .map_err(ApiError::internal)?
-        .map(|size| Json(NotebookSize { size }))
+        .map(|size| Json(WorkshopSize { size }))
 }
 
 #[derive(Serialize, ts_rs::TS)]
@@ -81,7 +81,7 @@ mod tests {
         routing::get,
     };
     use parking_lot::Mutex;
-    use tessera_core::Notebook;
+    use tessera_core::Workshop;
     use tokio::sync::broadcast;
     use tower::ServiceExt;
 
@@ -91,20 +91,20 @@ mod tests {
     use crate::state::{AppState, hub_objects};
 
     #[tokio::test]
-    async fn notebook_size_counts_every_file_in_the_workshop_folder() {
+    async fn workshop_size_counts_every_file_in_the_workshop_folder() {
         let dir = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            Notebook::open(dir.path().join("notebook")).unwrap(),
+        let workshop = Arc::new(Mutex::new(
+            Workshop::open(dir.path().join("notebook")).unwrap(),
         ));
-        let info = notebook.lock().info().unwrap();
+        let info = workshop.lock().info().unwrap();
         let changes = broadcast::channel(32).0;
         let library =
-            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+            library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
         let app = Router::new()
-            .route("/api/notebook/size", get(notebook_size))
+            .route("/api/notebook/size", get(workshop_size))
             .with_state(AppState {
                 readers: None,
-                notebook,
+                workshop,
                 assets: None,
                 changes,
                 library,

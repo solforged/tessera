@@ -6,8 +6,8 @@ use rusqlite::{Connection, params};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    BlockCapabilities, BlockInPage, Notebook, RelationEndpoint, RelationInfo, RelationKind,
-    RelationQuery, RelationRow, Result,
+    BlockCapabilities, BlockInPage, RelationEndpoint, RelationInfo, RelationKind, RelationQuery,
+    RelationRow, Result, Workshop,
 };
 
 pub(crate) fn guard_other(conn: &Connection, id: &str, capability: &str) -> Result<()> {
@@ -186,7 +186,7 @@ pub(crate) fn affected(conn: &Connection, id: &str, into: &mut HashSet<String>) 
     Ok(())
 }
 
-impl Notebook {
+impl Workshop {
     pub fn relations(&self, query: &RelationQuery) -> Result<Vec<RelationRow>> {
         if query.kind.is_none()
             && query.source.is_none()
