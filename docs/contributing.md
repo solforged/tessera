@@ -132,10 +132,17 @@ checks.
 ### Wire types
 
 The editor's JSON types in `web/src/api/wire.ts` are written from the Rust types
-that serialize them. A type that crosses the wire derives `ts_rs::TS`, and the
-`wire_types` test lists the ones the editor names. Change the Rust type, run
-`mise run wire`, and commit the file with it; `mise run test` fails while the
-file is stale.
+that serialize them. A type that crosses the wire derives `ts_rs::TS`, whether
+`tessera-core`, `tessera-api` or `tessera-service` owns it. The `wire_types` test
+in [`tessera-service`](../crates/tessera-service/src/wire_types.rs) lists the
+ones the editor names, because that crate depends on all three. Change the Rust
+type, run `mise run wire`, and commit the file with it; `mise run test` fails
+while the file is stale.
+
+A response is a typed value that derives `Serialize`, never a `json!` literal,
+so its shape reaches the file. `#[ts(rename = "...")]` keeps the name the editor
+uses when the Rust name differs. `web/src/api/types.ts` re-exports the file and
+adds only the shapes the editor makes itself.
 
 A field the editor may leave out carries `#[ts(optional)]`, or
 `#[ts(optional = nullable)]` when it may also be `null`. A string with a fixed

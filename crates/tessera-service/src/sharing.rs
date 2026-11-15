@@ -13,7 +13,9 @@ pub(crate) const SERVE_PORT: u16 = 4319;
 const TAKEN: &str =
     "Another workshop on this Mac is already sharing over Tailscale. Turn its Sharing off first.";
 
-#[derive(Serialize)]
+/// Hub side: Tailscale Serve publishing this Mac's sync listener.
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "SyncSharing")]
 pub(crate) struct Sharing {
     pub available: bool,
     pub on: bool,

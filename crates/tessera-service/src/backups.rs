@@ -23,8 +23,8 @@ pub(crate) fn backup_routes() -> Router<AppState> {
         )
 }
 
-#[derive(Serialize)]
-struct BackupInfo {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct BackupInfo {
     path: PathBuf,
     name: String,
     created_at: i64,
@@ -34,8 +34,8 @@ struct BackupInfo {
     safety: Option<tessera_core::Safety>,
 }
 
-#[derive(Serialize)]
-struct OtherBackups {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct OtherBackups {
     workshop_id: String,
     /// The folder name recorded by its newest backup, when it recorded one.
     name: Option<String>,
@@ -45,8 +45,8 @@ struct OtherBackups {
     path: PathBuf,
 }
 
-#[derive(Serialize)]
-struct Backups {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct Backups {
     backups: Vec<BackupInfo>,
     store_size: u64,
     others: Vec<OtherBackups>,
@@ -58,20 +58,21 @@ struct Backups {
 /// which lives only in memory: a restart retries within two minutes.
 pub(crate) type BackupLock = Arc<tokio::sync::Mutex<Option<BackupFailure>>>;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, ts_rs::TS)]
 pub(crate) struct BackupFailure {
     pub(crate) at: i64,
     pub(crate) message: String,
 }
 
-#[derive(Serialize)]
-struct CreatedBackup {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct CreatedBackup {
     created: bool,
     backups: Backups,
 }
 
-#[derive(Serialize)]
-struct RestoringBackup {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct RestoringBackup {
+    #[ts(type = "true")]
     restoring: bool,
     backup: BackupInfo,
     safety: Option<BackupInfo>,

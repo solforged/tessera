@@ -9,23 +9,26 @@ use crate::notebook::{new_ulid, now_ms};
 use crate::storage::validation;
 use crate::{Notebook, Result};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// The device a pairing code admitted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(rename = "PairingDevice")]
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
 pub struct DeviceInfo {
     pub id: String,
     pub name: String,
     pub paired_at: i64,
+    #[ts(type = "\"active\" | \"retired\" | \"never_synced\"")]
     pub state: &'static str,
     pub last_seen_at: Option<i64>,
     pub retired_at: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
 pub struct RetainedPatches {
     pub changes: i64,
     pub bytes: i64,

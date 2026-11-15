@@ -30,6 +30,8 @@ pub(crate) mod state;
 mod stream;
 mod sync;
 pub mod sync_client;
+#[cfg(test)]
+mod wire_types;
 
 pub use replica::start_sync_runner;
 pub use security::validate_dev_origin;
@@ -54,7 +56,9 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The commit a release or `mise run ship` built from; absent in development builds.
 pub const BUILD: Option<&str> = option_env!("TESSERA_BUILD");
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// What a device running Tessera reports about itself. A peer that reports only its schema
+/// leaves `version` and `build` null.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
 pub struct SyncVersion {
     pub version: Option<String>,
     pub build: Option<String>,

@@ -1170,7 +1170,8 @@ pub struct View {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(rename = "Type")]
 pub struct TypeInfo {
     pub page: Block,
     pub plural: Option<String>,
@@ -1193,7 +1194,8 @@ pub struct RequiredField {
     pub missing: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(rename = "Fields")]
 pub struct FieldsView {
     pub page_id: String,
     pub fields: Vec<FieldSummary>,

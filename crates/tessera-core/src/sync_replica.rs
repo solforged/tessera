@@ -6,7 +6,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use std::path::Path;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(rename = "KeptCopyRow")]
 pub struct KeptCopy {
     pub id: String,
     pub of: String,
@@ -31,12 +32,13 @@ pub struct RejectedChange {
     pub page_title: Option<String>,
     pub texts: Vec<String>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
+#[ts(rename = "SyncConflicts")]
 pub struct ReplicaConflicts {
     pub kept: Vec<KeptCopy>,
     pub rejected: Vec<RejectedChange>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
 pub struct OfflineFiles {
     pub books: i64,
     pub bytes: u64,

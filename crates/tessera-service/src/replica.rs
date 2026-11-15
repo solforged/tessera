@@ -19,11 +19,11 @@ use std::sync::{
 use std::time::Duration;
 use tessera_core::{
     Notebook,
-    sync::{self, Hub, IntegrateReport, NotebookAccess, PulledChange},
+    sync::{self, Hub, IntegrateReport, NotebookAccess, OfflineFiles, PulledChange},
 };
 use tokio::sync::{Notify, broadcast};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct LastError {
     pub code: String,
     pub message: String,
@@ -128,32 +128,86 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/sync/reclone", post(reclone))
         .route("/api/sync/conflicts", get(conflicts))
 }
-async fn state(State(state): State<AppState>) -> Result<Json<serde_json::Value>, LastError> {
+/// Replica side: this device's copy of a hub's notebook.
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct ReplicaState {
+    hub_url: String,
+    hub_name: Option<String>,
+    device_name: Option<String>,
+    device_id: String,
+    pending: usize,
+    unapplied: usize,
+    synced_at: Option<i64>,
+    syncing: bool,
+    last_error: Option<LastError>,
+    retired: bool,
+    hub_version: Option<crate::SyncVersion>,
+    failing_since: Option<i64>,
+    attempts: Vec<crate::sync::Attempt>,
+    kept_copies: usize,
+    rejected: usize,
+    offline: OfflineFiles,
+}
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct SyncState {
+    this_device: crate::SyncVersion,
+    #[ts(type = "\"hub\" | \"replica\" | \"none\"")]
+    role: &'static str,
+    replica: Option<ReplicaState>,
+}
+async fn state(State(state): State<AppState>) -> Result<Json<SyncState>, LastError> {
     state_value(state.notebook, state.replica).await.map(Json)
 }
 async fn state_value(
     notebook: Arc<Mutex<Notebook>>,
     runtime: Arc<ReplicaRuntime>,
-) -> Result<serde_json::Value, LastError> {
+) -> Result<SyncState, LastError> {
     tokio::task::spawn_blocking(move || {
         let mut n = notebook.lock();
         let status = n.sync_status()?;
+        let this_device = crate::SyncVersion::current();
         let Some(status) = status else {
-            let role = if n.sync_devices()?.is_empty() && n.sync_replicas()?.is_empty() { "none" } else { "hub" };
-            return anyhow::Ok(serde_json::json!({"role":role,"replica":null,"this_device":crate::SyncVersion::current()}));
+            let role = if n.sync_devices()?.is_empty() && n.sync_replicas()?.is_empty() {
+                "none"
+            } else {
+                "hub"
+            };
+            return anyhow::Ok(SyncState {
+                this_device,
+                role,
+                replica: None,
+            });
         };
         let credentials = n.sync_hub_credentials()?.expect("replica credentials row");
         let conflicts = n.sync_replica_conflicts()?;
         let offline = n.sync_offline_files()?;
         let memory = runtime.memory.lock();
-        anyhow::Ok(serde_json::json!({"role":"replica","this_device":crate::SyncVersion::current(),"replica":{
-            "hub_url":status.hub_url,"hub_name":credentials.hub_name,"device_name":credentials.device_name,
-            "device_id":status.device_id,"pending":status.pending,"unapplied":status.unapplied,
-            "synced_at":credentials.synced_at,"syncing":memory.syncing,"last_error":memory.last_error,
-            "hub_version":memory.hub_version,"failing_since":memory.failing_since,"attempts":memory.attempts,
-            "retired":memory.retired,"kept_copies":conflicts.kept.len(),"rejected":conflicts.rejected.len(),"offline":offline
-        }}))
-    }).await.map_err(|e| LastError::from_error(e.into()))?.map_err(LastError::from_error)
+        anyhow::Ok(SyncState {
+            this_device,
+            role: "replica",
+            replica: Some(ReplicaState {
+                hub_url: status.hub_url,
+                hub_name: credentials.hub_name,
+                device_name: credentials.device_name,
+                device_id: status.device_id,
+                pending: status.pending,
+                unapplied: status.unapplied,
+                synced_at: credentials.synced_at,
+                syncing: memory.syncing,
+                last_error: memory.last_error.clone(),
+                retired: memory.retired,
+                hub_version: memory.hub_version.clone(),
+                failing_since: memory.failing_since,
+                attempts: memory.attempts.iter().cloned().collect(),
+                kept_copies: conflicts.kept.len(),
+                rejected: conflicts.rejected.len(),
+                offline,
+            }),
+        })
+    })
+    .await
+    .map_err(|e| LastError::from_error(e.into()))?
+    .map_err(LastError::from_error)
 }
 
 struct LockedNotebook {
@@ -294,7 +348,7 @@ fn finish(
         memory.retired = true;
     }
 }
-async fn run_now(State(state): State<AppState>) -> Result<Json<serde_json::Value>, LastError> {
+async fn run_now(State(state): State<AppState>) -> Result<Json<SyncState>, LastError> {
     synchronize(
         state.notebook.clone(),
         state.changes.clone(),
@@ -313,7 +367,7 @@ struct Join {
 async fn join(
     State(state): State<AppState>,
     Json(request): Json<Join>,
-) -> Result<Json<serde_json::Value>, LastError> {
+) -> Result<Json<SyncState>, LastError> {
     let guard = state.replica.gate.clone().lock_owned().await;
     // Reject before consuming the one-time code, including queued duplicate joins.
     // A replica whose key the hub revoked (Forget) may pair again.
@@ -384,7 +438,7 @@ fn join_blocking(
     state.replica.memory.lock().pairing = None;
     Ok(())
 }
-async fn reclone(State(state): State<AppState>) -> Result<Json<serde_json::Value>, LastError> {
+async fn reclone(State(state): State<AppState>) -> Result<Json<SyncState>, LastError> {
     let guard = state.replica.gate.clone().lock_owned().await;
     state.replica.memory.lock().syncing = true;
     let worker = state.clone();

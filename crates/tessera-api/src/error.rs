@@ -21,6 +21,15 @@ pub struct ApiFailure {
     pub message: String,
 }
 
+/// `error.details` of a 409 response.
+#[derive(Serialize, ts_rs::TS)]
+pub struct ConflictDetails {
+    op_index: usize,
+    id: String,
+    expected: i64,
+    found: Option<i64>,
+}
+
 impl ApiError {
     pub fn new(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
         Self {
@@ -73,7 +82,13 @@ impl From<tessera_core::Error> for ApiError {
                 code: "conflict",
                 message,
                 details: Some(
-                    serde_json::json!({ "op_index": op_index, "id": id, "expected": expected, "found": found }),
+                    serde_json::to_value(ConflictDetails {
+                        op_index,
+                        id,
+                        expected,
+                        found,
+                    })
+                    .expect("conflict details serialize"),
                 ),
             },
             // The operation index travels in details; the message stays a sentence a person can read.

@@ -1,7 +1,7 @@
 //! Machine-local provider settings and notebook-attributed streaming agent turns.
 
 mod provider;
-mod store;
+pub(crate) mod store;
 mod tools;
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
@@ -56,14 +56,15 @@ impl Runtime {
     }
 }
 
-#[derive(Clone, Serialize)]
-struct Event {
+#[derive(Clone, Serialize, ts_rs::TS)]
+#[ts(rename = "TurnEvent")]
+pub(crate) struct Event {
     n: u64,
     #[serde(flatten)]
     kind: EventKind,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, ts_rs::TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum EventKind {
     Text {
@@ -87,8 +88,9 @@ enum EventKind {
     },
 }
 
-#[derive(Clone, Copy, Serialize)]
+#[derive(Clone, Copy, Serialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(rename = "TurnStop")]
 enum Stop {
     End,
     Cancelled,
@@ -146,33 +148,37 @@ impl Turn {
     }
 }
 
-#[derive(Serialize)]
-struct Events {
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "AgentTurnEvents")]
+pub(crate) struct Events {
     events: Vec<Event>,
     done: bool,
 }
 
-#[derive(Deserialize)]
-struct ThreadMessage {
+#[derive(Deserialize, ts_rs::TS)]
+pub(crate) struct ThreadMessage {
     role: Role,
     text: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(rename = "ThreadRole")]
 enum Role {
     User,
     Assistant,
 }
 
-#[derive(Deserialize)]
-struct ContextRef {
+#[derive(Deserialize, ts_rs::TS)]
+pub(crate) struct ContextRef {
     page_id: String,
+    #[ts(optional = nullable)]
     block_id: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct Start {
+#[derive(Deserialize, ts_rs::TS)]
+#[ts(rename = "StartAgentTurn")]
+pub(crate) struct Start {
     provider: String,
     prompt: String,
     messages: Vec<ThreadMessage>,
@@ -247,10 +253,16 @@ async fn test_provider(
     Ok(Json(json!({"ok":true})))
 }
 
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "AgentTurnStarted")]
+pub(crate) struct Started {
+    turn: String,
+}
+
 async fn start(
     State(state): State<AppState>,
     body: Result<Json<Start>, JsonRejection>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<Started>, ApiError> {
     let Json(request) = body.map_err(ApiError::from)?;
     if request.prompt.trim().is_empty() {
         return Err(invalid("A prompt is required."));
@@ -290,7 +302,7 @@ async fn start(
             runtime.turns.lock().remove(&expires);
         }
     });
-    Ok(Json(json!({"turn":id})))
+    Ok(Json(Started { turn: id }))
 }
 
 #[derive(Default, Deserialize)]

@@ -6,8 +6,9 @@ use ulid::Ulid;
 
 use crate::{error::ApiError, notebooks::Registry};
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(rename = "ProviderProtocol")]
 pub(super) enum Protocol {
     Anthropic,
     Openai,
@@ -35,8 +36,8 @@ impl Provider {
     }
 }
 
-#[derive(Serialize)]
-pub(super) struct ProviderView {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct ProviderView {
     id: String,
     name: String,
     protocol: Protocol,
@@ -58,18 +59,21 @@ impl From<&Provider> for ProviderView {
     }
 }
 
-#[derive(Deserialize)]
-pub(super) struct ProviderInput {
+#[derive(Deserialize, ts_rs::TS)]
+pub(crate) struct ProviderInput {
+    #[ts(optional = nullable)]
     id: Option<String>,
     name: String,
     protocol: Protocol,
     base_url: String,
     model: String,
+    #[ts(optional = nullable)]
     api_key: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub(super) struct SaveProviders {
+#[derive(Deserialize, ts_rs::TS)]
+#[ts(rename = "SaveAgentProviders")]
+pub(crate) struct SaveProviders {
     providers: Vec<ProviderInput>,
     default: Option<String>,
 }
@@ -80,8 +84,9 @@ struct Stored {
     default: Option<String>,
 }
 
-#[derive(Serialize)]
-pub(super) struct Providers {
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "AgentProviders")]
+pub(crate) struct Providers {
     providers: Vec<ProviderView>,
     default: Option<String>,
 }

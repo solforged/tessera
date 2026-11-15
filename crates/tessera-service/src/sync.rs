@@ -25,7 +25,8 @@ pub(crate) const BUILD_HEADER: &str = "x-tessera-build";
 /// The clone ticket, beside the database bytes it describes.
 pub(crate) const TICKET_HEADER: &str = "x-tessera-clone";
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
+#[ts(rename = "SyncAttempt")]
 pub(crate) struct Attempt {
     pub at: i64,
     pub first_at: i64,
@@ -62,15 +63,16 @@ pub(crate) fn record_attempt(
     attempts.truncate(20);
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Serialize, ts_rs::TS)]
 pub(crate) struct DeviceHealth {
     pub version: Option<crate::SyncVersion>,
     pub last_attempt_at: Option<i64>,
     pub refused: Option<Refused>,
+    #[ts(as = "Vec<Attempt>")]
     pub attempts: std::collections::VecDeque<Attempt>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize, ts_rs::TS)]
 pub(crate) struct Refused {
     pub code: String,
     pub message: String,

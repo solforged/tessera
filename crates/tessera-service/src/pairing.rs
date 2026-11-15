@@ -13,9 +13,9 @@ use axum::{
     routing::{delete, get, post},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tessera_core::sync_devices::PairedDevice;
+use tessera_core::sync_devices::{DeviceInfo, PairedDevice, RetainedPatches};
 
 use crate::{AppState, error::ApiError, run, sharing};
 
@@ -183,6 +183,16 @@ fn qr_svg(url: &str, code: &str) -> Result<String, ApiError> {
     Ok(svg)
 }
 
+/// The code a new device types or scans to join, and when it stops working.
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct PairingCode {
+    code: String,
+    display: String,
+    expires_at: i64,
+    url: String,
+    qr_svg: String,
+}
+
 async fn create(State(state): State<AppState>) -> Result<Response, ApiError> {
     let sharing = sharing::status(state.sync_port).await;
     let url = sharing.url.filter(|_| sharing.on).ok_or_else(|| {
@@ -200,7 +210,13 @@ async fn create(State(state): State<AppState>) -> Result<Response, ApiError> {
         .collect();
     let expires_at = now_ms() + LIFETIME_MS;
     let svg = qr_svg(&url, &code)?;
-    let response = json!({"code": code, "display": format!("{}-{}", &code[..4], &code[4..]), "expires_at": expires_at, "url": url, "qr_svg": svg});
+    let response = PairingCode {
+        code: code.clone(),
+        display: format!("{}-{}", &code[..4], &code[4..]),
+        expires_at,
+        url,
+        qr_svg: svg,
+    };
     *state.pairing.lock() = Pairing::Waiting {
         code,
         expires_at,
@@ -209,16 +225,26 @@ async fn create(State(state): State<AppState>) -> Result<Response, ApiError> {
     Ok(Json(response).into_response())
 }
 
-async fn poll(State(state): State<AppState>) -> Json<serde_json::Value> {
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct PairingStatus {
+    #[ts(type = "\"none\" | \"waiting\" | \"paired\" | \"expired\"")]
+    state: &'static str,
+    device: Option<PairedDevice>,
+}
+
+async fn poll(State(state): State<AppState>) -> Json<PairingStatus> {
     let mut pairing = state.pairing.lock();
     pairing.expire(now_ms());
     let (status, device) = match &*pairing {
         Pairing::None => ("none", None),
         Pairing::Waiting { .. } => ("waiting", None),
-        Pairing::Paired(device) => ("paired", Some(device)),
+        Pairing::Paired(device) => ("paired", Some(device.clone())),
         Pairing::Expired => ("expired", None),
     };
-    Json(json!({"state":status,"device":device}))
+    Json(PairingStatus {
+        state: status,
+        device,
+    })
 }
 
 async fn cancel(State(state): State<AppState>) -> StatusCode {
@@ -255,6 +281,25 @@ async fn pair(
     Ok(Json(json!({"key":response.0,"device":response.1,"hub":{"name":sharing::hub_name().await,"notebook_id":response.2,"schema_version":tessera_core::SCHEMA_VERSION}})).into_response())
 }
 
+/// A paired device as the Mac lists it: its pairing, whether it syncs, and how its last attempts went.
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "PairedDevice")]
+pub(crate) struct DeviceRecord {
+    #[serde(flatten)]
+    device: DeviceInfo,
+    #[serde(flatten)]
+    health: crate::sync::DeviceHealth,
+}
+
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct SyncDevices {
+    this_device: crate::SyncVersion,
+    sharing: sharing::Sharing,
+    hub_name: String,
+    devices: Vec<DeviceRecord>,
+    retained: RetainedPatches,
+}
+
 async fn devices(State(state): State<AppState>) -> Result<Response, ApiError> {
     let (devices, retained) = run(&state, |notebook| {
         Ok((notebook.sync_devices()?, notebook.sync_retained_patches()?))
@@ -264,20 +309,20 @@ async fn devices(State(state): State<AppState>) -> Result<Response, ApiError> {
         let health = state.sync_health.lock();
         devices
             .into_iter()
-            .map(|device| {
-                let mut value = serde_json::to_value(&device).map_err(ApiError::internal)?;
-                let empty = crate::sync::DeviceHealth::default();
-                let recorded = health.get(&device.id).unwrap_or(&empty);
-                let fields = serde_json::to_value(recorded).map_err(ApiError::internal)?;
-                let serde_json::Value::Object(fields) = fields else {
-                    unreachable!("health object")
-                };
-                value.as_object_mut().expect("device object").extend(fields);
-                Ok::<_, ApiError>(value)
+            .map(|device| DeviceRecord {
+                health: health.get(&device.id).cloned().unwrap_or_default(),
+                device,
             })
-            .collect::<Result<Vec<_>, _>>()?
+            .collect()
     };
-    Ok(Json(json!({"sharing":sharing::status(state.sync_port).await,"hub_name":sharing::hub_name().await,"this_device":crate::SyncVersion::current(),"devices":devices,"retained":retained})).into_response())
+    Ok(Json(SyncDevices {
+        this_device: crate::SyncVersion::current(),
+        sharing: sharing::status(state.sync_port).await,
+        hub_name: sharing::hub_name().await,
+        devices,
+        retained,
+    })
+    .into_response())
 }
 
 #[derive(Deserialize)]
