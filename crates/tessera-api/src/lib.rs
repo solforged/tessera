@@ -18,7 +18,7 @@ pub use changes::{CHANGES_PAGE_SIZE, ChangeSink, FollowError, StreamStop, follow
 pub use error::{ApiError, ApiFailure};
 pub use history::editor_receipt;
 pub use library::Library;
-pub use run::run;
+pub use run::{Readers, read, run};
 pub use state::{EmbeddedHandles, ObjectReader, WorkshopState};
 pub use workshop::{embedded_router, workshop_routes};
 

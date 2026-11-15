@@ -387,6 +387,7 @@ mod tests {
         let notebook = Arc::new(Mutex::new(tessera_core::Notebook::open(dir).unwrap()));
         let changes = tokio::sync::broadcast::channel(256).0;
         let state = AppState {
+            readers: None,
             library: crate::library::Library::start(
                 notebook.clone(),
                 changes.clone(),

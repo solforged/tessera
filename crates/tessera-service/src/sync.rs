@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows};
 use tessera_core::sync_devices::PairedDevice;
 
-use crate::{AppState, error::ApiError, run};
+use crate::{AppState, error::ApiError, read, run};
 
 /// The schema version a replica runs; every sync request carries it.
 pub(crate) const SCHEMA_HEADER: &str = "x-tessera-schema";
@@ -409,7 +409,7 @@ async fn object(
     Path(sha): Path<String>,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
-    let bytes = run(&state, move |notebook| notebook.sync_object(&sha))
+    let bytes = read(&state, move |notebook| notebook.sync_object(&sha))
         .await?
         .ok_or_else(ApiError::not_found)?;
     Ok(([(header::CONTENT_TYPE, "application/octet-stream")], bytes).into_response())

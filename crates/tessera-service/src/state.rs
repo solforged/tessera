@@ -17,6 +17,8 @@ use crate::sync;
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) notebook: Arc<Mutex<Notebook>>,
+    /// Read-only connections, so reads do not queue behind saves.
+    pub(crate) readers: Option<tessera_api::Readers>,
     pub(crate) assets: Option<Arc<PathBuf>>,
     pub(crate) changes: broadcast::Sender<i64>,
     pub(crate) library: library::Library,
@@ -44,6 +46,7 @@ impl axum::extract::FromRef<AppState> for tessera_api::WorkshopState {
             state.changes.clone(),
             state.library.clone(),
         )
+        .with_readers(state.readers.clone())
         .with_objects(state.objects.clone())
     }
 }
@@ -53,4 +56,13 @@ pub(crate) async fn run<T: Send + 'static>(
     operation: impl FnOnce(&mut tessera_core::Notebook) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
     tessera_api::run(&state.notebook, operation).await
+}
+
+/// Run a read against one snapshot of the workshop, beside the writer.
+pub(crate) async fn read<T: Send + 'static>(
+    state: &AppState,
+    operation: impl FnOnce(&tessera_core::Notebook) -> tessera_core::Result<T> + Send + 'static,
+) -> Result<T, ApiError> {
+    use axum::extract::FromRef;
+    tessera_api::read(&tessera_api::WorkshopState::from_ref(state), operation).await
 }

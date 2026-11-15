@@ -35,7 +35,7 @@ pub(crate) struct ChangesQuery {
 }
 
 pub(crate) async fn change_head(State(state): State<WorkshopState>) -> Result<Json<i64>, ApiError> {
-    crate::run::run(&state.notebook, |notebook| notebook.editor_cursor())
+    crate::run::read(&state, |notebook| notebook.editor_cursor())
         .await
         .map(Json)
 }
@@ -45,7 +45,7 @@ pub(crate) async fn changes(
     query: Result<Query<ChangesQuery>, QueryRejection>,
 ) -> Result<Json<Vec<ChangeEvent>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    crate::run::run(&state.notebook, move |notebook| {
+    crate::run::read(&state, move |notebook| {
         notebook.changes_since(query.after, query.limit)
     })
     .await
