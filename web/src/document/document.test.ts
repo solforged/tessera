@@ -1,11 +1,8 @@
 import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
+import { freePort, startService, type WorkshopService } from '../testing/service';
 import type { Batch, ChangeEvent, Committed, FieldKind, Occlusion, Operation, SourceState, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
@@ -26,13 +23,12 @@ import { changeRevisit } from '../review/revisits';
 import { TaskSourceHistory } from '../tasks/source-history';
 import { plainText } from '../outline/names';
 
-const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
+const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const clients: Notebook[] = [];
 const actualFetch = globalThis.fetch;
-let process: Subprocess<'ignore', 'pipe', 'pipe'>;
-let directory: string;
+let service: WorkshopService | undefined;
 let notebookId: string;
 let serial = 0;
 const eventually = async (predicate: () => boolean, message: string) => {
@@ -62,27 +58,13 @@ async function page(instance: Notebook, text = 'left right') {
 function ids(doc: PageDocument) { return Array.from({ length: doc.outline.size() }, (_, i) => doc.outline.idAt(i)); }
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'tessera-Document-tests-'));
-  const root = resolve(import.meta.dir, '../../..');
-  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port, '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
-  const deadline = Date.now() + 5000;
-  const expectedPath = await realpath(directory);
-  while (true) {
-    try {
-      const info = await api.notebook();
-      if (await realpath(info.path) !== expectedPath) throw new Error('The test port belongs to another notebook.');
-      notebookId = info.id;
-      break;
-    }
-    catch { if (Date.now() > deadline) throw new Error(`Service did not start: ${await new Response(process.stderr).text()}`); await Bun.sleep(20); }
-  }
-});
+  service = await startService({ name: 'Document-tests', port });
+  notebookId = service.workshopId;
+}, 60000);
 afterAll(async () => {
   globalThis.fetch = actualFetch;
   for (const instance of clients) await instance.dispose();
-  process?.kill();
-  if (process) await process.exited;
-  if (directory) await rm(directory, { recursive: true, force: true });
+  await service?.stop();
 });
 
 describe('real notebook operations and recovery', () => {

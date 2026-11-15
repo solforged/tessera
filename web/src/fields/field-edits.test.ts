@@ -1,31 +1,17 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import { ulid } from 'ulid';
-import { createApi } from '../api/client';
 import { createNotebookClient } from '../document/index';
 import type { Notebook } from '../document/index';
+import { startService } from '../testing/service';
 import { changeFieldKind, renameField, setFieldTargets } from './commands';
 
 test('template rows rename, relink and change a young field in place, each with one undo', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'tessera-field-edits-'));
-  const root = resolve(import.meta.dir, '../../..');
-  const listener = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const port = listener.port!; listener.stop(true);
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const service = await startService({ name: 'field-edits' });
+  const { baseUrl, api } = service;
   let notebook: Notebook | undefined;
   try {
-    const deadline = Date.now() + 5000;
-    while (true) {
-      try { await api.notebook(); break; }
-      catch { if (Date.now() > deadline) throw new Error('Service did not start.'); await Bun.sleep(20); }
-    }
-    const info = await api.notebook();
-    notebook = createNotebookClient({ baseUrl, notebookId: info.id, sessionId: ulid(), databaseName: `field-edits-${ulid()}` });
+    notebook = createNotebookClient({ baseUrl, notebookId: service.workshopId, sessionId: ulid(), databaseName: `field-edits-${ulid()}` });
     await notebook.ready;
     const fields = await api.fields();
     const strength = ulid(); const mood = ulid(); const person = ulid();
@@ -59,8 +45,6 @@ test('template rows rename, relink and change a young field in place, each with 
     expect((await definition(strength)).targets).toEqual([]);
   } finally {
     await notebook?.dispose();
-    process.kill();
-    await process.exited;
-    await rm(directory, { recursive: true, force: true });
+    await service.stop();
   }
-}, 30000);
+}, 60000);
