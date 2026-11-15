@@ -4,16 +4,7 @@ import { createStore } from 'solid-js/store';
 import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
-import type {
-  Batch,
-  Block,
-  BlockCapabilities,
-  Committed,
-  PageView,
-  QuoteState,
-  TextRewrite,
-  WorkSession,
-} from '../api/types';
+import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite, WorkSession } from '../api/types';
 import type {
   BlockClipboard,
   BlockState,
@@ -23,33 +14,75 @@ import type {
   EditResult,
   HistoryCaret,
   PageDocument,
-  PasteRow,
   PendingTextCommit,
   SaveState,
   SourceDetailsEdit,
-  TextRange,
 } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
-import {
-  currentReading,
-  emptyCapabilities,
-  isCapabilityAction,
-  questionState,
-  questionStatus,
-  sameState,
-  sourceState,
-} from './types';
-import { parseCardText } from '../review/card-text';
-import { isStableReference, quoteTarget, textTokens } from './text-tokens';
-import { newTask } from '../tasks/quick-date';
+import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
+import { isStableReference, textTokens } from './text-tokens';
 import { mapTextOffset, rebaseText } from './text-patch';
-import { fieldHide } from '../fields/hide';
-import { countsReason, fieldCounts } from '../fields/counts';
-import { fieldRole } from '../fields/roles';
-import { fieldEntryId } from '../table/query';
-import { markdownPasteRows } from './clipboard';
 import { titleKey } from './title-key';
+
+import { EditSession } from './edits/session';
+import type { DocumentInternals } from './edits/internals';
+import {
+  editAddField,
+  editAddFieldEntries,
+  editFieldCountsAs,
+  editFieldEntry,
+  editFieldHide,
+  editFieldKind,
+  editFieldRole,
+  editFieldTargets,
+  editSubjectCriteria,
+} from './edits/fields';
+import {
+  editAddReading,
+  editAddRelation,
+  editAssessment,
+  editPosition,
+  editQuestion,
+  editQuestionChild,
+  editQuote,
+  editRelation,
+  editSpread,
+} from './edits/inquiry';
+import { editCardHeld, editCardTemplate, editImage, editImages, editOcclusion } from './edits/cards';
+import { editManualType, editTypePresentation } from './edits/tags';
+import { editTaskProject, editTaskWork } from './edits/tasks';
+import {
+  editDeleteRange,
+  editHeading,
+  editMerge,
+  editPaste,
+  editPasteBlocks,
+  editPasteRows,
+  editPositionLinks,
+  editReplaceRange,
+  editSplit,
+  editText,
+} from './edits/text';
+import {
+  editArchive,
+  editDelete,
+  editIndent,
+  editInsert,
+  editKeptCopy,
+  editMove,
+  editMoveTo,
+  editOutdent,
+} from './edits/structure';
+import {
+  editCitationTriage,
+  editCite,
+  editHighlightColor,
+  editMergeHighlights,
+  editSource,
+  editSourceDetails,
+  editUncite,
+} from './edits/sources';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -113,12 +146,6 @@ const stateOf = (block: Block): BlockState => ({
   pending: false,
   conflict: null,
 });
-/** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
-const splitToken = (text: string, offset: number) =>
-  textTokens(text).find(
-    token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end,
-  );
-
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
   readonly baseOutline: OutlineIndex;
@@ -1927,1304 +1954,201 @@ export class Document implements PageDocument {
       },
     };
   }
+  private internals(): DocumentInternals {
+    return {
+      pageId: this.pageId,
+      outline: this.outline,
+      host: this.host,
+      work: this.work,
+      investigationIds: this.investigationIds,
+      block: id => this.block(id),
+      root: () => this.root(),
+      snapshot: (id, base) => this.snapshot(id, base),
+      capabilities: (id, base) => this.capabilities(id, base),
+      guardHide: id => this.guardHide(id),
+      guardMerge: id => this.guardMerge(id),
+      sourceDetailsActions: edit => this.sourceDetailsActions(edit),
+    };
+  }
   edit(edit: Edit, caretBefore: HistoryCaret | null = null): EditResult {
     if (this.status() !== 'ready') return { ok: false, reason: 'This atom is not ready.' };
-    const actions: Action[] = [];
-    let caret: Caret | null = caretBefore ? { id: caretBefore.id, offset: caretBefore.offset } : null;
-    const created: string[] = [];
-    const insert = (
-      parentId: string,
-      after: string | null,
-      text: string,
-      heading: 1 | 2 | 3 | null = null,
-      quote?: QuoteState,
-    ) => {
-      if (!this.block(parentId) && !created.includes(parentId)) throw new Error('The parent no longer exists.');
-      const id = ulid();
-      created.push(id);
-      actions.push({
-        kind: 'insert',
-        after,
-        block: {
-          id,
-          kind: 'block',
-          parent_id: parentId,
-          page_id: this.pageId,
-          text,
-          heading,
-          archived: false,
-          kept_copy: null,
-          revision: 0,
-          created_at: Date.now(),
-          updated_at: Date.now(),
-        },
-      });
-      if (quote) {
-        if (quoteTarget(text) !== quote.target_id || quote.target_id === id)
-          throw new Error('Quote target must match a different atom.');
-        actions.push({ kind: 'quote', id, value: structuredClone(quote), previous: null, baseRevision: 0 });
-      }
-      return id;
-    };
-    const selected = (ids: string[], zoomRoot?: string | null) => {
-      const set = new Set(ids);
-      if (zoomRoot) {
-        const start = this.outline.indexOf(zoomRoot);
-        if (start < 0) return [];
-        const end = this.outline.subtreeEnd(start);
-        if (
-          ids.some(id => {
-            const at = this.outline.indexOf(id);
-            return at <= start || at >= end;
-          })
-        )
-          return [];
-      }
-      return ids
-        .filter(id => {
-          if (this.outline.indexOf(id) < 0) throw new Error('A selected atom no longer exists.');
-          let parent = this.outline.parentOf(id);
-          while (parent !== this.pageId) {
-            if (set.has(parent)) return false;
-            parent = this.outline.parentOf(parent);
-          }
-          return true;
-        })
-        .sort((a, b) => this.outline.indexOf(a) - this.outline.indexOf(b));
-    };
-    const move = (ids: string[], parentId: string, after: string | null) => {
-      for (const id of ids) {
-        let parent = parentId;
-        while (parent !== this.pageId) {
-          if (parent === id) throw new Error('An atom cannot move into its own subtree.');
-          if (!this.block(parent)) throw new Error('The destination no longer exists.');
-          parent = this.outline.parentOf(parent);
-        }
-        if (after && !ids.includes(after) && this.outline.parentOf(after) !== parentId)
-          throw new Error('The destination sibling no longer exists.');
-        for (let ancestor: string | null = parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null)
-          if (this.block(ancestor)?.archived) {
-            this.guardHide(id);
-            break;
-          }
-        actions.push({ kind: 'move', id, parentId, after });
-        after = id;
-      }
-    };
-    const setText = (block: Block, text: string) => {
-      if (block.text !== text) actions.push({ kind: 'text', id: block.id, text });
-    };
-    const removeCapabilityTags = (id: string, name: string) => {
-      // The behavior operation owns written-token removal and its text receipt.
-      // Keep manual removals in history too, so undo restores both origins.
-      for (const title of this.block(id)?.manual_types ?? []) {
-        if (titleKey(title) === name) actions.push({ kind: 'removeType', id, title });
-      }
-    };
-    const guardSplit = (block: Block, prefix: string, suffix: string) => {
-      if (!parseCardText(block.text).cards.length || (!suffix && prefix === block.text)) return;
-      if (prefix || this.block(block.id)?.reviewedCards)
-        throw new Error('This split would divide or move a card. Keep its source in one atom.');
-    };
-    const split = (
-      block: Block,
-      prefix: string,
-      suffix: string,
-      zoomRoot?: string | null,
-      fieldEntry?: string | null,
-    ) => {
-      if (this.block(block.id)?.image && !prefix && suffix) {
-        caret = { id: insert(block.parent_id!, block.id, ''), offset: 0 };
-        return;
-      }
-      const task = this.block(block.id)?.task;
-      if (!prefix && suffix) {
-        setText(block, suffix);
-        if (zoomRoot === block.id) insert(block.id, null, '');
-        else insert(block.parent_id!, this.outline.previousSibling(block.id), '');
-        caret = { id: block.id, offset: 0 };
-        return;
-      }
-      if (
-        fieldEntry &&
-        fieldEntry === block.parent_id &&
-        zoomRoot !== block.id &&
-        zoomRoot !== fieldEntry &&
-        !prefix &&
-        !suffix &&
-        !this.outline.children(block.id).length
-      ) {
-        this.guardHide(block.id);
-        actions.push({ kind: 'delete', id: block.id });
-        caret = { id: insert(this.outline.parentOf(fieldEntry), fieldEntry, ''), offset: 0 };
-        return;
-      }
-      if (task?.status === 'todo' && !prefix && !suffix && !this.outline.children(block.id).length) {
-        setText(block, '');
-        actions.push({
-          kind: 'task',
-          id: block.id,
-          value: null,
-          previous: this.capabilities(block.id).task,
-          baseRevision: block.revision,
-        });
-        caret = { id: block.id, offset: 0 };
-        return;
-      }
-      if (!task && block.heading !== null && !prefix && !suffix) {
-        setText(block, '');
-        actions.push({ kind: 'heading', id: block.id, heading: null });
-        caret = { id: block.id, offset: 0 };
-        return;
-      }
-      guardSplit(block, prefix, suffix);
-      setText(block, prefix + suffix);
-      const child =
-        zoomRoot === block.id ||
-        (!suffix &&
-          (this.outline.children(block.id).length > 0 ||
-            parseCardText(block.text).cards.some(card => card.kind === 'multiline' || card.kind === 'list')));
-      const id = insert(block.parent_id!, block.id, suffix, block.heading);
-      const insertion = actions.pop() as Extract<Action, { kind: 'insert' }>;
-      actions.push({ kind: 'split', id: block.id, block: insertion.block, left: prefix, right: suffix });
-      if (child) actions.push({ kind: 'move', id, parentId: block.id, after: null });
-      if (!suffix && block.heading !== null) actions.push({ kind: 'heading', id, heading: null });
-      if (task?.status) actions.push({ kind: 'task', id, value: newTask('todo'), previous: null, baseRevision: 0 });
-      caret = { id, offset: 0 };
-    };
-    const paste = (block: Block, prefix: string, suffix: string, rows: PasteRow[], zoomRoot?: string | null) => {
-      if (!rows.length) return;
-      const style = (id: string, row: PasteRow, previousHeading: Block['heading'], revision: number) => {
-        if (row.heading !== null && row.heading !== previousHeading)
-          actions.push({ kind: 'heading', id, heading: row.heading });
-        if (row.task) {
-          const previous = this.block(id)?.task ?? null;
-          const value = previous ?? newTask('todo');
-          if (!previous) actions.push({ kind: 'task', id, value, previous: null, baseRevision: revision });
-          if (row.task === 'done' && value.status !== 'done')
-            actions.push({
-              kind: 'completeTask',
-              id,
-              occurrenceId: ulid(),
-              completedOn: this.host.todayDate(),
-              previous: value,
-              baseRevision: revision,
-            });
-        }
-      };
-      const first = rows[0]!;
-      if (rows.length === 1) {
-        setText(block, prefix + first.text + suffix);
-        if (!prefix) style(block.id, first, block.heading, block.revision);
-        caret = { id: block.id, offset: prefix.length + first.text.length };
-        return;
-      }
-      guardSplit(block, prefix, suffix);
-      setText(block, prefix + suffix);
-      const rightId = ulid();
-      created.push(rightId);
-      const right: Block = { ...block, id: rightId, text: suffix, revision: 0, heading: block.heading };
-      actions.push({ kind: 'split', id: block.id, block: right, left: prefix, right: suffix });
-      setText({ ...block, text: prefix }, prefix + first.text);
-      if (!prefix) style(block.id, first, block.heading, block.revision);
-      const zoom = zoomRoot === block.id;
-      const stack = [{ width: first.indent, id: block.id, parentId: zoom ? block.id : block.parent_id! }];
-      let zoomAfter: string | null = null;
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i]!;
-        const width = row.indent;
-        while (stack.length > 1 && width < stack.at(-1)!.width) stack.pop();
-        const previous = stack.at(-1)!;
-        const nested = width > previous.width;
-        const parentId = nested ? previous.id : previous.parentId;
-        const after = zoom && parentId === block.id ? zoomAfter : nested ? null : previous.id;
-        const body = row.text + (i === rows.length - 1 ? suffix : '');
-        let id: string;
-        if (i === 1) {
-          id = rightId;
-          if (parentId !== block.parent_id || after !== block.id) actions.push({ kind: 'move', id, parentId, after });
-          setText(right, body);
-          if (right.heading !== null) actions.push({ kind: 'heading', id, heading: null });
-        } else id = insert(parentId, after, body);
-        style(id, row, null, 0);
-        if (zoom && parentId === block.id) zoomAfter = id;
-        if (!nested) stack.pop();
-        stack.push({ width, id, parentId });
-        caret = { id, offset: row.text.length };
-      }
-    };
-    const replace = (
-      range: TextRange,
-      visible: string[],
-      text: string,
-      mode: 'text' | 'paste' | 'split',
-      zoomRoot?: string | null,
-      fieldEntry?: string | null,
-      rows?: PasteRow[],
-    ) => {
-      let { anchor: start, head: end } = range;
-      if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0)
-        throw new Error('A selected atom no longer exists.');
-      if (
-        this.outline.indexOf(start.id) > this.outline.indexOf(end.id) ||
-        (start.id === end.id && start.offset > end.offset)
-      )
-        [start, end] = [end, start];
-      const first = this.snapshot(start.id);
-      const last = this.snapshot(end.id);
-      let startOffset = Math.max(0, Math.min(start.offset, first.text.length));
-      let endOffset = Math.max(0, Math.min(end.offset, last.text.length));
-      if (mode === 'split' && start.id === end.id && startOffset === endOffset)
-        startOffset = endOffset = splitToken(first.text, startOffset)?.end ?? startOffset;
-      else if (mode === 'split') {
-        startOffset = splitToken(first.text, startOffset)?.start ?? startOffset;
-        endOffset = splitToken(last.text, endOffset)?.end ?? endOffset;
-      }
-      if (mode === 'text' && !text && (start.id !== end.id || startOffset !== endOffset)) {
-        for (const token of textTokens(first.text))
-          if (token.kind === 'reference' && startOffset > token.start && startOffset < token.end)
-            startOffset = token.start;
-        for (const token of textTokens(last.text))
-          if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
-      }
-      const between = this.outline
-        .slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id))
-        .map(row => row.id);
-      if (between.length !== visible.length || between.some((id, i) => id !== visible[i]))
-        throw new Error('Expand hidden atoms before deleting this text range.');
-      if (start.id !== end.id) this.guardMerge(end.id);
-      if (start.id !== end.id && this.block(start.id)?.image) throw new Error("Image atoms can't be merged.");
-      const multiline = mode === 'split' || (mode === 'paste' && (rows ? rows.length > 1 : /[\r\n]/.test(text)));
-      if (
-        multiline &&
-        (parseCardText(first.text).cards.length || (start.id !== end.id && parseCardText(last.text).cards.length)) &&
-        !(
-          start.id === end.id &&
-          startOffset === endOffset &&
-          (endOffset === first.text.length || (mode === 'split' && startOffset === 0))
-        )
-      ) {
-        throw new Error('Replace this card in place before splitting its source.');
-      }
-      const deleted = start.id === end.id ? [] : selected([...between, end.id]);
-      const removed = new Set([...between, end.id]);
-      const preserved: string[] = [];
-      for (const id of deleted) {
-        const at = this.outline.indexOf(id);
-        for (const row of this.outline.slice(at, this.outline.subtreeEnd(at))) {
-          if (!removed.has(row.id) && removed.has(row.parentId)) preserved.push(row.id);
-        }
-      }
-      const prefix = first.text.slice(0, startOffset);
-      const suffix = last.text.slice(endOffset);
-      if (preserved.length) {
-        let after: string | null = this.outline.children(first.id).at(-1) ?? null;
-        if (this.outline.indexOf(end.id) < this.outline.subtreeEnd(this.outline.indexOf(first.id))) {
-          after = end.id;
-          while (this.outline.parentOf(after) !== first.id) after = this.outline.parentOf(after);
-        }
-        move(preserved, first.id, after);
-      }
-      if (start.id !== end.id)
-        actions.push({ kind: 'merge', id: end.id, destinationId: first.id, text: first.text + last.text });
-      for (const id of deleted)
-        if (id !== end.id) {
-          this.guardHide(id);
-          actions.push({ kind: 'delete', id });
-        }
-      const merged = start.id === end.id ? first : { ...first, text: first.text + last.text };
-      if (mode === 'split') split(merged, prefix + text, suffix, zoomRoot, fieldEntry);
-      else if (mode === 'paste') paste(merged, prefix, suffix, rows ?? markdownPasteRows(text), zoomRoot);
-      else {
-        setText(merged, prefix + text + suffix);
-        caret = { id: first.id, offset: prefix.length + text.length };
-      }
-    };
-    const rowPasteTarget = (ids: string[], zoomRoot?: string | null): Block => {
-      const roots = selected(ids, zoomRoot);
-      if (!roots.length || roots.length !== ids.length) throw new Error('The selected rows changed before paste.');
-      const first = this.snapshot(roots[0]!);
-      for (const id of roots) this.guardHide(id);
-      const after = this.outline.previousSibling(first.id);
-      // Capture deletion inverses before a replacement can become their predecessor.
-      for (const root of roots) actions.push({ kind: 'delete', id: root });
-      insert(first.parent_id!, after, '');
-      const insertion = actions.at(-1) as Extract<Action, { kind: 'insert' }>;
-      return insertion.block;
-    };
+    const doc = this.internals();
+    const session = new EditSession(doc, caretBefore);
     try {
       switch (edit.kind) {
-        case 'cardHeld': {
-          for (const card of edit.cards) {
-            if (!card.active || !this.block(card.source_block_id))
-              throw new Error('The card is no longer active on this atom.');
-            if (card.held !== edit.held)
-              actions.push({
-                kind: 'cardHeld',
-                id: card.id,
-                value: edit.held,
-                previous: card.held,
-                baseRevision: card.revision,
-              });
-          }
+        case 'cardHeld':
+          editCardHeld(doc, session, edit);
           break;
-        }
-        case 'cardTemplate': {
-          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId)
-            throw new Error('Card templates belong to their tag.');
-          const { previous, value } = edit;
-          if (
-            previous &&
-            value &&
-            previous.name === value.name &&
-            previous.front === value.front &&
-            previous.back === value.back &&
-            (previous.hint ?? null) === (value.hint ?? null) &&
-            JSON.stringify(previous.details ?? []) === JSON.stringify(value.details ?? []) &&
-            previous.applied === value.applied &&
-            previous.new_per_day === value.new_per_day
-          )
-            break;
-          actions.push({
-            kind: 'cardTemplate',
-            id: edit.id,
-            value: edit.value,
-            previous: edit.previous,
-            baseRevision: edit.previous?.revision ?? 0,
-          });
-          if (!edit.previous) created.push(edit.id);
+        case 'cardTemplate':
+          editCardTemplate(doc, session, edit);
           break;
-        }
-        case 'keptCopy': {
-          const block = this.snapshot(edit.id);
-          const copy = block.kept_copy;
-          if (!copy) throw new Error('This atom is not a kept copy.');
-          if (edit.choice === 'both') {
-            actions.push({ kind: 'settleSyncCopy', id: edit.id, settled: true, copy });
-          } else {
-            this.guardHide(edit.id);
-            if (edit.choice === 'use') {
-              if (!this.block(copy.of))
-                throw new Error('The original is not on this atom. Both versions are unchanged.');
-              actions.push({ kind: 'text', id: copy.of, text: block.text });
-            }
-            actions.push({ kind: 'delete', id: edit.id });
-          }
+        case 'keptCopy':
+          editKeptCopy(doc, session, edit);
           break;
-        }
         case 'sourceDetails':
-          actions.push(...this.sourceDetailsActions(edit));
-          created.push(...actions.flatMap(action => (action.kind === 'insert' ? [action.block.id] : [])));
+          editSourceDetails(doc, session, edit);
           break;
-        case 'source': {
-          if (edit.value === null) removeCapabilityTags(edit.id, 'source');
-          const previous = sourceState(this.capabilities(edit.id).source);
-          const value = sourceState(edit.value);
-          if (!sameState(previous, value))
-            actions.push({
-              kind: 'source',
-              id: edit.id,
-              value,
-              previous,
-              baseRevision: this.snapshot(edit.id).revision,
-            });
+        case 'source':
+          editSource(doc, session, edit);
           break;
-        }
-        case 'mergeHighlights': {
-          for (const merge of edit.merges) {
-            const id = merge.citation.block_id;
-            const previous = this.capabilities(id).citations?.find(citation => citation.id === merge.citation.id);
-            if (!previous) throw new Error('Citation not found.');
-            const baseRevision = this.snapshot(id).revision;
-            if (!sameState(previous.start, merge.citation.start) || !sameState(previous.end, merge.citation.end)) {
-              actions.push({
-                kind: 'citationRange',
-                id,
-                citation: { ...merge.citation, color: previous.color },
-                previous,
-                baseRevision,
-              });
-              const block = this.snapshot(id);
-              // Authored notes or card syntax stay intact; only a verbatim quote follows its evidence.
-              if (block.text === previous.quote) setText(block, merge.citation.quote);
-            }
-            if (previous.color !== merge.citation.color)
-              actions.push({
-                kind: 'highlightColor',
-                id,
-                citationId: previous.id,
-                color: merge.citation.color,
-                previous: previous.color,
-                baseRevision,
-              });
-            for (const citationId of merge.removeCitationIds ?? [])
-              actions.push({ kind: 'uncite', id, citationId, baseRevision });
-            let after = this.outline.children(id).at(-1) ?? null;
-            const removedIds = [...merge.removeIds].sort((a, b) => this.outline.indexOf(b) - this.outline.indexOf(a));
-            for (const removed of removedIds) {
-              if (removed === id || !this.block(removed)) throw new Error('Highlight no longer exists.');
-              this.guardHide(removed);
-              // Hoist a survivor nested under a highlight that is being absorbed.
-              let ancestor = this.block(id)?.parentId;
-              while (ancestor && ancestor !== removed) ancestor = this.block(ancestor)?.parentId;
-              if (ancestor === removed)
-                actions.push({ kind: 'move', id, parentId: this.outline.parentOf(removed), after: removed });
-              const children = this.outline
-                .children(removed)
-                .filter(child => child !== id && !merge.removeIds.includes(child));
-              for (const child of children) {
-                actions.push({ kind: 'move', id: child, parentId: id, after });
-                after = child;
-              }
-              actions.push({ kind: 'delete', id: removed });
-            }
-            caret = { id, offset: this.block(id)?.text.length ?? 0 };
-            if (edit.note) caret = { id: insert(id, null, ''), offset: 0 };
-          }
+        case 'mergeHighlights':
+          editMergeHighlights(doc, session, edit);
           break;
-        }
         case 'cite':
-        case 'highlight': {
-          const id =
-            edit.kind === 'highlight'
-              ? insert(
-                  edit.parentId,
-                  edit.after === undefined ? (this.outline.children(edit.parentId).at(-1) ?? null) : edit.after,
-                  edit.text,
-                )
-              : edit.id;
-          const citation = edit.citation;
-          actions.push({
-            kind: 'cite',
-            id,
-            baseRevision: edit.kind === 'highlight' ? 0 : this.snapshot(id).revision,
-            citation: {
-              id: citation.id,
-              block_id: id,
-              source_id: citation.sourceId,
-              snapshot_id: citation.snapshotId,
-              start: { ...citation.start },
-              end: { ...citation.end },
-              quote: citation.quote,
-              locator: citation.locator,
-              ordinal: citation.ordinal,
-              triage: null,
-              color: edit.kind === 'highlight' ? (edit.color ?? null) : null,
-            },
-          });
-          if (edit.kind === 'highlight')
-            caret = edit.note ? { id: insert(id, null, ''), offset: 0 } : { id, offset: edit.text.length };
+        case 'highlight':
+          editCite(doc, session, edit);
           break;
-        }
-        case 'uncite': {
-          const baseRevision = this.snapshot(edit.id).revision;
-          for (const citationId of new Set(edit.citationIds)) {
-            if (this.block(edit.id)!.citations.some(citation => citation.id === citationId))
-              actions.push({ kind: 'uncite', id: edit.id, citationId, baseRevision });
-          }
+        case 'uncite':
+          editUncite(doc, session, edit);
           break;
-        }
-        case 'citationTriage': {
-          const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
-          if (!citation) throw new Error('Citation not found.');
-          if (citation.triage !== edit.triage)
-            actions.push({
-              kind: 'citationTriage',
-              id: edit.id,
-              citationId: edit.citationId,
-              triage: edit.triage,
-              previous: citation.triage,
-              baseRevision: this.snapshot(edit.id).revision,
-            });
+        case 'citationTriage':
+          editCitationTriage(doc, session, edit);
           break;
-        }
-        case 'highlightColor': {
-          const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
-          if (!citation) throw new Error('Citation not found.');
-          if (citation.color !== edit.color)
-            actions.push({
-              kind: 'highlightColor',
-              id: edit.id,
-              citationId: edit.citationId,
-              color: edit.color,
-              previous: citation.color,
-              baseRevision: this.snapshot(edit.id).revision,
-            });
+        case 'highlightColor':
+          editHighlightColor(doc, session, edit);
           break;
-        }
-        case 'position': {
-          const block = this.snapshot(edit.id);
-          if (block.kind !== 'block') throw new Error('Only ordinary atoms can be perspectives.');
-          if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-          const previous = !!this.capabilities(edit.id).position;
-          if (previous !== edit.value)
-            actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
+        case 'position':
+          editPosition(doc, session, edit);
           break;
-        }
-        case 'relation': {
-          const block = this.snapshot(edit.id);
-          if (block.kind !== 'block') throw new Error('Only ordinary atoms can be arguments.');
-          const capability = this.capabilities(edit.id);
-          if (edit.value && (capability.position || capability.question || capability.assessment))
-            throw new Error('An argument cannot also be a perspective, question or answer.');
-          const previous = capability.relation?.kind ?? null;
-          if (edit.text !== undefined) setText(block, edit.text);
-          if (previous !== edit.value)
-            actions.push({ kind: 'relation', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
+        case 'relation':
+          editRelation(doc, session, edit);
           break;
-        }
-        case 'addRelation': {
-          const parent = this.snapshot(edit.parentId);
-          const capability = this.capabilities(edit.parentId);
-          if (!capability.position && !capability.assessment && !capability.question)
-            throw new Error('Select a perspective, question or answer.');
-          if (edit.sourceText !== undefined) setText(parent, edit.sourceText);
-          const text = `[[${edit.targetId}]]`;
-          const id = insert(edit.parentId, this.outline.children(edit.parentId).at(-1) ?? null, text);
-          actions.push({ kind: 'relation', id, value: edit.value, previous: null, baseRevision: 0 });
-          caret = { id, offset: text.length };
+        case 'addRelation':
+          editAddRelation(doc, session, edit);
           break;
-        }
-        case 'spread': {
-          const block = this.snapshot(edit.id);
-          if (block.kind !== 'page') throw new Error('Only a titled atom can be a spread.');
-          const previous = !!this.capabilities(edit.id).spread;
-          if (previous !== edit.value) actions.push({ ...edit, previous, baseRevision: block.revision });
+        case 'spread':
+          editSpread(doc, session, edit);
           break;
-        }
         case 'writeAssessment':
-        case 'addBranchQuestion': {
-          const question = this.block(edit.parentId)?.question;
-          if (!question) throw new Error('Select a question.');
-          if (edit.kind === 'writeAssessment' && question.state.parked)
-            throw new Error('Resume the question before writing an assessment.');
-          const id = insert(edit.parentId, this.outline.children(edit.parentId).at(-1) ?? null, '');
-          if (edit.kind === 'writeAssessment')
-            actions.push({
-              kind: 'assessment',
-              id,
-              value: { assessed_on: edit.assessedOn, aporia: false },
-              previous: null,
-              baseRevision: 0,
-            });
-          else
-            actions.push({
-              kind: 'question',
-              id,
-              value: { unsettled: false, parked: false, accepted: null, review_on: null, reading_history: [] },
-              previous: null,
-              baseRevision: 0,
-            });
-          caret = { id, offset: 0 };
+        case 'addBranchQuestion':
+          editQuestionChild(doc, session, edit);
           break;
-        }
-        case 'question': {
-          if (edit.value === null) removeCapabilityTags(edit.id, 'question');
-          const previous = questionState(this.capabilities(edit.id).question?.state);
-          let value = questionState(edit.value);
-          if (
-            previous &&
-            value &&
-            previous.accepted !== value.accepted &&
-            sameState(previous.reading_history, value.reading_history)
-          ) {
-            value = currentReading({ ...value, accepted: previous.accepted }, value.accepted, this.host.todayDate());
-          }
-          if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-          if (edit.value && this.block(edit.id)?.assessment)
-            throw new Error('An atom cannot be both a question and an answer.');
-          if (
-            (previous?.parked || edit.value?.parked) &&
-            (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) &&
-            edit.value?.accepted
-          )
-            throw new Error('Resume the question before accepting a reading.');
-          if (!sameState(previous, value))
-            actions.push({
-              ...edit,
-              value: structuredClone(value),
-              previous,
-              baseRevision: this.snapshot(edit.id).revision,
-            });
+        case 'question':
+          editQuestion(doc, session, edit);
           break;
-        }
-        case 'quote': {
-          const block = this.snapshot(edit.id);
-          const text = edit.text ?? block.text;
-          if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id))
-            throw new Error('Quote target must match a different atom.');
-          const previous = this.capabilities(edit.id).quote ?? null;
-          setText(block, text);
-          if (!sameState(previous, edit.value))
-            actions.push({
-              kind: 'quote',
-              id: edit.id,
-              value: structuredClone(edit.value),
-              previous,
-              baseRevision: block.revision,
-            });
-          if (edit.text !== undefined) caret = { id: edit.id, offset: text.length };
+        case 'quote':
+          editQuote(doc, session, edit);
           break;
-        }
-        case 'assessment': {
-          const previous = this.capabilities(edit.id).assessment?.state ?? null;
-          if (edit.value) {
-            if (this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-            if (this.block(edit.id)?.question) throw new Error('An atom cannot be both a question and an answer.');
-            let owner = this.block(edit.id)?.parentId;
-            while (owner && !this.block(owner)?.question) owner = this.block(owner)?.parentId;
-            if (!owner) throw new Error('Put the answer under a question first.');
-            if (!previous && this.block(owner)?.question?.state.parked)
-              throw new Error('Resume the question before answering it.');
-          }
-          if (!edit.value && previous) {
-            for (const ownerId of this.investigationIds) {
-              const question = this.capabilities(ownerId).question?.state;
-              if (question?.accepted === edit.id)
-                actions.push({
-                  kind: 'question',
-                  id: ownerId,
-                  value: currentReading(question, null, this.host.todayDate()),
-                  previous: questionState(question),
-                  baseRevision: this.snapshot(ownerId).revision,
-                });
-            }
-          }
-          if (!sameState(previous, edit.value))
-            actions.push({
-              ...edit,
-              value: structuredClone(edit.value),
-              previous,
-              baseRevision: this.snapshot(edit.id).revision,
-            });
+        case 'assessment':
+          editAssessment(doc, session, edit);
           break;
-        }
         case 'task':
         case 'planTask':
         case 'project':
         case 'completeTask':
         case 'startWork':
         case 'stopWork':
-        case 'workNote': {
-          const block = this.snapshot(edit.id);
-          const state = this.capabilities(edit.id);
-          if (
-            this.host
-              .commands(this.pageId)
-              .some(command =>
-                command.actions.some(
-                  action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater,
-                ),
-              )
-          )
-            throw new Error('Wait for the recurring completion before changing this task.');
-          const baseRevision = block.revision;
-          if (edit.kind === 'task' || edit.kind === 'planTask') {
-            if (edit.value === null) removeCapabilityTags(edit.id, 'task');
-            const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
-            if (value?.status === 'done' && state.task?.status !== 'done')
-              throw new Error('Complete the task to record its occurrence.');
-            if (!state.task && value && value.status !== null && value.status !== 'todo')
-              throw new Error('A new task starts Todo.');
-            if (!sameState(state.task, value))
-              actions.push({ kind: 'task', id: edit.id, value, previous: state.task, baseRevision });
-            if (edit.kind === 'planTask') {
-              setText(block, edit.text);
-              caret = { id: edit.id, offset: edit.text.length };
-            }
-          } else if (edit.kind === 'project') {
-            if (edit.value === null) removeCapabilityTags(edit.id, 'project');
-            const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
-            if (!sameState(state.project, value))
-              actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
-          } else if (edit.kind === 'completeTask') {
-            const task = state.task;
-            if (!task?.status) throw new Error('Add #task before completing.');
-            if (task.status === 'done' && !task.repeater) break;
-            if (edit.stopWork) {
-              if (edit.stopWork.block_id !== edit.id || edit.stopWork.ended_at !== null || edit.stopWork.reversed)
-                throw new Error('Refresh the running work session before completing.');
-              const known = this.work.get(edit.stopWork.id);
-              if (known && known.revision >= edit.stopWork.revision && !sameState(known, edit.stopWork))
-                throw new Error('The work session changed. Refresh before completing.');
-              actions.push({
-                kind: 'stopWork',
-                id: edit.id,
-                session: { ...edit.stopWork },
-                endedAt: Date.now(),
-                note: edit.stopWork.note,
-                baseRevision,
-              });
-            }
-            actions.push({
-              kind: 'completeTask',
-              id: edit.id,
-              occurrenceId: ulid(),
-              completedOn: edit.completedOn,
-              previous: task,
-              baseRevision,
-            });
-          } else if (edit.kind === 'startWork') {
-            const active = this.host.runningWork();
-            if (active) throw new Error('Stop the running work session before starting another.');
-            actions.push({
-              kind: 'startWork',
-              id: edit.id,
-              session: {
-                id: ulid(),
-                block_id: edit.id,
-                started_at: edit.startedAt,
-                ended_at: null,
-                note: '',
-                reversed: false,
-                revision: 0,
-              },
-              baseRevision,
-            });
-          } else {
-            if (edit.session.block_id !== edit.id) throw new Error('The work session belongs to another task.');
-            const session = { ...edit.session };
-            const known = this.work.get(session.id);
-            if (known && known.revision >= session.revision && !sameState(known, session))
-              throw new Error('The work session changed. Refresh before editing it.');
-            if (edit.kind === 'stopWork')
-              actions.push({
-                kind: 'stopWork',
-                id: edit.id,
-                session,
-                endedAt: edit.endedAt,
-                note: edit.note,
-                baseRevision,
-              });
-            else if (session.note !== edit.note)
-              actions.push({ kind: 'workNote', id: edit.id, session, note: edit.note, baseRevision });
-          }
+        case 'workNote':
+          editTaskWork(doc, session, edit);
           break;
-        }
         case 'positionLinks':
-          setText(this.snapshot(edit.id), edit.text);
+          editPositionLinks(doc, session, edit);
           break;
         case 'text':
-          if (this.snapshot(edit.id).text !== edit.text || edit.relationPick)
-            actions.push({
-              kind: 'text',
-              id: edit.id,
-              text: edit.text,
-              ...(edit.relationPick ? { relationPick: edit.relationPick } : {}),
-            });
-          if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading)
-            actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });
-          if (edit.caret !== undefined)
-            caret = { id: edit.id, offset: Math.max(0, Math.min(edit.text.length, edit.caret)) };
+          editText(doc, session, edit);
           break;
         case 'heading':
-          actions.push({ kind: 'heading', id: edit.id, heading: edit.level });
+          editHeading(doc, session, edit);
           break;
         case 'archive':
-          if (edit.archived) this.guardHide(edit.id);
-          actions.push({ kind: 'archive', id: edit.id, archived: edit.archived });
+          editArchive(doc, session, edit);
           break;
-        case 'addField': {
-          const root = this.root();
-          if (root?.kind !== 'page' || titleKey(root.text) !== 'fields')
-            throw new Error('Field definitions belong on the Fields register.');
-          if (!edit.name.trim()) throw new Error('A field needs a name.');
-          const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
-          if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });
-          if (edit.role && edit.role !== 'attribute')
-            actions.push({ kind: 'fieldRole', id, value: edit.role, previous: 'attribute' });
-          caret = { id, offset: 0 };
+        case 'addField':
+          editAddField(doc, session, edit);
           break;
-        }
-        case 'fieldEntry': {
-          const block = this.snapshot(edit.id);
-          const from = Math.max(0, Math.min(block.text.length, edit.from));
-          const value = block.text.slice(from);
-          guardSplit(block, '', '');
-          setText(block, `[[${edit.fieldId}]]`);
-          const id = insert(edit.id, null, value);
-          const offset = caretBefore?.id === edit.id ? caretBefore.offset - from : value.length;
-          caret = { id, offset: Math.max(0, Math.min(value.length, offset)) };
+        case 'fieldEntry':
+          editFieldEntry(doc, session, edit);
           break;
-        }
-        case 'addReading': {
-          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId)
-            throw new Error('The destination sibling no longer exists.');
-          const id = insert(edit.parentId, edit.after, `[[${edit.holderId}]]`);
-          actions.push({ kind: 'position', id, value: true, previous: false, baseRevision: 0 });
-          const entry = insert(id, null, `[[${edit.gistFieldId}]]`);
-          caret = { id: insert(entry, null, ''), offset: 0 };
+        case 'addReading':
+          editAddReading(doc, session, edit);
           break;
-        }
-        case 'addFieldEntries': {
-          if (!edit.entries.length) throw new Error('Choose a field.');
-          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId)
-            throw new Error('The destination sibling no longer exists.');
-          let after = edit.after;
-          let first: Caret | undefined;
-          for (const entry of edit.entries) {
-            after = insert(edit.parentId, after, `[[${entry.fieldId}]]`);
-            const value = insert(after, null, entry.value, null, entry.quote);
-            first ??= { id: value, offset: entry.value.length };
-          }
-          caret = first!;
+        case 'addFieldEntries':
+          editAddFieldEntries(doc, session, edit);
           break;
-        }
-        case 'taskProject': {
-          if (!this.block(edit.id)?.task) throw new Error('Task removed.');
-          const entries = this.outline
-            .children(edit.id)
-            .filter(id => !this.block(id)?.archived && fieldEntryId(this.block(id)?.text ?? '') === edit.fieldId);
-          const remove = edit.projectId === null ? entries : entries.slice(1);
-          for (const id of remove) {
-            this.guardHide(id);
-            actions.push({ kind: 'delete', id });
-          }
-          if (edit.projectId !== null) {
-            const entry =
-              entries[0] ?? insert(edit.id, this.outline.children(edit.id).at(-1) ?? null, `[[${edit.fieldId}]]`);
-            const values = this.outline.children(entry).filter(id => !this.block(id)?.archived);
-            const text = `[[${edit.projectId}]]`;
-            if (values[0]) setText(this.snapshot(values[0]), text);
-            else insert(entry, null, text);
-            for (const id of values.slice(1)) {
-              this.guardHide(id);
-              actions.push({ kind: 'delete', id });
-            }
-          }
+        case 'taskProject':
+          editTaskProject(doc, session, edit);
           break;
-        }
-        case 'fieldKind': {
-          const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
-            throw new Error('The field changed. Refresh before changing its format.');
-          if (definition.kind !== edit.value)
-            actions.push({
-              kind: 'fieldKind',
-              id: definition.id,
-              value: edit.value,
-              previous: definition.kind,
-              baseRevision: definition.revision,
-            });
+        case 'fieldKind':
+          editFieldKind(doc, session, edit);
           break;
-        }
-        case 'fieldHide': {
-          const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
-            throw new Error('The field changed. Refresh before changing its hide setting.');
-          const previous = fieldHide(definition);
-          if (previous !== edit.value)
-            actions.push({
-              kind: 'fieldHide',
-              id: definition.id,
-              value: edit.value,
-              previous,
-              baseRevision: definition.revision,
-            });
+        case 'fieldHide':
+          editFieldHide(doc, session, edit);
           break;
-        }
-        case 'fieldRole': {
-          const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
-            throw new Error('The field changed. Refresh before changing its role.');
-          const previous = fieldRole(definition);
-          if (previous !== edit.value)
-            actions.push({
-              kind: 'fieldRole',
-              id: definition.id,
-              value: edit.value,
-              previous,
-              baseRevision: definition.revision,
-            });
+        case 'fieldRole':
+          editFieldRole(doc, session, edit);
           break;
-        }
-        case 'fieldCountsAs': {
-          const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
-            throw new Error('The field changed. Refresh before changing what it counts as.');
-          const reason = countsReason(definition);
-          if (reason) throw new Error(reason);
-          const previous = fieldCounts(definition);
-          if (previous !== edit.value)
-            actions.push({
-              kind: 'fieldCountsAs',
-              id: definition.id,
-              value: edit.value,
-              previous,
-              baseRevision: definition.revision,
-            });
+        case 'fieldCountsAs':
+          editFieldCountsAs(doc, session, edit);
           break;
-        }
-        case 'fieldTargets': {
-          const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
-            throw new Error('The field changed. Refresh before changing its targets.');
-          if (JSON.stringify(definition.targets) !== JSON.stringify(edit.targets))
-            actions.push({
-              kind: 'fieldTargets',
-              id: definition.id,
-              targets: edit.targets,
-              previous: definition.targets,
-              baseRevision: definition.revision,
-            });
+        case 'fieldTargets':
+          editFieldTargets(doc, session, edit);
           break;
-        }
-        case 'subjectCriteria': {
-          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending)
-            throw new Error('The subject changed. Refresh before changing its criteria.');
-          actions.push({
-            kind: 'subjectCriteria',
-            id: edit.id,
-            fields: [...edit.fields],
-            previous: [...edit.previous],
-            baseRevision: edit.revision,
-          });
+        case 'subjectCriteria':
+          editSubjectCriteria(doc, session, edit);
           break;
-        }
-        case 'typePresentation': {
-          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending)
-            throw new Error('The tag changed. Refresh before changing its icon or name.');
-          if (!sameState(edit.value, edit.previous))
-            actions.push({
-              kind: 'typePresentation',
-              id: edit.id,
-              value: { ...edit.value },
-              previous: { ...edit.previous },
-              baseRevision: edit.revision,
-            });
+        case 'typePresentation':
+          editTypePresentation(doc, session, edit);
           break;
-        }
         case 'addType':
-        case 'removeType': {
-          const block = this.block(edit.id);
-          if (!block) throw new Error('The atom no longer exists.');
-          if (!edit.title || edit.title.trim() !== edit.title || /[[\]\r\n]/.test(edit.title))
-            throw new Error('Invalid tag title.');
-          const exists = block.manual_types.some(title => titleKey(title) === titleKey(edit.title));
-          if (edit.kind === 'addType' && exists) break;
-          if (edit.kind === 'removeType' && !exists)
-            throw new Error('From the text. Edit the #tag there to remove it.');
-          actions.push({ kind: edit.kind, id: edit.id, title: edit.title });
+        case 'removeType':
+          editManualType(doc, session, edit);
           break;
-        }
         case 'insert':
-          caret = { id: insert(edit.parentId, edit.after, edit.text ?? '', null, edit.quote), offset: 0 };
+          editInsert(doc, session, edit);
           break;
-        case 'image': {
-          const block = this.snapshot(edit.id);
-          const previous = this.capabilities(edit.id).image ?? null;
-          if (sameState(previous, edit.image)) break;
-          if (edit.image && this.capabilities(edit.id).quote) throw new Error("A quoted copy can't hold an image.");
-          actions.push({ kind: 'image', id: edit.id, value: edit.image, previous, baseRevision: block.revision });
+        case 'image':
+          editImage(doc, session, edit);
           break;
-        }
-        case 'occlusion': {
-          const block = this.snapshot(edit.id);
-          const previous = this.capabilities(edit.id).occlusion ?? null;
-          if (sameState(previous, edit.occlusion)) break;
-          if (edit.occlusion && !this.capabilities(edit.id).image)
-            throw new Error('Add an image before drawing masks.');
-          actions.push({
-            kind: 'occlusion',
-            id: edit.id,
-            value: structuredClone(edit.occlusion),
-            previous,
-            baseRevision: block.revision,
-          });
+        case 'occlusion':
+          editOcclusion(doc, session, edit);
           break;
-        }
         case 'insertImages':
-        case 'placeImages': {
-          const target = edit.kind === 'placeImages' ? this.snapshot(edit.targetId) : null;
-          const parentId = target
-            ? (target.parent_id ?? target.id)
-            : edit.kind === 'insertImages'
-              ? edit.parentId
-              : this.pageId;
-          let after = target
-            ? target.parent_id
-              ? target.id
-              : (this.outline.children(target.id).at(-1) ?? null)
-            : edit.kind === 'insertImages'
-              ? edit.after
-              : null;
-          for (let index = 0; index < edit.images.length; index++) {
-            const reuse =
-              index === 0 && target?.kind === 'block' && !target.text.trim() && !this.block(target.id)?.image;
-            const id = reuse ? target.id : insert(parentId, after, '');
-            actions.push({
-              kind: 'image',
-              id,
-              value: edit.images[index]!,
-              previous: null,
-              baseRevision: reuse ? target.revision : 0,
-            });
-            after = id;
-            caret ??= { id, offset: 0 };
-          }
+        case 'placeImages':
+          editImages(doc, session, edit);
           break;
-        }
-        case 'split': {
-          const old = this.snapshot(edit.id);
-          if (old.kind !== 'block') throw new Error('Only outline atoms can split.');
-          const at = Math.max(0, Math.min(edit.offset, old.text.length));
-          const offset = splitToken(old.text, at)?.end ?? at;
-          split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot, edit.fieldEntry);
+        case 'split':
+          editSplit(doc, session, edit);
           break;
-        }
-        case 'merge': {
-          const source = this.snapshot(edit.sourceId);
-          const destination = this.snapshot(edit.destinationId);
-          if (source.kind !== 'block') throw new Error('A titled atom cannot merge into an outline atom.');
-          let parent = destination.id;
-          while (parent !== this.pageId) {
-            if (parent === source.id) throw new Error('Cannot merge into a descendant.');
-            parent = this.outline.parentOf(parent);
-          }
-          for (
-            let ancestor: string | null = destination.id;
-            ancestor;
-            ancestor = this.block(ancestor)?.parentId ?? null
-          )
-            if (this.block(ancestor)?.archived) {
-              this.guardHide(source.id);
-              break;
-            }
-          this.guardMerge(source.id);
-          if (this.block(destination.id)?.image) throw new Error("Image atoms can't be merged.");
-          actions.push({
-            kind: 'merge',
-            id: source.id,
-            destinationId: destination.id,
-            text: destination.text + source.text,
-          });
-          caret = { id: destination.id, offset: destination.text.length };
+        case 'merge':
+          editMerge(doc, session, edit);
           break;
-        }
-        case 'delete': {
-          const roots = selected(edit.ids);
-          let removed = 0;
-          for (const id of roots) {
-            this.guardHide(id);
-            actions.push({ kind: 'delete', id });
-            const at = this.outline.indexOf(id);
-            removed += this.outline.subtreeEnd(at) - at;
-          }
-          caret = removed && removed === this.outline.size() ? { id: insert(this.pageId, null, ''), offset: 0 } : null;
+        case 'delete':
+          editDelete(doc, session, edit);
           break;
-        }
         case 'moveTo':
-          move(selected(edit.ids), edit.parentId, edit.after);
+          editMoveTo(doc, session, edit);
           break;
-        case 'indent': {
-          const ids = selected(edit.ids, edit.zoomRoot);
-          if (!ids.length) break;
-          const parent = this.outline.previousSibling(ids[0]!);
-          if (!parent) break;
-          move(ids, parent, this.outline.children(parent).at(-1) ?? null);
+        case 'indent':
+          editIndent(doc, session, edit);
           break;
-        }
-        case 'outdent': {
-          const ids = selected(edit.ids, edit.zoomRoot);
-          if (!ids.length) break;
-          const parent = this.outline.parentOf(ids[0]!);
-          const groups = new Map<string, string[]>();
-          for (const id of ids) {
-            const owner = this.outline.parentOf(id);
-            if (owner === this.pageId || owner === edit.zoomRoot) continue;
-            const group = groups.get(owner) ?? [];
-            group.push(id);
-            groups.set(owner, group);
-          }
-          for (const [owner, roots] of groups) move(roots, this.outline.parentOf(owner), owner);
-          // An empty todo that Enter continued leaves the task list with its indent: below a plain line it becomes a plain line.
-          const only = ids.length === 1 ? this.snapshot(ids[0]!) : null;
-          const task = only && this.block(only.id)?.task;
-          if (
-            only &&
-            groups.size &&
-            task &&
-            !only.text &&
-            !this.outline.children(only.id).length &&
-            !this.block(parent)?.task &&
-            sameState(task, newTask('todo'))
-          )
-            actions.push({
-              kind: 'task',
-              id: only.id,
-              value: null,
-              previous: this.capabilities(only.id).task,
-              baseRevision: only.revision,
-            });
+        case 'outdent':
+          editOutdent(doc, session, edit);
           break;
-        }
-        case 'move': {
-          const ids = selected(edit.ids, edit.zoomRoot);
-          if (!ids.length) break;
-          const parent = this.outline.parentOf(ids[0]!);
-          if (ids.some(id => this.outline.parentOf(id) !== parent)) break;
-          const siblings = this.outline.children(parent);
-          const first = siblings.indexOf(ids[0]!);
-          const last = siblings.indexOf(ids.at(-1)!);
-          if (edit.direction === 'up') {
-            if (first <= 0) break;
-            move(ids, parent, siblings[first - 2] ?? null);
-          } else {
-            if (last + 1 >= siblings.length) break;
-            move(ids, parent, siblings[last + 1]!);
-          }
+        case 'move':
+          editMove(doc, session, edit);
           break;
-        }
         case 'deleteRange':
-          replace(edit.range, edit.between, '', 'text');
+          editDeleteRange(doc, session, edit);
           break;
         case 'replaceRange':
-          replace(edit.range, edit.between, edit.text, edit.mode, edit.zoomRoot, edit.fieldEntry);
+          editReplaceRange(doc, session, edit);
           break;
-        case 'paste': {
-          const block = this.snapshot(edit.at.id);
-          paste(
-            block,
-            block.text.slice(0, edit.at.offset),
-            block.text.slice(edit.at.offset),
-            markdownPasteRows(edit.text),
-          );
+        case 'paste':
+          editPaste(doc, session, edit);
           break;
-        }
-        case 'pasteRows': {
-          if (!edit.rows.length) break;
-          if (edit.replaceRoots?.length) paste(rowPasteTarget(edit.replaceRoots, edit.zoomRoot), '', '', edit.rows);
-          else replace(edit.range, edit.between, '', 'paste', edit.zoomRoot, undefined, edit.rows);
+        case 'pasteRows':
+          editPasteRows(doc, session, edit);
           break;
-        }
-        case 'pasteBlocks': {
-          const content = edit.content;
-          if (!content.blocks.length) break;
-          const replacing = edit.replaceRoots?.length ? selected(edit.replaceRoots, edit.zoomRoot) : null;
-          if (replacing && replacing.length !== edit.replaceRoots!.length)
-            throw new Error('The selected rows changed before paste.');
-          let { anchor: start, head: end } = replacing
-            ? {
-                anchor: { id: replacing[0]!, offset: 0 },
-                head: { id: replacing.at(-1)!, offset: this.block(replacing.at(-1)!)!.text.length },
-              }
-            : edit.range;
-          if (
-            this.outline.indexOf(start.id) > this.outline.indexOf(end.id) ||
-            (start.id === end.id && start.offset > end.offset)
-          )
-            [start, end] = [end, start];
-          const target = this.snapshot(start.id);
-          const last = this.snapshot(end.id);
-          const prefix = replacing ? '' : target.text.slice(0, start.offset);
-          const suffix = replacing ? '' : last.text.slice(end.offset);
-          const zoom = !replacing && edit.zoomRoot === target.id;
-          if (replacing) {
-            for (const id of replacing) {
-              this.guardHide(id);
-              actions.push({ kind: 'delete', id });
-            }
-          } else {
-            if (!zoom) guardSplit(target, prefix, suffix);
-            replace(edit.range, edit.between, '', 'text', edit.zoomRoot);
-          }
-          const parentId = zoom ? target.id : target.parent_id!;
-          const depth = zoom ? this.outline.depth(target.id) + 1 : this.outline.depth(target.id);
-          const emptyLeaf =
-            !replacing &&
-            start.id === end.id &&
-            !prefix &&
-            !suffix &&
-            !zoom &&
-            !this.outline.children(target.id).length &&
-            !this.capabilities(target.id).merge_protected;
-          let after = zoom ? null : !prefix || emptyLeaf ? this.outline.previousSibling(target.id) : target.id;
-          if (emptyLeaf) actions.push({ kind: 'delete', id: target.id });
-          else if (!zoom && prefix && suffix) setText({ ...target, text: prefix + suffix }, prefix);
-          const roots = content.blocks.filter(item => item.depth === 0);
-          const moving = content.cut && content.scope === this.host.clipboardScope();
-          if (moving && !this.host.canRestore(roots.map(item => item.block.id)))
-            throw new Error('Prepare this cut before pasting it.');
-          if (moving) {
-            for (let at = 0; at < content.blocks.length; ) {
-              let end = at + 1;
-              while (end < content.blocks.length && content.blocks[end]!.depth > 0) end++;
-              const root = content.blocks[at]!;
-              const snapshots = content.blocks.slice(at, end).map(item => {
-                const parent = item.depth === 0 ? parentId : item.block.parent_id!;
-                return {
-                  block: { ...item.block, parent_id: parent, page_id: this.pageId },
-                  row: { id: item.block.id, parentId: parent, depth: depth + item.depth },
-                  manual_types: [...item.manualTypes],
-                  capabilities: item.capabilities,
-                };
-              });
-              actions.push({ kind: 'restore', id: root.block.id, snapshots, after });
-              actions.push({ kind: 'move', id: root.block.id, parentId, after });
-              after = root.block.id;
-              at = end;
-            }
-            const tail = content.blocks.at(-1)!.block;
-            caret = { id: tail.id, offset: tail.text.length };
-          } else {
-            const stack: string[] = [];
-            const previous = new Map<string, string>();
-            for (const item of content.blocks) {
-              const parent = item.depth ? stack[item.depth - 1]! : parentId;
-              if (!parent) throw new Error('The clipboard hierarchy is invalid.');
-              const id = insert(
-                parent,
-                item.depth ? (previous.get(parent) ?? null) : after,
-                item.block.text,
-                item.block.heading,
-              );
-              if (content.scope === this.host.clipboardScope() && item.capabilities.image)
-                actions.push({
-                  kind: 'image',
-                  id,
-                  value: structuredClone(item.capabilities.image),
-                  previous: null,
-                  baseRevision: 0,
-                });
-              if (
-                content.scope === this.host.clipboardScope() &&
-                item.capabilities.image &&
-                item.capabilities.occlusion
-              )
-                actions.push({
-                  kind: 'occlusion',
-                  id,
-                  value: structuredClone(item.capabilities.occlusion),
-                  previous: null,
-                  baseRevision: 0,
-                });
-              if (item.capabilities.task) {
-                const task = item.capabilities.task;
-                const value = task.status === 'done' ? { ...task, status: 'todo' as const, completed_on: null } : task;
-                actions.push({ kind: 'task', id, value, previous: null, baseRevision: 0 });
-                if (task.status === 'done')
-                  actions.push({
-                    kind: 'completeTask',
-                    id,
-                    occurrenceId: ulid(),
-                    completedOn: task.completed_on!,
-                    previous: value,
-                    baseRevision: 0,
-                  });
-              }
-              for (const title of item.manualTypes) actions.push({ kind: 'addType', id, title });
-              if (item.block.archived) actions.push({ kind: 'archive', id, archived: true });
-              stack[item.depth] = id;
-              stack.length = item.depth + 1;
-              previous.set(parent, id);
-              if (!item.depth) after = id;
-              caret = { id, offset: item.block.text.length };
-            }
-          }
-          if (!zoom && prefix && suffix) insert(parentId, after, suffix, target.heading);
+        case 'pasteBlocks':
+          editPasteBlocks(doc, session, edit);
           break;
+        default: {
+          const unexpected: never = edit;
+          return unexpected;
         }
       }
+      const { actions, created, caret } = session;
+
       if (!actions.length) return { ok: true, caret, created };
       const inverse: Action[] = [];
       batch(() => {
