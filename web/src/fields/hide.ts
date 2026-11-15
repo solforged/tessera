@@ -1,5 +1,7 @@
-export const fieldHides = ['never', 'when_empty', 'always'] as const;
-export type FieldHide = typeof fieldHides[number];
+import type { FieldHide } from '../api/wire';
+
+export type { FieldHide };
+export const fieldHides = ['never', 'when_empty', 'always'] as const satisfies readonly FieldHide[];
 export const hideLabels: Record<FieldHide, string> = { never: 'Never', when_empty: 'When empty', always: 'Always' };
 export const hideDescriptions: Record<FieldHide, string> = {
   never: 'Shown even when empty.',

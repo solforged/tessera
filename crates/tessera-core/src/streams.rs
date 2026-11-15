@@ -8,7 +8,7 @@ use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{Block, Error, Notebook, Result, Row};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct BatchSubtree {
     pub id: String,
     pub page: Option<Block>,
@@ -16,13 +16,13 @@ pub struct BatchSubtree {
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct BatchSubtrees {
     pub trees: Vec<BatchSubtree>,
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct StreamArrival {
     pub block: Block,
     pub page: Block,

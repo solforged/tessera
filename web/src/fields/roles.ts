@@ -1,10 +1,10 @@
 import { untrack } from 'solid-js';
-import type { FieldDefinition } from '../api/types';
+import type { FieldDefinition, FieldRole } from '../api/types';
 import type { PageDocument } from '../document/contract';
 import { fieldEntryId } from '../table/query';
 
-export const fieldRoles = ['standfirst', 'attribute', 'prose', 'citation'] as const;
-export type FieldRole = typeof fieldRoles[number];
+export const fieldRoles = ['standfirst', 'attribute', 'prose', 'citation'] as const satisfies readonly FieldRole[];
+export type { FieldRole };
 export const roleLabels: Record<FieldRole, string> = { standfirst: 'Standfirst', attribute: 'Attribute', prose: 'Prose', citation: 'Citation' };
 export const roleDescriptions: Record<FieldRole, string> = {
   standfirst: 'A sentence below the atom, without a label.',

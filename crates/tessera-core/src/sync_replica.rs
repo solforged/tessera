@@ -18,7 +18,7 @@ pub struct KeptCopy {
     pub mine: bool,
     pub created_at: i64,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ts_rs::TS)]
 pub struct RejectedChange {
     pub id: String,
     pub change_id: String,

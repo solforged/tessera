@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceFormat {
     Epub,
@@ -33,7 +33,7 @@ pub struct ExtractedDocument {
     pub resources: Vec<ExtractedResource>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ExtractedMetadata {
     pub title: Option<String>,
     pub subtitle: Option<String>,
@@ -54,10 +54,13 @@ pub struct ExtractedMetadata {
     /// Site or publication name of an article.
     pub site: Option<String>,
     /// Journal volume and issue, kept as written (not necessarily numbers).
+    #[ts(optional = nullable)]
     pub volume: Option<String>,
+    #[ts(optional = nullable)]
     pub issue: Option<String>,
     /// Journal page range or article locator, distinct from a total page count.
     #[serde(alias = "page", alias = "pages")]
+    #[ts(optional = nullable)]
     pub page_range: Option<String>,
     /// Plain-text description or abstract.
     pub description: Option<String>,
@@ -81,16 +84,18 @@ pub fn normalize_language_name(value: &str) -> &str {
         })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ExtractedCreator {
     /// As written by the publisher, such as `Ursula K. Le Guin` or
     /// `Le Guin, Ursula K.`.
     pub name: String,
     pub role: CreatorRole,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub kind: CreatorKind,
     /// False keeps this creator as an ordered plain name, without an entity page.
     #[serde(default = "create_creator_page")]
+    #[ts(optional = nullable)]
     pub create_page: bool,
 }
 
@@ -109,7 +114,7 @@ impl ExtractedCreator {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum CreatorKind {
     #[default]
@@ -118,7 +123,7 @@ pub enum CreatorKind {
     Organisation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum CreatorRole {
     Author,
@@ -126,7 +131,7 @@ pub enum CreatorRole {
     Translator,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TocEntry {
     pub title: String,
     pub locator: String,
@@ -137,10 +142,11 @@ pub struct TocEntry {
     /// The resolved passage's character offset in the snapshot text, for time left and chapter maps; absent during
     /// extraction and never stored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub start: Option<i64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum PassageKind {
     Heading,
@@ -168,7 +174,7 @@ pub struct ExtractedPassage {
     pub marks: Vec<Mark>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Mark {
     /// UTF-16 offsets into the passage text, `start < end`.
     pub start: u32,
@@ -176,7 +182,7 @@ pub struct Mark {
     pub kind: MarkKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MarkKind {
     Emphasis,
@@ -204,7 +210,7 @@ pub struct ExtractedResource {
     pub bytes: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadingState {
     Inbox,
@@ -213,7 +219,7 @@ pub enum ReadingState {
     Abandoned,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SourceState {
     pub format: SourceFormat,
     pub state: ReadingState,
@@ -222,7 +228,7 @@ pub struct SourceState {
     pub citation_key: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SourceRecord {
     pub block_id: String,
     pub format: SourceFormat,
@@ -246,7 +252,7 @@ pub struct SourceRecord {
     pub siglum_disambiguation: Option<SiglumDisambiguation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SiglumDisambiguation {
     pub year: Option<String>,
     pub title_initial: Option<String>,
@@ -264,13 +270,13 @@ impl SourceRecord {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PassagePoint {
     pub passage_id: String,
     pub offset: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Citation {
     pub id: String,
     pub block_id: String,
@@ -285,14 +291,18 @@ pub struct Citation {
     /// UTF-16 offset of the citation's start in its snapshot's whole text, the unit of `text_length` and passage starts.
     /// Reads always fill it; change records stored before it existed lack it, so it stays optional there.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub position: Option<i64>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub chapter_title: Option<String>,
+    #[ts(type = "\"processed\" | \"unprocessed\" | null")]
     pub triage: Option<String>,
+    #[ts(type = "\"yellow\" | \"green\" | \"blue\" | \"red\" | \"purple\" | null")]
     pub color: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Passage {
     pub id: String,
     pub ordinal: i64,
@@ -306,13 +316,13 @@ pub struct Passage {
     pub start: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct StagedSnapshot {
     pub id: String,
     pub existing: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct IngestPlan {
     pub source_id: String,
     pub created: bool,
@@ -320,7 +330,7 @@ pub struct IngestPlan {
     pub operations: Vec<crate::Operation>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SnapshotSummary {
     pub id: String,
     pub sha256: String,
@@ -333,14 +343,14 @@ pub struct SnapshotSummary {
     pub change_seq: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReadingPosition {
     pub snapshot_id: String,
     pub passage_ordinal: i64,
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReadingProgress {
     pub position: ReadingPosition,
     /// The reading position as a share of the text: the characters before its passage.
@@ -349,7 +359,7 @@ pub struct ReadingProgress {
     pub seq: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SourceView {
     pub source: SourceRecord,
     pub page: crate::Block,
@@ -359,7 +369,7 @@ pub struct SourceView {
     pub progress: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PassagePage {
     pub passages: Vec<Passage>,
     pub citations: Vec<Citation>,
@@ -368,13 +378,13 @@ pub struct PassagePage {
 }
 
 /// Plain source text and whether it matched the full-text query. No inline delimiters are exposed.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SnippetPart {
     pub text: String,
     pub r#match: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PassageHit {
     pub source_id: String,
     pub title: String,
@@ -383,7 +393,7 @@ pub struct PassageHit {
     pub snippet_parts: Vec<SnippetPart>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum LibrarySort {
     #[default]
@@ -395,26 +405,38 @@ pub enum LibrarySort {
     Progress,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(default)]
 pub struct LibraryQuery {
+    #[ts(optional = nullable)]
     pub states: Vec<ReadingState>,
+    #[ts(optional = nullable)]
     pub format: Option<SourceFormat>,
+    #[ts(optional = nullable)]
     pub text: Option<String>,
     /// A collection page referenced by a source's Collections Instance field.
+    #[ts(optional = nullable)]
     pub collection_id: Option<String>,
     /// Person page IDs; matches any author, editor or translator.
+    #[ts(optional = nullable)]
     pub people: Vec<String>,
     /// Exact first Publisher readings.
+    #[ts(optional = nullable)]
     pub publishers: Vec<String>,
     /// Publication years floored to the decade.
+    #[ts(optional = nullable)]
     pub decades: Vec<i32>,
     /// Publication years, as the first four digits of the published date.
+    #[ts(optional = nullable)]
     pub years: Vec<i32>,
     /// Primary language codes as rows and facets report them, such as `en` for `en-US` or `eng`.
+    #[ts(optional = nullable)]
     pub languages: Vec<String>,
+    #[ts(optional = nullable)]
     pub sort: LibrarySort,
+    #[ts(optional = nullable)]
     pub direction: crate::Direction,
+    #[ts(optional = nullable)]
     pub limit: Option<usize>,
 }
 impl Default for LibraryQuery {
@@ -436,7 +458,7 @@ impl Default for LibraryQuery {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct LibraryView {
     pub id: String,
     pub name: String,
@@ -446,14 +468,14 @@ pub struct LibraryView {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct LibraryPerson {
     pub id: Option<String>,
     pub name: String,
     pub role: CreatorRole,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct LibraryRow {
     pub page: crate::Block,
     pub source: SourceRecord,
@@ -471,6 +493,7 @@ pub struct LibraryRow {
     /// The current snapshot's format, such as `article` for a record with a saved web page, so lists can show the
     /// right cover or spine before loading the source.
     #[serde(default)]
+    #[ts(type = "SourceFormat | null")]
     pub snapshot_format: Option<String>,
     pub progress: f64,
     /// Contents entry covering the saved reading position.
@@ -479,7 +502,7 @@ pub struct LibraryRow {
     pub unprocessed: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct LibraryCounts {
     pub inbox: usize,
     pub reading: usize,
@@ -487,7 +510,7 @@ pub struct LibraryCounts {
     pub abandoned: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct LibraryResult {
     pub rows: Vec<LibraryRow>,
     pub total: usize,
@@ -497,7 +520,7 @@ pub struct LibraryResult {
 
 /// Available values after state, format and text filtering, before facet filters
 /// and the display limit. Each source counts once per distinct facet value.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct LibraryFacets {
     pub people: Vec<PersonFacet>,
     pub decades: Vec<DecadeFacet>,
@@ -506,62 +529,70 @@ pub struct LibraryFacets {
     pub languages: Vec<ValueFacet>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PersonFacet {
     pub id: Option<String>,
     pub name: String,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct DecadeFacet {
     pub decade: i32,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct YearFacet {
     pub year: i32,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ValueFacet {
     pub value: String,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(default)]
 pub struct HighlightQuery {
+    #[ts(optional = nullable)]
     pub source_id: Option<String>,
+    #[ts(optional = nullable)]
     pub unprocessed: bool,
+    #[ts(optional = nullable)]
     pub colors: Vec<String>,
+    #[ts(optional = nullable)]
     pub tags: Vec<String>,
+    #[ts(optional = nullable)]
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct HighlightRow {
     pub block: crate::BlockInPage,
     pub citation: Citation,
     pub source_title: String,
     pub processed: bool,
     pub notes: u32,
+    #[ts(type = "Citation[\"triage\"]")]
     pub triage: Option<String>,
+    #[ts(type = "Citation[\"color\"]")]
     pub color: Option<String>,
     pub tags: Vec<String>,
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Surfacing {
     #[serde(flatten)]
     pub row: HighlightRow,
+    #[ts(type = "\"kept\" | \"opened\" | \"muted\" | null")]
     pub action: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct HighlightResult {
     pub rows: Vec<HighlightRow>,
     pub total: usize,
@@ -576,14 +607,14 @@ pub enum ExportFormat {
     Markdown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum IngestInput {
     Url,
     File,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum IngestJobState {
     Queued,
@@ -592,7 +623,7 @@ pub enum IngestJobState {
     Done,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct IngestJob {
     pub id: String,
     pub input_kind: IngestInput,

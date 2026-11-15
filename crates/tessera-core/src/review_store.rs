@@ -12,13 +12,13 @@ use crate::{
     ReviewSession, ReviewSessionState, Revision,
 };
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct ReviewForecastDay {
     pub date: String,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct ReviewStats {
     pub date: String,
     pub due_review: usize,

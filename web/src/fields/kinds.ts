@@ -2,7 +2,7 @@ import type { FieldKind } from '../api/types';
 import { taskFieldNames } from '../tasks/task-fields';
 import type { MenuItem } from '../ui/Menu';
 
-export const fieldKinds = ['text', 'number', 'date', 'span', 'checkbox', 'choice', 'instance', 'url', 'identifier'] as const;
+export const fieldKinds = ['text', 'number', 'date', 'span', 'checkbox', 'choice', 'instance', 'url', 'identifier'] as const satisfies readonly FieldKind[];
 export const partialDatePlaceholder = 'Year (1–9999), YYYY-MM or YYYY-MM-DD';
 
 export const kindLabels: Record<FieldKind, string> = {

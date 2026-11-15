@@ -9,7 +9,7 @@ use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_id, validation};
 use crate::{BlockKind, NoteKind, Notebook, Result, SeeTarget};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SpreadValue {
     pub text: String,
     pub target_id: Option<String>,
@@ -45,7 +45,7 @@ impl SpreadValue {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SpreadColumn {
     pub id: String,
     pub title: String,
@@ -56,7 +56,7 @@ pub struct SpreadColumn {
     pub opening: Vec<SpreadValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SpreadField {
     pub id: String,
     pub name: String,
@@ -64,13 +64,13 @@ pub struct SpreadField {
     pub cells: Vec<Vec<SpreadValue>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SpreadReference {
     pub block_id: String,
     pub note_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Spread {
     pub note_ids: Vec<String>,
     pub columns: Vec<SpreadColumn>,

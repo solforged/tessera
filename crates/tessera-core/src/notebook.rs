@@ -18,7 +18,7 @@ pub struct Notebook {
     pub(crate) conn: Connection,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ts_rs::TS)]
 pub struct NotebookInfo {
     pub id: String,
     pub path: PathBuf,
