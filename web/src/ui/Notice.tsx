@@ -30,13 +30,40 @@ export function NoticeView(props: {
   onHold(held: boolean): void;
   class?: string;
 }) {
-  return <div class={`undo-toast notice${props.actions?.length ? ' notice-actionable' : ''} ${props.class ?? ''}`} classList={{ leaving: props.leaving }} inert={props.leaving} role="status"
-    onPointerEnter={() => props.onHold(true)} onPointerLeave={() => props.onHold(false)} onFocusIn={() => props.onHold(true)}
-    onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) props.onHold(false); }}>
-    <span class="notice-text">{props.text}</span>
-    <For each={props.actions}>{action => <Button class="notice-action" icon={action.icon} disabled={props.busy} onClick={() => props.onAction(action)}>{action.label}</Button>}</For>
-    <Show when={props.dismissLabel}>{label => <Button class="notice-dismiss" icon="close" label={label()} disabled={props.busy} onClick={() => props.onDismiss?.()} />}</Show>
-  </div>;
+  return (
+    <div
+      class={`undo-toast notice${props.actions?.length ? ' notice-actionable' : ''} ${props.class ?? ''}`}
+      classList={{ leaving: props.leaving }}
+      inert={props.leaving}
+      role="status"
+      onPointerEnter={() => props.onHold(true)}
+      onPointerLeave={() => props.onHold(false)}
+      onFocusIn={() => props.onHold(true)}
+      onFocusOut={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) props.onHold(false);
+      }}
+    >
+      <span class="notice-text">{props.text}</span>
+      <For each={props.actions}>
+        {action => (
+          <Button class="notice-action" icon={action.icon} disabled={props.busy} onClick={() => props.onAction(action)}>
+            {action.label}
+          </Button>
+        )}
+      </For>
+      <Show when={props.dismissLabel}>
+        {label => (
+          <Button
+            class="notice-dismiss"
+            icon="close"
+            label={label()}
+            disabled={props.busy}
+            onClick={() => props.onDismiss?.()}
+          />
+        )}
+      </Show>
+    </div>
+  );
 }
 
 export interface NoticeOptions {
@@ -51,7 +78,10 @@ export interface NoticeOptions {
   onError?(reason: unknown): void;
 }
 
-interface Live { options: NoticeOptions; actions: NoticeAction[] }
+interface Live {
+  options: NoticeOptions;
+  actions: NoticeAction[];
+}
 const DURATION = 8000;
 const [current, setCurrent] = createSignal<Live>();
 const [held, setHeld] = createSignal(false);
@@ -61,9 +91,15 @@ let mounted = false;
 async function run(live: Live, action: NoticeAction) {
   if (busy()) return;
   setBusy(true);
-  try { await action.run(); if (current() === live) setCurrent(undefined); }
-  catch (reason) { if (live.options.onError) live.options.onError(reason); else reportError(reason); }
-  finally { setBusy(false); }
+  try {
+    await action.run();
+    if (current() === live) setCurrent(undefined);
+  } catch (reason) {
+    if (live.options.onError) live.options.onError(reason);
+    else reportError(reason);
+  } finally {
+    setBusy(false);
+  }
 }
 
 function NoticeHost() {
@@ -72,11 +108,28 @@ function NoticeHost() {
   createEffect(() => {
     const live = current();
     if (!live || held()) return;
-    const timer = setTimeout(() => setCurrent(value => value === live ? undefined : value), live.options.duration ?? DURATION);
+    const timer = setTimeout(
+      () => setCurrent(value => (value === live ? undefined : value)),
+      live.options.duration ?? DURATION,
+    );
     onCleanup(() => clearTimeout(timer));
   });
-  return <Show when={shown()}>{item => <NoticeView text={item().value.options.text} actions={item().value.actions} busy={busy()} leaving={item().leaving} dismissLabel="Dismiss notification"
-    onAction={action => void run(item().value, action)} onDismiss={() => setCurrent(undefined)} onHold={value => setHeld(value)} />}</Show>;
+  return (
+    <Show when={shown()}>
+      {item => (
+        <NoticeView
+          text={item().value.options.text}
+          actions={item().value.actions}
+          busy={busy()}
+          leaving={item().leaving}
+          dismissLabel="Dismiss notification"
+          onAction={action => void run(item().value, action)}
+          onDismiss={() => setCurrent(undefined)}
+          onHold={value => setHeld(value)}
+        />
+      )}
+    </Show>
+  );
 }
 
 /** Shows a notice: a short statement with the action that takes it back. One at a time: a newer notice replaces the one up. On a
@@ -91,10 +144,13 @@ export function showNotice(options: NoticeOptions): () => void {
     (document.querySelector('.app') ?? document.body).append(host);
     render(() => <NoticeHost />, host);
   }
-  const live: Live = { options, actions: options.action === undefined ? [] : Array.isArray(options.action) ? options.action : [options.action] };
+  const live: Live = {
+    options,
+    actions: options.action === undefined ? [] : Array.isArray(options.action) ? options.action : [options.action],
+  };
   setHeld(false);
   setCurrent(live);
-  return () => setCurrent(value => value === live ? undefined : value);
+  return () => setCurrent(value => (value === live ? undefined : value));
 }
 
 /** Closes whichever notice is showing. */

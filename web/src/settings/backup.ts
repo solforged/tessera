@@ -8,7 +8,9 @@ export function backupLabel(backup: BackupInfo, when: (value: number) => string)
     when(backup.created_at),
     backup.safety ? safetyLabels[backup.safety] : '',
     backup.object_count ? `${backup.object_count} ${backup.object_count === 1 ? 'file' : 'files'}` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /** Two days without a backup while the workshop changes means the daily backup is not running. */

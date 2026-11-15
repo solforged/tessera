@@ -45,7 +45,8 @@ export function actionsWidth(layout: Pick<SwipeLayout, 'tomorrow'>): number {
 /** Which way a touch is going once it has moved `AXIS_LOCK`. A touch that is not clearly sideways is the page scrolling, so
  * the swipe never takes a gesture the scroller might want. */
 export function lockAxis(dx: number, dy: number): SwipeAxis {
-  const x = Math.abs(dx), y = Math.abs(dy);
+  const x = Math.abs(dx),
+    y = Math.abs(dy);
   if (x < AXIS_LOCK && y < AXIS_LOCK) return 'pending';
   return x >= AXIS_LOCK && x > y * HORIZONTAL_BIAS ? 'horizontal' : 'vertical';
 }
@@ -106,57 +107,107 @@ let opened: RowSwipe | null = null;
  * so the page scrolls vertically as ever and a vertical start never becomes a swipe.
  */
 export function attachRowSwipe(row: HTMLElement, options: RowSwipeOptions): RowSwipe {
-  let gesture: { id: number; x: number; y: number; axis: SwipeAxis; layout: SwipeLayout; base: number; offset: number; lastX: number; lastTime: number; velocity: number; commit: SwipeCommit | null } | null = null;
+  let gesture: {
+    id: number;
+    x: number;
+    y: number;
+    axis: SwipeAxis;
+    layout: SwipeLayout;
+    base: number;
+    offset: number;
+    lastX: number;
+    lastTime: number;
+    velocity: number;
+    commit: SwipeCommit | null;
+  } | null = null;
   let rest = 0;
   let open = false;
   let swallow = 0;
   const set = (offset: number) => row.style.setProperty('--swipe-x', `${offset}px`);
-  const mark = (commit: SwipeCommit | null) => commit ? row.setAttribute('data-swipe-commit', commit) : row.removeAttribute('data-swipe-commit');
+  const mark = (commit: SwipeCommit | null) =>
+    commit ? row.setAttribute('data-swipe-commit', commit) : row.removeAttribute('data-swipe-commit');
 
   // While the buttons are showing, a touch outside the row, or the page scrolling, puts the row back.
-  const outside = (event: Event) => { if (!(event.target instanceof Node) || !row.contains(event.target)) controller.reset(); };
+  const outside = (event: Event) => {
+    if (!(event.target instanceof Node) || !row.contains(event.target)) controller.reset();
+  };
   const watching = (on: boolean) => {
     const method = on ? 'addEventListener' : 'removeEventListener';
     document[method]('pointerdown', outside, true);
     document[method]('scroll', outside, true);
   };
   const settle = (offset: number, resting: boolean) => {
-    rest = offset; open = resting;
+    rest = offset;
+    open = resting;
     row.toggleAttribute('data-swipe-open', resting);
     set(offset);
-    if (resting) { opened = controller; watching(true); }
-    else { if (opened === controller) opened = null; watching(false); }
+    if (resting) {
+      opened = controller;
+      watching(true);
+    } else {
+      if (opened === controller) opened = null;
+      watching(false);
+    }
   };
 
   const down = (event: PointerEvent) => {
     if (event.pointerType !== 'touch' || !event.isPrimary || gesture) return;
-    if (event.target instanceof Element && event.target.closest('.agenda-swipe button, input, textarea, [contenteditable="true"]')) return;
+    if (
+      event.target instanceof Element &&
+      event.target.closest('.agenda-swipe button, input, textarea, [contenteditable="true"]')
+    )
+      return;
     if (!open && event.clientX <= EDGE_BACK) return;
     if (document.querySelector('.popup, .popup-exit, .context-layer')) return;
     const layout = options.layout();
     if (!layout) return;
-    gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, axis: 'pending', layout, base: rest, offset: rest, lastX: event.clientX, lastTime: event.timeStamp, velocity: 0, commit: null };
+    gesture = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      axis: 'pending',
+      layout,
+      base: rest,
+      offset: rest,
+      lastX: event.clientX,
+      lastTime: event.timeStamp,
+      velocity: 0,
+      commit: null,
+    };
   };
   const move = (event: PointerEvent) => {
     const current = gesture;
     if (!current || event.pointerId !== current.id) return;
-    const dx = event.clientX - current.x, dy = event.clientY - current.y;
+    const dx = event.clientX - current.x,
+      dy = event.clientY - current.y;
     if (current.axis === 'pending') {
       current.axis = lockAxis(dx, dy);
-      if (current.axis === 'vertical') { gesture = null; return; }
+      if (current.axis === 'vertical') {
+        gesture = null;
+        return;
+      }
       if (current.axis === 'horizontal') {
         row.toggleAttribute('data-swiping', true);
-        try { row.setPointerCapture(event.pointerId); } catch { /* The touch already ended. */ }
+        try {
+          row.setPointerCapture(event.pointerId);
+        } catch {
+          /* The touch already ended. */
+        }
       }
     }
     if (current.axis !== 'horizontal') return;
     const elapsed = Math.max(1, event.timeStamp - current.lastTime);
     current.velocity = 0.6 * current.velocity + 0.4 * ((event.clientX - current.lastX) / elapsed);
-    current.lastX = event.clientX; current.lastTime = event.timeStamp;
+    current.lastX = event.clientX;
+    current.lastTime = event.timeStamp;
     current.offset = swipeOffset(current.base + dx, current.layout);
     set(current.offset);
     const commit = commitAt(current.offset, current.layout);
-    if (commit !== current.commit) { current.commit = commit; mark(commit); haptic('light'); }
+    if (commit !== current.commit) {
+      current.commit = commit;
+      mark(commit);
+      haptic('light');
+    }
   };
   const finish = (event: PointerEvent) => {
     const current = gesture;
@@ -167,18 +218,28 @@ export function attachRowSwipe(row: HTMLElement, options: RowSwipeOptions): RowS
     if (current.axis !== 'horizontal') return;
     // The release may still produce a click on whatever lies under the finger; the swipe has used it up.
     window.clearTimeout(swallow);
-    swallow = window.setTimeout(() => { swallow = 0; }, 400);
-    if (event.type === 'pointercancel') { controller.reset(); return; }
+    swallow = window.setTimeout(() => {
+      swallow = 0;
+    }, 400);
+    if (event.type === 'pointercancel') {
+      controller.reset();
+      return;
+    }
     const outcome = releaseSwipe(current.offset, current.velocity, current.layout);
-    if (outcome.kind === 'commit') { options.onCommit(outcome.action); return; }
+    if (outcome.kind === 'commit') {
+      options.onCommit(outcome.action);
+      return;
+    }
     if (outcome.kind === 'open') settle(-actionsWidth(current.layout), true);
     else settle(0, false);
   };
   // A tap on an open row's face only closes it; the swipe's own release does not act on what lies under the finger.
   const click = (event: MouseEvent) => {
-    if (!(event.target instanceof Element) || !row.contains(event.target) || event.target.closest('.agenda-swipe')) return;
+    if (!(event.target instanceof Element) || !row.contains(event.target) || event.target.closest('.agenda-swipe'))
+      return;
     if (!swallow && !open) return;
-    event.preventDefault(); event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
     if (!swallow) controller.reset();
   };
 

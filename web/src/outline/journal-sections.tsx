@@ -14,7 +14,12 @@ import { referenceSource } from './source-reads';
 import './journal-sections.css';
 
 /** A written section's heading row, drawn as the shared section head. */
-export interface JournalSectionHead { section: TodaySection; count: string; capture: boolean; today: boolean }
+export interface JournalSectionHead {
+  section: TodaySection;
+  count: string;
+  capture: boolean;
+  today: boolean;
+}
 
 export interface JournalLayout {
   today: boolean;
@@ -42,8 +47,20 @@ export interface JournalLayout {
 const [captureFocus, setCaptureFocus] = createSignal<string | null>(null);
 
 /** Matches a journal day's root headings to the template's written sections. */
-export function createJournalLayout(doc: PageDocument, notebook: NotebookClient, active: Accessor<boolean>): Accessor<JournalLayout | null> {
-  const clock = createMemo(() => new Intl.DateTimeFormat('en-GB', { timeZone: notebook.settings()?.time_zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+export function createJournalLayout(
+  doc: PageDocument,
+  notebook: NotebookClient,
+  active: Accessor<boolean>,
+): Accessor<JournalLayout | null> {
+  const clock = createMemo(
+    () =>
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: notebook.settings()?.time_zone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }),
+  );
   const layout = createMemo(() => {
     const root = doc.root();
     if (!active() || root?.kind !== 'journal') return null;
@@ -60,60 +77,89 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
     const reading = new Map<string, string>();
     const references = new Map<string, string>();
     let loose: string | undefined;
-    const order = template.sections.filter(value => value.on && (isWritten(value) || value.id === 'notes')).map(value => value.id);
+    const order = template.sections
+      .filter(value => value.on && (isWritten(value) || value.id === 'notes'))
+      .map(value => value.id);
     const ranked: { id: string; rank: number }[] = [];
     for (const id of doc.outline.children(doc.pageId)) {
       if (doc.isArchived(id)) continue;
       const block = doc.block(id);
       const section = block?.heading ? byName.get(foldName(block.text)) : undefined;
-      if (!section || found.has(section.id)) { loose ??= id; ranked.push({ id, rank: order.indexOf('notes') }); continue; }
+      if (!section || found.has(section.id)) {
+        loose ??= id;
+        ranked.push({ id, rank: order.indexOf('notes') });
+        continue;
+      }
       ranked.push({ id, rank: order.indexOf(section.id) });
       found.add(section.id);
       const children = doc.outline.children(id).filter(child => !doc.isArchived(child));
-      heads.set(id, { section, count: sectionCount(doc, section, children), capture: today && section.id === capture, today });
-      if (section.id === 'inbox') for (const child of children) {
-        inbox.add(child);
-        const target = readingRowSource(doc.block(child)?.text ?? '');
-        if (target) references.set(child, target);
-        if (unfiled(doc, child)) toFile.push(child);
-        const at = doc.createdAt(child);
-        if (at !== undefined) times.set(child, clock().format(at));
-      }
-      if (section.id === 'reading') for (const child of children) {
-        const source = readingRowSource(doc.block(child)?.text ?? '');
-        if (source) reading.set(child, source);
-      }
+      heads.set(id, {
+        section,
+        count: sectionCount(doc, section, children),
+        capture: today && section.id === capture,
+        today,
+      });
+      if (section.id === 'inbox')
+        for (const child of children) {
+          inbox.add(child);
+          const target = readingRowSource(doc.block(child)?.text ?? '');
+          if (target) references.set(child, target);
+          if (unfiled(doc, child)) toFile.push(child);
+          const at = doc.createdAt(child);
+          if (at !== undefined) times.set(child, clock().format(at));
+        }
+      if (section.id === 'reading')
+        for (const child of children) {
+          const source = readingRowSource(doc.block(child)?.text ?? '');
+          if (source) reading.set(child, source);
+        }
     }
     const notesName = template.sections.find(section => section.id === 'notes')?.name ?? 'Notes';
     return {
-      today, heads, times, inbox, toFile, reading, references,
+      today,
+      heads,
+      times,
+      inbox,
+      toFile,
+      reading,
+      references,
       // Other days read as one outline unless they also hold section headings.
       notesHead: loose && (today || heads.size) ? { id: loose, name: notesName } : undefined,
       missing: placeMissing(today ? written.filter(section => !found.has(section.id)) : [], ranked, order),
     };
   });
   // Which referenced pages are sources is the service's to say; the rows draw their source glyph once it has.
-  const [sources] = createResource(() => [...new Set(layout()?.references.values() ?? [])].sort().join(' '), async key => {
-    const ids = key ? key.split(' ') : [];
-    const records = await Promise.all(ids.map(id => referenceSource(notebook, id).catch(() => null)));
-    return new Set(ids.filter((_, index) => records[index]));
-  });
+  const [sources] = createResource(
+    () => [...new Set(layout()?.references.values() ?? [])].sort().join(' '),
+    async key => {
+      const ids = key ? key.split(' ') : [];
+      const records = await Promise.all(ids.map(id => referenceSource(notebook, id).catch(() => null)));
+      return new Set(ids.filter((_, index) => records[index]));
+    },
+  );
   return createMemo(() => {
     const value = layout();
     if (!value) return null;
     const known = sources.latest;
     const { references, ...rest } = value;
-    return { ...rest, inboxSources: new Set([...references].filter(([, target]) => known?.has(target)).map(([row]) => row)) };
+    return {
+      ...rest,
+      inboxSources: new Set([...references].filter(([, target]) => known?.has(target)).map(([row]) => row)),
+    };
   });
 }
 
-function placeMissing(missing: TodaySection[], ranked: { id: string; rank: number }[], order: string[]): JournalLayout['missing'] {
+function placeMissing(
+  missing: TodaySection[],
+  ranked: { id: string; rank: number }[],
+  order: string[],
+): JournalLayout['missing'] {
   const before = new Map<string, TodaySection[]>();
   const end: TodaySection[] = [];
   for (const section of missing) {
     const rank = order.indexOf(section.id);
     const next = ranked.find(row => row.rank > rank);
-    if (next) before.set(next.id, [...before.get(next.id) ?? [], section]);
+    if (next) before.set(next.id, [...(before.get(next.id) ?? []), section]);
     else end.push(section);
   }
   return { before, end };
@@ -130,7 +176,8 @@ function sectionCount(doc: PageDocument, section: TodaySection, children: readon
     const open = children.filter(id => unfiled(doc, id)).length;
     return children.length ? `${children.length} · ${open} to file` : '';
   }
-  if (section.id === 'reading') return children.length ? `${children.length} source${children.length === 1 ? '' : 's'}` : '';
+  if (section.id === 'reading')
+    return children.length ? `${children.length} source${children.length === 1 ? '' : 's'}` : '';
   return children.length ? String(children.length) : '';
 }
 
@@ -139,18 +186,48 @@ function sectionCount(doc: PageDocument, section: TodaySection, children: readon
  * placeholder row that writes nothing until something is entered. `inline` makes any section's line a plain one and
  * `autofocus` puts the caret in it, for the phone's Add to capsules.
  */
-export function SectionCapture(props: { notebook: NotebookClient; section: TodaySection; inline?: boolean; autofocus?: boolean; onCaptured?(): void }) {
+export function SectionCapture(props: {
+  notebook: NotebookClient;
+  section: TodaySection;
+  inline?: boolean;
+  autofocus?: boolean;
+  onCaptured?(): void;
+}) {
   const boxed = () => !props.inline && props.section.id === captureSection(props.notebook.todayTemplate()).id;
   const target = () => sectionTarget(props.notebook.todayTemplate(), props.section.id);
-  return <div class="section-capture" classList={{ 'section-capture-boxed': boxed() }}
-    onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-    <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} section={target()} boxed={boxed()}
-      trailing={boxed() ? '⌘E from anywhere' : undefined}
-      label={`Capture to ${props.section.name}`}
-      placeholder={boxed() ? `Capture to ${props.section.name}: a thought, a link, [] a task, a question?` : `Write in ${props.section.name}…`}
-      inputRef={input => { if (props.autofocus || captureFocus() === props.section.id) { setCaptureFocus(null); queueMicrotask(() => input.focus()); } }}
-      onSaved={() => { setCaptureFocus(props.section.id); props.onCaptured?.(); }} />
-  </div>;
+  return (
+    <div
+      class="section-capture"
+      classList={{ 'section-capture-boxed': boxed() }}
+      onPointerDown={event => event.stopPropagation()}
+      onMouseDown={event => event.stopPropagation()}
+      onKeyDown={event => event.stopPropagation()}
+    >
+      <CaptureField
+        notebook={props.notebook}
+        contextDate={() => props.notebook.todayDate()}
+        section={target()}
+        boxed={boxed()}
+        trailing={boxed() ? '⌘E from anywhere' : undefined}
+        label={`Capture to ${props.section.name}`}
+        placeholder={
+          boxed()
+            ? `Capture to ${props.section.name}: a thought, a link, [] a task, a question?`
+            : `Write in ${props.section.name}…`
+        }
+        inputRef={input => {
+          if (props.autofocus || captureFocus() === props.section.id) {
+            setCaptureFocus(null);
+            queueMicrotask(() => input.focus());
+          }
+        }}
+        onSaved={() => {
+          setCaptureFocus(props.section.id);
+          props.onCaptured?.();
+        }}
+      />
+    </div>
+  );
 }
 
 /**
@@ -160,23 +237,57 @@ export function SectionCapture(props: { notebook: NotebookClient; section: Today
 export function MissingSections(props: { notebook: NotebookClient; sections: readonly TodaySection[] }) {
   const phone = createPhone();
   const [adding, setAdding] = createSignal<string | null>(null);
-  return <Show when={phone()} fallback={<For each={props.sections}>{section => <section class="journal-missing-section" aria-label={section.name}>
-    <SectionHead name={section.name} />
-    <SectionCapture notebook={props.notebook} section={section} />
-  </section>}</For>}>
-    <div class="journal-add-to" role="group" aria-label="Add to a section">
-      <span aria-hidden="true">Add to</span>
-      <For each={props.sections}>{section => <Button kind="tint" aria-expanded={adding() === section.id} aria-label={`Add to ${section.name}`} onClick={() => setAdding(section.id)}>{section.name}</Button>}</For>
-    </div>
-    <Show when={props.sections.find(section => section.id === adding())}>{section => <div class="journal-add-to-field"
-      onFocusOut={event => {
-        // Leaving an empty line puts the capsules back; a line with text keeps its place.
-        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-        if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
-      }}>
-      <SectionCapture notebook={props.notebook} section={section()} inline autofocus onCaptured={() => setAdding(null)} />
-    </div>}</Show>
-  </Show>;
+  return (
+    <Show
+      when={phone()}
+      fallback={
+        <For each={props.sections}>
+          {section => (
+            <section class="journal-missing-section" aria-label={section.name}>
+              <SectionHead name={section.name} />
+              <SectionCapture notebook={props.notebook} section={section} />
+            </section>
+          )}
+        </For>
+      }
+    >
+      <div class="journal-add-to" role="group" aria-label="Add to a section">
+        <span aria-hidden="true">Add to</span>
+        <For each={props.sections}>
+          {section => (
+            <Button
+              kind="tint"
+              aria-expanded={adding() === section.id}
+              aria-label={`Add to ${section.name}`}
+              onClick={() => setAdding(section.id)}
+            >
+              {section.name}
+            </Button>
+          )}
+        </For>
+      </div>
+      <Show when={props.sections.find(section => section.id === adding())}>
+        {section => (
+          <div
+            class="journal-add-to-field"
+            onFocusOut={event => {
+              // Leaving an empty line puts the capsules back; a line with text keeps its place.
+              if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+              if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
+            }}
+          >
+            <SectionCapture
+              notebook={props.notebook}
+              section={section()}
+              inline
+              autofocus
+              onCaptured={() => setAdding(null)}
+            />
+          </div>
+        )}
+      </Show>
+    </Show>
+  );
 }
 
 // Creators change rarely and a day holds few sources, so each source is read once per session.
@@ -186,17 +297,27 @@ const creators = new Map<string, Promise<string>>();
 export function ReadingCreators(props: { notebook: NotebookClient; sourceId: string; text: string }) {
   // The position is the reference's locator, written when the row was: `[[id|title|position]]`.
   const position = () => /^\[\[[^|\]]+\|[^|\]]*\|([^\]]+)\]\]$/.exec(props.text.trim())?.[1];
-  const [names] = createResource(() => props.sourceId, id => {
-    let names = creators.get(id);
-    if (!names) {
-      names = props.notebook.api.source(id).then(view => {
-        const snapshot = view.snapshots.find(value => value.id === view.source.current_snapshot_id) ?? view.snapshots[0];
-        return (snapshot?.metadata.creators ?? []).filter(creator => creator.role === 'author').map(creator => creator.name).join(', ');
-      }, () => '');
-      creators.set(id, names);
-    }
-    return names;
-  });
+  const [names] = createResource(
+    () => props.sourceId,
+    id => {
+      let names = creators.get(id);
+      if (!names) {
+        names = props.notebook.api.source(id).then(
+          view => {
+            const snapshot =
+              view.snapshots.find(value => value.id === view.source.current_snapshot_id) ?? view.snapshots[0];
+            return (snapshot?.metadata.creators ?? [])
+              .filter(creator => creator.role === 'author')
+              .map(creator => creator.name)
+              .join(', ');
+          },
+          () => '',
+        );
+        creators.set(id, names);
+      }
+      return names;
+    },
+  );
   const line = () => [names(), position()].filter(Boolean).join(' · ');
   return <>{line() ? <span class="row-reading-creators">{line()}</span> : null}</>;
 }

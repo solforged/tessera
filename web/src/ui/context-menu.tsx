@@ -6,7 +6,10 @@ import { Menu } from './Menu';
 import type { MenuItem } from './Menu';
 
 /** Where the finger is, in viewport coordinates. */
-export interface Press { x: number; y: number }
+export interface Press {
+  x: number;
+  y: number;
+}
 
 export interface LongPressOptions {
   /** How long the finger rests before the press counts. Default 450. */
@@ -27,7 +30,11 @@ const CLICK_WINDOW_MS = 800;
  * Returns the function that removes it, for `onCleanup`:
  *
  *     <div ref={row => onCleanup(longPress(row, () => openContextMenu({ source: row, label: 'Actions', items })))}> */
-export function longPress(element: HTMLElement, onLongPress: (press: Press) => void, options: LongPressOptions = {}): () => void {
+export function longPress(
+  element: HTMLElement,
+  onLongPress: (press: Press) => void,
+  options: LongPressOptions = {},
+): () => void {
   const { ms = 450, slop = 10, ignore } = options;
   let timer = 0;
   let start: { id: number; x: number; y: number } | undefined;
@@ -44,7 +51,13 @@ export function longPress(element: HTMLElement, onLongPress: (press: Press) => v
   };
   const down = (event: PointerEvent) => {
     swallow = false;
-    if (event.pointerType !== 'touch' || !event.isPrimary || start || (ignore && event.target instanceof Element && event.target.closest(ignore))) return;
+    if (
+      event.pointerType !== 'touch' ||
+      !event.isPrimary ||
+      start ||
+      (ignore && event.target instanceof Element && event.target.closest(ignore))
+    )
+      return;
     start = { id: event.pointerId, x: event.clientX, y: event.clientY };
     // While the finger rests, the row is neither selectable nor offers the system callout; the stylesheet keys on this.
     element.setAttribute('data-pressing', '');
@@ -56,20 +69,26 @@ export function longPress(element: HTMLElement, onLongPress: (press: Press) => v
       window.getSelection()?.removeAllRanges();
       swallow = true;
       window.clearTimeout(swallowTimer);
-      swallowTimer = window.setTimeout(() => { swallow = false; }, CLICK_WINDOW_MS);
+      swallowTimer = window.setTimeout(() => {
+        swallow = false;
+      }, CLICK_WINDOW_MS);
       onLongPress({ x, y });
     }, ms);
   };
   const move = (event: PointerEvent) => {
-    if (start && event.pointerId === start.id && Math.hypot(event.clientX - start.x, event.clientY - start.y) > slop) end(event);
+    if (start && event.pointerId === start.id && Math.hypot(event.clientX - start.x, event.clientY - start.y) > slop)
+      end(event);
   };
   const click = (event: MouseEvent) => {
     if (!swallow || !(event.target instanceof Node) || !element.contains(event.target)) return;
     swallow = false;
-    event.preventDefault(); event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
   };
   // Some engines open their own context menu on a long press; the row's is the one.
-  const context = (event: Event) => { if (start || swallow) event.preventDefault(); };
+  const context = (event: Event) => {
+    if (start || swallow) event.preventDefault();
+  };
   element.addEventListener('pointerdown', down);
   element.addEventListener('pointermove', move);
   element.addEventListener('contextmenu', context);
@@ -92,7 +111,8 @@ function freeze(from: Element, to: HTMLElement | SVGElement, pseudo?: '::before'
   const style = getComputedStyle(from, pseudo);
   for (let at = 0; at < style.length; at++) {
     const name = style[at]!;
-    if (name !== 'content' && !NOT_COPIED.test(name)) to.style.setProperty(name, style.getPropertyValue(name), style.getPropertyPriority(name));
+    if (name !== 'content' && !NOT_COPIED.test(name))
+      to.style.setProperty(name, style.getPropertyValue(name), style.getPropertyPriority(name));
   }
 }
 
@@ -110,9 +130,13 @@ function freezeTree(from: Element, to: Element) {
   if (to instanceof HTMLElement || to instanceof SVGElement) freeze(from, to);
   to.removeAttribute('id');
   to.removeAttribute('tabindex');
-  const sources = Array.from(from.children), copies = Array.from(to.children);
-  sources.forEach((child, at) => { if (copies[at]) freezeTree(child, copies[at]!); });
-  const before = pseudoCopy(from, '::before'), after = pseudoCopy(from, '::after');
+  const sources = Array.from(from.children),
+    copies = Array.from(to.children);
+  sources.forEach((child, at) => {
+    if (copies[at]) freezeTree(child, copies[at]!);
+  });
+  const before = pseudoCopy(from, '::before'),
+    after = pseudoCopy(from, '::after');
   if (before) to.prepend(before);
   if (after) to.append(after);
 }
@@ -123,7 +147,17 @@ function lifted(source: HTMLElement, rect: DOMRect, left: number, top: number) {
   const copy = source.cloneNode(true) as HTMLElement;
   freezeTree(source, copy);
   // Whatever positioned the original (a virtualised row's transform, a sticky offset) is replaced by the row's place in the card.
-  Object.assign(copy.style, { position: 'absolute', inset: 'auto', left: `${left}px`, top: `${top}px`, transform: 'none', translate: 'none', margin: '0', width: `${rect.width}px`, height: `${rect.height}px` });
+  Object.assign(copy.style, {
+    position: 'absolute',
+    inset: 'auto',
+    left: `${left}px`,
+    top: `${top}px`,
+    transform: 'none',
+    translate: 'none',
+    margin: '0',
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  });
   copy.inert = true;
   copy.setAttribute('aria-hidden', 'true');
   return copy;
@@ -146,7 +180,8 @@ export interface ContextMenuOptions {
 }
 
 /** How far the card stands out from the row it lifts: a bare line needs room around its text. */
-const LIFT_PAD_X = 4, LIFT_PAD_Y = 4;
+const LIFT_PAD_X = 4,
+  LIFT_PAD_Y = 4;
 /** How far the card stands from the menu, past the menu's own offset. */
 const LIFT_GAP = 16;
 let current: (() => void) | undefined;
@@ -180,17 +215,47 @@ export function openContextMenu(options: ContextMenuOptions): () => void {
     setOpen(false);
     // The backdrop and the copy fade for the UI motion token; reduced motion zeroes it and they go at once.
     const motion = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-ui'));
-    if (!(motion > 0)) { finish(); return; }
-    void host.animate([{ opacity: 1 }, { opacity: 0 }], { duration: motion, easing: 'ease', fill: 'forwards' }).finished.then(finish, finish);
+    if (!(motion > 0)) {
+      finish();
+      return;
+    }
+    void host
+      .animate([{ opacity: 1 }, { opacity: 0 }], { duration: motion, easing: 'ease', fill: 'forwards' })
+      .finished.then(finish, finish);
   };
-  dispose = render(() => <>
-    <div class="context-backdrop" aria-hidden="true" />
-    <div class={`context-lift ${options.liftClass ?? ''}`} style={{ left: `${cardBox.left}px`, top: `${cardBox.top}px`, width: `${cardBox.width}px`, height: `${cardBox.height}px` }} aria-hidden="true"
-      ref={element => { element.append(lifted(options.source, rect, rect.left - cardBox.left, LIFT_PAD_Y)); }} />
-    <Show when={open()}>
-      <Menu anchor={new DOMRect(cardBox.left, cardBox.top - LIFT_GAP, cardBox.width, cardBox.height + 2 * LIFT_GAP)} label={options.label} items={options.items} caption={options.caption} returnFocus={options.returnFocus} modal class="context-menu" onDismiss={close} />
-    </Show>
-  </>, host);
+  dispose = render(
+    () => (
+      <>
+        <div class="context-backdrop" aria-hidden="true" />
+        <div
+          class={`context-lift ${options.liftClass ?? ''}`}
+          style={{
+            left: `${cardBox.left}px`,
+            top: `${cardBox.top}px`,
+            width: `${cardBox.width}px`,
+            height: `${cardBox.height}px`,
+          }}
+          aria-hidden="true"
+          ref={element => {
+            element.append(lifted(options.source, rect, rect.left - cardBox.left, LIFT_PAD_Y));
+          }}
+        />
+        <Show when={open()}>
+          <Menu
+            anchor={new DOMRect(cardBox.left, cardBox.top - LIFT_GAP, cardBox.width, cardBox.height + 2 * LIFT_GAP)}
+            label={options.label}
+            items={options.items}
+            caption={options.caption}
+            returnFocus={options.returnFocus}
+            modal
+            class="context-menu"
+            onDismiss={close}
+          />
+        </Show>
+      </>
+    ),
+    host,
+  );
   current = close;
   return close;
 }

@@ -5,13 +5,17 @@ import { metadataEqual, metadataText, metadataValues } from './metadata-values';
 describe('inspector metadata values', () => {
   test('a shared value appears once with its source count', () => {
     expect(metadataValues(['Bloomsbury', 'Bloomsbury', 'Bloomsbury', 'Bloomsbury'])).toEqual({
-      distinct: [{ value: 'Bloomsbury', count: 4 }], empty: 0, mixed: false,
+      distinct: [{ value: 'Bloomsbury', count: 4 }],
+      empty: 0,
+      mixed: false,
     });
   });
 
   test('empty sources do not masquerade as conflicting known values', () => {
     expect(metadataValues(['Paperback', '', 'Paperback', ''])).toEqual({
-      distinct: [{ value: 'Paperback', count: 2 }], empty: 2, mixed: true,
+      distinct: [{ value: 'Paperback', count: 2 }],
+      empty: 2,
+      mixed: true,
     });
     expect(metadataValues(['', '', ''])).toEqual({ distinct: [], empty: 3, mixed: false });
     expect(metadataValues([[], []])).toEqual({ distinct: [], empty: 2, mixed: false });
@@ -19,7 +23,12 @@ describe('inspector metadata values', () => {
 
   test('mixed values retain every distinct source count', () => {
     expect(metadataValues(['Bloomsbury', 'Scholastic', 'Bloomsbury', 'Scholastic', ''])).toEqual({
-      distinct: [{ value: 'Bloomsbury', count: 2 }, { value: 'Scholastic', count: 2 }], empty: 1, mixed: true,
+      distinct: [
+        { value: 'Bloomsbury', count: 2 },
+        { value: 'Scholastic', count: 2 },
+      ],
+      empty: 1,
+      mixed: true,
     });
   });
 
@@ -35,14 +44,20 @@ describe('inspector metadata values', () => {
     const editor: SourceCreator = { ...author, role: 'editor' };
     const duplicate: SourceCreator = { ...author, id: 'duplicate' };
     expect(metadataValues([[author], [author], [editor], [duplicate], []])).toEqual({
-      distinct: [{ value: [author], count: 2 }, { value: [editor], count: 1 }, { value: [duplicate], count: 1 }], empty: 1, mixed: true,
+      distinct: [
+        { value: [author], count: 2 },
+        { value: [editor], count: 1 },
+        { value: [duplicate], count: 1 },
+      ],
+      empty: 1,
+      mixed: true,
     });
     expect(metadataEqual([author, editor], [editor, author])).toBe(false);
     expect(metadataText([author])).toBe('Robert C. Tucker');
   });
 
   test('a fifty-source selection aggregates without dropping empty or distinct values', () => {
-    const values = Array.from({ length: 50 }, (_, index) => index % 5 ? `Publisher ${index % 3}` : '');
+    const values = Array.from({ length: 50 }, (_, index) => (index % 5 ? `Publisher ${index % 3}` : ''));
     const aggregate = metadataValues(values);
     expect(aggregate.empty).toBe(10);
     expect(aggregate.distinct.length).toBe(3);

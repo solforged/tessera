@@ -21,8 +21,16 @@ describe('reference locators', () => {
 test('nested bracket expressions stay wholly literal without resolving inner titles', () => {
   for (const value of ['[[a [[b]] c]]', '[[a [[b]]]]', '[[a [[b]]', '[[id|a [[b]] c]]']) {
     const text = `Nested ${value} tail [[valid]]`;
-    expect(textTokens(text).filter(token => token.kind === 'reference').map(token => token.id)).toEqual(value === '[[a [[b]]' ? [] : ['valid']);
-    expect(textTokens(text).map(token => text.slice(token.start, token.end)).join('')).toBe(text);
+    expect(
+      textTokens(text)
+        .filter(token => token.kind === 'reference')
+        .map(token => token.id),
+    ).toEqual(value === '[[a [[b]]' ? [] : ['valid']);
+    expect(
+      textTokens(text)
+        .map(token => text.slice(token.start, token.end))
+        .join(''),
+    ).toBe(text);
   }
 });
 
@@ -30,18 +38,29 @@ test('reading emphasis and code preserve exact source spans and shield code synt
   const source = '**bold** *italic* `#tag [[Name]]` ***both***';
   const tokens = inlineTokens(source);
   expect(tokens.filter(token => token.formats?.length).map(token => [token.value, token.formats])).toEqual([
-    ['bold', ['bold']], ['italic', ['italic']], ['#tag [[Name]]', ['code']], ['both', ['bold', 'italic']],
+    ['bold', ['bold']],
+    ['italic', ['italic']],
+    ['#tag [[Name]]', ['code']],
+    ['both', ['bold', 'italic']],
   ]);
   for (const token of tokens) expect(source.slice(token.start, token.end)).toBe(token.value);
   expect(textTokens('`#tag [[Name]]`').every(token => token.kind === 'text')).toBe(true);
   expect(inlineTokens('**[[id|label]]**').find(token => token.kind === 'reference')?.formats).toEqual(['bold']);
-  expect(inlineTokens('**unfinished').map(token => token.value).join('')).toBe('**unfinished');
+  expect(
+    inlineTokens('**unfinished')
+      .map(token => token.value)
+      .join(''),
+  ).toBe('**unfinished');
 });
 
 test('inline code uses exact backtick runs and leaves adjacent semantic tokens active', () => {
   for (const marker of ['`', '``', '```']) {
     const text = `${marker}#Hidden [[id]]${marker} #Visible [[id]]`;
-    expect(textTokens(text).filter(token => token.kind !== 'text').map(token => token.value)).toEqual(['Visible', '[[id]]']);
+    expect(
+      textTokens(text)
+        .filter(token => token.kind !== 'text')
+        .map(token => token.value),
+    ).toEqual(['Visible', '[[id]]']);
   }
   for (const text of ['`#Hidden [[id]]`', '``#Hidden ` [[id]]``', '`#Hidden `` [[id]]`']) {
     expect(textTokens(text).every(token => token.kind === 'text')).toBe(true);
@@ -51,7 +70,11 @@ test('inline code uses exact backtick runs and leaves adjacent semantic tokens a
 test('unmatched backticks stay literal without suppressing later tags or references', () => {
   for (const marker of ['`', '``', '```']) {
     const text = `it${marker}s about #history and [[Polybius]]`;
-    expect(textTokens(text).filter(token => token.kind !== 'text').map(token => token.value)).toEqual(['history', '[[Polybius]]']);
+    expect(
+      textTokens(text)
+        .filter(token => token.kind !== 'text')
+        .map(token => token.value),
+    ).toEqual(['history', '[[Polybius]]']);
     expect(inlineTokens(text).some(token => token.formats?.includes('code'))).toBe(false);
   }
 });
@@ -68,22 +91,39 @@ test('authored external captions use one URL token without becoming page referen
     expect(token?.end).toBe(source.length);
     expect(source.slice(token!.labelStart, token!.labelStart! + caption.length)).toBe(caption);
   }
-  expect(textTokens('[a](https://a.org)[b](https://b.org)').filter(token => token.kind === 'url').map(token => token.alias)).toEqual(['a', 'b']);
+  expect(
+    textTokens('[a](https://a.org)[b](https://b.org)')
+      .filter(token => token.kind === 'url')
+      .map(token => token.alias),
+  ).toEqual(['a', 'b']);
 });
 
 test('bare Unicode tags include every combining mark and agree with type spelling', () => {
   const source = '#हिन्दी #cafe\u0301 #中文_2/x-y e\u0301#inside';
-  expect(textTokens(source).filter(token => token.kind === 'tag').map(token => [token.value, source.slice(token.start, token.end)])).toEqual([
-    ['हिन्दी', '#हिन्दी'], ['cafe\u0301', '#cafe\u0301'], ['中文_2/x-y', '#中文_2/x-y'],
+  expect(
+    textTokens(source)
+      .filter(token => token.kind === 'tag')
+      .map(token => [token.value, source.slice(token.start, token.end)]),
+  ).toEqual([
+    ['हिन्दी', '#हिन्दी'],
+    ['cafe\u0301', '#cafe\u0301'],
+    ['中文_2/x-y', '#中文_2/x-y'],
   ]);
 });
 
 test('canonical and legacy tags keep their identity, alias and exact source span', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const source = `#Arabic #[[Reading list]] #[[${id}|Arabic]] #[[${id}|]] \`#[[${id}|hidden]]\``;
-  expect(textTokens(source).filter(token => token.kind === 'tag').map(token => ({
-    id: token.id, alias: token.alias, value: token.value, source: source.slice(token.start, token.end),
-  }))).toEqual([
+  expect(
+    textTokens(source)
+      .filter(token => token.kind === 'tag')
+      .map(token => ({
+        id: token.id,
+        alias: token.alias,
+        value: token.value,
+        source: source.slice(token.start, token.end),
+      })),
+  ).toEqual([
     { id: undefined, alias: undefined, value: 'Arabic', source: '#Arabic' },
     { id: undefined, alias: undefined, value: 'Reading list', source: '#[[Reading list]]' },
     { id, alias: 'Arabic', value: 'Arabic', source: `#[[${id}|Arabic]]` },
@@ -99,7 +139,15 @@ test('saved view targets keep their name and never become block targets', () => 
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const text = `[[view:${id}|Open questions]]`;
   const token = textTokens(text)[0]!;
-  expect(token).toEqual({ start: 0, end: text.length, kind: 'reference', value: text, id, targetKind: 'view', alias: 'Open questions' });
+  expect(token).toEqual({
+    start: 0,
+    end: text.length,
+    kind: 'reference',
+    value: text,
+    id,
+    targetKind: 'view',
+    alias: 'Open questions',
+  });
   expect(isViewReference(token)).toBe(true);
   expect(isStableReference(token)).toBe(false);
   expect(textTokens(`[[view:8${id.slice(1)}|Invalid]]`)[0]?.targetKind).toBeUndefined();
@@ -113,9 +161,24 @@ describe('whole-row quote targets', () => {
     expect(quoteTarget(` \t((${id}))\n`)).toBe(id);
     expect(quoteTarget(`((${id.toLowerCase()}))`)).toBeNull();
     expect(quoteTarget(`((8${id.slice(1)}))`)).toBeNull();
-    for (const text of [`see ((${id}))`, `((${id})) next`, `((${id}))\nother`, `((${id})) ((${id}))`,
-      `(( ${id}))`, `((${id} ))`, `(((${id})))`, `((${id}|label))`, `((${id.slice(1)}))`, `((I${id.slice(1)}))`,
-      `((U${id.slice(1)}))`, `[[${id}]]`, `\`((${id}))\``, '((title))', '((']) expect(quoteTarget(text)).toBeNull();
+    for (const text of [
+      `see ((${id}))`,
+      `((${id})) next`,
+      `((${id}))\nother`,
+      `((${id})) ((${id}))`,
+      `(( ${id}))`,
+      `((${id} ))`,
+      `(((${id})))`,
+      `((${id}|label))`,
+      `((${id.slice(1)}))`,
+      `((I${id.slice(1)}))`,
+      `((U${id.slice(1)}))`,
+      `[[${id}]]`,
+      `\`((${id}))\``,
+      '((title))',
+      '((',
+    ])
+      expect(quoteTarget(text)).toBeNull();
   });
 });
 
@@ -123,7 +186,11 @@ describe('URL tokens', () => {
   test('links HTTP and HTTPS and stops at whitespace and HTML delimiters', () => {
     for (const delimiter of [' ', '\n', '\t', '<', '>', '"', "'"]) {
       const text = `http://example.org/a${delimiter}https://example.org/b`;
-      expect(textTokens(text).filter(token => token.kind === 'url').map(token => token.value)).toEqual(['http://example.org/a', 'https://example.org/b']);
+      expect(
+        textTokens(text)
+          .filter(token => token.kind === 'url')
+          .map(token => token.value),
+      ).toEqual(['http://example.org/a', 'https://example.org/b']);
     }
     expect(textTokens('ftp://example.org example.org').every(token => token.kind === 'text')).toBe(true);
   });
@@ -145,13 +212,22 @@ describe('URL tokens', () => {
       const url = 'https://example.org/wiki/Topic_(nested_(part))';
       expect(textTokens(`(${url}${suffix}`).find(token => token.kind === 'url')?.value).toBe(url);
     }
-    expect(textTokens('https://example.org/a(b)c)').find(token => token.kind === 'url')?.value).toBe('https://example.org/a(b)c');
+    expect(textTokens('https://example.org/a(b)c)').find(token => token.kind === 'url')?.value).toBe(
+      'https://example.org/a(b)c',
+    );
   });
 
   test('keeps references and tags intact and does not tokenize a URL fragment as a tag', () => {
     const text = '[[id|https://alias.example]] #[[Long tag]] #tag https://example.org/#fragment';
-    expect(textTokens(text).filter(token => token.kind !== 'text').map(token => [token.kind, token.value])).toEqual([
-      ['reference', '[[id|https://alias.example]]'], ['tag', 'Long tag'], ['tag', 'tag'], ['url', 'https://example.org/#fragment'],
+    expect(
+      textTokens(text)
+        .filter(token => token.kind !== 'text')
+        .map(token => [token.kind, token.value]),
+    ).toEqual([
+      ['reference', '[[id|https://alias.example]]'],
+      ['tag', 'Long tag'],
+      ['tag', 'tag'],
+      ['url', 'https://example.org/#fragment'],
     ]);
   });
 });
@@ -177,9 +253,19 @@ describe('deleting beside a reference or tag', () => {
   test('takes a bracketed tag pill whole from either edge and not from inside', () => {
     const tagged = 'TW back #[[01M4M13Q37BGH391ARSJX45F7Y|essay]] #[[Long tag]]';
     const end = tagged.indexOf(' #[[Long');
-    expect(tokenBeside(tagged, end, 'backward')).toMatchObject({ kind: 'tag', start: 8, end, id: '01M4M13Q37BGH391ARSJX45F7Y', alias: 'essay' });
+    expect(tokenBeside(tagged, end, 'backward')).toMatchObject({
+      kind: 'tag',
+      start: 8,
+      end,
+      id: '01M4M13Q37BGH391ARSJX45F7Y',
+      alias: 'essay',
+    });
     expect(tokenBeside(tagged, 8, 'forward')).toMatchObject({ kind: 'tag', start: 8, end });
-    expect(tokenBeside(tagged, tagged.length, 'backward')).toMatchObject({ kind: 'tag', value: 'Long tag', start: end + 1 });
+    expect(tokenBeside(tagged, tagged.length, 'backward')).toMatchObject({
+      kind: 'tag',
+      value: 'Long tag',
+      start: end + 1,
+    });
     for (let offset = 9; offset < end; offset++) expect(tokenBeside(tagged, offset, 'backward')).toBeUndefined();
     expect(tokenBeside(tagged, 8, 'backward')).toBeUndefined();
     expect(tokenBeside(tagged, end, 'forward')).toBeUndefined();

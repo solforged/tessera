@@ -42,27 +42,45 @@ export function DatePicker(props: DatePickerProps) {
   const [busy, setBusy] = createSignal(false);
   let active = true;
   let composing = false;
-  onCleanup(() => { active = false; });
+  onCleanup(() => {
+    active = false;
+  });
   // Typed input belongs to the picker: an outside click leaves it open rather than discarding the draft.
   let saved = { date: date(), time: time(), warning: warning() };
   const dirty = () => date() !== saved.date || time() !== saved.time || warning() !== saved.warning;
-  createEffect(on([() => props.value, () => props.time], ([value, clock]) => {
-    setDate(value ?? '');
-    setTime(clock ?? '');
-    saved = { ...saved, date: value ?? '', time: clock ?? '' };
-    setError('');
-  }, { defer: true }));
+  createEffect(
+    on(
+      [() => props.value, () => props.time],
+      ([value, clock]) => {
+        setDate(value ?? '');
+        setTime(clock ?? '');
+        saved = { ...saved, date: value ?? '', time: clock ?? '' };
+        setError('');
+      },
+      { defer: true },
+    ),
+  );
 
   const select = async (value: { date: string | null; time: string | null }, backward?: boolean) => {
     if (busy()) return;
     const lead = warning().trim() ? Number(warning()) : null;
-    if (props.warningDays !== undefined && lead !== null && (!/^\d+$/.test(warning()) || !Number.isSafeInteger(lead) || lead > 4_294_967_295)) { setError('Enter a nonnegative whole number of days.'); return; }
+    if (
+      props.warningDays !== undefined &&
+      lead !== null &&
+      (!/^\d+$/.test(warning()) || !Number.isSafeInteger(lead) || lead > 4_294_967_295)
+    ) {
+      setError('Enter a nonnegative whole number of days.');
+      return;
+    }
     setBusy(true);
     setError('');
     const draftDate = date();
     const draftTime = time();
     try {
-      await props.onSelect({ ...value, ...(props.warningDays !== undefined ? { warning_days: value.date ? lead : null } : {}) });
+      await props.onSelect({
+        ...value,
+        ...(props.warningDays !== undefined ? { warning_days: value.date ? lead : null } : {}),
+      });
       if (active) {
         props.onDismiss();
         if (backward !== undefined) props.onAdvance?.(backward);
@@ -80,18 +98,30 @@ export function DatePicker(props: DatePickerProps) {
   const apply = (input = date(), backward?: boolean) => {
     if (busy()) return;
     const partial = props.partialDates ? partialFieldDate(input) : null;
-    if (partial) { void select({ date: partial, time: null }, backward); return; }
+    if (partial) {
+      void select({ date: partial, time: null }, backward);
+      return;
+    }
     const parsed = parseTaskDate(input, props.contextDate);
-    if (!parsed.ok) { setError(parsed.error); return; }
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
     if (props.time === undefined && parsed.time !== null) {
       setError('This value accepts a date only. Remove the time.');
       return;
     }
     let clock = parsed.time;
     if (props.time !== undefined && time().trim()) {
-      if (parsed.date === null) { setError('Enter a date before a time.'); return; }
+      if (parsed.date === null) {
+        setError('Enter a date before a time.');
+        return;
+      }
       const timed = parseTaskDate(`${parsed.date} ${time().trim()}`, props.contextDate);
-      if (!timed.ok) { setError(timed.error); return; }
+      if (!timed.ok) {
+        setError(timed.error);
+        return;
+      }
       clock = timed.time;
     }
     void select({ date: parsed.date, time: clock }, backward);
@@ -102,7 +132,14 @@ export function DatePicker(props: DatePickerProps) {
     apply(input);
   };
   const keydown = (event: KeyboardEvent) => {
-    if (event.key === 'Tab' && props.onAdvance && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey) {
+    if (
+      event.key === 'Tab' &&
+      props.onAdvance &&
+      !event.isComposing &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
       event.preventDefault();
       event.stopPropagation();
       apply(date(), event.shiftKey);
@@ -120,65 +157,178 @@ export function DatePicker(props: DatePickerProps) {
     const parsed = parseTaskDate(date(), props.contextDate);
     return parsed.ok ? parsed.date : null;
   });
-  const planning = props.partialDates || props.presets === 'revisit' ? undefined : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
+  const planning =
+    props.partialDates || props.presets === 'revisit'
+      ? undefined
+      : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
   // The phone pane already stops above the bottom navigation and system safe area.
   // Reuse that box so an anchored calendar clips its body rather than covering the navigation.
   const bounds = () => {
     if (!window.matchMedia('(pointer: coarse)').matches) return null;
-    const pane = (props.anchor instanceof HTMLElement ? props.anchor.closest('.pane') : null) ?? document.querySelector('.pane.active');
+    const pane =
+      (props.anchor instanceof HTMLElement ? props.anchor.closest('.pane') : null) ??
+      document.querySelector('.pane.active');
     return pane?.getBoundingClientRect() ?? null;
   };
 
   // On a phone the calendar is a sheet, like the task fields sheet, and a touch screen never opens its keyboard unasked.
   const cover = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
   const coarse = window.matchMedia('(pointer: coarse)').matches;
-  return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" placement={cover ? 'sheet' : 'anchor'} autofocus={coarse ? false : undefined} dirty={dirty} fitContent bounds={bounds}>
-    <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
-      <div class="date-picker-body">
-        <div class="date-picker-field">
-          <label for={`${id}-date`}>{props.label}</label>
-          <input id={`${id}-date`} class="input" type="text" value={date()} placeholder={props.partialDates ? partialDatePlaceholder : 'today, next Monday, +2d'} autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
-            const value = event.currentTarget.value;
-            setDate(value);
-            if (props.time !== undefined) {
-              const parsed = parseTaskDate(value, props.contextDate);
-              if (parsed.ok && parsed.time !== null) setTime(parsed.time);
-            }
-          }} />
-        </div>
-        <div class="date-picker-quick-picks">
-          <Show when={props.presets === 'revisit'} fallback={<>
-            <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
-            <Show when={!props.partialDates}>
-              <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
-              <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
-            </Show>
-          </>}>
-            <Button disabled={busy()} onClick={() => quickPick('+1w')}>Revisit in a week</Button>
-            <Button disabled={busy()} onClick={() => quickPick('+1m')}>Revisit in a month</Button>
-            <Button disabled={busy()} onClick={() => quickPick('+3m')}>Revisit in three months</Button>
-          </Show>
-        </div>
-        <MonthGrid value={preview()} today={props.contextDate} marks={props.marks} planningMarks={planning?.marks()} planningLoading={planning?.loading()} planningError={planning?.error()} onMonthChange={planning?.setMonth} disabled={busy()} onPick={day => { setDate(day); apply(day); }} />
-      </div>
-      <div class="date-picker-footer">
-        <Show when={props.time !== undefined}>
+  return (
+    <Popup
+      anchor={props.anchor}
+      label={props.label}
+      onDismiss={props.onDismiss}
+      class="date-picker"
+      placement={cover ? 'sheet' : 'anchor'}
+      autofocus={coarse ? false : undefined}
+      dirty={dirty}
+      fitContent
+      bounds={bounds}
+    >
+      <form
+        class="date-picker-form"
+        aria-busy={busy()}
+        onKeyDown={keydown}
+        onCompositionStart={() => {
+          composing = true;
+        }}
+        onCompositionEnd={() => {
+          composing = false;
+        }}
+        onSubmit={event => {
+          event.preventDefault();
+          if (!composing) apply();
+        }}
+      >
+        <div class="date-picker-body">
           <div class="date-picker-field">
-            <label for={`${id}-time`} title="Optional time">Time</label>
-            <input id={`${id}-time`} class="input date-picker-time" type="text" aria-label="Time (optional)" value={time()} placeholder="HH:MM" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
-              setTime(event.currentTarget.value);
-              const parsed = parseTaskDate(date(), props.contextDate);
-              if (parsed.ok && parsed.time !== null) setDate(parsed.date ?? '');
-            }} />
+            <label for={`${id}-date`}>{props.label}</label>
+            <input
+              id={`${id}-date`}
+              class="input"
+              type="text"
+              value={date()}
+              placeholder={props.partialDates ? partialDatePlaceholder : 'today, next Monday, +2d'}
+              autocomplete="off"
+              spellcheck={false}
+              disabled={busy()}
+              aria-invalid={!!error()}
+              aria-describedby={error() ? `${id}-error` : undefined}
+              onInput={event => {
+                const value = event.currentTarget.value;
+                setDate(value);
+                if (props.time !== undefined) {
+                  const parsed = parseTaskDate(value, props.contextDate);
+                  if (parsed.ok && parsed.time !== null) setTime(parsed.time);
+                }
+              }}
+            />
           </div>
-        </Show>
-        <Show when={props.warningDays !== undefined}><label class="date-picker-field">Warning lead (days)<input class="input" inputmode="numeric" value={warning()} placeholder="None" disabled={busy()} onInput={event => setWarning(event.currentTarget.value)} /></label></Show>
-        <Show when={error()}><p id={`${id}-error`} class="error date-picker-error" role="alert">{error()}</p></Show>
-        <div class="date-picker-actions">
-          <Button disabled={busy()} onClick={() => { void select({ date: null, time: null }); }}>{props.presets === 'revisit' ? 'No revisit date' : 'Clear'}</Button>
-          <Button type="submit" class="bordered" disabled={busy()}>Apply</Button>
+          <div class="date-picker-quick-picks">
+            <Show
+              when={props.presets === 'revisit'}
+              fallback={
+                <>
+                  <Button disabled={busy()} onClick={() => quickPick('today')}>
+                    Today
+                  </Button>
+                  <Show when={!props.partialDates}>
+                    <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>
+                      Tomorrow
+                    </Button>
+                    <Button disabled={busy()} onClick={() => quickPick('+1w')}>
+                      Next week
+                    </Button>
+                  </Show>
+                </>
+              }
+            >
+              <Button disabled={busy()} onClick={() => quickPick('+1w')}>
+                Revisit in a week
+              </Button>
+              <Button disabled={busy()} onClick={() => quickPick('+1m')}>
+                Revisit in a month
+              </Button>
+              <Button disabled={busy()} onClick={() => quickPick('+3m')}>
+                Revisit in three months
+              </Button>
+            </Show>
+          </div>
+          <MonthGrid
+            value={preview()}
+            today={props.contextDate}
+            marks={props.marks}
+            planningMarks={planning?.marks()}
+            planningLoading={planning?.loading()}
+            planningError={planning?.error()}
+            onMonthChange={planning?.setMonth}
+            disabled={busy()}
+            onPick={day => {
+              setDate(day);
+              apply(day);
+            }}
+          />
         </div>
-      </div>
-    </form>
-  </Popup>;
+        <div class="date-picker-footer">
+          <Show when={props.time !== undefined}>
+            <div class="date-picker-field">
+              <label for={`${id}-time`} title="Optional time">
+                Time
+              </label>
+              <input
+                id={`${id}-time`}
+                class="input date-picker-time"
+                type="text"
+                aria-label="Time (optional)"
+                value={time()}
+                placeholder="HH:MM"
+                autocomplete="off"
+                spellcheck={false}
+                disabled={busy()}
+                aria-invalid={!!error()}
+                aria-describedby={error() ? `${id}-error` : undefined}
+                onInput={event => {
+                  setTime(event.currentTarget.value);
+                  const parsed = parseTaskDate(date(), props.contextDate);
+                  if (parsed.ok && parsed.time !== null) setDate(parsed.date ?? '');
+                }}
+              />
+            </div>
+          </Show>
+          <Show when={props.warningDays !== undefined}>
+            <label class="date-picker-field">
+              Warning lead (days)
+              <input
+                class="input"
+                inputmode="numeric"
+                value={warning()}
+                placeholder="None"
+                disabled={busy()}
+                onInput={event => setWarning(event.currentTarget.value)}
+              />
+            </label>
+          </Show>
+          <Show when={error()}>
+            <p id={`${id}-error`} class="error date-picker-error" role="alert">
+              {error()}
+            </p>
+          </Show>
+          <div class="date-picker-actions">
+            <Button
+              disabled={busy()}
+              onClick={() => {
+                void select({ date: null, time: null });
+              }}
+            >
+              {props.presets === 'revisit' ? 'No revisit date' : 'Clear'}
+            </Button>
+            <Button type="submit" class="bordered" disabled={busy()}>
+              Apply
+            </Button>
+          </div>
+        </div>
+      </form>
+    </Popup>
+  );
 }

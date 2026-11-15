@@ -28,55 +28,163 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   const [error, setError] = createSignal('');
   let scroll!: HTMLDivElement;
   let restored = false;
-  createEffect(on(() => props.notebook.changeSequence(), () => {
-    const timer = setTimeout(() => setVersion(value => value + 1), 150);
-    onCleanup(() => clearTimeout(timer));
-  }, { defer: true }));
-  const [data] = createResource(() => [props.typeId, version()] as const, async ([id]) => {
-    try {
-      const [type, fields, index] = await Promise.all([props.notebook.api.type(id), props.notebook.api.fields(), props.notebook.api.noteIndex()]);
-      setError('');
-      return { type, fields, kind: index.kinds.find(kind => kind.type_id === id) };
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return undefined;
-    }
-  });
+  createEffect(
+    on(
+      () => props.notebook.changeSequence(),
+      () => {
+        const timer = setTimeout(() => setVersion(value => value + 1), 150);
+        onCleanup(() => clearTimeout(timer));
+      },
+      { defer: true },
+    ),
+  );
+  const [data] = createResource(
+    () => [props.typeId, version()] as const,
+    async ([id]) => {
+      try {
+        const [type, fields, index] = await Promise.all([
+          props.notebook.api.type(id),
+          props.notebook.api.fields(),
+          props.notebook.api.noteIndex(),
+        ]);
+        setError('');
+        return { type, fields, kind: index.kinds.find(kind => kind.type_id === id) };
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+        return undefined;
+      }
+    },
+  );
   const title = createMemo(() => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag');
-  const registerName = createMemo(() => data.latest?.kind ? kindLabel(data.latest.kind) : data.latest?.type.plural || autoPlural(title()));
+  const registerName = createMemo(() =>
+    data.latest?.kind ? kindLabel(data.latest.kind) : data.latest?.type.plural || autoPlural(title()),
+  );
   const tableCount = createMemo(() => {
     const value = data.latest;
     // Capability registers include active atoms without authored tag memberships.
     return value?.kind && ['task', 'question', 'source', 'project'].includes(value.kind.key)
-      ? value.kind.count : value?.type.members;
+      ? value.kind.count
+      : value?.type.members;
   });
   createEffect(() => {
     if (!data.latest || restored) return;
     restored = true;
-    requestAnimationFrame(() => { scroll.scrollTop = props.view.scroll; });
+    requestAnimationFrame(() => {
+      scroll.scrollTop = props.view.scroll;
+    });
   });
-  return <div ref={scroll} class="type-fields-pane" role="region" tabIndex={0} data-pane-pending={!data.latest && !error() ? '' : undefined} aria-label={`${title()} fields`} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
-    <div class="type-fields-register">
-      <Show when={isPhone()} fallback={<header class="type-fields-heading">
-        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}>{registerName()}</Button></div>
-        <div class="type-fields-title"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{registerName()}</h1></div>
-      </header>}>
-        {/* List's phone title block: the crumb, then the count and the 34 pt name, so the strip keeps List's y. */}
-        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}>{registerName()}</Button></div>
-        <div class="index-head">
-          <h1>{registerName()}</h1>
-          <Show when={data.latest?.kind}>{kind => <span class="index-census"><span class="fig">{kind().count.toLocaleString()}</span> {censusNoun(kind().count, kind().key, kind())}</span>}</Show>
-        </div>
-      </Show>
-      <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={tableCount()} fieldsCount={data.latest?.type.fields.length}
-        cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}
-        onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}
-        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}
-        onFields={() => { scroll.scrollTop = 0; }} />
-      <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
-      <Show when={data.latest} fallback={<Show when={!error()}><p class="empty-state" role="status">Loading fields…</p></Show>}>{value =>
-        <TemplateEditor type={value().type} fields={value().fields.fields} notebook={props.notebook} onError={setError} onOpen={props.onOpen} pluralName={value().kind?.plural ?? value().type.plural ?? autoPlural(title())} register={{ fields: value().fields.fields, pageId: value().fields.page_id }} />
-      }</Show>
+  return (
+    <div
+      ref={scroll}
+      class="type-fields-pane"
+      role="region"
+      tabIndex={0}
+      data-pane-pending={!data.latest && !error() ? '' : undefined}
+      aria-label={`${title()} fields`}
+      onFocusIn={props.onActivate}
+      onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}
+    >
+      <div class="type-fields-register">
+        <Show
+          when={isPhone()}
+          fallback={
+            <header class="type-fields-heading">
+              <div class="fields-register">
+                <Button
+                  class="type-fields-crumb"
+                  onClick={event =>
+                    props.onOpen(
+                      { kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` },
+                      opensBeside(event),
+                    )
+                  }
+                >
+                  {registerName()}
+                </Button>
+              </div>
+              <div class="type-fields-title">
+                <h1>
+                  <Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>
+                  {registerName()}
+                </h1>
+              </div>
+            </header>
+          }
+        >
+          {/* List's phone title block: the crumb, then the count and the 34 pt name, so the strip keeps List's y. */}
+          <div class="fields-register">
+            <Button
+              class="type-fields-crumb"
+              onClick={event =>
+                props.onOpen(
+                  { kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` },
+                  opensBeside(event),
+                )
+              }
+            >
+              {registerName()}
+            </Button>
+          </div>
+          <div class="index-head">
+            <h1>{registerName()}</h1>
+            <Show when={data.latest?.kind}>
+              {kind => (
+                <span class="index-census">
+                  <span class="fig">{kind().count.toLocaleString()}</span>{' '}
+                  {censusNoun(kind().count, kind().key, kind())}
+                </span>
+              )}
+            </Show>
+          </div>
+        </Show>
+        <TypeModeTabs
+          active="fields"
+          indexCount={data.latest?.kind?.count}
+          tableCount={tableCount()}
+          fieldsCount={data.latest?.type.fields.length}
+          cardsCount={data.latest?.type.card_templates}
+          onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}
+          onIndex={event =>
+            props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))
+          }
+          onTable={event =>
+            props.onOpen(
+              { kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) },
+              opensBeside(event),
+            )
+          }
+          onFields={() => {
+            scroll.scrollTop = 0;
+          }}
+        />
+        <Show when={error()}>
+          <p class="error" role="alert">
+            {error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button>
+          </p>
+        </Show>
+        <Show
+          when={data.latest}
+          fallback={
+            <Show when={!error()}>
+              <p class="empty-state" role="status">
+                Loading fields…
+              </p>
+            </Show>
+          }
+        >
+          {value => (
+            <TemplateEditor
+              type={value().type}
+              fields={value().fields.fields}
+              notebook={props.notebook}
+              onError={setError}
+              onOpen={props.onOpen}
+              pluralName={value().kind?.plural ?? value().type.plural ?? autoPlural(title())}
+              register={{ fields: value().fields.fields, pageId: value().fields.page_id }}
+            />
+          )}
+        </Show>
+      </div>
     </div>
-  </div>;
+  );
 }

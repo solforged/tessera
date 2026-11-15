@@ -1,26 +1,58 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, TaskQuery, TaskQueryResult, TaskRow, TaskState } from '../api/types';
-import { cachedMonthPlanningMarks, countPlanningDates, loadMonthPlanningMarks, mergePlanningCounts, planningCountLabel, planningMonthRange } from './planning-marks';
+import {
+  cachedMonthPlanningMarks,
+  countPlanningDates,
+  loadMonthPlanningMarks,
+  mergePlanningCounts,
+  planningCountLabel,
+  planningMonthRange,
+} from './planning-marks';
 
 function taskRow(id: string, patch: Partial<TaskState> = {}): TaskRow {
-  const page: Block = { id: 'page', page_id: 'page', parent_id: null, kind: 'page', text: 'Planning', heading: null, archived: false, revision: 1, created_at: 1, updated_at: 1 };
+  const page: Block = {
+    id: 'page',
+    page_id: 'page',
+    parent_id: null,
+    kind: 'page',
+    text: 'Planning',
+    heading: null,
+    archived: false,
+    revision: 1,
+    created_at: 1,
+    updated_at: 1,
+  };
   return {
     source: { page, block: { ...page, id, parent_id: page.id, kind: 'block', text: id } },
-    task: { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null, ...patch },
-    project_id: null, section_id: null, section_text: null,
+    task: {
+      status: 'todo',
+      scheduled: null,
+      scheduled_time: null,
+      deadline: null,
+      deadline_time: null,
+      warning_days: null,
+      repeater: null,
+      priority: null,
+      completed_on: null,
+      ...patch,
+    },
+    project_id: null,
+    section_id: null,
+    section_text: null,
   };
 }
 
 function queryRows(rows: readonly TaskRow[], query: TaskQuery): TaskQueryResult {
   const filtered = rows.filter(({ task }) => {
     if (task.status === null) return false;
-    if (query.filter.selection === 'unfinished' && (task.status === 'done' || task.status === 'cancelled')) return false;
+    if (query.filter.selection === 'unfinished' && (task.status === 'done' || task.status === 'cancelled'))
+      return false;
     if (query.filter.statuses.length && !query.filter.statuses.includes(task.status)) return false;
     for (const field of ['scheduled', 'deadline'] as const) {
       const range = query.filter[field];
       if (!range) continue;
       const date = task[field];
-      if (!date || range.from && date < range.from || range.through && date > range.through) return false;
+      if (!date || (range.from && date < range.from) || (range.through && date > range.through)) return false;
     }
     return true;
   });
@@ -32,24 +64,38 @@ function notebookFixture(initialRows: TaskRow[] = [], query?: (value: TaskQuery)
   let rows = initialRows;
   const requests: TaskQuery[] = [];
   const notebook = {
-    api: { taskQuery(value: TaskQuery) {
-      requests.push(value);
-      return query ? query(value) : Promise.resolve(queryRows(rows, value));
-    } },
-    changeSequence() { return sequence; },
+    api: {
+      taskQuery(value: TaskQuery) {
+        requests.push(value);
+        return query ? query(value) : Promise.resolve(queryRows(rows, value));
+      },
+    },
+    changeSequence() {
+      return sequence;
+    },
   };
   return {
-    notebook, requests,
-    advance() { sequence++; },
-    replace(next: TaskRow[]) { rows = next; },
+    notebook,
+    requests,
+    advance() {
+      sequence++;
+    },
+    replace(next: TaskRow[]) {
+      rows = next;
+    },
   };
 }
 
-interface Deferred<T> { promise: Promise<T>; resolve(value: T): void }
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve(value: T): void;
+}
 
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => { resolve = done; });
+  const promise = new Promise<T>(done => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 
@@ -118,7 +164,9 @@ describe('monthly planning counts', () => {
 
   test('truncated ranges partition down to exact-day totals, including more than 2000 tasks on one day', async () => {
     const rows = [
-      ...Array.from({ length: 2001 }, (_, index) => taskRow(`first-${index}`, { scheduled: '2026-10-05', deadline: '2026-10-23' })),
+      ...Array.from({ length: 2001 }, (_, index) =>
+        taskRow(`first-${index}`, { scheduled: '2026-10-05', deadline: '2026-10-23' }),
+      ),
       ...Array.from({ length: 2002 }, (_, index) => taskRow(`last-${index}`, { scheduled: '2026-10-23' })),
       taskRow('done', { status: 'done', scheduled: '2026-10-05', deadline: '2026-10-23' }),
       taskRow('cancelled', { status: 'cancelled', scheduled: '2026-10-23' }),
@@ -128,9 +176,19 @@ describe('monthly planning counts', () => {
       '2026-10-05': { scheduled: 2001, deadline: 0 },
       '2026-10-23': { scheduled: 2002, deadline: 2001 },
     });
-    expect(fixture.requests.some(query => query.filter.scheduled?.from === '2026-10-05' && query.filter.scheduled.through === '2026-10-05')).toBe(true);
-    expect(fixture.requests.some(query => query.filter.deadline?.from === '2026-10-23' && query.filter.deadline.through === '2026-10-23')).toBe(true);
-    expect(fixture.requests.every(query => query.limit === 2000 && !(query.filter.scheduled && query.filter.deadline))).toBe(true);
+    expect(
+      fixture.requests.some(
+        query => query.filter.scheduled?.from === '2026-10-05' && query.filter.scheduled.through === '2026-10-05',
+      ),
+    ).toBe(true);
+    expect(
+      fixture.requests.some(
+        query => query.filter.deadline?.from === '2026-10-23' && query.filter.deadline.through === '2026-10-23',
+      ),
+    ).toBe(true);
+    expect(
+      fixture.requests.every(query => query.limit === 2000 && !(query.filter.scheduled && query.filter.deadline)),
+    ).toBe(true);
   });
 });
 
@@ -180,14 +238,18 @@ describe('planning month cache', () => {
     pending[1]!.resolve({ rows: [], total: 0 });
     await old;
     expect(cachedMonthPlanningMarks(fixture.notebook, '2026-10-06')).toBe(marks);
-    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toEqual({ '2026-10-07': { scheduled: 1, deadline: 0 } });
+    expect(await loadMonthPlanningMarks(fixture.notebook, '2026-10-06')).toEqual({
+      '2026-10-07': { scheduled: 1, deadline: 0 },
+    });
     expect(fixture.requests).toHaveLength(4);
   });
 
   test('a failed refresh preserves old marks but is not reused as a successful cache hit', async () => {
     const rows = [taskRow('first', { scheduled: '2026-10-06' })];
     let failed = false;
-    const fixture = notebookFixture(rows, query => failed ? Promise.reject(new Error('Planning unavailable')) : Promise.resolve(queryRows(rows, query)));
+    const fixture = notebookFixture(rows, query =>
+      failed ? Promise.reject(new Error('Planning unavailable')) : Promise.resolve(queryRows(rows, query)),
+    );
     const first = await loadMonthPlanningMarks(fixture.notebook, '2026-10-06');
     fixture.advance();
     failed = true;

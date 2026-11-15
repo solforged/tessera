@@ -8,7 +8,13 @@ import type { UpgradeCopy } from './notebook';
 type Reply = Extract<FromWorker, { type: 'response' | 'done' | 'bytes' | 'restored' | 'upgrade-copy' }>;
 
 export class DemoFailure extends Error {
-  constructor(readonly code: FailureCode, message: string) { super(message); this.name = 'DemoFailure'; }
+  constructor(
+    readonly code: FailureCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'DemoFailure';
+  }
 }
 interface Pending {
   resolve(message: Reply): void;
@@ -28,14 +34,22 @@ export class DemoTransport {
 
   constructor(private worker: Worker) {
     worker.addEventListener('message', event => this.receive(event.data as FromWorker));
-    worker.addEventListener('error', event => { event.preventDefault(); this.fail(new DemoFailure('internal', event.message || 'The workshop worker could not start.')); });
-    worker.addEventListener('messageerror', () => this.fail(new DemoFailure('internal', 'The workshop worker sent an unreadable response.')));
+    worker.addEventListener('error', event => {
+      event.preventDefault();
+      this.fail(new DemoFailure('internal', event.message || 'The workshop worker could not start.'));
+    });
+    worker.addEventListener('messageerror', () =>
+      this.fail(new DemoFailure('internal', 'The workshop worker sent an unreadable response.')),
+    );
   }
 
   private fail(reason: DemoFailure): void {
     this.failure = reason;
     this.startup.reject(reason);
-    for (const pending of this.pending.values()) { pending.cleanup(); pending.reject(reason); }
+    for (const pending of this.pending.values()) {
+      pending.cleanup();
+      pending.reject(reason);
+    }
     this.pending.clear();
     for (const socket of this.sockets.values()) socket.fail();
     this.sockets.clear();
@@ -43,16 +57,24 @@ export class DemoTransport {
 
   private receive(message: FromWorker): void {
     switch (message.type) {
-      case 'ready': this.startup.resolve({ info: message.info, fresh: message.fresh }); break;
-      case 'failed': this.fail(new DemoFailure(message.code, message.message)); break;
-      case 'change': this.sockets.get(message.id)?.message(message.event); break;
+      case 'ready':
+        this.startup.resolve({ info: message.info, fresh: message.fresh });
+        break;
+      case 'failed':
+        this.fail(new DemoFailure(message.code, message.message));
+        break;
+      case 'change':
+        this.sockets.get(message.id)?.message(message.event);
+        break;
       case 'error': {
         const pending = this.pending.get(message.id);
         if (pending) {
-          this.pending.delete(message.id); pending.cleanup();
+          this.pending.delete(message.id);
+          pending.cleanup();
           pending.reject(new DemoFailure(message.code, message.message));
         } else {
-          this.sockets.get(message.id)?.fail(); this.sockets.delete(message.id);
+          this.sockets.get(message.id)?.fail();
+          this.sockets.delete(message.id);
         }
         break;
       }
@@ -62,8 +84,11 @@ export class DemoTransport {
       case 'done':
       case 'response': {
         const pending = this.pending.get(message.id);
-        if (pending) { this.pending.delete(message.id); pending.cleanup(); pending.resolve(message); }
-        else if (message.type === 'done') this.sockets.get(message.id)?.open();
+        if (pending) {
+          this.pending.delete(message.id);
+          pending.cleanup();
+          pending.resolve(message);
+        } else if (message.type === 'done') this.sockets.get(message.id)?.open();
         break;
       }
     }
@@ -72,20 +97,30 @@ export class DemoTransport {
   private exchange(message: ToWorker, transfer: Transferable[] = [], signal?: AbortSignal): Promise<Reply> {
     const { promise, resolve, reject } = Promise.withResolvers<Reply>();
     const abort = () => {
-      this.pending.delete(message.id); signal?.removeEventListener('abort', abort);
+      this.pending.delete(message.id);
+      signal?.removeEventListener('abort', abort);
       reject(signal?.reason ?? new DOMException('The request was aborted.', 'AbortError'));
     };
-    if (signal?.aborted) { abort(); return promise; }
+    if (signal?.aborted) {
+      abort();
+      return promise;
+    }
     this.pending.set(message.id, { resolve, reject, cleanup: () => signal?.removeEventListener('abort', abort) });
     signal?.addEventListener('abort', abort, { once: true });
-    void this.ready.then(() => {
-      if (!this.pending.has(message.id)) return;
-      if (this.failure) throw this.failure;
-      this.worker.postMessage(message, transfer);
-    }).catch(reason => {
-      const pending = this.pending.get(message.id);
-      if (pending) { this.pending.delete(message.id); pending.cleanup(); pending.reject(reason); }
-    });
+    void this.ready
+      .then(() => {
+        if (!this.pending.has(message.id)) return;
+        if (this.failure) throw this.failure;
+        this.worker.postMessage(message, transfer);
+      })
+      .catch(reason => {
+        const pending = this.pending.get(message.id);
+        if (pending) {
+          this.pending.delete(message.id);
+          pending.cleanup();
+          pending.reject(reason);
+        }
+      });
     return promise;
   }
 
@@ -93,7 +128,10 @@ export class DemoTransport {
     if (this.closing) return Promise.reject(new DemoFailure('internal', 'The workshop worker was closed.'));
     const request = this.request(url, init);
     this.requests.add(request);
-    void request.then(() => this.requests.delete(request), () => this.requests.delete(request));
+    void request.then(
+      () => this.requests.delete(request),
+      () => this.requests.delete(request),
+    );
     return request;
   };
 
@@ -101,26 +139,53 @@ export class DemoTransport {
     const parsed = new URL(url, typeof location === 'undefined' ? 'http://demo.local' : location.href);
     const request = new Request(parsed, init);
     const body = request.body ? await request.arrayBuffer() : null;
-    const message = await this.exchange({ id: ++this.nextId, type: 'request', method: request.method, path: `${parsed.pathname}${parsed.search}`, headers: [...request.headers], body }, body ? [body] : [], request.signal);
+    const message = await this.exchange(
+      {
+        id: ++this.nextId,
+        type: 'request',
+        method: request.method,
+        path: `${parsed.pathname}${parsed.search}`,
+        headers: [...request.headers],
+        body,
+      },
+      body ? [body] : [],
+      request.signal,
+    );
     if (message.type !== 'response') throw new Error('The workshop worker did not return a response.');
-    return new Response([204, 205, 304].includes(message.status) ? null : message.body, { status: message.status, headers: { 'content-type': message.contentType } });
+    return new Response([204, 205, 304].includes(message.status) ? null : message.body, {
+      status: message.status,
+      headers: { 'content-type': message.contentType },
+    });
   };
 
   readonly stream = (after: number): ChangeSocket => {
     const id = ++this.nextId;
     const socket = new DemoSocket(() => {
       this.sockets.delete(id);
-      void this.ready.then(() => {
-        if (!this.failure) this.worker.postMessage({ id, type: 'unsubscribe' } satisfies ToWorker);
-      }).catch(() => { /* A failed worker has already released the stream. */ });
+      void this.ready
+        .then(() => {
+          if (!this.failure) this.worker.postMessage({ id, type: 'unsubscribe' } satisfies ToWorker);
+        })
+        .catch(() => {
+          /* A failed worker has already released the stream. */
+        });
     });
     this.sockets.set(id, socket);
-    void this.ready.then(() => {
-      if (socket.readyState !== CHANGE_CONNECTING) return;
-      if (this.closing) { socket.fail(); this.sockets.delete(id); return; }
-      if (this.failure) throw this.failure;
-      this.worker.postMessage({ id, type: 'subscribe', after } satisfies ToWorker);
-    }).catch(() => { socket.fail(); this.sockets.delete(id); });
+    void this.ready
+      .then(() => {
+        if (socket.readyState !== CHANGE_CONNECTING) return;
+        if (this.closing) {
+          socket.fail();
+          this.sockets.delete(id);
+          return;
+        }
+        if (this.failure) throw this.failure;
+        this.worker.postMessage({ id, type: 'subscribe', after } satisfies ToWorker);
+      })
+      .catch(() => {
+        socket.fail();
+        this.sockets.delete(id);
+      });
     return socket;
   };
 
@@ -205,6 +270,9 @@ class DemoSocket implements ChangeSocket {
     if (this.readyState >= CHANGE_CLOSING) return;
     this.unsubscribe();
     this.readyState = CHANGE_CLOSING;
-    queueMicrotask(() => { this.readyState = CHANGE_CLOSED; this.onclose?.(new CloseEvent('close')); });
+    queueMicrotask(() => {
+      this.readyState = CHANGE_CLOSED;
+      this.onclose?.(new CloseEvent('close'));
+    });
   }
 }

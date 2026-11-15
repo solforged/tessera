@@ -16,7 +16,8 @@ const KEYBOARD_WAIT_MS = 5000;
 const STILL_FRAMES = 3;
 
 const editable = (element: Element | null): element is HTMLElement =>
-  element instanceof HTMLElement && (element.isContentEditable || element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement);
+  element instanceof HTMLElement &&
+  (element.isContentEditable || element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement);
 
 /**
  * Runs `run` for each quick action once the shell has restored its navigation. The iOS app keeps the chosen action
@@ -31,11 +32,15 @@ export function installHomeShortcuts(ready: Accessor<boolean>, run: (shortcut: H
   if (!handler) return;
   const [requested, setRequested] = createSignal<HomeShortcut | null>(null);
   let frame = 0;
-  const stopWaiting = () => { cancelAnimationFrame(frame); frame = 0; };
+  const stopWaiting = () => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+  };
   const raiseKeyboard = () => {
     stopWaiting();
     const until = performance.now() + KEYBOARD_WAIT_MS;
-    let last = '', still = 0;
+    let last = '',
+      still = 0;
     const check = () => {
       frame = 0;
       if (performance.now() > until) return;
@@ -46,18 +51,28 @@ export function installHomeShortcuts(ready: Accessor<boolean>, run: (shortcut: H
         still = key === last ? still + 1 : 0;
         last = key;
         if (still >= STILL_FRAMES) {
-          void handler.postMessage({ keyboard: [rect.x, rect.y, rect.width, rect.height] }).catch(() => { /* The editor stays focused without the keyboard. */ });
+          void handler.postMessage({ keyboard: [rect.x, rect.y, rect.width, rect.height] }).catch(() => {
+            /* The editor stays focused without the keyboard. */
+          });
           return;
         }
-      } else { last = ''; still = 0; }
+      } else {
+        last = '';
+        still = 0;
+      }
       frame = requestAnimationFrame(check);
     };
     frame = requestAnimationFrame(check);
   };
   const take = () => {
-    void handler.postMessage('take').then(value => {
-      if (shortcuts.includes(value as HomeShortcut)) setRequested(value as HomeShortcut);
-    }, () => { /* A page without the native handler has no quick actions. */ });
+    void handler.postMessage('take').then(
+      value => {
+        if (shortcuts.includes(value as HomeShortcut)) setRequested(value as HomeShortcut);
+      },
+      () => {
+        /* A page without the native handler has no quick actions. */
+      },
+    );
   };
   createEffect(() => {
     const shortcut = requested();
@@ -66,7 +81,9 @@ export function installHomeShortcuts(ready: Accessor<boolean>, run: (shortcut: H
     run(shortcut);
     if (shortcut === 'capture') raiseKeyboard();
   });
-  const visible = () => { if (document.visibilityState === 'visible') take(); };
+  const visible = () => {
+    if (document.visibilityState === 'visible') take();
+  };
   onMount(() => {
     document.addEventListener('visibilitychange', visible);
     window.addEventListener('tessera-shortcut', take);

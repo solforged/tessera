@@ -10,7 +10,10 @@ const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matc
 /** The done glyph's pop, shared by the task status button and Agenda rows. */
 export function popStatusGlyph(icon: Element | null | undefined): void {
   if (!icon || reduced()) return;
-  icon.animate([{ scale: 0.4, opacity: 0.4 }, { scale: 1.15 }, { scale: 1, opacity: 1 }], { duration: 220, easing: EASE });
+  icon.animate([{ scale: 0.4, opacity: 0.4 }, { scale: 1.15 }, { scale: 1, opacity: 1 }], {
+    duration: 220,
+    easing: EASE,
+  });
 }
 
 export interface RowExit {
@@ -31,12 +34,25 @@ const exits = new WeakMap<HTMLElement, RowExit>();
 function restingFrame(row: HTMLElement, closeGap: boolean): { rest: Keyframe; gone: Keyframe } {
   row.style.contentVisibility = 'visible';
   const style = getComputedStyle(row);
-  const rest: Keyframe = { height: `${row.offsetHeight}px`, opacity: 1, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, borderBottomWidth: style.borderBottomWidth };
-  const gone: Keyframe = { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px', borderBottomWidth: '0px' };
+  const rest: Keyframe = {
+    height: `${row.offsetHeight}px`,
+    opacity: 1,
+    paddingTop: style.paddingTop,
+    paddingBottom: style.paddingBottom,
+    borderBottomWidth: style.borderBottomWidth,
+  };
+  const gone: Keyframe = {
+    height: '0px',
+    opacity: 0,
+    paddingTop: '0px',
+    paddingBottom: '0px',
+    borderBottomWidth: '0px',
+  };
   if (closeGap) {
     // A group in a column with a gap takes the gap with it, or the list would jump by the gap when the group unmounts.
     const gap = parseFloat(getComputedStyle(row.parentElement!).rowGap) || 0;
-    rest.marginBottom = '0px'; gone.marginBottom = `${-gap}px`;
+    rest.marginBottom = '0px';
+    gone.marginBottom = `${-gap}px`;
   }
   return { rest, gone };
 }
@@ -56,12 +72,16 @@ export function exitRow(row: HTMLElement, delay = 0, closeGap = false): RowExit 
   const stop = () => {
     window.clearTimeout(timer);
     animation.cancel();
-    row.style.overflow = ''; row.style.contentVisibility = '';
+    row.style.overflow = '';
+    row.style.contentVisibility = '';
     delete row.dataset.leaving;
     if (exits.get(row) === exit) exits.delete(row);
   };
   const exit: RowExit = {
-    finished: animation.finished.then(() => {}, () => {}),
+    finished: animation.finished.then(
+      () => {},
+      () => {},
+    ),
     release() {
       window.clearTimeout(timer);
       delete row.dataset.leaving;
@@ -74,7 +94,12 @@ export function exitRow(row: HTMLElement, delay = 0, closeGap = false): RowExit 
         stop();
       } else {
         animation.reverse();
-        void animation.finished.then(() => { if (exits.get(row) === exit) stop(); }, () => {});
+        void animation.finished.then(
+          () => {
+            if (exits.get(row) === exit) stop();
+          },
+          () => {},
+        );
       }
     },
     cancel: stop,
@@ -87,7 +112,8 @@ export function exitRow(row: HTMLElement, delay = 0, closeGap = false): RowExit 
 export function releaseRow(row: HTMLElement, animate = true): void {
   const exit = exits.get(row);
   if (!exit) return;
-  if (animate) exit.release(); else exit.cancel();
+  if (animate) exit.release();
+  else exit.cancel();
 }
 
 const [held, setHeld] = createSignal<ReadonlySet<string>>(new Set());
@@ -96,11 +122,13 @@ export const heldRows = held;
 /** A refetch removes a task's row at once; holding its id lets the row finish leaving first. */
 export function holdRows(ids: readonly string[], until: Promise<unknown>): void {
   setHeld(current => new Set([...current, ...ids]));
-  void until.then(() => setHeld(current => {
-    const next = new Set(current);
-    for (const id of ids) next.delete(id);
-    return next;
-  }));
+  void until.then(() =>
+    setHeld(current => {
+      const next = new Set(current);
+      for (const id of ids) next.delete(id);
+      return next;
+    }),
+  );
 }
 
 /** A row that arrives after its list was shown glides open from nothing: it fades and grows, so the rows below move smoothly. */
@@ -109,6 +137,9 @@ export function enterRow(row: HTMLElement, closeGap = false): void {
   const { rest, gone } = restingFrame(row, closeGap);
   row.style.overflow = 'hidden';
   const animation = row.animate([gone, rest], { duration: DURATION, easing: EASE });
-  const done = () => { row.style.overflow = ''; row.style.contentVisibility = ''; };
+  const done = () => {
+    row.style.overflow = '';
+    row.style.contentVisibility = '';
+  };
   void animation.finished.then(done, done);
 }

@@ -1,222 +1,1039 @@
 /* Task rows render in Agenda, Week, Today's Plan and project pages; every list carries the row's measures. */
-.agenda-rows { --agenda-title-line: 22px; --agenda-gutter-width: 52px; --agenda-actions-width: 96px; }
+.agenda-rows {
+  --agenda-title-line: 22px;
+  --agenda-gutter-width: 52px;
+  --agenda-actions-width: 96px;
+}
 /* The date, tabs and day list share the outline measure and one left edge. */
-.agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
-.agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
+.agenda-pane {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space);
+  container: agenda-pane / inline-size;
+}
+.agenda-content {
+  max-width: var(--measure);
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-head-gap);
+}
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
-.agenda-toolbar, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
-.agenda-toolbar { align-items: flex-end; justify-content: flex-start; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8) var(--space-24); }
-.agenda-heading { min-width: 0; }
-.agenda-heading > p { margin: 0 0 var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.agenda-heading > h1 { margin: 0; font: var(--page-title-font); }
-.agenda-title-date { min-width: var(--target-size); min-height: var(--target-size); border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.agenda-modes { width: 100%; max-width: var(--measure); margin: calc(var(--page-title-gap) - var(--page-head-gap)) auto 0; }
-.agenda-week-hours { display: flex; align-items: center; margin-left: auto; }
-.agenda-week-hours > .button { min-height: var(--target-size); padding: var(--space-2) var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.agenda-toolbar,
+.agenda-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+.agenda-toolbar {
+  align-items: flex-end;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+  gap: var(--space-8) var(--space-24);
+}
+.agenda-heading {
+  min-width: 0;
+}
+.agenda-heading > p {
+  margin: 0 0 var(--page-eyebrow-gap);
+  color: var(--faint);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.agenda-heading > h1 {
+  margin: 0;
+  font: var(--page-title-font);
+}
+.agenda-title-date {
+  min-width: var(--target-size);
+  min-height: var(--target-size);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agenda-modes {
+  width: 100%;
+  max-width: var(--measure);
+  margin: calc(var(--page-title-gap) - var(--page-head-gap)) auto 0;
+}
+.agenda-week-hours {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+.agenda-week-hours > .button {
+  min-height: var(--target-size);
+  padding: var(--space-2) var(--space-8);
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  white-space: nowrap;
+}
 /* Previous, Today and Next form one bordered group at the title's right edge. */
-.agenda-date { gap: 0; margin-left: auto; border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
-.agenda-date > .button { min-height: var(--row-height); border: 0; border-radius: 0; color: var(--muted); }
-.agenda-date > .button + .button { border-left: var(--rule-width) solid var(--line); }
-.agenda-date > .agenda-date-current { color: var(--faint); }
-.agenda-eyebrow-today { color: var(--accent); }
+.agenda-date {
+  gap: 0;
+  margin-left: auto;
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+}
+.agenda-date > .button {
+  min-height: var(--row-height);
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+}
+.agenda-date > .button + .button {
+  border-left: var(--rule-width) solid var(--line);
+}
+.agenda-date > .agenda-date-current {
+  color: var(--faint);
+}
+.agenda-eyebrow-today {
+  color: var(--accent);
+}
 /* Seven quiet columns end on one hairline; only the selected date carries the gilt rule. */
-.agenda-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; max-width: var(--measure); margin-inline: auto; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); overflow-x: auto; }
-.agenda-week-day.button { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: var(--space-2); padding: var(--space-8); border: 0; border-radius: 0; color: var(--muted); white-space: nowrap; }
-.agenda-week-day.button[aria-current="date"] { background: var(--hover); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
-.agenda-week-day.button:focus-visible { outline: none; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
-.agenda-week-day.button[aria-current="date"]:focus-visible { box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
-.agenda-day-weekday, .agenda-day-more { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-day-numeral { color: var(--text); font: var(--weight-control) 20px/26px var(--font-body); font-variant-numeric: tabular-nums; }
-.agenda-week-today .agenda-day-numeral { color: var(--accent); }
+.agenda-week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+  box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line);
+  overflow-x: auto;
+}
+.agenda-week-day.button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-8);
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.agenda-week-day.button[aria-current="date"] {
+  background: var(--hover);
+  box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent);
+}
+.agenda-week-day.button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint);
+}
+.agenda-week-day.button[aria-current="date"]:focus-visible {
+  box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent);
+}
+.agenda-day-weekday,
+.agenda-day-more {
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.agenda-day-numeral {
+  color: var(--text);
+  font: var(--weight-control) 20px / 26px var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+.agenda-week-today .agenda-day-numeral {
+  color: var(--accent);
+}
 /* One dot per open task: carried work in danger, deadlines near their date in warning. */
-.agenda-day-dots { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-height: var(--line-apparatus); }
-.agenda-day-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--faint); }
-.agenda-day-dot-overdue { background: var(--danger); }
-.agenda-day-dot-warning { background: var(--warning); }
-.agenda-day-more { margin-left: var(--space-2); color: var(--faint); }
-.agenda-number { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.agenda-day-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-height: var(--line-apparatus);
+}
+.agenda-day-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.agenda-day-dot-overdue {
+  background: var(--danger);
+}
+.agenda-day-dot-warning {
+  background: var(--warning);
+}
+.agenda-day-more {
+  margin-left: var(--space-2);
+  color: var(--faint);
+}
+.agenda-number {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
 /* Counts, planning and other machine-known facts share the apparatus voice. */
-.agenda-count { margin: 0; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-number .input { width: calc(var(--space-48) + var(--space-32)); min-height: var(--row-height); }
-.agenda-message { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-body); }
-.agenda-message { margin: 0; }
-.agenda-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); margin: 0; }
-.agenda-results { display: flex; flex-direction: column; gap: var(--section-gap); }
-.agenda-rows { list-style: none; margin: 0; padding: 0; }
-.agenda-day-section { display: flex; flex-direction: column; gap: var(--section-item-gap); min-width: 0; }
-.agenda-day-section > .agenda-rows { margin-top: var(--space-4); }
-.agenda-day-empty { padding-block: var(--space-4); }
-.agenda-group-move .button { gap: var(--space-4); }
+.agenda-count {
+  margin: 0;
+  color: var(--faint);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.agenda-number .input {
+  width: calc(var(--space-48) + var(--space-32));
+  min-height: var(--row-height);
+}
+.agenda-message {
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  font-weight: var(--weight-body);
+}
+.agenda-message {
+  margin: 0;
+}
+.agenda-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--danger);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  margin: 0;
+}
+.agenda-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+}
+.agenda-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.agenda-day-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-item-gap);
+  min-width: 0;
+}
+.agenda-day-section > .agenda-rows {
+  margin-top: var(--space-4);
+}
+.agenda-day-empty {
+  padding-block: var(--space-4);
+}
+.agenda-group-move .button {
+  gap: var(--space-4);
+}
 /* The query, condition builder and count share one rail, wrapping only when space runs out. */
-.task-query-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); min-width: 0; }
-.task-query-view.button { min-width: 0; max-width: 100%; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
-.task-condition-bar { display: contents; }
-.task-query-toolbar > .agenda-count { margin-left: auto; white-space: nowrap; }
-.task-condition-chip { min-width: 0; max-width: 100%; padding-left: 0; }
-.task-condition-chip > .button:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--text); text-align: left; }
-.popup.task-condition-popup:not(.picker) { padding: var(--space-12); }
-.task-condition-row { display: flex; align-items: center; gap: var(--space-12); min-height: var(--row-height); margin-block: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.task-condition-row > :is(.input, .button) { flex: 1; min-width: 0; width: auto; color: var(--text); }
-.task-condition-label { flex: 0 0 4rem; color: var(--muted); }
-.task-condition-value { justify-content: flex-start; }
-.task-query-line { flex: 1 1 calc(var(--space-48) * 3); min-width: 0; }
-.task-query-chips, .task-query-input.input, .task-query-highlight { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.task-query-chips { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-4); min-height: var(--row-height); padding: var(--space-2) var(--space-4); border-bottom: var(--rule-width) solid var(--line); overflow-x: auto; white-space: nowrap; cursor: text; }
-.task-query-chips:hover { border-color: var(--control-border); }
-.task-query-placeholder { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
-.task-query-chip { display: inline-flex; flex: none; align-items: center; min-width: 0; max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); }
-.task-query-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.task-query-chip > .button { flex: 0 0 auto; min-height: var(--target-size); padding: 0 var(--space-4); font: inherit; border-radius: var(--radius-pill); color: var(--faint); }
-.task-query-editor { position: relative; }
-.task-query-input.input, .task-query-highlight { width: 100%; height: var(--row-height); padding: calc((var(--row-height) - var(--line-apparatus) - var(--rule-width)) / 2) var(--space-4); border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
-.task-query-input.input { position: relative; min-height: var(--row-height); text-overflow: ellipsis; }
-.task-query-input.input:focus-visible { outline: none; border-color: var(--accent); }
-.task-query-highlight { position: absolute; inset: 0; overflow: hidden; white-space: pre; color: transparent; pointer-events: none; }
-.task-query-invalid { text-decoration: underline wavy var(--danger); text-underline-offset: var(--space-2); }
-.task-query-errors { margin-top: var(--space-4); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); }
-.task-query-errors p { margin: 0; overflow-wrap: anywhere; }
+.task-query-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  min-width: 0;
+}
+.task-query-view.button {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  overflow-wrap: anywhere;
+}
+.task-condition-bar {
+  display: contents;
+}
+.task-query-toolbar > .agenda-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.task-condition-chip {
+  min-width: 0;
+  max-width: 100%;
+  padding-left: 0;
+}
+.task-condition-chip > .button:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  text-align: left;
+}
+.popup.task-condition-popup:not(.picker) {
+  padding: var(--space-12);
+}
+.task-condition-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--row-height);
+  margin-block: var(--space-8);
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.task-condition-row > :is(.input, .button) {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  color: var(--text);
+}
+.task-condition-label {
+  flex: 0 0 4rem;
+  color: var(--muted);
+}
+.task-condition-value {
+  justify-content: flex-start;
+}
+.task-query-line {
+  flex: 1 1 calc(var(--space-48) * 3);
+  min-width: 0;
+}
+.task-query-chips,
+.task-query-input.input,
+.task-query-highlight {
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.task-query-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--rule-width) solid var(--line);
+  overflow-x: auto;
+  white-space: nowrap;
+  cursor: text;
+}
+.task-query-chips:hover {
+  border-color: var(--control-border);
+}
+.task-query-placeholder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--faint);
+}
+.task-query-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding-left: var(--space-8);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+}
+.task-query-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-query-chip > .button {
+  flex: 0 0 auto;
+  min-height: var(--target-size);
+  padding: 0 var(--space-4);
+  font: inherit;
+  border-radius: var(--radius-pill);
+  color: var(--faint);
+}
+.task-query-editor {
+  position: relative;
+}
+.task-query-input.input,
+.task-query-highlight {
+  width: 100%;
+  height: var(--row-height);
+  padding: calc((var(--row-height) - var(--line-apparatus) - var(--rule-width)) / 2) var(--space-4);
+  border: 0;
+  border-bottom: var(--rule-width) solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.task-query-input.input {
+  position: relative;
+  min-height: var(--row-height);
+  text-overflow: ellipsis;
+}
+.task-query-input.input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.task-query-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre;
+  color: transparent;
+  pointer-events: none;
+}
+.task-query-invalid {
+  text-decoration: underline wavy var(--danger);
+  text-underline-offset: var(--space-2);
+}
+.task-query-errors {
+  margin-top: var(--space-4);
+  color: var(--danger);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.task-query-errors p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 /* Adding sits under the week strip on Day, in the same place however many tasks are overdue. */
-.agenda-add { margin-block: var(--space-4) var(--space-12); }
+.agenda-add {
+  margin-block: var(--space-4) var(--space-12);
+}
 /* The one task row: clock gutter, status glyph, a title over its facts line, then a reserved slot for rescheduling. */
-.agenda-row { position: relative; display: grid; grid-template-columns: var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); column-gap: var(--space-8); align-items: start; min-width: 0; padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); content-visibility: auto; contain-intrinsic-size: auto calc(var(--agenda-title-line) + var(--line-control)); transition: background-color var(--motion-fast) var(--motion-ease); }
-.agenda-row.agenda-row-gutter { grid-template-columns: var(--agenda-gutter-width) var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); }
-.agenda-row:hover { background: var(--hover); }
-.agenda-time-gutter { display: flex; align-items: center; min-height: var(--agenda-title-line); color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-status { display: inline-flex; justify-content: center; align-items: center; width: var(--target-size); min-height: var(--agenda-title-line); padding: 0; color: var(--muted); }
-.agenda-row .agenda-status.task-status-button { min-height: var(--agenda-title-line); padding: 0; }
-.agenda-row-text { display: flex; flex-direction: column; min-width: 0; }
-.agenda-source { display: block; min-width: 0; border: 0; border-radius: var(--radius-control); padding: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--agenda-title-line) var(--font-body); }
+.agenda-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--target-size) minmax(0, 1fr) var(--agenda-actions-width);
+  column-gap: var(--space-8);
+  align-items: start;
+  min-width: 0;
+  padding-block: var(--space-8);
+  border-bottom: var(--rule-width) solid var(--line);
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--agenda-title-line) + var(--line-control));
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+.agenda-row.agenda-row-gutter {
+  grid-template-columns: var(--agenda-gutter-width) var(--target-size) minmax(0, 1fr) var(--agenda-actions-width);
+}
+.agenda-row:hover {
+  background: var(--hover);
+}
+.agenda-time-gutter {
+  display: flex;
+  align-items: center;
+  min-height: var(--agenda-title-line);
+  color: var(--muted);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.agenda-status {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: var(--target-size);
+  min-height: var(--agenda-title-line);
+  padding: 0;
+  color: var(--muted);
+}
+.agenda-row .agenda-status.task-status-button {
+  min-height: var(--agenda-title-line);
+  padding: 0;
+}
+.agenda-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.agenda-source {
+  display: block;
+  min-width: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: var(--weight-body) var(--text-body) / var(--agenda-title-line) var(--font-body);
+}
 /* Rows contain their paint, so the ring sits inside the row. */
-.agenda-row :focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+.agenda-row :focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
 /* Long task text clamps at two lines; opening the source shows all of it. */
-.agenda-source-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.agenda-source-text.agenda-source-empty { color: var(--muted); font-style: italic; }
+.agenda-source-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agenda-source-text.agenda-source-empty {
+  color: var(--muted);
+  font-style: italic;
+}
 /* Provenance and planning read as one sentence in the writing voice, parted by quiet middle dots. */
-.agenda-row-facts { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-control) var(--font-body); }
-.agenda-row-facts:empty { display: none; }
-.agenda-row-facts > * + *::before { content: '·'; padding-inline: var(--space-4) var(--space-4); color: var(--control-border); text-decoration: none; display: inline-block; }
-.agenda-facts-clock { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-row-gutter .agenda-facts-clock { display: none; }
-.agenda-row-gutter .agenda-facts-clock + *::before { content: none; }
-.agenda-provenance { min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
-.agenda-provenance { text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
-.agenda-provenance:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
-.agenda-priority.button, .agenda-logged.button { display: inline; min-height: 0; padding: 0; border: 0; color: inherit; font: inherit; }
-.agenda-priority.button:hover:not(:disabled), .agenda-logged.button:hover:not(:disabled) { background: transparent; color: var(--text); }
-.agenda-priority[data-priority="high"] { color: var(--danger); }
-.agenda-late { color: var(--danger); }
-.agenda-warning { color: var(--warning); }
-.agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
-.agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
-.agenda-row > .agenda-error, .agenda-row > .agenda-message { grid-column: -3 / -1; margin-top: var(--space-4); }
-.agenda-row-section { list-style: none; }
+.agenda-row-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  color: var(--muted);
+  font: var(--weight-body) var(--text-meta) / var(--line-control) var(--font-body);
+}
+.agenda-row-facts:empty {
+  display: none;
+}
+.agenda-row-facts > * + *::before {
+  content: "·";
+  padding-inline: var(--space-4) var(--space-4);
+  color: var(--control-border);
+  text-decoration: none;
+  display: inline-block;
+}
+.agenda-facts-clock {
+  color: var(--muted);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.agenda-row-gutter .agenda-facts-clock {
+  display: none;
+}
+.agenda-row-gutter .agenda-facts-clock + *::before {
+  content: none;
+}
+.agenda-provenance {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.agenda-provenance {
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-decoration-thickness: var(--rule-width);
+  text-underline-offset: var(--space-2);
+}
+.agenda-provenance:is(:hover, :focus-visible) {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+.agenda-priority.button,
+.agenda-logged.button {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+.agenda-priority.button:hover:not(:disabled),
+.agenda-logged.button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+.agenda-priority[data-priority="high"] {
+  color: var(--danger);
+}
+.agenda-late {
+  color: var(--danger);
+}
+.agenda-warning {
+  color: var(--warning);
+}
+.agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text {
+  color: var(--muted);
+}
+.agenda-row-cancelled .agenda-source-text {
+  text-decoration: line-through var(--faint);
+}
+.agenda-row > .agenda-error,
+.agenda-row > .agenda-message {
+  grid-column: -3 / -1;
+  margin-top: var(--space-4);
+}
+.agenda-row-section {
+  list-style: none;
+}
 /* Today's timed work that has passed recedes above a gilt rule at the present, which starts from a gilt dot. */
-.agenda-row-past .agenda-source-text { color: var(--muted); }
-.agenda-row-past .agenda-time-gutter { color: var(--faint); }
+.agenda-row-past .agenda-source-text {
+  color: var(--muted);
+}
+.agenda-row-past .agenda-time-gutter {
+  color: var(--faint);
+}
 /* Rows contain their paint; the one under the rule lets the dot reach above its edge. */
-.agenda-row:has(> .agenda-now) { content-visibility: visible; }
-.agenda-now { position: absolute; inset: calc(-1 * var(--rule-width)) 0 auto; border-top: var(--rule-width) solid var(--accent); pointer-events: none; }
-.agenda-now::before { content: ''; position: absolute; left: 0; top: calc(var(--space-8) / -2 - var(--rule-width) / 2); width: var(--space-8); height: var(--space-8); border-radius: 50%; background: var(--accent); }
-li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(--rule-width)); }
+.agenda-row:has(> .agenda-now) {
+  content-visibility: visible;
+}
+.agenda-now {
+  position: absolute;
+  inset: calc(-1 * var(--rule-width)) 0 auto;
+  border-top: var(--rule-width) solid var(--accent);
+  pointer-events: none;
+}
+.agenda-now::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(var(--space-8) / -2 - var(--rule-width) / 2);
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: 50%;
+  background: var(--accent);
+}
+li.agenda-now-end {
+  position: relative;
+  inset: auto;
+  margin-top: calc(-1 * var(--rule-width));
+}
 /* Rescheduling has its own reserved slot and shows only on the hovered or focused row, so nothing else moves. */
-.agenda-row-actions { grid-column: -2; grid-row: 1; display: flex; justify-content: flex-end; align-items: center; gap: var(--space-4); min-height: var(--agenda-title-line); visibility: hidden; }
-.agenda-row:is(:hover, :focus-within) .agenda-row-actions, .agenda-row-picking .agenda-row-actions { visibility: visible; }
-.agenda-row-actions .button { width: 28px; min-height: var(--target-size); padding: 0; color: var(--muted); }
-.agenda-row-actions .button:is(:hover, :focus-visible):not(:disabled) { color: var(--text); background: var(--raised); }
+.agenda-row-actions {
+  grid-column: -2;
+  grid-row: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--agenda-title-line);
+  visibility: hidden;
+}
+.agenda-row:is(:hover, :focus-within) .agenda-row-actions,
+.agenda-row-picking .agenda-row-actions {
+  visibility: visible;
+}
+.agenda-row-actions .button {
+  width: 28px;
+  min-height: var(--target-size);
+  padding: 0;
+  color: var(--muted);
+}
+.agenda-row-actions .button:is(:hover, :focus-visible):not(:disabled) {
+  color: var(--text);
+  background: var(--raised);
+}
 /* Touch shows only the calendar, always. */
 @media (hover: none), (pointer: coarse) {
-  .agenda-row-actions { visibility: visible; }
-  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
+  .agenda-row-actions {
+    visibility: visible;
+  }
+  .agenda-row-actions .button:not(.agenda-row-pick) {
+    display: none;
+  }
 }
-.journal-agenda-body { display: flex; flex-direction: column; gap: var(--card-gap); margin-top: var(--section-item-gap); }
+.journal-agenda-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  margin-top: var(--section-item-gap);
+}
 /* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
-.resurface-heading, .resurface-navigation { display: flex; align-items: center; gap: var(--space-4); }
-.resurface-heading > .section-head { flex: 1; min-width: 0; }
+.resurface-heading,
+.resurface-navigation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.resurface-heading > .section-head {
+  flex: 1;
+  min-width: 0;
+}
 /* The journal's authored writing heading retains its display voice; highlight disclosure uses the shared apparatus. */
-.resurface-card { position: relative; min-width: 0; padding: var(--card-padding); border: 0; border-radius: var(--radius-workspace); background: var(--raised); }
-.resurface-color { position: absolute; inset: 0 auto 0 0; width: var(--space-2); }
-.resurface-quote { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
-.resurface-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); }
-.resurface-meta { flex: 1; min-width: 12rem; margin: 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.resurface-card {
+  position: relative;
+  min-width: 0;
+  padding: var(--card-padding);
+  border: 0;
+  border-radius: var(--radius-workspace);
+  background: var(--raised);
+}
+.resurface-color {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--space-2);
+}
+.resurface-quote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font: var(--weight-body) var(--text-quote) / var(--line-quote) var(--font-display);
+}
+.resurface-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-12);
+  margin-top: var(--space-4);
+}
+.resurface-meta {
+  flex: 1;
+  min-width: 12rem;
+  margin: 0;
+  color: var(--muted);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+  overflow-wrap: anywhere;
+}
 /* Open, Keep and Mute remain the existing actions, in quiet mono at the source line's edge. */
-.resurface-actions { display: flex; align-items: center; gap: var(--space-2); color: var(--faint); }
-.resurface-actions .button { padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); font-weight: var(--weight-body); }
-.resurface-keep-mark { display: inline-flex; width: var(--icon-size); flex: 0 0 var(--icon-size); }
-.resurface-actions .button:hover:not(:disabled) { color: var(--text); }
+.resurface-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--faint);
+}
+.resurface-actions .button {
+  padding-inline: var(--space-4);
+  color: var(--muted);
+  font: var(--apparatus);
+  font-weight: var(--weight-body);
+}
+.resurface-keep-mark {
+  display: inline-flex;
+  width: var(--icon-size);
+  flex: 0 0 var(--icon-size);
+}
+.resurface-actions .button:hover:not(:disabled) {
+  color: var(--text);
+}
 
 /* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
-.outline-heading:has(.journal-header) > .outline-title-row { display: none; }
-.journal-trail { display: flex; align-items: center; height: var(--line-apparatus); gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.journal-trail-today { color: var(--accent); }
+.outline-heading:has(.journal-header) > .outline-title-row {
+  display: none;
+}
+.journal-trail {
+  display: flex;
+  align-items: center;
+  height: var(--line-apparatus);
+  gap: var(--space-4);
+  color: var(--faint);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.journal-trail-today {
+  color: var(--accent);
+}
 /* A figure in the trail (`Week 44`) is a count: mono, like every other number the notebook reports. */
-.journal-fig { font-family: var(--font-mono); font-size: var(--text-apparatus); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.journal-fig {
+  font-family: var(--font-mono);
+  font-size: var(--text-apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
 /* Segments rest quietly; hover or focus brightens one to gilt over a hairline, and the open one carries the 2 px rule. */
-.journal-trail-segment.button { position: relative; min-height: 0; padding: 0 0 var(--space-2); margin-bottom: calc(-1 * var(--space-2) - 2px); color: var(--faint); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+.journal-trail-segment.button {
+  position: relative;
+  min-height: 0;
+  padding: 0 0 var(--space-2);
+  margin-bottom: calc(-1 * var(--space-2) - 2px);
+  color: var(--faint);
+  font: inherit;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+}
 /* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
-.journal-trail-segment.button::before { content: ''; position: absolute; inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0; }
-.journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; border-bottom: var(--rule-width) solid var(--accent); }
-.journal-trail-segment.button:is(:hover, :focus-visible) { outline: none; color: var(--accent); background: transparent; }
-.journal-trail-segment.button[aria-expanded="true"] { color: var(--accent); border-bottom-color: var(--accent); background: transparent; }
-.journal-trail-separator { padding-inline: var(--space-4); }
+.journal-trail-segment.button::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0;
+}
+.journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  border-bottom: var(--rule-width) solid var(--accent);
+}
+.journal-trail-segment.button:is(:hover, :focus-visible) {
+  outline: none;
+  color: var(--accent);
+  background: transparent;
+}
+.journal-trail-segment.button[aria-expanded="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+.journal-trail-separator {
+  padding-inline: var(--space-4);
+}
 /* Previous day, the month ledger and next day form one bordered group at the title's right edge. */
-.journal-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
-.journal-title-row > h1 { margin: 0; }
-.journal-day-stepper { display: flex; flex: none; margin-bottom: var(--space-4); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
-.journal-day-stepper > .button { min-height: var(--row-height); border: 0; border-radius: 0; color: var(--muted); }
-.journal-day-stepper > .button + .button { border-left: var(--rule-width) solid var(--line); }
-.journal-day-stepper > .button[aria-expanded="true"] { color: var(--accent); }
-.journal-ledger { margin-block: 0 var(--space-16); padding-block: var(--space-12); border-block: var(--rule-width) solid var(--line); }
-.journal-week-ledger { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-4); }
-.journal-ledger-month > h2, .journal-overview-title { display: block; margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.journal-ledger-month > h2 > span { color: var(--faint); }
-.journal-month-grid { display: grid; grid-template-columns: 40px repeat(7, minmax(0, 1fr)); gap: var(--space-2); }
-.journal-mini-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-2); }
-.journal-ledger-weekday { display: block; color: var(--faint); font: var(--apparatus); text-align: center; }
-.journal-ledger-day.button { position: relative; display: flex; flex-direction: column; gap: var(--space-2); min-height: 32px; padding: var(--space-4) var(--space-2) var(--space-8); color: var(--muted); font: var(--figures); border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
-.journal-ledger-day.button[aria-pressed="true"] { background: transparent; }
-.journal-mini-grid .journal-ledger-day.button { padding-inline: 0; }
-.journal-mini-grid .journal-day-numeral { min-width: 20px; min-height: 20px; }
-.journal-week-ledger .journal-ledger-day { min-height: 64px; }
-.journal-day-numeral { display: grid; place-items: center; min-width: 24px; min-height: 24px; border: var(--rule-width) solid transparent; border-radius: 50%; }
-.journal-ledger-day[aria-current="date"] .journal-day-numeral, .journal-day-today { border-color: var(--accent); }
-.journal-ledger-day.button.journal-day-current, .journal-overview-day.journal-day-current { color: var(--accent); border-bottom-color: var(--accent); }
-.journal-day-mark { position: absolute; width: 3px; height: 3px; bottom: var(--space-2); left: calc(50% - 1.5px); border-radius: 50%; background: transparent; }
-.journal-day-written > .journal-day-mark { background: var(--muted); }
-.journal-week-number.button { padding: 0; color: var(--faint); font: var(--figures); }
-.journal-mini-months { display: grid; align-items: start; gap: var(--space-16); }
-.journal-quarter-ledger { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.journal-year-ledger { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.journal-month-overview.button { display: block; min-width: 0; padding: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
-.journal-month-overview > .journal-mini-grid { grid-template-rows: var(--line-apparatus) repeat(6, 24px); }
-.journal-overview-title { color: var(--text); }
-.journal-overview-day { position: relative; display: grid; place-items: center; min-width: 0; height: 24px; padding-bottom: var(--space-2); color: var(--muted); font: var(--figures); border: var(--rule-width) solid transparent; border-bottom: 2px solid transparent; }
-.journal-overview-day.journal-day-today { border-color: var(--accent); border-radius: 50%; }
-.journal-ledger-error { color: var(--danger); font: var(--apparatus); }
+.journal-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-16);
+  margin: var(--page-eyebrow-gap) 0 var(--page-head-gap);
+}
+.journal-title-row > h1 {
+  margin: 0;
+}
+.journal-day-stepper {
+  display: flex;
+  flex: none;
+  margin-bottom: var(--space-4);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+}
+.journal-day-stepper > .button {
+  min-height: var(--row-height);
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+}
+.journal-day-stepper > .button + .button {
+  border-left: var(--rule-width) solid var(--line);
+}
+.journal-day-stepper > .button[aria-expanded="true"] {
+  color: var(--accent);
+}
+.journal-ledger {
+  margin-block: 0 var(--space-16);
+  padding-block: var(--space-12);
+  border-block: var(--rule-width) solid var(--line);
+}
+.journal-week-ledger {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.journal-ledger-month > h2,
+.journal-overview-title {
+  display: block;
+  margin: 0 0 var(--space-8);
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.journal-ledger-month > h2 > span {
+  color: var(--faint);
+}
+.journal-month-grid {
+  display: grid;
+  grid-template-columns: 40px repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.journal-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.journal-ledger-weekday {
+  display: block;
+  color: var(--faint);
+  font: var(--apparatus);
+  text-align: center;
+}
+.journal-ledger-day.button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: var(--space-4) var(--space-2) var(--space-8);
+  color: var(--muted);
+  font: var(--figures);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+}
+.journal-ledger-day.button[aria-pressed="true"] {
+  background: transparent;
+}
+.journal-mini-grid .journal-ledger-day.button {
+  padding-inline: 0;
+}
+.journal-mini-grid .journal-day-numeral {
+  min-width: 20px;
+  min-height: 20px;
+}
+.journal-week-ledger .journal-ledger-day {
+  min-height: 64px;
+}
+.journal-day-numeral {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 24px;
+  border: var(--rule-width) solid transparent;
+  border-radius: 50%;
+}
+.journal-ledger-day[aria-current="date"] .journal-day-numeral,
+.journal-day-today {
+  border-color: var(--accent);
+}
+.journal-ledger-day.button.journal-day-current,
+.journal-overview-day.journal-day-current {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.journal-day-mark {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  bottom: var(--space-2);
+  left: calc(50% - 1.5px);
+  border-radius: 50%;
+  background: transparent;
+}
+.journal-day-written > .journal-day-mark {
+  background: var(--muted);
+}
+.journal-week-number.button {
+  padding: 0;
+  color: var(--faint);
+  font: var(--figures);
+}
+.journal-mini-months {
+  display: grid;
+  align-items: start;
+  gap: var(--space-16);
+}
+.journal-quarter-ledger {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.journal-year-ledger {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.journal-month-overview.button {
+  display: block;
+  min-width: 0;
+  padding: var(--space-8);
+  border: var(--rule-width) solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.journal-month-overview > .journal-mini-grid {
+  grid-template-rows: var(--line-apparatus) repeat(6, 24px);
+}
+.journal-overview-title {
+  color: var(--text);
+}
+.journal-overview-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: 24px;
+  padding-bottom: var(--space-2);
+  color: var(--muted);
+  font: var(--figures);
+  border: var(--rule-width) solid transparent;
+  border-bottom: 2px solid transparent;
+}
+.journal-overview-day.journal-day-today {
+  border-color: var(--accent);
+  border-radius: 50%;
+}
+.journal-ledger-error {
+  color: var(--danger);
+  font: var(--apparatus);
+}
 /* Trail segments, calendar days, week numbers and ledger links are text: hover changes their ink, never paints the shared button box. */
-:is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview).button:hover:not(:disabled) { background: transparent; }
-.journal-ledger-day.button:hover:not(:disabled) { color: var(--text); }
-.journal-ledger-day.button:hover:not(:disabled):not([aria-current="date"]) .journal-day-numeral { border-color: var(--line); }
-.journal-ledger-day.button.journal-day-current:hover { color: var(--accent); }
-.journal-week-number.button:hover:not(:disabled) { color: var(--accent); }
-.journal-month-overview.button:hover:not(:disabled) { border-color: var(--control-border); }
+:is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview).button:hover:not(
+  :disabled
+) {
+  background: transparent;
+}
+.journal-ledger-day.button:hover:not(:disabled) {
+  color: var(--text);
+}
+.journal-ledger-day.button:hover:not(:disabled):not([aria-current="date"]) .journal-day-numeral {
+  border-color: var(--line);
+}
+.journal-ledger-day.button.journal-day-current:hover {
+  color: var(--accent);
+}
+.journal-week-number.button:hover:not(:disabled) {
+  color: var(--accent);
+}
+.journal-month-overview.button:hover:not(:disabled) {
+  border-color: var(--control-border);
+}
 @media (pointer: coarse) {
   /* A fingertip's box: 44 px tall, and 8 px of padding each side cancelled by margin, so the text and its gaps stay where they were.
      The open segment's rule and the hover hairline span the text, not the padding. */
-  .journal-trail-segment.button { min-height: var(--touch-target); padding-inline: var(--space-8); margin-inline: calc(-1 * var(--space-8)); justify-content: flex-start; }
-  .journal-trail-segment.button::before { content: ''; position: absolute; inset-block: 0; left: 50%; width: max(100%, var(--touch-target)); transform: translateX(-50%); }
-  .journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after { inset-inline: var(--space-8); }
-  .journal-trail-segment.button[aria-expanded="true"] { border-bottom-color: transparent; }
-  .journal-trail-segment.button[aria-expanded="true"]::after { content: ''; position: absolute; bottom: -2px; inset-inline: var(--space-8); border-bottom: 2px solid var(--accent); }
-  .journal-ledger-day.button, .journal-week-number.button { min-height: 40px; }
-  .journal-week-ledger .journal-ledger-day { min-height: 64px; }
+  .journal-trail-segment.button {
+    min-height: var(--touch-target);
+    padding-inline: var(--space-8);
+    margin-inline: calc(-1 * var(--space-8));
+    justify-content: flex-start;
+  }
+  .journal-trail-segment.button::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    left: 50%;
+    width: max(100%, var(--touch-target));
+    transform: translateX(-50%);
+  }
+  .journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after {
+    inset-inline: var(--space-8);
+  }
+  .journal-trail-segment.button[aria-expanded="true"] {
+    border-bottom-color: transparent;
+  }
+  .journal-trail-segment.button[aria-expanded="true"]::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    inset-inline: var(--space-8);
+    border-bottom: 2px solid var(--accent);
+  }
+  .journal-ledger-day.button,
+  .journal-week-number.button {
+    min-height: 40px;
+  }
+  .journal-week-ledger .journal-ledger-day {
+    min-height: 64px;
+  }
 }
 @container outline-pane (max-width: 640px) {
-  .journal-quarter-ledger { grid-template-columns: 1fr; }
-  .journal-year-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .journal-quarter-ledger {
+    grid-template-columns: 1fr;
+  }
+  .journal-year-ledger {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 /* Today is a three-tile hub, using real agenda, due-card and recently read book data, never session-time samples. */
-.journal-tiles { display: grid; grid-template-columns: repeat(var(--journal-tiles, 3), minmax(0, 1fr)); gap: var(--card-gap); }
-.journal-tile.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; min-width: 0; min-height: 120px; padding: var(--card-padding); border: var(--rule-width) solid transparent; border-radius: var(--radius-popup); color: var(--text); font-weight: var(--weight-body); white-space: normal; text-align: left; overflow: hidden;
+.journal-tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--journal-tiles, 3), minmax(0, 1fr));
+  gap: var(--card-gap);
+}
+.journal-tile.button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--space-4);
+  width: 100%;
+  min-width: 0;
+  min-height: 120px;
+  padding: var(--card-padding);
+  border: var(--rule-width) solid transparent;
+  border-radius: var(--radius-popup);
+  color: var(--text);
+  font-weight: var(--weight-body);
+  white-space: normal;
+  text-align: left;
+  overflow: hidden;
   /* A leaf laid on the page, with registration ticks at its corners; hovering lifts it and gilds the ticks. */
   background:
     linear-gradient(var(--tick), var(--tick)) left top / var(--tick-length) var(--rule-width) no-repeat,
@@ -228,72 +1045,274 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
     linear-gradient(var(--tick), var(--tick)) right bottom / var(--tick-length) var(--rule-width) no-repeat,
     linear-gradient(var(--tick), var(--tick)) right bottom / var(--rule-width) var(--tick-length) no-repeat,
     var(--leaf);
-  box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow), 0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 55%, transparent);
-  transition: box-shadow var(--motion-fast) var(--motion-ease), translate var(--motion-fast) var(--motion-ease); }
-.journal-tile.button:hover:not(:disabled) { --tick: var(--accent); border-color: transparent; box-shadow: inset 0 1px 0 var(--lit-edge), 0 3px 8px var(--contact-shadow), 0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 80%, transparent); translate: 0 -1px; }
-.journal-tile-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.journal-tile-action { color: var(--accent); font: var(--weight-control) var(--text-library-title)/var(--line-control) var(--font-body); }
-.journal-tile-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); font-variant-numeric: lining-nums tabular-nums; }
-.journal-tile-count small { color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
-.journal-tile-meta { display: block; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-control) var(--font-body); overflow-wrap: anywhere; }
-.journal-tile > .journal-tile-meta { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.journal-tile-clock { color: var(--calendar-scheduled); font: var(--figures); font-variant-numeric: tabular-nums; }
-.journal-tile-placeholder { display: flex; flex-direction: column; gap: var(--space-12); padding-top: var(--space-8); min-height: 72px; }
-.journal-tile-placeholder > span { height: var(--space-12); width: 70%; background: var(--line); }
-.journal-tile-placeholder > span + span { width: 45%; }
+  box-shadow:
+    inset 0 1px 0 var(--lit-edge),
+    0 1px 2px var(--contact-shadow),
+    0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 55%, transparent);
+  transition:
+    box-shadow var(--motion-fast) var(--motion-ease),
+    translate var(--motion-fast) var(--motion-ease);
+}
+.journal-tile.button:hover:not(:disabled) {
+  --tick: var(--accent);
+  border-color: transparent;
+  box-shadow:
+    inset 0 1px 0 var(--lit-edge),
+    0 3px 8px var(--contact-shadow),
+    0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 80%, transparent);
+  translate: 0 -1px;
+}
+.journal-tile-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-8);
+  color: var(--faint);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.journal-tile-action {
+  color: var(--accent);
+  font: var(--weight-control) var(--text-library-title) / var(--line-control) var(--font-body);
+}
+.journal-tile-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-4);
+  font: var(--weight-title) var(--text-h1) / var(--line-h1) var(--font-display);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.journal-tile-count small {
+  color: var(--muted);
+  font: var(--weight-body) var(--text-control) / var(--line-control) var(--font-body);
+}
+.journal-tile-meta {
+  display: block;
+  color: var(--muted);
+  font: var(--weight-body) var(--text-meta) / var(--line-control) var(--font-body);
+  overflow-wrap: anywhere;
+}
+.journal-tile > .journal-tile-meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.journal-tile-clock {
+  color: var(--calendar-scheduled);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+}
+.journal-tile-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding-top: var(--space-8);
+  min-height: 72px;
+}
+.journal-tile-placeholder > span {
+  height: var(--space-12);
+  width: 70%;
+  background: var(--line);
+}
+.journal-tile-placeholder > span + span {
+  width: 45%;
+}
 /* Plan is generated from Agenda: carried work folds to one danger band above today's rows. */
-.journal-plan { margin-top: var(--section-gap); }
-.journal-plan-body { margin-top: var(--space-4); }
-.journal-plan-open { margin-left: var(--space-4); color: var(--accent); }
-.journal-carried { display: flex; align-items: center; gap: var(--space-12); min-height: var(--row-height); margin-block: var(--space-4); padding: var(--space-4) var(--space-12); border: var(--rule-width) solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: var(--radius-control); background: color-mix(in srgb, var(--danger) 12%, transparent); font-size: var(--text-control); line-height: var(--line-control); }
-.journal-carried-count { flex: none; color: var(--danger); font-weight: var(--weight-control); }
-.journal-carried-titles { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.journal-carried-action.button { flex: none; min-height: var(--target-size); padding-inline: var(--space-4); color: var(--text); font: inherit; }
-.journal-carried-action.button:hover:not(:disabled) { background: transparent; color: var(--accent); }
-.agenda-moved { display: flex; align-items: center; gap: var(--space-8); }
-.agenda-moved > .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.journal-reading-book { display: flex; align-items: flex-start; gap: var(--space-8); min-width: 0; }
-.journal-reading-book .library-cover { flex: none; width: var(--resume-cover-width); }
-.journal-reading-text { flex: 1; min-width: 0; }
-.journal-reading-title { display: block; color: var(--text); font: italic var(--weight-display-heading) var(--text-library-title)/var(--line-source-title) var(--font-display); }
-.journal-reading-text > .journal-tile-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.journal-reading-tile .book-map { width: 100%; margin-top: var(--space-4); }
+.journal-plan {
+  margin-top: var(--section-gap);
+}
+.journal-plan-body {
+  margin-top: var(--space-4);
+}
+.journal-plan-open {
+  margin-left: var(--space-4);
+  color: var(--accent);
+}
+.journal-carried {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--row-height);
+  margin-block: var(--space-4);
+  padding: var(--space-4) var(--space-12);
+  border: var(--rule-width) solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.journal-carried-count {
+  flex: none;
+  color: var(--danger);
+  font-weight: var(--weight-control);
+}
+.journal-carried-titles {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.journal-carried-action.button {
+  flex: none;
+  min-height: var(--target-size);
+  padding-inline: var(--space-4);
+  color: var(--text);
+  font: inherit;
+}
+.journal-carried-action.button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--accent);
+}
+.agenda-moved {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+.agenda-moved > .button {
+  min-height: var(--target-size);
+  padding-inline: var(--space-4);
+  color: var(--accent);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.journal-reading-book {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  min-width: 0;
+}
+.journal-reading-book .library-cover {
+  flex: none;
+  width: var(--resume-cover-width);
+}
+.journal-reading-text {
+  flex: 1;
+  min-width: 0;
+}
+.journal-reading-title {
+  display: block;
+  color: var(--text);
+  font: italic var(--weight-display-heading) var(--text-library-title) / var(--line-source-title) var(--font-display);
+}
+.journal-reading-text > .journal-tile-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.journal-reading-tile .book-map {
+  width: 100%;
+  margin-top: var(--space-4);
+}
 /* A narrow journal keeps the three tiles in one row: label, figure or short title, and one detail line. */
 @container outline-pane (max-width: 640px) {
-  .journal-tiles { gap: var(--space-8); }
-  .journal-tile.button { min-height: 0; padding: var(--space-8) var(--space-12); }
-  .journal-tile-count { font-size: var(--text-h2); line-height: var(--line-h2); }
-  .journal-tile > .journal-tile-meta, .journal-reading-text > .journal-tile-meta { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .journal-reading-text > .journal-reading-chapter { display: none; }
-  .journal-tile-placeholder { min-height: var(--space-32); padding: 0; }
-  .journal-tile-placeholder > span + span { display: none; }
-  .journal-reading-book .library-cover, .journal-reading-tile .book-map { display: none; }
-  .journal-reading-title { font-size: var(--text-control); line-height: var(--line-control); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .journal-title-row { align-items: center; }
+  .journal-tiles {
+    gap: var(--space-8);
+  }
+  .journal-tile.button {
+    min-height: 0;
+    padding: var(--space-8) var(--space-12);
+  }
+  .journal-tile-count {
+    font-size: var(--text-h2);
+    line-height: var(--line-h2);
+  }
+  .journal-tile > .journal-tile-meta,
+  .journal-reading-text > .journal-tile-meta {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .journal-reading-text > .journal-reading-chapter {
+    display: none;
+  }
+  .journal-tile-placeholder {
+    min-height: var(--space-32);
+    padding: 0;
+  }
+  .journal-tile-placeholder > span + span {
+    display: none;
+  }
+  .journal-reading-book .library-cover,
+  .journal-reading-tile .book-map {
+    display: none;
+  }
+  .journal-reading-title {
+    font-size: var(--text-control);
+    line-height: var(--line-control);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .journal-title-row {
+    align-items: center;
+  }
 }
 @media (max-width: 799px) {
-  .agenda-toolbar { gap: var(--space-8) var(--space-16); }
+  .agenda-toolbar {
+    gap: var(--space-8) var(--space-16);
+  }
 }
 @media (pointer: coarse) {
-  .agenda-rows { --agenda-title-line: 24px; }
-  .agenda-row-actions .button { min-width: var(--touch-target); min-height: var(--touch-target); }
-  .agenda-row .agenda-status.task-status-button { min-width: var(--touch-target); min-height: var(--touch-target); margin-block: -10px; }
+  .agenda-rows {
+    --agenda-title-line: 24px;
+  }
+  .agenda-row-actions .button {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+  .agenda-row .agenda-status.task-status-button {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+    margin-block: -10px;
+  }
 }
 /* Narrow panes drop the gutter and the reserved slot: the clock leads the facts, and the calendar ends the title line. */
 @container (max-width: 599px) {
-  .agenda-row, .agenda-row.agenda-row-gutter { grid-template-columns: var(--target-size) minmax(0, 1fr) auto; }
-  .agenda-row > .agenda-time-gutter { display: none; }
-  .agenda-row-gutter .agenda-facts-clock { display: inline; }
-  .agenda-row-gutter .agenda-facts-clock + *::before { content: '·'; }
-  .agenda-row-actions { visibility: visible; }
-  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
+  .agenda-row,
+  .agenda-row.agenda-row-gutter {
+    grid-template-columns: var(--target-size) minmax(0, 1fr) auto;
+  }
+  .agenda-row > .agenda-time-gutter {
+    display: none;
+  }
+  .agenda-row-gutter .agenda-facts-clock {
+    display: inline;
+  }
+  .agenda-row-gutter .agenda-facts-clock + *::before {
+    content: "·";
+  }
+  .agenda-row-actions {
+    visibility: visible;
+  }
+  .agenda-row-actions .button:not(.agenda-row-pick) {
+    display: none;
+  }
 }
 @media (max-width: 480px) {
-  .agenda-toolbar { flex-wrap: nowrap; align-items: center; gap: var(--space-8); }
-  .agenda-heading > p { display: none; }
-  .agenda-title-date { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-  .agenda-date { flex-wrap: nowrap; margin-left: auto; }
-  .agenda-date > .button { padding-inline: var(--space-4); }
+  .agenda-toolbar {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-8);
+  }
+  .agenda-heading > p {
+    display: none;
+  }
+  .agenda-title-date {
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .agenda-date {
+    flex-wrap: nowrap;
+    margin-left: auto;
+  }
+  .agenda-date > .button {
+    padding-inline: var(--space-4);
+  }
 }
 /* The phone's Agenda has one header for Day, Week and Tasks: the nav bar, a title row (48), the mode strip (42) and a band
    (68) that holds the day strip, the week stepper or the search well. Only the band's contents change with the mode, never
@@ -301,72 +1320,315 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
    the bar's inline title. */
 @media (max-width: 599px) and (pointer: coarse) {
   /* The nav bar's clearance sits on the content, not on the scroll container: a sticky offset is then measured from the scrollport's own edge in every engine. */
-  .agenda-pane { padding-inline: 0; padding-top: 0; --row-bleed: 0px; }
+  .agenda-pane {
+    padding-inline: 0;
+    padding-top: 0;
+    --row-bleed: 0px;
+  }
   /* What scrolls into view stops clear of the pinned strip and band as well as the nav bar. */
-  .pane-content div.agenda-pane { scroll-padding-top: calc(var(--phone-top) + 42px + 68px); }
-  .agenda-content { max-width: none; gap: 0; padding-top: var(--phone-top); }
-  .agenda-add, .agenda-lookahead { display: none; }
-  .agenda-title-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 48px; padding: 0 var(--phone-gutter); }
-  .agenda-title-row > h1 { flex: 0 1 auto; min-width: 0; margin: 0; font: var(--weight-title) 26px/32px var(--font-display); white-space: nowrap; }
-  .agenda-title-row .agenda-title-date { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; letter-spacing: inherit; }
-  .agenda-title-row > .button { flex: none; }
-  .agenda-modes.mode-tabs.tab-strip { position: sticky; top: var(--phone-top); z-index: 3; flex: none; width: auto; max-width: none; height: 42px; margin: 0 var(--phone-gutter); box-shadow: none; }
-  .agenda-modes.mode-tabs > .button { min-width: var(--touch-target); min-height: 0; height: 100%; }
+  .pane-content div.agenda-pane {
+    scroll-padding-top: calc(var(--phone-top) + 42px + 68px);
+  }
+  .agenda-content {
+    max-width: none;
+    gap: 0;
+    padding-top: var(--phone-top);
+  }
+  .agenda-add,
+  .agenda-lookahead {
+    display: none;
+  }
+  .agenda-title-row {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 48px;
+    padding: 0 var(--phone-gutter);
+  }
+  .agenda-title-row > h1 {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin: 0;
+    font: var(--weight-title) 26px / 32px var(--font-display);
+    white-space: nowrap;
+  }
+  .agenda-title-row .agenda-title-date {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+  .agenda-title-row > .button {
+    flex: none;
+  }
+  .agenda-modes.mode-tabs.tab-strip {
+    position: sticky;
+    top: var(--phone-top);
+    z-index: 3;
+    flex: none;
+    width: auto;
+    max-width: none;
+    height: 42px;
+    margin: 0 var(--phone-gutter);
+    box-shadow: none;
+  }
+  .agenda-modes.mode-tabs > .button {
+    min-width: var(--touch-target);
+    min-height: 0;
+    height: 100%;
+  }
   /* A tap leaves :hover stuck on the tab on iOS, so the chosen tab keeps its gilt and the others stay quiet. */
-  .agenda-modes.mode-tabs > .button:hover:not(:disabled) { background: transparent; color: var(--muted); }
-  .agenda-modes.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):hover:not(:disabled) { color: var(--accent); }
+  .agenda-modes.mode-tabs > .button:hover:not(:disabled) {
+    background: transparent;
+    color: var(--muted);
+  }
+  .agenda-modes.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):hover:not(:disabled) {
+    color: var(--accent);
+  }
   /* The strip's ground carries its hairline, since a shadow on the strip itself would sit under the ground. */
-  .agenda-modes::before { content: ''; position: absolute; z-index: -1; inset: 0 calc(-1 * var(--phone-gutter)); pointer-events: none; background: linear-gradient(var(--line), var(--line)) center bottom / calc(100% - 2 * var(--phone-gutter)) 1px no-repeat, color-mix(in srgb, var(--canvas) 94%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .agenda-modes::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0 calc(-1 * var(--phone-gutter));
+    pointer-events: none;
+    background:
+      linear-gradient(var(--line), var(--line)) center bottom / calc(100% - 2 * var(--phone-gutter)) 1px no-repeat,
+      color-mix(in srgb, var(--canvas) 94%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
   /* The fade below the band veils only what has scrolled under it: at rest the first row starts past it. */
-  .agenda-band { --agenda-band-fade: 28px; position: sticky; top: calc(var(--phone-top) + 42px); z-index: 3; flex: none; height: 68px; margin-bottom: var(--agenda-band-fade); }
-  .agenda-band::before { content: ''; position: absolute; z-index: -1; inset: 0 0 calc(-1 * var(--agenda-band-fade)); pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(100% - var(--agenda-band-fade)), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - var(--agenda-band-fade)), transparent); mask-image: linear-gradient(#000 calc(100% - var(--agenda-band-fade)), transparent); }
+  .agenda-band {
+    --agenda-band-fade: 28px;
+    position: sticky;
+    top: calc(var(--phone-top) + 42px);
+    z-index: 3;
+    flex: none;
+    height: 68px;
+    margin-bottom: var(--agenda-band-fade);
+  }
+  .agenda-band::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0 0 calc(-1 * var(--agenda-band-fade));
+    pointer-events: none;
+    background: linear-gradient(
+      color-mix(in srgb, var(--canvas) 94%, transparent) calc(100% - var(--agenda-band-fade)),
+      color-mix(in srgb, var(--canvas) 0%, transparent)
+    );
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    -webkit-mask-image: linear-gradient(#000 calc(100% - var(--agenda-band-fade)), transparent);
+    mask-image: linear-gradient(#000 calc(100% - var(--agenda-band-fade)), transparent);
+  }
   /* Day: seven days of one week, swiped like pages. The chosen day is a lit pill; open work is one muted dot each, red once its day has passed. */
-  .agenda-strip-pager { display: flex; height: 76px; margin-block: -4px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  .agenda-strip-pager::-webkit-scrollbar { display: none; }
-  .agenda-strip-week { display: flex; flex: 0 0 100%; box-sizing: border-box; padding: 8px 14px 4px; scroll-snap-align: start; scroll-snap-stop: always; }
-  .agenda-strip-week > .agenda-week-day.button { flex: 1; min-width: 0; height: 62px; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 0; border-radius: 26px; box-shadow: none; background: transparent; color: var(--muted); }
-  .agenda-strip-week > .agenda-week-day.button:not([aria-current="date"]):is(:hover, :active):not(:disabled) { background: transparent; box-shadow: none; }
-  .agenda-strip-week .agenda-day-weekday { font: var(--weight-body) 12px/16px var(--font-body); letter-spacing: normal; color: var(--muted); }
-  .agenda-strip-week .agenda-day-numeral { font: 500 17px/24px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
-  .agenda-strip-week .agenda-week-past :is(.agenda-day-weekday, .agenda-day-numeral) { color: var(--faint); }
-  .agenda-strip-week .agenda-week-today .agenda-day-numeral { color: var(--accent); }
-  .agenda-strip-week > .agenda-week-day.button[aria-current="date"] { background: var(--raised); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 4px var(--contact-shadow), 0 0 0 1px color-mix(in srgb, var(--text) 13%, transparent); }
-  .agenda-strip-week > .agenda-week-day.button[aria-current="date"] .agenda-day-weekday { color: var(--text); }
-  .agenda-strip-week .agenda-day-dots { flex-wrap: nowrap; justify-content: center; height: 6px; min-height: 0; margin-top: 2px; }
-  .agenda-strip-week .agenda-day-more { margin: 0 0 0 2px; font: 400 10px/6px var(--font-mono); }
+  .agenda-strip-pager {
+    display: flex;
+    height: 76px;
+    margin-block: -4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .agenda-strip-pager::-webkit-scrollbar {
+    display: none;
+  }
+  .agenda-strip-week {
+    display: flex;
+    flex: 0 0 100%;
+    box-sizing: border-box;
+    padding: 8px 14px 4px;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+  .agenda-strip-week > .agenda-week-day.button {
+    flex: 1;
+    min-width: 0;
+    height: 62px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    border-radius: 26px;
+    box-shadow: none;
+    background: transparent;
+    color: var(--muted);
+  }
+  .agenda-strip-week > .agenda-week-day.button:not([aria-current="date"]):is(:hover, :active):not(:disabled) {
+    background: transparent;
+    box-shadow: none;
+  }
+  .agenda-strip-week .agenda-day-weekday {
+    font: var(--weight-body) 12px / 16px var(--font-body);
+    letter-spacing: normal;
+    color: var(--muted);
+  }
+  .agenda-strip-week .agenda-day-numeral {
+    font: 500 17px / 24px var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .agenda-strip-week .agenda-week-past :is(.agenda-day-weekday, .agenda-day-numeral) {
+    color: var(--faint);
+  }
+  .agenda-strip-week .agenda-week-today .agenda-day-numeral {
+    color: var(--accent);
+  }
+  .agenda-strip-week > .agenda-week-day.button[aria-current="date"] {
+    background: var(--raised);
+    box-shadow:
+      inset 0 1px 0 var(--lit-edge),
+      0 1px 4px var(--contact-shadow),
+      0 0 0 1px color-mix(in srgb, var(--text) 13%, transparent);
+  }
+  .agenda-strip-week > .agenda-week-day.button[aria-current="date"] .agenda-day-weekday {
+    color: var(--text);
+  }
+  .agenda-strip-week .agenda-day-dots {
+    flex-wrap: nowrap;
+    justify-content: center;
+    height: 6px;
+    min-height: 0;
+    margin-top: 2px;
+  }
+  .agenda-strip-week .agenda-day-more {
+    margin: 0 0 0 2px;
+    font: 400 10px / 6px var(--font-mono);
+  }
   /* Week: two plain circles around the week's figures. */
-  .agenda-week-band { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 12px; }
-  .agenda-week-mid { min-width: 0; text-align: center; }
-  .agenda-week-caps { display: block; font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--faint); line-height: 16px; }
-  .agenda-week-line { display: block; font: var(--weight-body) 15px/22px var(--font-body); color: var(--muted); white-space: nowrap; }
-  .agenda-week-line .agenda-week-late { color: var(--danger); }
-  .agenda-fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  .agenda-week-band {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    padding: 0 12px;
+  }
+  .agenda-week-mid {
+    min-width: 0;
+    text-align: center;
+  }
+  .agenda-week-caps {
+    display: block;
+    font: var(--caps);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--faint);
+    line-height: 16px;
+  }
+  .agenda-week-line {
+    display: block;
+    font: var(--weight-body) 15px / 22px var(--font-body);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .agenda-week-line .agenda-week-late {
+    color: var(--danger);
+  }
+  .agenda-fig {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
   /* Tasks: the search well fills the band; the filters sit under it and scroll away with the list. */
-  .agenda-search-band { height: 100%; padding: 12px var(--phone-gutter) 0; }
-  .agenda-chips { display: flex; align-items: center; gap: 8px; height: 48px; padding: 4px var(--phone-gutter) 6px; overflow-x: auto; scrollbar-width: none; }
-  .agenda-chips::-webkit-scrollbar { display: none; }
-  .agenda-chips > .agenda-chip.button { flex: none; padding: 0 11px 0 13px; gap: 4px; }
-  .agenda-chips > .agenda-chip.button > .icon { width: 14px; height: 14px; margin-right: -2px; }
-  .agenda-chips > .agenda-chip-on.button, .agenda-chips > .agenda-chip[aria-expanded="true"].button { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .agenda-search-band {
+    height: 100%;
+    padding: 12px var(--phone-gutter) 0;
+  }
+  .agenda-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    padding: 4px var(--phone-gutter) 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .agenda-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .agenda-chips > .agenda-chip.button {
+    flex: none;
+    padding: 0 11px 0 13px;
+    gap: 4px;
+  }
+  .agenda-chips > .agenda-chip.button > .icon {
+    width: 14px;
+    height: 14px;
+    margin-right: -2px;
+  }
+  .agenda-chips > .agenda-chip-on.button,
+  .agenda-chips > .agenda-chip[aria-expanded="true"].button {
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
   /* Groups: a head in Piazzolla with its count beside it, and at most one action at the right. */
-  .agenda-results { gap: 0; }
-  .agenda-day-section { gap: 0; }
-  .agenda-pane .section-head { min-height: 60px; gap: 10px; padding: 14px var(--phone-gutter) 2px; }
-  .agenda-pane .section-head > .section-rule { display: none; }
-  .agenda-pane .section-head-name { font: var(--weight-display-heading) 20px/26px var(--font-display); }
-  .agenda-pane .section-head-count { font: 400 13px/16px var(--font-mono); letter-spacing: 0; }
-  .agenda-pane .section-head-action { margin-left: auto; }
-  .agenda-pane .section-head-toggle.button { flex-direction: row-reverse; margin-left: 0; gap: 6px; }
-  .agenda-group-move.button .icon { width: 16px; height: 16px; margin-right: -4px; }
-  .agenda-group-move.button[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 14%, transparent); }
-  .agenda-pane :is(.agenda-message, .agenda-error) { padding-inline: var(--phone-gutter); }
+  .agenda-results {
+    gap: 0;
+  }
+  .agenda-day-section {
+    gap: 0;
+  }
+  .agenda-pane .section-head {
+    min-height: 60px;
+    gap: 10px;
+    padding: 14px var(--phone-gutter) 2px;
+  }
+  .agenda-pane .section-head > .section-rule {
+    display: none;
+  }
+  .agenda-pane .section-head-name {
+    font: var(--weight-display-heading) 20px / 26px var(--font-display);
+  }
+  .agenda-pane .section-head-count {
+    font: 400 13px / 16px var(--font-mono);
+    letter-spacing: 0;
+  }
+  .agenda-pane .section-head-action {
+    margin-left: auto;
+  }
+  .agenda-pane .section-head-toggle.button {
+    flex-direction: row-reverse;
+    margin-left: 0;
+    gap: 6px;
+  }
+  .agenda-group-move.button .icon {
+    width: 16px;
+    height: 16px;
+    margin-right: -4px;
+  }
+  .agenda-group-move.button[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
+  .agenda-pane :is(.agenda-message, .agenda-error) {
+    padding-inline: var(--phone-gutter);
+  }
 }
 /* A short phone gives the list its room back: only the strip stays pinned, and the band scrolls away with the title. */
 @media (max-width: 599px) and (pointer: coarse) and (max-height: 740px) {
-  .agenda-band { position: relative; top: auto; margin-bottom: 0; }
-  .pane-content div.agenda-pane { scroll-padding-top: calc(var(--phone-top) + 42px); }
-  .agenda-band::before { display: none; }
+  .agenda-band {
+    position: relative;
+    top: auto;
+    margin-bottom: 0;
+  }
+  .pane-content div.agenda-pane {
+    scroll-padding-top: calc(var(--phone-top) + 42px);
+  }
+  .agenda-band::before {
+    display: none;
+  }
 }
 @media (pointer: coarse) {
-  .agenda-title-date { min-height: var(--touch-target); }
+  .agenda-title-date {
+    min-height: var(--touch-target);
+  }
 }

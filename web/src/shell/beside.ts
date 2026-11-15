@@ -17,6 +17,9 @@ export function opensBeside(event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'> | nul
  * A list (Library, an Index, a table or the research desk) fills the pane at its right when there is one, so it stays
  * the list. Without one, the modifier opens a pane there; a wide touch screen always does.
  */
-export function listOpensBeside(event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'> | null | undefined, neighbour: boolean): boolean {
+export function listOpensBeside(
+  event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'> | null | undefined,
+  neighbour: boolean,
+): boolean {
   return neighbour || opensBeside(event) || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
 }

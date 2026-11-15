@@ -8,7 +8,7 @@ import type { Notebook } from '../document/index';
 
 // Dynamic imports are intentional here: mock Solid's SSR boundary before loading its consumers.
 const browserEntry = 'solid-js/dist/solid.js';
-const solid = await import(browserEntry) as typeof Solid;
+const solid = (await import(browserEntry)) as typeof Solid;
 mock.module('solid-js', () => solid);
 const { createMemo, createRoot } = await import('solid-js');
 const { createApi } = await import('../api/client');
@@ -45,12 +45,33 @@ beforeAll(async () => {
   notebook.api.stream = after => {
     const socket = stream(after);
     return {
-      get readyState() { return socket.readyState; },
-      get onopen() { return socket.onopen; }, set onopen(value) { socket.onopen = value; },
-      get onerror() { return socket.onerror; }, set onerror(value) { socket.onerror = value; },
-      get onclose() { return socket.onclose; }, set onclose(value) { socket.onclose = value; },
-      get onmessage() { return socket.onmessage; },
-      set onmessage(value) { socket.onmessage = value && (message => held ? held.push(() => value(message)) : value(message)); },
+      get readyState() {
+        return socket.readyState;
+      },
+      get onopen() {
+        return socket.onopen;
+      },
+      set onopen(value) {
+        socket.onopen = value;
+      },
+      get onerror() {
+        return socket.onerror;
+      },
+      set onerror(value) {
+        socket.onerror = value;
+      },
+      get onclose() {
+        return socket.onclose;
+      },
+      set onclose(value) {
+        socket.onclose = value;
+      },
+      get onmessage() {
+        return socket.onmessage;
+      },
+      set onmessage(value) {
+        socket.onmessage = value && (message => (held ? held.push(() => value(message)) : value(message)));
+      },
       close: () => socket.close(),
     } as ChangeSocket;
   };
@@ -63,17 +84,33 @@ afterAll(async () => {
 });
 
 test('an open concept page rereads a cited source only when that source changes', async () => {
-  const plan = await api.planRecord({ ...emptyMetadata(), title: 'The Open Society', creators: [{ name: 'Karl Popper', role: 'author' }] });
+  const plan = await api.planRecord({
+    ...emptyMetadata(),
+    title: 'The Open Society',
+    creators: [{ name: 'Karl Popper', role: 'author' }],
+  });
   await notebook.commit(plan.operations, 'Add source');
   const source = plan.source_id;
-  const concept = ulid(), unrelated = ulid(), arendt = ulid();
-  await api.submit({ actor: { kind: 'person' }, operations: [
-    { op: 'create_page', id: arendt, title: 'Hannah Arendt' },
-    { op: 'add_type', id: arendt, base_revision: 1, title: 'Person' },
-    { op: 'create_page', id: concept, title: 'Openness' },
-    { op: 'insert', id: unrelated, parent_id: concept, after: null, text: 'An unrelated thought', heading: null },
-    { op: 'insert', id: ulid(), parent_id: concept, after: unrelated, text: `As argued in [[${source}|Popper]].`, heading: null },
-  ] });
+  const concept = ulid(),
+    unrelated = ulid(),
+    arendt = ulid();
+  await api.submit({
+    actor: { kind: 'person' },
+    operations: [
+      { op: 'create_page', id: arendt, title: 'Hannah Arendt' },
+      { op: 'add_type', id: arendt, base_revision: 1, title: 'Person' },
+      { op: 'create_page', id: concept, title: 'Openness' },
+      { op: 'insert', id: unrelated, parent_id: concept, after: null, text: 'An unrelated thought', heading: null },
+      {
+        op: 'insert',
+        id: ulid(),
+        parent_id: concept,
+        after: unrelated,
+        text: `As argued in [[${source}|Popper]].`,
+        heading: null,
+      },
+    ],
+  });
 
   const reads: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -85,12 +122,15 @@ test('an open concept page rereads a cited source only when that source changes'
 
   const conceptDoc = notebook.open(concept);
   const sourceDoc = notebook.open(source);
-  await eventually(() => conceptDoc.status() === 'ready' && sourceDoc.status() === 'ready' && notebook.connection() === 'live', 'pages did not load');
+  await eventually(
+    () => conceptDoc.status() === 'ready' && sourceDoc.status() === 'ready' && notebook.connection() === 'live',
+    'pages did not load',
+  );
   // The page's sigla, wired as the outline pane wires them.
   const { sigla, dispose } = createRoot(dispose => {
     const texts = () => conceptDoc.outline.children(concept).map(id => conceptDoc.block(id)?.text ?? '');
     const referenceSources = createCitationSources(notebook, texts);
-    const cited = createMemo(() => [...referenceSources()?.keys() ?? []]);
+    const cited = createMemo(() => [...(referenceSources()?.keys() ?? [])]);
     const records = createCitedSources(notebook, cited);
     return { sigla: createMemo(() => citedSigla(records())), dispose };
   });
@@ -103,10 +143,21 @@ test('an open concept page rereads a cited source only when that source changes'
     const own = conceptDoc.edit({ kind: 'text', id: unrelated, text: 'An unrelated thought, revised' });
     expect(own.ok).toBe(true);
     await conceptDoc.flush();
-    const remote = await api.submit({ actor: { kind: 'agent', name: 'source reads test' }, operations: [
-      { op: 'edit_text', id: unrelated, base_revision: (await api.block(unrelated)).revision, text: 'Edited elsewhere' },
-    ] });
-    await eventually(() => conceptDoc.block(unrelated)?.text === 'Edited elsewhere' && notebook.changeSequence() >= remote.seq, 'the remote edit did not arrive');
+    const remote = await api.submit({
+      actor: { kind: 'agent', name: 'source reads test' },
+      operations: [
+        {
+          op: 'edit_text',
+          id: unrelated,
+          base_revision: (await api.block(unrelated)).revision,
+          text: 'Edited elsewhere',
+        },
+      ],
+    });
+    await eventually(
+      () => conceptDoc.block(unrelated)?.text === 'Edited elsewhere' && notebook.changeSequence() >= remote.seq,
+      'the remote edit did not arrive',
+    );
     await Bun.sleep(100);
     expect(reads.slice(before)).toEqual([]);
 
@@ -122,9 +173,14 @@ test('an open concept page rereads a cited source only when that source changes'
     held = undefined;
 
     // So does renaming the linked author, elsewhere.
-    await api.submit({ actor: { kind: 'agent', name: 'source reads test' }, operations: [
-      { op: 'edit_text', id: arendt, base_revision: (await api.block(arendt)).revision, text: 'Simone Weil' },
-    ] });
+    await api.submit({
+      actor: { kind: 'agent', name: 'source reads test' },
+      operations: [
+        { op: 'edit_text', id: arendt, base_revision: (await api.block(arendt)).revision, text: 'Simone Weil' },
+      ],
+    });
     await eventually(() => sigla().get(source) === 'WEI', 'the renamed author did not change the siglum');
-  } finally { dispose(); }
+  } finally {
+    dispose();
+  }
 }, 20000);

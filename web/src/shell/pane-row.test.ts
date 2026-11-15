@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { besideSlot, dividerRatio, insertPane, journalTurn, MIN_PANE_WIDTH, paneCapacity, revealedStart, SPINE_WIDTH, windowStart } from './pane-row';
+import {
+  besideSlot,
+  dividerRatio,
+  insertPane,
+  journalTurn,
+  MIN_PANE_WIDTH,
+  paneCapacity,
+  revealedStart,
+  SPINE_WIDTH,
+  windowStart,
+} from './pane-row';
 
 describe('opening beside', () => {
   test('lands in the pane right of the origin, never the origin', () => {

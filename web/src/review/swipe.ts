@@ -19,7 +19,8 @@ export function commitDistance(width: number): number {
  * or drifting sideways never grades. `null` while it is still inside the slop.
  */
 export function lockAxis(dx: number, dy: number): SwipeAxis {
-  const across = Math.abs(dx), down = Math.abs(dy);
+  const across = Math.abs(dx),
+    down = Math.abs(dy);
   if (Math.max(across, down) < axisSlop) return null;
   return across > down * 1.5 ? 'x' : 'y';
 }
@@ -55,7 +56,8 @@ export function attachSwipe(element: HTMLElement, options: SwipeOptions): () => 
     if (!current?.locked) return;
     const grade = armed;
     armed = null;
-    if (commit && grade) options.onCommit(grade, current.dx); else options.onCancel();
+    if (commit && grade) options.onCommit(grade, current.dx);
+    else options.onCancel();
   };
   const down = (event: PointerEvent) => {
     if (!event.isPrimary || event.pointerType === 'mouse' || !options.enabled()) return;
@@ -65,12 +67,18 @@ export function attachSwipe(element: HTMLElement, options: SwipeOptions): () => 
   };
   const move = (event: PointerEvent) => {
     if (!drag || event.pointerId !== drag.id) return;
-    if (!options.enabled()) { end(false); return; }
+    if (!options.enabled()) {
+      end(false);
+      return;
+    }
     const dx = event.clientX - drag.x;
     if (!drag.locked) {
       const axis = lockAxis(dx, event.clientY - drag.y);
       if (axis === null) return;
-      if (axis === 'y') { drag = null; return; }
+      if (axis === 'y') {
+        drag = null;
+        return;
+      }
       drag.locked = true;
       element.setPointerCapture(event.pointerId);
     }
@@ -80,8 +88,12 @@ export function attachSwipe(element: HTMLElement, options: SwipeOptions): () => 
     armed = next;
     options.onDrag(dx, next);
   };
-  const up = (event: PointerEvent) => { if (drag && event.pointerId === drag.id) end(true); };
-  const cancel = (event: PointerEvent) => { if (drag && event.pointerId === drag.id) end(false); };
+  const up = (event: PointerEvent) => {
+    if (drag && event.pointerId === drag.id) end(true);
+  };
+  const cancel = (event: PointerEvent) => {
+    if (drag && event.pointerId === drag.id) end(false);
+  };
 
   element.addEventListener('pointerdown', down);
   element.addEventListener('pointermove', move);

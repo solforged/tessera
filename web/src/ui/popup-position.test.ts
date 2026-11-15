@@ -6,7 +6,12 @@ const pane = { left: 209, top: 49, right: 813, bottom: 887, width: 604, height: 
 
 describe('anchored popup placement', () => {
   test('a top-of-page reference opens below its line, clear of the pane header', () => {
-    const position = anchoredPopupPosition({ left: 464, right: 573, top: 115, bottom: 134 }, popupBounds(viewport, pane), 380, 253);
+    const position = anchoredPopupPosition(
+      { left: 464, right: 573, top: 115, bottom: 134 },
+      popupBounds(viewport, pane),
+      380,
+      253,
+    );
     expect(position.top).toBe(138);
     expect(position.height).toBe(253);
     expect(position.left).toBeGreaterThanOrEqual(pane.left + 8);
@@ -14,27 +19,50 @@ describe('anchored popup placement', () => {
   });
 
   test('a lower reference flips above without covering its line', () => {
-    const position = anchoredPopupPosition({ left: 642, right: 751, top: 750, bottom: 769 }, popupBounds(viewport, pane), 380, 253);
+    const position = anchoredPopupPosition(
+      { left: 642, right: 751, top: 750, bottom: 769 },
+      popupBounds(viewport, pane),
+      380,
+      253,
+    );
     expect(position.top + position.height).toBe(746);
     expect(position.clipped).toBe(false);
   });
 
   test('a link near the split divider keeps the slip inside its own pane', () => {
-    const position = anchoredPopupPosition({ left: 642, right: 751, top: 450, bottom: 469 }, popupBounds(viewport, pane), 380, 253);
+    const position = anchoredPopupPosition(
+      { left: 642, right: 751, top: 450, bottom: 469 },
+      popupBounds(viewport, pane),
+      380,
+      253,
+    );
     expect(position.left).toBe(371);
     expect(position.top).toBe(473);
     expect(position.left + 380).toBeLessThanOrEqual(pane.right - 8);
   });
 
   test('a tall preview takes the larger side and scrolls internally', () => {
-    const position = anchoredPopupPosition({ left: 350, right: 460, top: 470, bottom: 489 }, popupBounds(viewport, pane), 380, 700);
+    const position = anchoredPopupPosition(
+      { left: 350, right: 460, top: 470, bottom: 489 },
+      popupBounds(viewport, pane),
+      380,
+      700,
+    );
     expect(position.top).toBe(pane.top + 8);
     expect(position.top + position.height).toBe(466);
     expect(position.clipped).toBe(true);
   });
 
   test('a below-only picker clips its list rather than flipping over the header', () => {
-    const position = anchoredPopupPosition({ left: 982, right: 1342, top: 430, bottom: 458 }, viewport, 360, 700, 560, undefined, true);
+    const position = anchoredPopupPosition(
+      { left: 982, right: 1342, top: 430, bottom: 458 },
+      viewport,
+      360,
+      700,
+      560,
+      undefined,
+      true,
+    );
     expect(position.top).toBe(462);
     expect(position.height).toBe(430);
     expect(position.side).toBe('below');
@@ -53,7 +81,9 @@ describe('anchored popup placement', () => {
   test('a completion opens under its caret in the right half when it fits', () => {
     const wide = { ...pane, right: 1427, width: 1218 };
     expect(anchoredPopupPosition({ left: 850, right: 851, top: 400, bottom: 419 }, wide, 480, 253).left).toBe(850);
-    expect(anchoredPopupPosition({ left: 1100, right: 1101, top: 400, bottom: 419 }, wide, 480, 253).left).toBe(1101 - 480);
+    expect(anchoredPopupPosition({ left: 1100, right: 1101, top: 400, bottom: 419 }, wide, 480, 253).left).toBe(
+      1101 - 480,
+    );
   });
 
   test('other popups retain viewport-only placement without pane bounds', () => {
@@ -103,7 +133,14 @@ describe('anchored popup placement', () => {
   });
 
   test('a kept side gives way once almost no room is left on it', () => {
-    const position = anchoredPopupPosition({ left: 300, right: 400, top: 780, bottom: 800 }, viewport, 360, 300, 560, 'below');
+    const position = anchoredPopupPosition(
+      { left: 300, right: 400, top: 780, bottom: 800 },
+      viewport,
+      360,
+      300,
+      560,
+      'below',
+    );
     expect(position.side).toBe('above');
     expect(position.top).toBe(476);
     expect(position.height).toBe(300);

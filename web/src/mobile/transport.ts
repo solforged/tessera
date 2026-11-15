@@ -15,7 +15,8 @@ const decoder = new TextDecoder();
 
 function base64(bytes: Uint8Array): string {
   let binary = '';
-  for (let start = 0; start < bytes.length; start += 0x8000) binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
+  for (let start = 0; start < bytes.length; start += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
   return btoa(binary);
 }
 
@@ -35,8 +36,16 @@ export const notebookFetch: Transport = async (url, init) => {
   const parsed = new URL(url, location.href);
   const request = new Request(parsed, init);
   const bytes = request.body ? new Uint8Array(await request.arrayBuffer()) : null;
-  const message: NotebookRequest = { method: request.method, path: `${parsed.pathname}${parsed.search}`, headers: [...request.headers], body: bytes && base64(bytes) };
-  const reply = await abortable(invoke<ArrayBuffer | number[]>('notebook_request', { request: message }), request.signal).catch((reason: unknown) => {
+  const message: NotebookRequest = {
+    method: request.method,
+    path: `${parsed.pathname}${parsed.search}`,
+    headers: [...request.headers],
+    body: bytes && base64(bytes),
+  };
+  const reply = await abortable(
+    invoke<ArrayBuffer | number[]>('notebook_request', { request: message }),
+    request.signal,
+  ).catch((reason: unknown) => {
     if (!request.signal.aborted) console.error('The workshop did not answer.', reason);
     throw reason;
   });
@@ -45,7 +54,10 @@ export const notebookFetch: Transport = async (url, init) => {
   const status = view.getUint16(0);
   const typeEnd = 4 + view.getUint16(2);
   const contentType = decoder.decode(frame.subarray(4, typeEnd));
-  return new Response([101, 204, 205, 304].includes(status) ? null : frame.subarray(typeEnd), { status, headers: contentType ? { 'content-type': contentType } : {} });
+  return new Response([101, 204, 205, 304].includes(status) ? null : frame.subarray(typeEnd), {
+    status,
+    headers: contentType ? { 'content-type': contentType } : {},
+  });
 };
 
 let nextStream = 0;
@@ -69,11 +81,14 @@ class NotebookChangeSocket implements ChangeSocket {
       if (this.readyState !== CHANGE_CONNECTING) return;
       this.readyState = CHANGE_OPEN;
       this.onopen?.(new Event('open'));
-      invoke('stream_changes', { id: this.id, after, channel }).then(() => this.ended(), (reason: unknown) => {
-        console.error('The change stream stopped.', reason);
-        if (this.readyState === CHANGE_OPEN) this.onerror?.(new Event('error'));
-        this.ended();
-      });
+      invoke('stream_changes', { id: this.id, after, channel }).then(
+        () => this.ended(),
+        (reason: unknown) => {
+          console.error('The change stream stopped.', reason);
+          if (this.readyState === CHANGE_OPEN) this.onerror?.(new Event('error'));
+          this.ended();
+        },
+      );
     });
   }
 
@@ -87,7 +102,10 @@ class NotebookChangeSocket implements ChangeSocket {
     if (this.readyState >= CHANGE_CLOSING) return;
     const opened = this.readyState === CHANGE_OPEN;
     this.readyState = CHANGE_CLOSING;
-    if (opened) void invoke('close_changes', { id: this.id }).catch((reason: unknown) => console.error('The change stream did not close.', reason));
+    if (opened)
+      void invoke('close_changes', { id: this.id }).catch((reason: unknown) =>
+        console.error('The change stream did not close.', reason),
+      );
     queueMicrotask(() => this.ended());
   }
 }

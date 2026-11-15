@@ -6,7 +6,11 @@ export interface ScheduledWeekTask {
   pending: boolean;
   committedSequence: number | null;
 }
-interface Move { row: TaskRow; before: TaskState; after: TaskState }
+interface Move {
+  row: TaskRow;
+  before: TaskState;
+  after: TaskState;
+}
 
 /** Calendar intents compose immediately; their revision-checked commands and history travel in input order. */
 export class WeekScheduleHistory {
@@ -16,7 +20,10 @@ export class WeekScheduleHistory {
   private undoStack: Move[] = [];
   private redoStack: Move[] = [];
 
-  constructor(private notebook: Pick<NotebookClient, 'commit'>, private changed: (id: string, value: ScheduledWeekTask) => void) {}
+  constructor(
+    private notebook: Pick<NotebookClient, 'commit'>,
+    private changed: (id: string, value: ScheduledWeekTask) => void,
+  ) {}
 
   latest(row: TaskRow): TaskRow {
     const pending = this.pending.get(row.source.block.id);
@@ -27,7 +34,8 @@ export class WeekScheduleHistory {
 
   schedule(row: TaskRow, task: TaskState): Promise<void> {
     row = this.latest(row);
-    if (task.scheduled === row.task.scheduled && task.scheduled_time === row.task.scheduled_time) return Promise.resolve();
+    if (task.scheduled === row.task.scheduled && task.scheduled_time === row.task.scheduled_time)
+      return Promise.resolve();
     const move = { row, before: row.task, after: task };
     this.undoStack.push(move);
     this.redoStack = [];
@@ -57,24 +65,29 @@ export class WeekScheduleHistory {
     const value: ScheduledWeekTask = { row: { ...row, task }, pending: true, committedSequence: null };
     this.pending.set(id, value);
     this.changed(id, value);
-    const run = this.queue.then(async () => {
-      const confirmed = this.confirmed.get(id);
-      const source = confirmed && confirmed.source.block.revision >= row.source.block.revision ? confirmed : row;
-      const label = `${task.scheduled}${task.scheduled_time ? ` at ${task.scheduled_time}` : ', all-day'}`;
-      const receipt = await this.notebook.commit([{ op: 'set_task', id, base_revision: source.source.block.revision, task }], `Reschedule task to ${label}`);
-      const revision = receipt.revisions.find(value => value.id === id)?.revision ?? source.source.block.revision;
-      const saved = { ...row, source: { ...row.source, block: { ...row.source.block, revision } }, task };
-      this.confirmed.set(id, saved);
-      if (this.pending.get(id) !== value) return;
-      this.pending.delete(id);
-      this.changed(id, { row: saved, pending: false, committedSequence: receipt.seq });
-    }).catch(reason => {
-      if (this.pending.get(id) === value) {
+    const run = this.queue
+      .then(async () => {
+        const confirmed = this.confirmed.get(id);
+        const source = confirmed && confirmed.source.block.revision >= row.source.block.revision ? confirmed : row;
+        const label = `${task.scheduled}${task.scheduled_time ? ` at ${task.scheduled_time}` : ', all-day'}`;
+        const receipt = await this.notebook.commit(
+          [{ op: 'set_task', id, base_revision: source.source.block.revision, task }],
+          `Reschedule task to ${label}`,
+        );
+        const revision = receipt.revisions.find(value => value.id === id)?.revision ?? source.source.block.revision;
+        const saved = { ...row, source: { ...row.source, block: { ...row.source.block, revision } }, task };
+        this.confirmed.set(id, saved);
+        if (this.pending.get(id) !== value) return;
         this.pending.delete(id);
-        this.changed(id, { row: this.confirmed.get(id) ?? row, pending: false, committedSequence: null });
-      }
-      throw reason;
-    });
+        this.changed(id, { row: saved, pending: false, committedSequence: receipt.seq });
+      })
+      .catch(reason => {
+        if (this.pending.get(id) === value) {
+          this.pending.delete(id);
+          this.changed(id, { row: this.confirmed.get(id) ?? row, pending: false, committedSequence: null });
+        }
+        throw reason;
+      });
     this.queue = run.catch(() => undefined);
     return run;
   }

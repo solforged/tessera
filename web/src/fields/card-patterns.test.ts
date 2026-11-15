@@ -26,12 +26,19 @@ describe('template patterns', () => {
   });
   test('keeps identity through a field rename', () => {
     const stored = storedPattern('{Gloss}', fields);
-    expect(displayPattern(stored, fields.map(field => ({ ...field, name: field.name === 'Gloss' ? 'Meaning' : field.name })))).toBe('{Meaning}');
+    expect(
+      displayPattern(
+        stored,
+        fields.map(field => ({ ...field, name: field.name === 'Gloss' ? 'Meaning' : field.name })),
+      ),
+    ).toBe('{Meaning}');
     expect(storedPattern(`{${fields[1]!.id}}`, fields)).toBe(stored);
   });
   test('rejects unknown, unclosed and ambiguous references', () => {
     expect(() => storedPattern('{Missing}', fields)).toThrow('Unknown field');
     expect(() => storedPattern('{Gloss', fields)).toThrow('Close the field');
-    expect(() => storedPattern('{Gloss}', [...fields, { ...fields[1]!, id: '01K00000000000000000000003' }])).toThrow('Choose one');
+    expect(() => storedPattern('{Gloss}', [...fields, { ...fields[1]!, id: '01K00000000000000000000003' }])).toThrow(
+      'Choose one',
+    );
   });
 });

@@ -9,10 +9,20 @@ import { isFinished } from '../tasks/task-labels';
 import type { TaskFieldName } from '../tasks/task-fields';
 
 /** These tags are already represented by the atom's behavior glyph. */
-export const isCapabilityTag = (title: string) => ['task', 'question', 'project', 'source'].includes(title.trim().toLocaleLowerCase());
+export const isCapabilityTag = (title: string) =>
+  ['task', 'question', 'project', 'source'].includes(title.trim().toLocaleLowerCase());
 
-
-export type CapabilityKind = 'task' | 'status' | 'priority' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date' | 'question-parent';
+export type CapabilityKind =
+  | 'task'
+  | 'status'
+  | 'priority'
+  | 'schedule'
+  | 'deadline'
+  | 'repeat'
+  | 'project'
+  | 'work'
+  | 'review-date'
+  | 'question-parent';
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
   | { kind: CapabilityKind }
   | { kind: 'complete'; session: WorkSession; completedOn: string }
@@ -33,14 +43,28 @@ export function createOutlineCapabilities(options: {
   const [errors, setErrors] = createSignal<ReadonlyMap<string, string>>(new Map());
   const busy = (id: string) => pending().has(id);
   const error = (id: string) => errors().get(id) ?? '';
-  const failure = (id: string, reason: unknown) => setErrors(previous => new Map(previous).set(id, reason instanceof Error ? reason.message : String(reason)));
+  const failure = (id: string, reason: unknown) =>
+    setErrors(previous => new Map(previous).set(id, reason instanceof Error ? reason.message : String(reason)));
   async function run(id: string, operation: () => Promise<void>) {
     if (busy(id)) throw new Error('A command is pending for this atom.');
     setPending(previous => new Set(previous).add(id));
-    setErrors(previous => { const next = new Map(previous); next.delete(id); return next; });
-    try { await operation(); }
-    catch (reason) { failure(id, reason); throw reason; }
-    finally { setPending(previous => { const next = new Set(previous); next.delete(id); return next; }); }
+    setErrors(previous => {
+      const next = new Map(previous);
+      next.delete(id);
+      return next;
+    });
+    try {
+      await operation();
+    } catch (reason) {
+      failure(id, reason);
+      throw reason;
+    } finally {
+      setPending(previous => {
+        const next = new Set(previous);
+        next.delete(id);
+        return next;
+      });
+    }
   }
   async function save(intent: Edit) {
     const result = doc.edit(intent, options.caret());
@@ -50,17 +74,25 @@ export function createOutlineCapabilities(options: {
   const edit = (id: string, intent: Edit) => run(id, () => save(intent));
   // Event callbacks retain errors on their source row; controlled widgets also
   // receive the rejection so their entered draft is not discarded.
-  const invoke = (operation: Promise<void>) => { void operation.catch(() => {}); };
+  const invoke = (operation: Promise<void>) => {
+    void operation.catch(() => {});
+  };
   function open(id: string, kind: CapabilityKind, anchor = options.anchor(id)) {
     if (!anchor || !doc.block(id)) return;
     if (options.onTaskFields && ['task', 'status', 'priority', 'schedule', 'deadline', 'repeat'].includes(kind)) {
       // The planning chip (a button, or a fact inside one) is where focus returns when the field editor closes.
-      options.onTaskFields(id, kind === 'task' ? undefined : kind === 'schedule' ? 'scheduled' : kind as TaskFieldName, anchor instanceof HTMLElement ? anchor.closest('button') ?? undefined : undefined);
+      options.onTaskFields(
+        id,
+        kind === 'task' ? undefined : kind === 'schedule' ? 'scheduled' : (kind as TaskFieldName),
+        anchor instanceof HTMLElement ? (anchor.closest('button') ?? undefined) : undefined,
+      );
       return;
     }
     setPopup({ id, kind, anchor });
   }
-  function dismiss(state: CapabilityPopup) { if (popup() === state) setPopup(null); }
+  function dismiss(state: CapabilityPopup) {
+    if (popup() === state) setPopup(null);
+  }
   async function status(id: string, status: TaskStatus | null) {
     const completedOn = options.contextDate();
     await run(id, async () => {
@@ -72,8 +104,11 @@ export function createOutlineCapabilities(options: {
       if (status === 'done') {
         let active: WorkSession | null | undefined;
         if (notebook.connection() !== 'offline') {
-          try { active = await notebook.api.activeWorkSession(); }
-          catch (reason) { if (!(reason instanceof ApiError) || !reason.uncertain) throw reason; }
+          try {
+            active = await notebook.api.activeWorkSession();
+          } catch (reason) {
+            if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
+          }
         }
         if (active?.block_id === id && !active.reversed && active.ended_at === null) {
           const anchor = options.anchor(id);
@@ -84,21 +119,56 @@ export function createOutlineCapabilities(options: {
         await save({ kind: 'completeTask', id, completedOn });
       } else {
         const task = doc.block(id)?.task;
-        await save({ kind: 'task', id, value: status === null ? null : { ...(task ?? newTask()), status, completed_on: null } });
+        await save({
+          kind: 'task',
+          id,
+          value: status === null ? null : { ...(task ?? newTask()), status, completed_on: null },
+        });
       }
     });
   }
   /** ⌘Enter adds a checkbox to an appointment, completes an open task or reopens a finished task. */
-  const toggle = (id: string) => { const task = doc.block(id)?.task; return status(id, task?.status && !isFinished(task) ? 'done' : 'todo'); };
+  const toggle = (id: string) => {
+    const task = doc.block(id)?.task;
+    return status(id, task?.status && !isFinished(task) ? 'done' : 'todo');
+  };
   async function complete(state: Extract<CapabilityPopup, { kind: 'complete' }>) {
-    await edit(state.id, { kind: 'completeTask', id: state.id, completedOn: state.completedOn, stopWork: state.session });
+    await edit(state.id, {
+      kind: 'completeTask',
+      id: state.id,
+      completedOn: state.completedOn,
+      stopWork: state.session,
+    });
     dismiss(state);
   }
   function showActions(id: string, beside = false) {
     const date = options.contextDate();
-    options.onOpen({ kind: 'agenda', date, query: { source: null, filter: { selection: 'unfinished', statuses: [], recent_days: 7, scheduled: null, deadline: null, priority: null, project_id: id, sort: 'outline' }, context_date: date, limit: null } }, beside);
+    options.onOpen(
+      {
+        kind: 'agenda',
+        date,
+        query: {
+          source: null,
+          filter: {
+            selection: 'unfinished',
+            statuses: [],
+            recent_days: 7,
+            scheduled: null,
+            deadline: null,
+            priority: null,
+            project_id: id,
+            sort: 'outline',
+          },
+          context_date: date,
+          limit: null,
+        },
+      },
+      beside,
+    );
   }
-  function source(id: string, beside = false) { options.onOpen({ kind: 'page', pageId: doc.pageId, blockId: id }, beside); }
+  function source(id: string, beside = false) {
+    options.onOpen({ kind: 'page', pageId: doc.pageId, blockId: id }, beside);
+  }
   /** Planning commands can schedule an atom without giving it a checkbox. */
   function ensureTask(id: string) {
     if (doc.block(id) && !doc.block(id)!.task) invoke(edit(id, { kind: 'task', id, value: newTask() }));
@@ -116,5 +186,23 @@ export function createOutlineCapabilities(options: {
       } else await save({ kind: 'startWork', id, startedAt: now });
     });
   }
-  return { popup, busy, error, failure, run, save, edit, invoke, open, dismiss, status, toggle, complete, showActions, source, ensureTask, clock };
+  return {
+    popup,
+    busy,
+    error,
+    failure,
+    run,
+    save,
+    edit,
+    invoke,
+    open,
+    dismiss,
+    status,
+    toggle,
+    complete,
+    showActions,
+    source,
+    ensureTask,
+    clock,
+  };
 }

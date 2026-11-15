@@ -10,28 +10,44 @@ export const gradeLabels: Record<Grade, string> = { again: 'Again', hard: 'Hard'
 
 /** History and summaries: days under two months, then months and years. */
 export function formatInterval(days: number): string {
-  const [value, unit] = days < 60 ? [days, 'day'] : days < 365 ? [Number((days / 30.44).toFixed(1)), 'month'] : [Number((days / 365.25).toFixed(1)), 'year'];
+  const [value, unit] =
+    days < 60
+      ? [days, 'day']
+      : days < 365
+        ? [Number((days / 30.44).toFixed(1)), 'month']
+        : [Number((days / 365.25).toFixed(1)), 'year'];
   return `${value} ${unit}${value === 1 ? '' : 's'}`;
 }
 
 /** Keep compact units unless rounding would hide distinct adjacent intervals. */
-export function gradeIntervals(previews: readonly { grade: Grade; interval_days: number }[]): Partial<Record<Grade, string>> {
-  const ordered = (['again', 'hard', 'good', 'easy'] as const).flatMap(grade => previews.find(value => value.grade === grade) ?? []);
+export function gradeIntervals(
+  previews: readonly { grade: Grade; interval_days: number }[],
+): Partial<Record<Grade, string>> {
+  const ordered = (['again', 'hard', 'good', 'easy'] as const).flatMap(
+    grade => previews.find(value => value.grade === grade) ?? [],
+  );
   const labels = ordered.map(value => formatInterval(value.interval_days));
   const tied = new Set<number>();
   for (let index = 1; index < ordered.length; index++) {
     if (labels[index] === labels[index - 1] && ordered[index]!.interval_days !== ordered[index - 1]!.interval_days) {
-      tied.add(index - 1); tied.add(index);
+      tied.add(index - 1);
+      tied.add(index);
     }
   }
   for (const index of tied) {
     const days = ordered[index]!.interval_days;
-    labels[index] = days < 60 ? formatInterval(days) : days < 365 ? `${(days / 30.44).toFixed(1)} mo` : `${(days / 365.25).toFixed(1)} yr`;
+    labels[index] =
+      days < 60
+        ? formatInterval(days)
+        : days < 365
+          ? `${(days / 30.44).toFixed(1)} mo`
+          : `${(days / 365.25).toFixed(1)} yr`;
   }
   const daysOnly = new Set<number>();
   for (let index = 1; index < ordered.length; index++) {
     if (labels[index] === labels[index - 1] && ordered[index]!.interval_days !== ordered[index - 1]!.interval_days) {
-      daysOnly.add(index - 1); daysOnly.add(index);
+      daysOnly.add(index - 1);
+      daysOnly.add(index);
     }
   }
   for (const index of daysOnly) {
@@ -47,19 +63,32 @@ export function copyCardQuery(query: CardQuery): CardQuery {
 
 /** Revision equality covers the schedule; definition and text are checked explicitly as evidence. */
 export function sameCardSnapshot(shown: CardUnit, current: CardUnit): boolean {
-  return shown.id === current.id && shown.revision === current.revision
-    && shown.definition_revision === current.definition_revision && shown.active === current.active
-    && shown.front === current.front && shown.back === current.back;
+  return (
+    shown.id === current.id &&
+    shown.revision === current.revision &&
+    shown.definition_revision === current.definition_revision &&
+    shown.active === current.active &&
+    shown.front === current.front &&
+    shown.back === current.back
+  );
 }
 
 /** A recovered start receipt may predate the shell's saved session ID. Other sessions stay discoverable. */
-export function openReviewSession(sessions: readonly ReviewSession[], deckId: string | null): ReviewSession | undefined {
-  return sessions.filter(session => session.state === 'open' && session.deck_id === deckId)
+export function openReviewSession(
+  sessions: readonly ReviewSession[],
+  deckId: string | null,
+): ReviewSession | undefined {
+  return sessions
+    .filter(session => session.state === 'open' && session.deck_id === deckId)
     .sort((a, b) => b.started_at - a.started_at || b.id.localeCompare(a.id))[0];
 }
 
 /** null means another session's newer grade requires the retained history, not a guess. */
-export function reviewedInSession(row: CardRow, session: ReviewSession, history?: readonly ReviewEvent[]): boolean | null {
+export function reviewedInSession(
+  row: CardRow,
+  session: ReviewSession,
+  history?: readonly ReviewEvent[],
+): boolean | null {
   if (history) return history.some(event => event.kind === 'grade' && event.session_id === session.id);
   if (row.last_review?.session_id === session.id) return true;
   if (!row.last_review || row.last_review.created_at < session.started_at) return false;
@@ -67,12 +96,26 @@ export function reviewedInSession(row: CardRow, session: ReviewSession, history?
 }
 
 /** Only the immutable displayed row is allowed here, never the latest query result. */
-export function gradeOperation(shown: CardRow, sessionId: string, grade: Grade, reset: boolean, eventId: string, reviewedAt: number): Operation {
+export function gradeOperation(
+  shown: CardRow,
+  sessionId: string,
+  grade: Grade,
+  reset: boolean,
+  eventId: string,
+  reviewedAt: number,
+): Operation {
   return {
-    op: 'grade_card', id: shown.card.id, base_revision: shown.card.revision,
-    definition_revision: shown.card.definition_revision, event_id: eventId,
-    session_id: sessionId, grade, reset, shown_front: shown.card.front,
-    shown_back: shown.card.back, reviewed_at: reviewedAt,
+    op: 'grade_card',
+    id: shown.card.id,
+    base_revision: shown.card.revision,
+    definition_revision: shown.card.definition_revision,
+    event_id: eventId,
+    session_id: sessionId,
+    grade,
+    reset,
+    shown_front: shown.card.front,
+    shown_back: shown.card.back,
+    reviewed_at: reviewedAt,
   };
 }
 
@@ -81,17 +124,26 @@ export async function loadReviewCard(api: ReviewCardApi, id: string): Promise<Ca
   const card = await api.card(id);
   const [block, reviews] = await Promise.all([api.block(card.source_block_id), api.cardReviews(id)]);
   const page = block.id === block.page_id ? block : await api.block(block.page_id);
-  return { card, source: { block, page }, last_review: reviews.filter(event => event.kind === 'grade' && !event.undone_by).at(-1) ?? null };
+  return {
+    card,
+    source: { block, page },
+    last_review: reviews.filter(event => event.kind === 'grade' && !event.undone_by).at(-1) ?? null,
+  };
 }
 
 /** Undo takes priority even when pacing or a query limit leaves the restored card out of the query. */
-export async function sessionQueue(api: ReviewCardApi, candidates: CardRow[], history: ReviewEvent[], restoredCardId: string | null): Promise<{ rows: CardRow[]; restoredUnavailable: boolean }> {
+export async function sessionQueue(
+  api: ReviewCardApi,
+  candidates: CardRow[],
+  history: ReviewEvent[],
+  restoredCardId: string | null,
+): Promise<{ rows: CardRow[]; restoredUnavailable: boolean }> {
   const reviewed = new Set(history.filter(event => event.kind === 'grade').map(event => event.card_id));
   const rows = candidates.filter(row => row.card.active && !row.card.held && !reviewed.has(row.card.id));
   if (!restoredCardId || reviewed.has(restoredCardId)) return { rows, restoredUnavailable: false };
   let restored: CardRow;
   try {
-    restored = candidates.find(row => row.card.id === restoredCardId) ?? await loadReviewCard(api, restoredCardId);
+    restored = candidates.find(row => row.card.id === restoredCardId) ?? (await loadReviewCard(api, restoredCardId));
   } catch (reason) {
     if (reason instanceof ApiError && reason.status === 404) return { rows, restoredUnavailable: true };
     throw reason;

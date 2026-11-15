@@ -14,7 +14,15 @@ import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
 import { OcclusionFigure } from '../review/OcclusionFigure';
 
-export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks?: readonly { id?: string; name: string }[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
+export function CardSummary(props: {
+  blockId: string;
+  cards: ParsedCard[];
+  decks?: readonly { id?: string; name: string }[];
+  templateCount?: number;
+  notebook: NotebookClient;
+  register?: (control: { open(anchor: HTMLElement): void } | undefined) => void;
+  onOpen(target: OpenTarget, beside: boolean): void;
+}) {
   const keys = createMemo(() => props.cards.map(card => card.key).join('\n'));
   // Keyed by card id: a refetch updates rows in place, so the focused button in a row survives it.
   const [stored, setStored] = createStore<CardUnit[]>([]);
@@ -31,40 +39,72 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
   const [busy, setBusy] = createSignal(false);
   const [now, setNow] = createSignal(Date.now());
   let disposed = false;
-  onCleanup(() => { disposed = true; });
-  function open(trigger: HTMLElement) { setNow(Date.now()); setSettled(false); setAnchor(trigger); }
+  onCleanup(() => {
+    disposed = true;
+  });
+  function open(trigger: HTMLElement) {
+    setNow(Date.now());
+    setSettled(false);
+    setAnchor(trigger);
+  }
   onMount(() => props.register?.({ open }));
   onCleanup(() => props.register?.(undefined));
 
   createEffect(() => {
     const id = props.blockId;
     const cardKeys = keys();
-    const sequence = props.notebook.changeSequence(); retry();
+    const sequence = props.notebook.changeSequence();
+    retry();
     const controller = new AbortController();
     onCleanup(() => controller.abort());
     if (!anchor()) return;
-    setError(''); setLoading(true);
-    if (!cardKeys && !props.templateCount) { batch(() => { setStored(reconcile([], { key: 'id' })); setLoading(false); setSettled(true); }); return; }
-    if (props.notebook.lookup(id)()?.revision === 0) { setSettled(true); return; }
-    void props.notebook.api.sourceCards(id, controller.signal).then(cards => {
-      if (controller.signal.aborted) return;
+    setError('');
+    setLoading(true);
+    if (!cardKeys && !props.templateCount) {
       batch(() => {
-        setStored(reconcile(cards.filter(card => card.active), { key: 'id' }));
-        setStoredSequence(sequence);
-        setNow(Date.now()); setLoading(false); setSettled(true);
+        setStored(reconcile([], { key: 'id' }));
+        setLoading(false);
+        setSettled(true);
       });
-    }, reason => {
-      if (controller.signal.aborted) return;
-      batch(() => {
-        setError(reason instanceof Error ? reason.message : String(reason));
-        setLoading(false); setSettled(true);
-      });
-    });
+      return;
+    }
+    if (props.notebook.lookup(id)()?.revision === 0) {
+      setSettled(true);
+      return;
+    }
+    void props.notebook.api.sourceCards(id, controller.signal).then(
+      cards => {
+        if (controller.signal.aborted) return;
+        batch(() => {
+          setStored(
+            reconcile(
+              cards.filter(card => card.active),
+              { key: 'id' },
+            ),
+          );
+          setStoredSequence(sequence);
+          setNow(Date.now());
+          setLoading(false);
+          setSettled(true);
+        });
+      },
+      reason => {
+        if (controller.signal.aborted) return;
+        batch(() => {
+          setError(reason instanceof Error ? reason.message : String(reason));
+          setLoading(false);
+          setSettled(true);
+        });
+      },
+    );
   });
 
   const ordered = createMemo(() => {
     const byKey = new Map(stored.map(card => [card.key, card]));
-    return [...props.cards.flatMap(card => byKey.get(card.key) ?? []), ...stored.filter(card => card.key.startsWith('tpl:'))];
+    return [
+      ...props.cards.flatMap(card => byKey.get(card.key) ?? []),
+      ...stored.filter(card => card.key.startsWith('tpl:')),
+    ];
   });
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
@@ -74,18 +114,24 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
     return { count, due, held, text: `${count} ${count === 1 ? 'card' : 'cards'}` };
   });
   async function openDeck(deck: { id?: string; name: string }, beside: boolean) {
-    const id = deck.id ?? await props.notebook.pageByTitle(deck.name, false);
+    const id = deck.id ?? (await props.notebook.pageByTitle(deck.name, false));
     if (!disposed && id) props.onOpen({ kind: 'review', deckId: id }, beside);
   }
   const confirmation = createMemo(() => stored.find(card => card.id === confirm()));
-  function dismiss() { setAnchor(null); setConfirm(null); setResetError(''); setHoldError(''); }
+  function dismiss() {
+    setAnchor(null);
+    setConfirm(null);
+    setResetError('');
+    setHoldError('');
+  }
   async function hold(shown: CardUnit[], held: boolean) {
     const cards = shown.map(card => unwrap(card));
     if (busy() || loading() || error()) return;
-    setBusy(true); setHoldError('');
+    setBusy(true);
+    setHoldError('');
     let doc;
     try {
-      const source = props.notebook.lookup(props.blockId)() ?? await props.notebook.api.block(props.blockId);
+      const source = props.notebook.lookup(props.blockId)() ?? (await props.notebook.api.block(props.blockId));
       doc = props.notebook.open(source.page_id);
       if (doc.status() !== 'ready') throw new Error('The atom is not ready.');
       const result = doc.edit({ kind: 'cardHeld', cards, held });
@@ -102,10 +148,26 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
   async function reset() {
     const card = confirmation();
     if (!card || busy() || loading() || error()) return;
-    setBusy(true); setResetError('');
+    setBusy(true);
+    setResetError('');
     try {
-      await props.notebook.commit([{ op: 'reset_card', id: card.id, base_revision: card.revision, event_id: ulid(), session_id: null, reviewed_at: Date.now() }], 'Reset card');
-      if (!disposed) { setConfirm(null); setRetry(value => value + 1); }
+      await props.notebook.commit(
+        [
+          {
+            op: 'reset_card',
+            id: card.id,
+            base_revision: card.revision,
+            event_id: ulid(),
+            session_id: null,
+            reviewed_at: Date.now(),
+          },
+        ],
+        'Reset card',
+      );
+      if (!disposed) {
+        setConfirm(null);
+        setRetry(value => value + 1);
+      }
     } catch (reason) {
       if (!disposed) setResetError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -113,51 +175,195 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
     }
   }
 
-  return <>
-    <Show when={error() || props.cards.length || props.templateCount}><span class="outline-card-decks">
-      <Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
-        if (opensBeside(event)) { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, true); return; }
-        open(event.currentTarget);
-      }}>{label().text}</Button>
-      <span class="outline-card-count" aria-hidden="true"> · </span>
-      <Show when={props.decks?.length} fallback={<span class="outline-card-count">untagged</span>}>
-        <For each={props.decks}>{(deck, index) => <>{index() > 0 ? ' ' : ''}<Button class="outline-planning outline-card-count" title={`Review #${deck.name}`} onClick={event => { event.stopPropagation(); void openDeck(deck, opensBeside(event)); }}>#{deck.name}</Button></>}</For>
+  return (
+    <>
+      <Show when={error() || props.cards.length || props.templateCount}>
+        <span class="outline-card-decks">
+          <Button
+            class="outline-planning outline-card-count"
+            title="Show cards"
+            aria-haspopup="dialog"
+            aria-expanded={!!anchor()}
+            onClick={event => {
+              if (opensBeside(event)) {
+                dismiss();
+                props.onOpen({ kind: 'review', blockId: props.blockId }, true);
+                return;
+              }
+              open(event.currentTarget);
+            }}
+          >
+            {label().text}
+          </Button>
+          <span class="outline-card-count" aria-hidden="true">
+            {' '}
+            ·{' '}
+          </span>
+          <Show when={props.decks?.length} fallback={<span class="outline-card-count">untagged</span>}>
+            <For each={props.decks}>
+              {(deck, index) => (
+                <>
+                  {index() > 0 ? ' ' : ''}
+                  <Button
+                    class="outline-planning outline-card-count"
+                    title={`Review #${deck.name}`}
+                    onClick={event => {
+                      event.stopPropagation();
+                      void openDeck(deck, opensBeside(event));
+                    }}
+                  >
+                    #{deck.name}
+                  </Button>
+                </>
+              )}
+            </For>
+          </Show>
+          <Show when={label().due}>
+            <span class="outline-card-count">· {label().due} due</span>
+          </Show>
+          <Show when={label().held}>
+            <span class="outline-card-count">· {label().held} not yet</span>
+          </Show>
+        </span>
       </Show>
-      <Show when={label().due}><span class="outline-card-count">· {label().due} due</span></Show>
-      <Show when={label().held}><span class="outline-card-count">· {label().held} not yet</span></Show>
-    </span></Show>
-    <Show when={anchor()}>{trigger => <Popup anchor={trigger()} ready={settled()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
-      <Show when={loading() && !ordered().length}><p class="outline-capability-notice" role="status">Loading cards…</p></Show>
-      <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
-      <Show when={!error() && ordered().length}><div class="outline-cards-list">
-        <For each={ordered()}>{card => <div class="outline-cards-row">
-          <span class="outline-cards-kind">{card.template ? 'Recipe' : cardKindLabel(card, ordered())}</span>
-          <div class="outline-cards-content">
-            <CardPreview card={card} notebook={props.notebook} />
-            <Show when={card.template}>{template => <p class="outline-cards-provenance">#{template().type_name} · {template().name}</p>}</Show>
-          </div>
-          <span class="outline-cards-state">{card.held ? card.schedule.last_reviewed_at === null ? 'Not yet' : 'Paused' : card.schedule.last_reviewed_at === null ? 'New' : card.schedule.due_at <= now() ? 'Due' : `In ${formatInterval(Math.ceil((card.schedule.due_at - now()) / 86_400_000))}`}</span>
-          <div class="outline-cards-actions">
-            <Button disabled={busy() || loading() || !!error()} onClick={() => void hold([card], !card.held)}>{card.held ? card.schedule.last_reviewed_at === null ? 'Start' : 'Resume' : card.schedule.last_reviewed_at === null ? 'Not yet' : 'Pause'}</Button>
-            <Show when={card.schedule.last_reviewed_at !== null}><Button disabled={busy()} onClick={() => { setConfirm(card.id); setResetError(''); }}>Reset</Button></Show>
-          </div>
-        </div>}</For>
-      </div></Show>
-      <Show when={confirmation()}><div class="outline-cards-confirm">
-        <p>Reset this card’s schedule? Review history stays.</p>
-        <div class="outline-capability-actions">
-          <Button disabled={busy()} onClick={() => { setConfirm(null); setResetError(''); }}>Cancel</Button>
-          <Button class="bordered" disabled={busy() || loading() || !!error()} onClick={() => void reset()}>Reset</Button>
-        </div>
-        <Show when={resetError()}><p class="error" role="alert">{resetError()}</p></Show>
-      </div></Show>
-      <Show when={holdError()}><p class="error" role="alert">{holdError()}</p></Show>
-      <div class="outline-capability-actions">
-        <Show when={ordered().length >= 2 && ordered().some(card => card.held)}><Button disabled={busy() || loading() || !!error()} onClick={() => void hold(ordered().filter(card => card.held), false)}>Start all</Button></Show>
-        <Button class="bordered" disabled={!ordered().some(card => !card.held)} title={`Review this atom's cards · ${besideHint}`} onClick={event => { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, opensBeside(event)); }}>Review</Button>
-      </div>
-    </Popup>}</Show>
-  </>;
+      <Show when={anchor()}>
+        {trigger => (
+          <Popup
+            anchor={trigger()}
+            ready={settled()}
+            label="Cards"
+            class="outline-capability-popup outline-cards-popup"
+            onDismiss={dismiss}
+          >
+            <Show when={loading() && !ordered().length}>
+              <p class="outline-capability-notice" role="status">
+                Loading cards…
+              </p>
+            </Show>
+            <Show when={error()}>
+              <p class="error" role="alert">
+                {error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button>
+              </p>
+            </Show>
+            <Show when={!error() && ordered().length}>
+              <div class="outline-cards-list">
+                <For each={ordered()}>
+                  {card => (
+                    <div class="outline-cards-row">
+                      <span class="outline-cards-kind">
+                        {card.template ? 'Recipe' : cardKindLabel(card, ordered())}
+                      </span>
+                      <div class="outline-cards-content">
+                        <CardPreview card={card} notebook={props.notebook} />
+                        <Show when={card.template}>
+                          {template => (
+                            <p class="outline-cards-provenance">
+                              #{template().type_name} · {template().name}
+                            </p>
+                          )}
+                        </Show>
+                      </div>
+                      <span class="outline-cards-state">
+                        {card.held
+                          ? card.schedule.last_reviewed_at === null
+                            ? 'Not yet'
+                            : 'Paused'
+                          : card.schedule.last_reviewed_at === null
+                            ? 'New'
+                            : card.schedule.due_at <= now()
+                              ? 'Due'
+                              : `In ${formatInterval(Math.ceil((card.schedule.due_at - now()) / 86_400_000))}`}
+                      </span>
+                      <div class="outline-cards-actions">
+                        <Button
+                          disabled={busy() || loading() || !!error()}
+                          onClick={() => void hold([card], !card.held)}
+                        >
+                          {card.held
+                            ? card.schedule.last_reviewed_at === null
+                              ? 'Start'
+                              : 'Resume'
+                            : card.schedule.last_reviewed_at === null
+                              ? 'Not yet'
+                              : 'Pause'}
+                        </Button>
+                        <Show when={card.schedule.last_reviewed_at !== null}>
+                          <Button
+                            disabled={busy()}
+                            onClick={() => {
+                              setConfirm(card.id);
+                              setResetError('');
+                            }}
+                          >
+                            Reset
+                          </Button>
+                        </Show>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+            <Show when={confirmation()}>
+              <div class="outline-cards-confirm">
+                <p>Reset this card’s schedule? Review history stays.</p>
+                <div class="outline-capability-actions">
+                  <Button
+                    disabled={busy()}
+                    onClick={() => {
+                      setConfirm(null);
+                      setResetError('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button class="bordered" disabled={busy() || loading() || !!error()} onClick={() => void reset()}>
+                    Reset
+                  </Button>
+                </div>
+                <Show when={resetError()}>
+                  <p class="error" role="alert">
+                    {resetError()}
+                  </p>
+                </Show>
+              </div>
+            </Show>
+            <Show when={holdError()}>
+              <p class="error" role="alert">
+                {holdError()}
+              </p>
+            </Show>
+            <div class="outline-capability-actions">
+              <Show when={ordered().length >= 2 && ordered().some(card => card.held)}>
+                <Button
+                  disabled={busy() || loading() || !!error()}
+                  onClick={() =>
+                    void hold(
+                      ordered().filter(card => card.held),
+                      false,
+                    )
+                  }
+                >
+                  Start all
+                </Button>
+              </Show>
+              <Button
+                class="bordered"
+                disabled={!ordered().some(card => !card.held)}
+                title={`Review this atom's cards · ${besideHint}`}
+                onClick={event => {
+                  dismiss();
+                  props.onOpen({ kind: 'review', blockId: props.blockId }, opensBeside(event));
+                }}
+              >
+                Review
+              </Button>
+            </div>
+          </Popup>
+        )}
+      </Show>
+    </>
+  );
 }
 
 /** A popup row shows at most this many answer items; the rest are counted. */
@@ -169,20 +375,49 @@ function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
     if (props.card.kind !== 'cloze') return null;
     const text = props.notebook.lookup(props.card.source_block_id)()?.text;
     const parts = text === undefined ? null : clozeSegments(text, props.card.key);
-    return parts?.map(part => 'text' in part ? part.text : part.answer).join('') === props.card.back ? parts : null;
+    return parts?.map(part => ('text' in part ? part.text : part.answer)).join('') === props.card.back ? parts : null;
   });
   const hidden = () => Math.max(0, props.card.answer_blocks.length - previewItems);
-  return <Show when={props.card.kind === 'occlusion'} fallback={<Show when={segments()} fallback={<>
-    <div class="outline-cards-front"><BlockText text={props.card.front} notebook={props.notebook} interactive={false} /></div>
-    <div class="outline-cards-answer">
-      <CardBack kind={props.card.kind} back={props.card.back} blocks={props.card.answer_blocks.slice(0, previewItems)} notebook={props.notebook} />
-      <Show when={hidden()}><p class="outline-cards-more">{hidden()} more</p></Show>
-    </div>
-  </>}>{parts => <>
-    <div class="outline-cards-front"><ClozeText segments={parts()} revealed={false} notebook={props.notebook} /></div>
-    <div class="outline-cards-answer"><ClozeText segments={parts()} revealed notebook={props.notebook} /></div>
-  </>}</Show>}>
-    <OcclusionFigure front={props.card.front} back={props.card.back} thumbnail revealed notebook={props.notebook} />
-    <div class="outline-cards-answer">{occlusionSubject(props.card)}</div>
-  </Show>;
+  return (
+    <Show
+      when={props.card.kind === 'occlusion'}
+      fallback={
+        <Show
+          when={segments()}
+          fallback={
+            <>
+              <div class="outline-cards-front">
+                <BlockText text={props.card.front} notebook={props.notebook} interactive={false} />
+              </div>
+              <div class="outline-cards-answer">
+                <CardBack
+                  kind={props.card.kind}
+                  back={props.card.back}
+                  blocks={props.card.answer_blocks.slice(0, previewItems)}
+                  notebook={props.notebook}
+                />
+                <Show when={hidden()}>
+                  <p class="outline-cards-more">{hidden()} more</p>
+                </Show>
+              </div>
+            </>
+          }
+        >
+          {parts => (
+            <>
+              <div class="outline-cards-front">
+                <ClozeText segments={parts()} revealed={false} notebook={props.notebook} />
+              </div>
+              <div class="outline-cards-answer">
+                <ClozeText segments={parts()} revealed notebook={props.notebook} />
+              </div>
+            </>
+          )}
+        </Show>
+      }
+    >
+      <OcclusionFigure front={props.card.front} back={props.card.back} thumbnail revealed notebook={props.notebook} />
+      <div class="outline-cards-answer">{occlusionSubject(props.card)}</div>
+    </Show>
+  );
 }

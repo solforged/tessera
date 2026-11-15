@@ -28,9 +28,14 @@ export function installDaySwipe(element: HTMLElement, step: (days: -1 | 1) => vo
   let start: { id: number; x: number; y: number } | undefined;
   const begin = (event: TouchEvent) => {
     const touch = event.touches[0];
-    start = event.touches.length === 1 && touch && touch.clientX > swipeEdge ? { id: touch.identifier, x: touch.clientX, y: touch.clientY } : undefined;
+    start =
+      event.touches.length === 1 && touch && touch.clientX > swipeEdge
+        ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+        : undefined;
   };
-  const cancel = () => { start = undefined; };
+  const cancel = () => {
+    start = undefined;
+  };
   const end = (event: TouchEvent) => {
     const current = start;
     start = undefined;

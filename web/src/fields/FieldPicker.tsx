@@ -15,8 +15,15 @@ type FieldRow = { kind: 'field'; field: FieldDefinition; template: boolean } | {
  * A new name offers Text or the kind list when `onCreate` is given.
  */
 export function FieldPicker(props: {
-  anchor: PopupAnchor; label: string; fields: readonly FieldDefinition[]; template?: readonly string[]; templateLabel?: string; exclude?: ReadonlySet<string>;
-  onPick(field: FieldDefinition): void; onCreate?(name: string, kind: FieldKind): void; onDismiss(): void;
+  anchor: PopupAnchor;
+  label: string;
+  fields: readonly FieldDefinition[];
+  template?: readonly string[];
+  templateLabel?: string;
+  exclude?: ReadonlySet<string>;
+  onPick(field: FieldDefinition): void;
+  onCreate?(name: string, kind: FieldKind): void;
+  onDismiss(): void;
 }) {
   const [query, setQuery] = createSignal('');
   const [creating, setCreating] = createSignal<string | null>(null);
@@ -24,24 +31,99 @@ export function FieldPicker(props: {
     const needle = query().trim().toLowerCase();
     const template = props.template ?? [];
     const byId = new Map(props.fields.map(field => [field.id, field]));
-    const available = (field: FieldDefinition | undefined): field is FieldDefinition => !!field && !field.archived && !!field.name.trim() && !props.exclude?.has(field.id) && field.name.toLowerCase().includes(needle);
+    const available = (field: FieldDefinition | undefined): field is FieldDefinition =>
+      !!field &&
+      !field.archived &&
+      !!field.name.trim() &&
+      !props.exclude?.has(field.id) &&
+      field.name.toLowerCase().includes(needle);
     const first = template.map(id => byId.get(id)).filter(available);
-    const rest = props.fields.filter(field => !template.includes(field.id) && available(field)).sort((a, b) => a.name.localeCompare(b.name));
-    const result: FieldRow[] = [...first.map(field => ({ kind: 'field' as const, field, template: true })), ...rest.map(field => ({ kind: 'field' as const, field, template: false }))];
+    const rest = props.fields
+      .filter(field => !template.includes(field.id) && available(field))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const result: FieldRow[] = [
+      ...first.map(field => ({ kind: 'field' as const, field, template: true })),
+      ...rest.map(field => ({ kind: 'field' as const, field, template: false })),
+    ];
     const exact = props.fields.some(field => field.name.toLowerCase() === needle);
-    if (props.onCreate && needle && !exact && !fieldNameProblem(query())) result.push({ kind: 'new', name: query().trim() }, { kind: 'as', name: query().trim() });
+    if (props.onCreate && needle && !exact && !fieldNameProblem(query()))
+      result.push({ kind: 'new', name: query().trim() }, { kind: 'as', name: query().trim() });
     return result;
   });
-  return <Show keyed when={creating()} fallback={<Picker<FieldRow> anchor={props.anchor} label={props.label} width={320} class="field-picker" fitContent query={query()} onQuery={setQuery} placeholder="Field name"
-    items={rows()} key={row => row.kind === 'field' ? row.field.id : `${row.kind}:${row.name}`}
-    section={row => row.kind === 'field' ? row.template ? props.templateLabel ?? 'Template' : props.template?.length ? 'Other fields' : undefined : undefined}
-    onPick={row => row.kind === 'field' ? props.onPick(row.field) : row.kind === 'as' ? setCreating(row.name) : props.onCreate?.(row.name, 'text')} onDismiss={props.onDismiss}
-    row={row => row.kind === 'field'
-      ? <><Icon name="field" /><span class="picker-text">{fieldLabel(row.field)}</span><span class="picker-meta">{taskFieldFormat(row.field) ?? kindLabels[row.field.kind]}</span></>
-      : <><Icon name="plus" /><span class="picker-text">{row.kind === 'as' ? `Create field “${row.name}” as…` : `Create text field “${row.name}”`}</span></>}
-    empty={query().trim() ? 'No matching fields.' : props.exclude?.size ? 'No other fields.' : 'No fields yet.'} />}>{name => <Menu anchor={props.anchor} label="Format" header={<div class="menu-section">Create field “{name}” as…</div>} closeOnSelect={false} onDismiss={props.onDismiss} items={[
-      // Back returns to the picker, which still holds the typed name in `query`.
-      { label: 'Back to fields', icon: 'left', action: () => setCreating(null) },
-      ...fieldKinds.map((kind, index) => ({ label: kindLabels[kind], divider: index === 0, action: () => { props.onDismiss(); props.onCreate?.(name, kind); } })),
-    ]} />}</Show>;
+  return (
+    <Show
+      keyed
+      when={creating()}
+      fallback={
+        <Picker<FieldRow>
+          anchor={props.anchor}
+          label={props.label}
+          width={320}
+          class="field-picker"
+          fitContent
+          query={query()}
+          onQuery={setQuery}
+          placeholder="Field name"
+          items={rows()}
+          key={row => (row.kind === 'field' ? row.field.id : `${row.kind}:${row.name}`)}
+          section={row =>
+            row.kind === 'field'
+              ? row.template
+                ? (props.templateLabel ?? 'Template')
+                : props.template?.length
+                  ? 'Other fields'
+                  : undefined
+              : undefined
+          }
+          onPick={row =>
+            row.kind === 'field'
+              ? props.onPick(row.field)
+              : row.kind === 'as'
+                ? setCreating(row.name)
+                : props.onCreate?.(row.name, 'text')
+          }
+          onDismiss={props.onDismiss}
+          row={row =>
+            row.kind === 'field' ? (
+              <>
+                <Icon name="field" />
+                <span class="picker-text">{fieldLabel(row.field)}</span>
+                <span class="picker-meta">{taskFieldFormat(row.field) ?? kindLabels[row.field.kind]}</span>
+              </>
+            ) : (
+              <>
+                <Icon name="plus" />
+                <span class="picker-text">
+                  {row.kind === 'as' ? `Create field “${row.name}” as…` : `Create text field “${row.name}”`}
+                </span>
+              </>
+            )
+          }
+          empty={query().trim() ? 'No matching fields.' : props.exclude?.size ? 'No other fields.' : 'No fields yet.'}
+        />
+      }
+    >
+      {name => (
+        <Menu
+          anchor={props.anchor}
+          label="Format"
+          header={<div class="menu-section">Create field “{name}” as…</div>}
+          closeOnSelect={false}
+          onDismiss={props.onDismiss}
+          items={[
+            // Back returns to the picker, which still holds the typed name in `query`.
+            { label: 'Back to fields', icon: 'left', action: () => setCreating(null) },
+            ...fieldKinds.map((kind, index) => ({
+              label: kindLabels[kind],
+              divider: index === 0,
+              action: () => {
+                props.onDismiss();
+                props.onCreate?.(name, kind);
+              },
+            })),
+          ]}
+        />
+      )}
+    </Show>
+  );
 }

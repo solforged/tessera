@@ -36,9 +36,23 @@ export async function reviewSource(api: ApiClient, row: CardRow): Promise<Review
     passages.push(...page.passages);
     end = passages.findIndex(passage => passage.id === citation.end.passage_id);
   }
-  const trailing = end < 0 ? '' : [passages[end]!.text.slice(citation.end.offset), ...passages.slice(end + 1).map(passage => passage.text)].join('\n\n').trim();
-  const chapter = citation.chapter_title ?? page.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= citation.ordinal).at(-1)?.title ?? null;
-  return { citation, source, chapter: chapter ? contentsTitle(chapter) : null, passages: passages.slice(0, end < 0 ? passages.length : end + 3), following: followOn(trailing) };
+  const trailing =
+    end < 0
+      ? ''
+      : [passages[end]!.text.slice(citation.end.offset), ...passages.slice(end + 1).map(passage => passage.text)]
+          .join('\n\n')
+          .trim();
+  const chapter =
+    citation.chapter_title ??
+    page.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= citation.ordinal).at(-1)?.title ??
+    null;
+  return {
+    citation,
+    source,
+    chapter: chapter ? contentsTitle(chapter) : null,
+    passages: passages.slice(0, end < 0 ? passages.length : end + 3),
+    following: followOn(trailing),
+  };
 }
 
 /** A quiet reading half, without reader navigation or edits. The answer waits for reveal. */
@@ -48,15 +62,48 @@ export function ReviewSourcePassage(props: { context: ReviewSource; revealed: bo
     const first = props.context.passages.findIndex(value => value.id === citation.start.passage_id);
     const last = props.context.passages.findIndex(value => value.id === citation.end.passage_id);
     const at = props.context.passages.indexOf(passage);
-    return at < first || at > last ? null : { start: at === first ? citation.start.offset : 0, end: at === last ? citation.end.offset : passage.text.length };
+    return at < first || at > last
+      ? null
+      : {
+          start: at === first ? citation.start.offset : 0,
+          end: at === last ? citation.end.offset : passage.text.length,
+        };
   };
-  return <aside class="review-source-passage" aria-label="Source passage">
-    <header><span>{displayTitle(props.context.source.page.text)}</span><Show when={props.context.chapter}><span>{props.context.chapter}</span></Show></header>
-    <Show when={props.revealed} fallback={<p class="review-source-wait">Reveal the card to read its passage in context.</p>}>
-      <For each={props.context.passages}>{passage => {
-        const selected = range(passage);
-        return <p classList={{ 'review-source-heading': passage.kind === 'heading' }}>{selected ? <>{passage.text.slice(0, selected.start)}<mark class={`review-source-highlight review-source-highlight-${props.context.citation.color ?? 'none'}`}>{passage.text.slice(selected.start, selected.end)}</mark>{passage.text.slice(selected.end)}</> : passage.text}</p>;
-      }}</For>
-    </Show>
-  </aside>;
+  return (
+    <aside class="review-source-passage" aria-label="Source passage">
+      <header>
+        <span>{displayTitle(props.context.source.page.text)}</span>
+        <Show when={props.context.chapter}>
+          <span>{props.context.chapter}</span>
+        </Show>
+      </header>
+      <Show
+        when={props.revealed}
+        fallback={<p class="review-source-wait">Reveal the card to read its passage in context.</p>}
+      >
+        <For each={props.context.passages}>
+          {passage => {
+            const selected = range(passage);
+            return (
+              <p classList={{ 'review-source-heading': passage.kind === 'heading' }}>
+                {selected ? (
+                  <>
+                    {passage.text.slice(0, selected.start)}
+                    <mark
+                      class={`review-source-highlight review-source-highlight-${props.context.citation.color ?? 'none'}`}
+                    >
+                      {passage.text.slice(selected.start, selected.end)}
+                    </mark>
+                    {passage.text.slice(selected.end)}
+                  </>
+                ) : (
+                  passage.text
+                )}
+              </p>
+            );
+          }}
+        </For>
+      </Show>
+    </aside>
+  );
 }

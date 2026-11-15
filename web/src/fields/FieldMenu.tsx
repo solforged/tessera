@@ -18,18 +18,27 @@ import { fieldKinds, fieldLabel, kindLabels } from './kinds';
 import { typeKeys } from './templates';
 import { titleKey } from '../document/title-key';
 
-export function createFieldMenu(context: Pick<OutlineContext,
-  'doc' | 'props' | 'fields' | 'definitionsById' | 'setMenu' | 'setMessage' | 'showNotice' | 'apply'
->) {
+export function createFieldMenu(
+  context: Pick<
+    OutlineContext,
+    'doc' | 'props' | 'fields' | 'definitionsById' | 'setMenu' | 'setMessage' | 'showNotice' | 'apply'
+  >,
+) {
   const { doc, props, fields, definitionsById, setMenu, setMessage, apply } = context;
   const [definitionDocument, setDefinitionDocument] = createSignal<PageDocument>();
-  const [types] = createResource(() => [props.notebook.changeSequence(), props.notebook.connection() === 'live'] as const, () => props.notebook.api.types());
+  const [types] = createResource(
+    () => [props.notebook.changeSequence(), props.notebook.connection() === 'live'] as const,
+    () => props.notebook.api.types(),
+  );
   createEffect(() => {
     const id = fields.error ? undefined : fields()?.page_id;
     if (!id) return;
     const document = props.notebook.open(id);
     setDefinitionDocument(document);
-    onCleanup(() => { setDefinitionDocument(undefined); document.release(); });
+    onCleanup(() => {
+      setDefinitionDocument(undefined);
+      document.release();
+    });
   });
   const failure = (error: unknown) => setMessage(error instanceof Error ? error.message : String(error));
   function fieldEntry(id: string) {
@@ -56,9 +65,16 @@ export function createFieldMenu(context: Pick<OutlineContext,
       await doc.flush();
       await saveHide(field, value);
       const name = fieldLabel(field);
-      const label = value === 'when_empty' ? `${name} hidden when empty.` : value === 'always' ? `${name} hidden.` : `${name} always shown.`;
+      const label =
+        value === 'when_empty'
+          ? `${name} hidden when empty.`
+          : value === 'always'
+            ? `${name} hidden.`
+            : `${name} always shown.`;
       context.showNotice(label, () => saveHide(field, previous));
-    } catch (error) { failure(error); }
+    } catch (error) {
+      failure(error);
+    }
   }
   async function changeCounts(field: FieldDefinition, value: CountsAs | null) {
     const document = definitionDocument();
@@ -68,8 +84,13 @@ export function createFieldMenu(context: Pick<OutlineContext,
       const result = document.edit({ kind: 'fieldCountsAs', definition: field, value });
       if (!result.ok) throw new Error(result.reason);
       await document.flush();
-      context.showNotice(`${fieldLabel(field)} counts as ${(value ?? 'nothing')}.`, async () => { document.undo(); await document.flush(); });
-    } catch (error) { failure(error); }
+      context.showNotice(`${fieldLabel(field)} counts as ${value ?? 'nothing'}.`, async () => {
+        document.undo();
+        await document.flush();
+      });
+    } catch (error) {
+      failure(error);
+    }
   }
   async function changeRole(field: FieldDefinition, value: FieldRole) {
     const document = definitionDocument();
@@ -79,53 +100,194 @@ export function createFieldMenu(context: Pick<OutlineContext,
       const result = document.edit({ kind: 'fieldRole', definition: field, value });
       if (!result.ok) throw new Error(result.reason);
       await document.flush();
-      context.showNotice('Field role changed.', async () => { document.undo(); await document.flush(); });
-    } catch (error) { failure(error); }
+      context.showNotice('Field role changed.', async () => {
+        document.undo();
+        await document.flush();
+      });
+    } catch (error) {
+      failure(error);
+    }
   }
   async function changeTemplate(type: Type, field: FieldDefinition, remove: boolean) {
     try {
       await doc.flush();
       const current = await props.notebook.api.type(type.page.id);
-      await props.notebook.commit([{ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision,
-        fields: remove ? current.fields.filter(id => id !== field.id) : [...new Set([...current.fields, field.id])],
-      }], 'Change tag template');
-      context.showNotice(`${fieldLabel(field)} ${remove ? 'removed from' : 'added to'} ${type.page.text} template.`, async () => {
-        const fresh = await props.notebook.api.type(type.page.id);
-        await props.notebook.commit([{ op: 'set_type_fields', type_id: fresh.page.id, base_revision: fresh.page.revision, fields: current.fields }], 'Undo tag template change');
-      });
-    } catch (error) { failure(error); }
+      await props.notebook.commit(
+        [
+          {
+            op: 'set_type_fields',
+            type_id: current.page.id,
+            base_revision: current.page.revision,
+            fields: remove ? current.fields.filter(id => id !== field.id) : [...new Set([...current.fields, field.id])],
+          },
+        ],
+        'Change tag template',
+      );
+      context.showNotice(
+        `${fieldLabel(field)} ${remove ? 'removed from' : 'added to'} ${type.page.text} template.`,
+        async () => {
+          const fresh = await props.notebook.api.type(type.page.id);
+          await props.notebook.commit(
+            [
+              {
+                op: 'set_type_fields',
+                type_id: fresh.page.id,
+                base_revision: fresh.page.revision,
+                fields: current.fields,
+              },
+            ],
+            'Undo tag template change',
+          );
+        },
+      );
+    } catch (error) {
+      failure(error);
+    }
   }
   function fieldMenu(id: string, anchor: HTMLElement) {
     const entry = fieldEntry(id);
     if (!entry) return;
     const { field, owner } = entry;
-    const open = (beside = false, extra: { previewKind?: FieldDefinition['kind']; section?: 'options' | 'targets' } = {}) => props.onOpen({ kind: 'field', fieldId: field.id, ...extra }, beside);
+    const open = (
+      beside = false,
+      extra: { previewKind?: FieldDefinition['kind']; section?: 'options' | 'targets' } = {},
+    ) => props.onOpen({ kind: 'field', fieldId: field.id, ...extra }, beside);
     const block = doc.block(owner);
     const keys = typeKeys(block?.text ?? '', block?.manual_types ?? []);
-    const ownerTypes = (types.error ? [] : types() ?? []).filter(type => keys.includes(titleKey(type.page.text)) || keys.includes(type.page.id.toLowerCase()));
+    const ownerTypes = (types.error ? [] : (types() ?? [])).filter(
+      type => keys.includes(titleKey(type.page.text)) || keys.includes(type.page.id.toLowerCase()),
+    );
     const document = definitionDocument();
-    const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
+    const unavailable =
+      document?.status() !== 'ready'
+        ? 'Field definitions are loading.'
+        : document.saveState() !== 'saved'
+          ? 'Wait for field changes to save.'
+          : undefined;
     const name = fieldLabel(field);
-    setMenu({ anchor, label: name, title: name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || name, items: [
-      { label: 'Open field definition', action: event => open(opensBeside(event)) },
-      { label: 'Definition…', submenu: () => ({ title: 'Definition', items: [
-        { label: 'Format…', disabledReason: taskFieldName(field) ? 'Built-in task field formats cannot change.' : undefined, submenu: () => ({ title: 'Format', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
-        ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'options' }) }] : []),
-        ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'targets' }) }] : []),
-        { label: 'Hide…', submenu: () => ({ title: 'Hide', items: fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } })) }) },
-        { label: 'Role…', submenu: () => ({ title: 'Role', items: fieldRoles.map(value => ({ label: roleLabels[value], checked: value === fieldRole(field), disabledReason: unavailable, action: () => { void changeRole(field, value); } })) }) },
-        { label: 'Counts as…', disabledReason: countsReason(field), submenu: () => ({ title: 'Counts as', items: [null, ...countsAsValues].map(value => ({ label: countsLabels[value ?? 'nothing'], checked: value === fieldCounts(field), disabledReason: unavailable, action: () => { void changeCounts(field, value); } })) }) },
-      ] }) },
-      ...(ownerTypes.length || (keys.length && (types.loading || types.error)) ? [{ label: 'Templates…', submenu: () => ({ title: 'Templates', items: [
-        ...ownerTypes.map((type): MenuItem => {
-          const present = type.fields.includes(field.id);
-          return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, disabledReason: present && requiredIds(type).has(field.id) ? requiredReason(type, field.name) : undefined, action: () => { void changeTemplate(type, field, present); } };
-        }),
-        ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Tags are loading.' }] : []),
-        ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load tags.' }] : []),
-      ] }) }] : []),
-      { label: 'Remove from this atom', divider: true, danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
-    ] });
+    setMenu({
+      anchor,
+      label: name,
+      title: name,
+      context: (block && plainText(block.text, target => props.notebook.lookup(target))) || name,
+      items: [
+        { label: 'Open field definition', action: event => open(opensBeside(event)) },
+        {
+          label: 'Definition…',
+          submenu: () => ({
+            title: 'Definition',
+            items: [
+              {
+                label: 'Format…',
+                disabledReason: taskFieldName(field) ? 'Built-in task field formats cannot change.' : undefined,
+                submenu: () => ({
+                  title: 'Format',
+                  items: fieldKinds.map(kind => ({
+                    label: kindLabels[kind],
+                    checked: kind === field.kind,
+                    action: () => {
+                      if (kind !== field.kind) open(false, { previewKind: kind });
+                    },
+                  })),
+                }),
+              },
+              ...(field.kind === 'choice'
+                ? [
+                    {
+                      label: 'Options…',
+                      action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'options' }),
+                    },
+                  ]
+                : []),
+              ...(field.kind === 'instance'
+                ? [
+                    {
+                      label: 'Links to…',
+                      action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'targets' }),
+                    },
+                  ]
+                : []),
+              {
+                label: 'Hide…',
+                submenu: () => ({
+                  title: 'Hide',
+                  items: fieldHides.map(value => ({
+                    label: hideLabels[value],
+                    checked: value === fieldHide(field),
+                    disabledReason: unavailable,
+                    action: () => {
+                      void changeHide(field, value);
+                    },
+                  })),
+                }),
+              },
+              {
+                label: 'Role…',
+                submenu: () => ({
+                  title: 'Role',
+                  items: fieldRoles.map(value => ({
+                    label: roleLabels[value],
+                    checked: value === fieldRole(field),
+                    disabledReason: unavailable,
+                    action: () => {
+                      void changeRole(field, value);
+                    },
+                  })),
+                }),
+              },
+              {
+                label: 'Counts as…',
+                disabledReason: countsReason(field),
+                submenu: () => ({
+                  title: 'Counts as',
+                  items: [null, ...countsAsValues].map(value => ({
+                    label: countsLabels[value ?? 'nothing'],
+                    checked: value === fieldCounts(field),
+                    disabledReason: unavailable,
+                    action: () => {
+                      void changeCounts(field, value);
+                    },
+                  })),
+                }),
+              },
+            ],
+          }),
+        },
+        ...(ownerTypes.length || (keys.length && (types.loading || types.error))
+          ? [
+              {
+                label: 'Templates…',
+                submenu: () => ({
+                  title: 'Templates',
+                  items: [
+                    ...ownerTypes.map((type): MenuItem => {
+                      const present = type.fields.includes(field.id);
+                      return {
+                        label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`,
+                        disabledReason:
+                          present && requiredIds(type).has(field.id) ? requiredReason(type, field.name) : undefined,
+                        action: () => {
+                          void changeTemplate(type, field, present);
+                        },
+                      };
+                    }),
+                    ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Tags are loading.' }] : []),
+                    ...(types.error
+                      ? [{ label: 'Templates unavailable', disabledReason: 'Could not load tags.' }]
+                      : []),
+                  ],
+                }),
+              },
+            ]
+          : []),
+        {
+          label: 'Remove from this atom',
+          divider: true,
+          danger: true,
+          action: () => apply({ kind: 'delete', ids: [entry.id] }, false),
+        },
+      ],
+    });
   }
   return { fieldEntry, fieldMenu };
 }

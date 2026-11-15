@@ -5,13 +5,38 @@ import type { Action, Command, NotebookCommand, Ticket } from './types';
 import { OutlineIndex } from './outline-index';
 import { titleKey } from './title-key';
 
-interface NotebookRecord { key: string; roots: Block[] }
-interface PagePatch { sequence: number; actions: Action[]; revisions: Map<string, number> }
-interface PageRecord { key: string; view?: PageView; patch?: PagePatch; cursor?: number }
-interface CommandRecord { key: string; command: Command }
-interface TicketRecord { key: string; ticket: Ticket }
-interface BlockRecord { key: string; block: Block }
-interface CapabilityRecord { key: string; value: BlockCapabilities; sequence: number }
+interface NotebookRecord {
+  key: string;
+  roots: Block[];
+}
+interface PagePatch {
+  sequence: number;
+  actions: Action[];
+  revisions: Map<string, number>;
+}
+interface PageRecord {
+  key: string;
+  view?: PageView;
+  patch?: PagePatch;
+  cursor?: number;
+}
+interface CommandRecord {
+  key: string;
+  command: Command;
+}
+interface TicketRecord {
+  key: string;
+  ticket: Ticket;
+}
+interface BlockRecord {
+  key: string;
+  block: Block;
+}
+interface CapabilityRecord {
+  key: string;
+  value: BlockCapabilities;
+  sequence: number;
+}
 interface OutboxSchema extends DBSchema {
   notebooks: { key: string; value: NotebookRecord };
   pages: { key: string; value: PageRecord };
@@ -28,24 +53,42 @@ export class Outbox {
   private lockReady?: Promise<void>;
   private lockTask?: Promise<void>;
   private releaseLock?: () => void;
-  constructor(private notebookId: string, private sessionId: string, private failed: (error: unknown) => void, private database = 'tessera-outbox-v1', private intake: Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'> | undefined = typeof localStorage === 'undefined' ? undefined : localStorage, private locks: Pick<LockManager, 'request'> | undefined = typeof navigator === 'undefined' ? undefined : navigator.locks) {
-    this.db = Promise.resolve().then(() => openDB<OutboxSchema>(database, 3, {
-      upgrade(db, oldVersion) {
-        if (oldVersion < 1) {
-          db.createObjectStore('notebooks', { keyPath: 'key' });
-          db.createObjectStore('pages', { keyPath: 'key' });
-          db.createObjectStore('commands', { keyPath: 'key' });
-          db.createObjectStore('tickets', { keyPath: 'key' });
-        }
-        if (oldVersion < 2) db.createObjectStore('blocks', { keyPath: 'key' });
-        if (oldVersion < 3) db.createObjectStore('capabilities', { keyPath: 'key' });
-      },
-      blocking: () => { void this.db.then(db => db.close()); },
-    }));
+  constructor(
+    private notebookId: string,
+    private sessionId: string,
+    private failed: (error: unknown) => void,
+    private database = 'tessera-outbox-v1',
+    private intake:
+      | Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'>
+      | undefined = typeof localStorage === 'undefined' ? undefined : localStorage,
+    private locks: Pick<LockManager, 'request'> | undefined = typeof navigator === 'undefined'
+      ? undefined
+      : navigator.locks,
+  ) {
+    this.db = Promise.resolve().then(() =>
+      openDB<OutboxSchema>(database, 3, {
+        upgrade(db, oldVersion) {
+          if (oldVersion < 1) {
+            db.createObjectStore('notebooks', { keyPath: 'key' });
+            db.createObjectStore('pages', { keyPath: 'key' });
+            db.createObjectStore('commands', { keyPath: 'key' });
+            db.createObjectStore('tickets', { keyPath: 'key' });
+          }
+          if (oldVersion < 2) db.createObjectStore('blocks', { keyPath: 'key' });
+          if (oldVersion < 3) db.createObjectStore('capabilities', { keyPath: 'key' });
+        },
+        blocking: () => {
+          void this.db.then(db => db.close());
+        },
+      }),
+    );
     void this.db.catch(failed);
   }
   private enqueue(run: (db: IDBPDatabase<OutboxSchema>) => Promise<unknown>) {
-    const write = this.writes.then(() => this.db).then(run).then(() => undefined);
+    const write = this.writes
+      .then(() => this.db)
+      .then(run)
+      .then(() => undefined);
     this.writes = write.catch(this.failed);
     return write;
   }
@@ -81,7 +124,8 @@ export class Outbox {
       const key = this.commandKey(value);
       const stored = await tx.store.get(key);
       if (stored?.command.kind === 'notebook' && stored.command.frozen) chosen = stored.command;
-      else if (!stored && !this.intake?.getItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`)) chosen = undefined;
+      else if (!stored && !this.intake?.getItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`))
+        chosen = undefined;
       else await tx.store.put({ key, command: value });
       await tx.done;
       this.intake?.removeItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`);
@@ -107,10 +151,15 @@ export class Outbox {
       this.intake?.removeItem(`tessera-outbox:${this.notebookId}:${this.sessionId}:${id}`);
     });
   }
-  private pagePrefix(id: string) { return `${this.notebookId}:${id}:`; }
+  private pagePrefix(id: string) {
+    return `${this.notebookId}:${id}:`;
+  }
   private patchRange(id: string, sequence?: number) {
     const prefix = this.pagePrefix(id);
-    return IDBKeyRange.bound(prefix, sequence === undefined ? `${prefix}\uffff` : `${prefix}${String(sequence).padStart(16, '0')}\uffff`);
+    return IDBKeyRange.bound(
+      prefix,
+      sequence === undefined ? `${prefix}\uffff` : `${prefix}${String(sequence).padStart(16, '0')}\uffff`,
+    );
   }
   page(view: PageView, sequence = 0, cursor?: number) {
     return this.enqueue(async db => {
@@ -120,7 +169,9 @@ export class Outbox {
       await tx.done;
     });
   }
-  roots(roots: Block[]) { return this.enqueue(db => db.put('notebooks', { key: this.notebookId, roots })); }
+  roots(roots: Block[]) {
+    return this.enqueue(db => db.put('notebooks', { key: this.notebookId, roots }));
+  }
   capabilities(values: readonly BlockCapabilities[], sequence: number) {
     if (!values.length) return Promise.resolve();
     const copies = structuredClone(values);
@@ -134,13 +185,24 @@ export class Outbox {
       await tx.done;
     });
   }
-  ticket(id: string, ticket: Ticket) { return this.enqueue(db => db.put('tickets', { key: `${this.notebookId}:${id}`, ticket })); }
+  ticket(id: string, ticket: Ticket) {
+    return this.enqueue(db => db.put('tickets', { key: `${this.notebookId}:${id}`, ticket }));
+  }
   async getTicket(id: string): Promise<Ticket | undefined> {
     await this.writes;
     return (await (await this.db).get('tickets', `${this.notebookId}:${id}`))?.ticket;
   }
-  acknowledge(command: Command, blocks: Block[], sequence: number, revisions: Map<string, number>, view?: PageView, deletedIds?: readonly string[]) {
-    const actions = command.actions.filter(action => ['insert', 'delete', 'restore', 'move', 'split', 'merge', 'addType', 'removeType'].includes(action.kind));
+  acknowledge(
+    command: Command,
+    blocks: Block[],
+    sequence: number,
+    revisions: Map<string, number>,
+    view?: PageView,
+    deletedIds?: readonly string[],
+  ) {
+    const actions = command.actions.filter(action =>
+      ['insert', 'delete', 'restore', 'move', 'split', 'merge', 'addType', 'removeType'].includes(action.kind),
+    );
     return this.enqueue(async db => {
       const tx = db.transaction(['commands', 'blocks', 'pages'], 'readwrite');
       const pages = tx.objectStore('pages');
@@ -152,7 +214,10 @@ export class Outbox {
         void pages.put({ key, view, cursor });
         for (const key of await pages.getAllKeys(this.patchRange(view.root.id, sequence))) void pages.delete(key);
       } else if (actions.length && command.pageId && !deletedIds?.includes(command.pageId)) {
-        void pages.put({ key: `${this.pagePrefix(command.pageId)}${String(sequence).padStart(16, '0')}:${command.id}`, patch: { sequence, actions, revisions } });
+        void pages.put({
+          key: `${this.pagePrefix(command.pageId)}${String(sequence).padStart(16, '0')}:${command.id}`,
+          patch: { sequence, actions, revisions },
+        });
       }
       for (const id of deletedIds ?? []) {
         void tx.objectStore('blocks').delete(`${this.notebookId}:${id}`);
@@ -163,28 +228,37 @@ export class Outbox {
       await tx.done;
     });
   }
-  private lockName(sessionId: string) { return `tessera-outbox:${this.database}:${this.notebookId}:${sessionId}`; }
+  private lockName(sessionId: string) {
+    return `tessera-outbox:${this.database}:${this.notebookId}:${sessionId}`;
+  }
   /** A suspended but still-open window keeps its ownership; only a closed owner can be adopted. */
   private ownSession() {
     if (!this.locks) return Promise.resolve();
-    return this.lockReady ??= new Promise<void>((resolve, reject) => {
-      const released = new Promise<void>(done => { this.releaseLock = done; });
+    return (this.lockReady ??= new Promise<void>((resolve, reject) => {
+      const released = new Promise<void>(done => {
+        this.releaseLock = done;
+      });
       this.lockTask = this.locks!.request(this.lockName(this.sessionId), async () => {
         resolve();
         await released;
       });
       void this.lockTask.catch(reject);
-    });
+    }));
   }
   private async recoverClosedWindows(db: IDBPDatabase<OutboxSchema>) {
     if (!this.locks) return;
     const prefix = `${this.notebookId}:`;
-    const owners = new Set((await db.getAllKeys('commands')).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length, key.lastIndexOf(':'))));
+    const owners = new Set(
+      (await db.getAllKeys('commands'))
+        .filter(key => key.startsWith(prefix))
+        .map(key => key.slice(prefix.length, key.lastIndexOf(':'))),
+    );
     const intakePrefix = `tessera-outbox:${this.notebookId}:`;
-    if (this.intake) for (let index = 0; index < this.intake.length; index++) {
-      const key = this.intake.key(index);
-      if (key?.startsWith(intakePrefix)) owners.add(key.slice(intakePrefix.length, key.lastIndexOf(':')));
-    }
+    if (this.intake)
+      for (let index = 0; index < this.intake.length; index++) {
+        const key = this.intake.key(index);
+        if (key?.startsWith(intakePrefix)) owners.add(key.slice(intakePrefix.length, key.lastIndexOf(':')));
+      }
     for (const owner of owners) {
       if (owner === this.sessionId || owner === 'capture') continue;
       await this.locks.request(this.lockName(owner), { ifAvailable: true }, async lock => {
@@ -198,14 +272,16 @@ export class Outbox {
           void tx.store.delete(row.key);
         }
         const intakeKeys: string[] = [];
-        if (this.intake) for (let index = 0; index < this.intake.length; index++) {
-          const key = this.intake.key(index);
-          if (!key?.startsWith(`${intakePrefix}${owner}:`)) continue;
-          const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
-          const target = this.commandKey(command), stored = await tx.store.get(target);
-          if (!stored?.command.frozen) void tx.store.put({ key: target, command });
-          intakeKeys.push(key);
-        }
+        if (this.intake)
+          for (let index = 0; index < this.intake.length; index++) {
+            const key = this.intake.key(index);
+            if (!key?.startsWith(`${intakePrefix}${owner}:`)) continue;
+            const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
+            const target = this.commandKey(command),
+              stored = await tx.store.get(target);
+            if (!stored?.command.frozen) void tx.store.put({ key: target, command });
+            intakeKeys.push(key);
+          }
         await tx.done;
         for (const key of intakeKeys) this.intake?.removeItem(key);
       });
@@ -217,18 +293,29 @@ export class Outbox {
       await this.ownSession();
       await this.recoverClosedWindows(db);
       const prefix = `${this.notebookId}:${this.sessionId}:`;
-      const commands = new Map((await db.getAll('commands')).filter(row => row.key.startsWith(prefix) || row.key.startsWith(`${this.notebookId}:capture:`)).map(row => [row.command.id, row.command]));
-      const intakePrefixes = [`tessera-outbox:${this.notebookId}:capture:`, `tessera-outbox:${this.notebookId}:${this.sessionId}:`];
-      if (this.intake) for (let index = 0; index < this.intake.length; index++) {
-        const key = this.intake.key(index);
-        if (!key || !intakePrefixes.some(prefix => key.startsWith(prefix))) continue;
-        const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
-        if (!commands.get(command.id)?.frozen) commands.set(command.id, command);
-      }
+      const commands = new Map(
+        (await db.getAll('commands'))
+          .filter(row => row.key.startsWith(prefix) || row.key.startsWith(`${this.notebookId}:capture:`))
+          .map(row => [row.command.id, row.command]),
+      );
+      const intakePrefixes = [
+        `tessera-outbox:${this.notebookId}:capture:`,
+        `tessera-outbox:${this.notebookId}:${this.sessionId}:`,
+      ];
+      if (this.intake)
+        for (let index = 0; index < this.intake.length; index++) {
+          const key = this.intake.key(index);
+          if (!key || !intakePrefixes.some(prefix => key.startsWith(prefix))) continue;
+          const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
+          if (!commands.get(command.id)?.frozen) commands.set(command.id, command);
+        }
       const tickets = (await db.getAll('tickets')).filter(row => row.key.startsWith(`${this.notebookId}:`));
       const roots = (await db.get('notebooks', this.notebookId))?.roots ?? [];
       return { commands: [...commands.values()].sort((a, b) => a.order - b.order), roots, tickets };
-    } catch (error) { this.failed(error); return { commands: [], roots: [], tickets: [] }; }
+    } catch (error) {
+      this.failed(error);
+      return { commands: [], roots: [], tickets: [] };
+    }
   }
   async cachedPage(id: string) {
     try {
@@ -245,95 +332,165 @@ export class Outbox {
       const index = new OutlineIndex(id);
       index.replace(view.rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id!, depth: row.depth })));
       const changes = await db.getAll('pages', this.patchRange(id));
-      for (const change of changes) for (const action of change.patch?.actions ?? []) {
-        const blockId = action.kind === 'insert' ? action.block.id : action.id;
-        const revision = change.patch!.revisions.get(blockId) ?? blocks.get(blockId)?.revision ?? 0;
-        if (action.kind === 'split' ? index.indexOf(action.block.id) >= 0 : (snapshotRevisions.get(blockId) ?? -1) >= revision) continue;
-        switch (action.kind) {
-          case 'settleSyncCopy':
-            blocks.set(blockId, { ...blocks.get(blockId)!, kept_copy: action.settled ? null : action.copy, revision });
-            break;
-          case 'split': {
-            const original = blocks.get(action.id)!;
-            blocks.set(action.id, { ...original, text: action.left, revision });
-            blocks.set(action.block.id, { ...action.block, revision: change.patch!.revisions.get(action.block.id) ?? 1 });
-            if (index.indexOf(action.block.id) < 0) index.splice(index.subtreeEnd(index.indexOf(action.id)), 0, [{ id: action.block.id, parentId: original.parent_id!, depth: index.depth(action.id) }]);
-            break;
-          }
-          case 'merge': {
-            const source = blocks.get(action.id);
-            const destination = blocks.get(action.destinationId);
-            if (!source || !destination) break;
-            blocks.set(destination.id, { ...destination, text: destination.text + source.text, revision: change.patch!.revisions.get(destination.id) ?? destination.revision });
-            let after = index.children(destination.id).at(-1) ?? null;
-            for (const child of [...index.children(source.id)]) { index.move(child, destination.id, after); after = child; }
-            const at = index.indexOf(source.id);
-            if (at >= 0) index.splice(at, 1, []);
-            blocks.delete(source.id);
-            break;
-          }
-          case 'insert': {
-            if (action.block.parent_id && index.indexOf(blockId) < 0) {
-              const parentId = action.block.parent_id;
-              const at = action.after && index.indexOf(action.after) >= 0 ? index.subtreeEnd(index.indexOf(action.after)) : parentId === id ? 0 : index.indexOf(parentId) + 1;
-              index.splice(at, 0, [{ id: blockId, parentId, depth: parentId === id ? 0 : index.depth(parentId) + 1 }]);
+      for (const change of changes)
+        for (const action of change.patch?.actions ?? []) {
+          const blockId = action.kind === 'insert' ? action.block.id : action.id;
+          const revision = change.patch!.revisions.get(blockId) ?? blocks.get(blockId)?.revision ?? 0;
+          if (
+            action.kind === 'split'
+              ? index.indexOf(action.block.id) >= 0
+              : (snapshotRevisions.get(blockId) ?? -1) >= revision
+          )
+            continue;
+          switch (action.kind) {
+            case 'settleSyncCopy':
+              blocks.set(blockId, {
+                ...blocks.get(blockId)!,
+                kept_copy: action.settled ? null : action.copy,
+                revision,
+              });
+              break;
+            case 'split': {
+              const original = blocks.get(action.id)!;
+              blocks.set(action.id, { ...original, text: action.left, revision });
+              blocks.set(action.block.id, {
+                ...action.block,
+                revision: change.patch!.revisions.get(action.block.id) ?? 1,
+              });
+              if (index.indexOf(action.block.id) < 0)
+                index.splice(index.subtreeEnd(index.indexOf(action.id)), 0, [
+                  { id: action.block.id, parentId: original.parent_id!, depth: index.depth(action.id) },
+                ]);
+              break;
             }
-            blocks.set(blockId, { ...action.block, revision });
-            break;
-          }
-          case 'addType':
-          case 'removeType': {
-            const previous = manualTypes.get(blockId) ?? [];
-            const key = titleKey(action.title);
-            manualTypes.set(blockId, action.kind === 'addType'
-              ? previous.some(title => titleKey(title) === key) ? previous : [...previous, action.title]
-              : previous.filter(title => titleKey(title) !== key));
-            break;
-          }
-          case 'move':
-            if (index.indexOf(blockId) >= 0) {
-              index.move(blockId, action.parentId, action.after && index.indexOf(action.after) >= 0 ? action.after : null);
-              blocks.set(blockId, { ...blocks.get(blockId)!, parent_id: action.parentId, revision });
+            case 'merge': {
+              const source = blocks.get(action.id);
+              const destination = blocks.get(action.destinationId);
+              if (!source || !destination) break;
+              blocks.set(destination.id, {
+                ...destination,
+                text: destination.text + source.text,
+                revision: change.patch!.revisions.get(destination.id) ?? destination.revision,
+              });
+              let after = index.children(destination.id).at(-1) ?? null;
+              for (const child of [...index.children(source.id)]) {
+                index.move(child, destination.id, after);
+                after = child;
+              }
+              const at = index.indexOf(source.id);
+              if (at >= 0) index.splice(at, 1, []);
+              blocks.delete(source.id);
+              break;
             }
-            break;
-          case 'delete': {
-            if (blockId === id) return undefined;
-            const at = index.indexOf(blockId);
-            if (at >= 0) {
-              const end = index.subtreeEnd(at);
-              for (const row of index.slice(at, end)) blocks.delete(row.id);
-              index.splice(at, end - at, []);
+            case 'insert': {
+              if (action.block.parent_id && index.indexOf(blockId) < 0) {
+                const parentId = action.block.parent_id;
+                const at =
+                  action.after && index.indexOf(action.after) >= 0
+                    ? index.subtreeEnd(index.indexOf(action.after))
+                    : parentId === id
+                      ? 0
+                      : index.indexOf(parentId) + 1;
+                index.splice(at, 0, [
+                  { id: blockId, parentId, depth: parentId === id ? 0 : index.depth(parentId) + 1 },
+                ]);
+              }
+              blocks.set(blockId, { ...action.block, revision });
+              break;
             }
-            break;
-          }
-          case 'restore': {
-            const rows = action.snapshots.flatMap(snapshot => snapshot.row && index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : []);
-            for (const snapshot of action.snapshots) {
-              blocks.set(snapshot.block.id, { ...snapshot.block, revision: change.patch!.revisions.get(snapshot.block.id) ?? snapshot.block.revision });
-              manualTypes.set(snapshot.block.id, snapshot.manual_types);
-              if (snapshot.capabilities) capabilities.set(snapshot.block.id, snapshot.capabilities);
+            case 'addType':
+            case 'removeType': {
+              const previous = manualTypes.get(blockId) ?? [];
+              const key = titleKey(action.title);
+              manualTypes.set(
+                blockId,
+                action.kind === 'addType'
+                  ? previous.some(title => titleKey(title) === key)
+                    ? previous
+                    : [...previous, action.title]
+                  : previous.filter(title => titleKey(title) !== key),
+              );
+              break;
             }
-            if (rows.length) {
-              const parentId = rows[0]!.parentId;
-              const at = action.after && index.indexOf(action.after) >= 0 ? index.subtreeEnd(index.indexOf(action.after)) : parentId === id ? 0 : index.indexOf(parentId) + 1;
-              const depth = parentId === id ? 0 : index.depth(parentId) + 1;
-              const delta = depth - rows[0]!.depth;
-              index.splice(at, 0, rows.map(row => ({ ...row, depth: row.depth + delta })));
+            case 'move':
+              if (index.indexOf(blockId) >= 0) {
+                index.move(
+                  blockId,
+                  action.parentId,
+                  action.after && index.indexOf(action.after) >= 0 ? action.after : null,
+                );
+                blocks.set(blockId, { ...blocks.get(blockId)!, parent_id: action.parentId, revision });
+              }
+              break;
+            case 'delete': {
+              if (blockId === id) return undefined;
+              const at = index.indexOf(blockId);
+              if (at >= 0) {
+                const end = index.subtreeEnd(at);
+                for (const row of index.slice(at, end)) blocks.delete(row.id);
+                index.splice(at, end - at, []);
+              }
+              break;
             }
-            break;
+            case 'restore': {
+              const rows = action.snapshots.flatMap(snapshot =>
+                snapshot.row && index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : [],
+              );
+              for (const snapshot of action.snapshots) {
+                blocks.set(snapshot.block.id, {
+                  ...snapshot.block,
+                  revision: change.patch!.revisions.get(snapshot.block.id) ?? snapshot.block.revision,
+                });
+                manualTypes.set(snapshot.block.id, snapshot.manual_types);
+                if (snapshot.capabilities) capabilities.set(snapshot.block.id, snapshot.capabilities);
+              }
+              if (rows.length) {
+                const parentId = rows[0]!.parentId;
+                const at =
+                  action.after && index.indexOf(action.after) >= 0
+                    ? index.subtreeEnd(index.indexOf(action.after))
+                    : parentId === id
+                      ? 0
+                      : index.indexOf(parentId) + 1;
+                const depth = parentId === id ? 0 : index.depth(parentId) + 1;
+                const delta = depth - rows[0]!.depth;
+                index.splice(
+                  at,
+                  0,
+                  rows.map(row => ({ ...row, depth: row.depth + delta })),
+                );
+              }
+              break;
+            }
           }
         }
-      }
-      const patches = new Map((await db.getAll('blocks')).filter(row => row.key.startsWith(`${this.notebookId}:`) && row.block.page_id === id).map(row => [row.block.id, row.block]));
-      const latest = (block: Block) => { const patch = patches.get(block.id); return patch && patch.revision >= block.revision ? patch : block; };
+      const patches = new Map(
+        (await db.getAll('blocks'))
+          .filter(row => row.key.startsWith(`${this.notebookId}:`) && row.block.page_id === id)
+          .map(row => [row.block.id, row.block]),
+      );
+      const latest = (block: Block) => {
+        const patch = patches.get(block.id);
+        return patch && patch.revision >= block.revision ? patch : block;
+      };
       view.root = latest(blocks.get(id)!);
       view.root_manual_types = manualTypes.get(id) ?? [];
-      view.rows = index.slice(0, index.size()).map(row => ({ block: latest(blocks.get(row.id)!), depth: row.depth, manual_types: manualTypes.get(row.id) ?? [] }));
-      for (const row of await db.getAll('capabilities')) if (row.key.startsWith(`${this.notebookId}:`) && blocks.has(row.value.block_id)) capabilities.set(row.value.block_id, row.value);
+      view.rows = index
+        .slice(0, index.size())
+        .map(row => ({
+          block: latest(blocks.get(row.id)!),
+          depth: row.depth,
+          manual_types: manualTypes.get(row.id) ?? [],
+        }));
+      for (const row of await db.getAll('capabilities'))
+        if (row.key.startsWith(`${this.notebookId}:`) && blocks.has(row.value.block_id))
+          capabilities.set(row.value.block_id, row.value);
       view.capabilities = [...capabilities.values()].filter(value => blocks.has(value.block_id));
       return { view, cursor: record?.cursor };
+    } catch (error) {
+      this.failed(error);
+      return undefined;
     }
-    catch (error) { this.failed(error); return undefined; }
   }
   /** A reset invalidates sequence-ordered patches, but never pending commands or recovery snapshots. */
   resetJournal() {
@@ -350,7 +507,9 @@ export class Outbox {
       await tx.done;
     });
   }
-  async settled() { await this.writes; }
+  async settled() {
+    await this.writes;
+  }
   /**
    * The newest acknowledged change cached for a page, after pending writes land. The notebook committed it before
    * anything read now, so a snapshot fetched afterwards already includes it, even before this window has heard of it.
@@ -361,11 +520,17 @@ export class Outbox {
       const prefix = this.pagePrefix(id);
       const newest = (await (await this.db).getAllKeys('pages', this.patchRange(id))).at(-1);
       return newest ? Number(newest.slice(prefix.length, prefix.length + 16)) : 0;
-    } catch { return 0; }
+    } catch {
+      return 0;
+    }
   }
   async close() {
     await this.settled();
-    try { (await this.db).close(); } catch { /* Already reported by failed. */ }
+    try {
+      (await this.db).close();
+    } catch {
+      /* Already reported by failed. */
+    }
     this.releaseLock?.();
     await this.lockTask;
   }

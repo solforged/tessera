@@ -22,8 +22,20 @@ import { Popup } from '../ui/Popup';
 import './capture.css';
 
 /** An open `[[page` or `#type` query in the draft, and the text a choice replaces. */
-interface Token { kind: 'page' | 'type'; from: number; to: number; query: string }
-interface Choice { title: string; id?: string; create?: boolean; block?: Block; alias?: string | null; icon?: string | null }
+interface Token {
+  kind: 'page' | 'type';
+  from: number;
+  to: number;
+  query: string;
+}
+interface Choice {
+  title: string;
+  id?: string;
+  create?: boolean;
+  block?: Block;
+  alias?: string | null;
+  icon?: string | null;
+}
 
 /** `[[` before the caret with no closing pair yet; the range runs on through a closing pair already typed. */
 function pageTokenAt(text: string, caret: number): Token | null {
@@ -89,38 +101,60 @@ export function CaptureField(props: CaptureFieldProps) {
   // Escape closes a completion until the text changes.
   const [dismissed, setDismissed] = createSignal<string | null>(null);
   const picked: TitleTargets = new Map();
-  const taskPrefix = createMemo(() => !props.fixedKind || props.taskOnly ? /^\[ ?\] /.exec(draft())?.[0] ?? '' : '');
+  const taskPrefix = createMemo(() =>
+    !props.fixedKind || props.taskOnly ? (/^\[ ?\] /.exec(draft())?.[0] ?? '') : '',
+  );
   const bodyText = createMemo(() => draft().slice(taskPrefix().length).trim());
   const hasCards = createMemo(() => parseCardText(bodyText()).cards.length > 0);
-  const isTask = () => !!props.taskOnly || !props.fixedKind && (task() || !!taskPrefix());
+  const isTask = () => !!props.taskOnly || (!props.fixedKind && (task() || !!taskPrefix()));
   createEffect(on(task, value => props.onTaskChange?.(value), { defer: true }));
 
   const token = createMemo<Token | null>(() => {
-    const text = presentation().text, at = caret();
+    const text = presentation().text,
+      at = caret();
     if (dismissed() === text) return null;
     const type = typeTokenAt(text, at);
     return pageTokenAt(text, at) ?? (type && { kind: 'type', ...type });
   });
-  const [choices] = createResource(() => token() && `${token()!.kind}:${token()!.query}`, async (key): Promise<Choice[]> => {
-    const kind = key.slice(0, key.indexOf(':')), query = key.slice(key.indexOf(':') + 1);
-    // Stored titles carry their tags (`Title #[[id|source]]`); rows, the inserted name and the picked identity all read the tagless live title.
-    const label = (text: string) => displayTitle(text, props.notebook.lookup);
-    if (kind === 'type') {
-      const result = await completeTypes(props.notebook, query);
-      // A type whose name starts with the query leads, so Enter files under it rather than minting a tag; Create tag comes last.
-      const key = foldName(query), starts = (title: string) => foldName(title).startsWith(key) ? 0 : 1;
-      const existing = result.rows.map(block => ({ title: label(block.text), id: block.id, icon: block.icon })).sort((a, b) => starts(a.title) - starts(b.title));
-      return [...existing, ...result.canCreate ? [{ title: query.trim(), create: true }] : []];
-    }
-    const result = await completeNames(props.notebook, query, props.notebook.roots());
-    const rows: Choice[] = result.rows.map(({ page, alias }) => ({ title: label(page.text), id: page.id, block: page, alias }));
-    const title = query.trim();
-    return title && result.canCreate && !/^\d{4}-\d{2}-\d{2}$/.test(title) ? [...rows, { title, create: true }] : rows;
-  });
+  const [choices] = createResource(
+    () => token() && `${token()!.kind}:${token()!.query}`,
+    async (key): Promise<Choice[]> => {
+      const kind = key.slice(0, key.indexOf(':')),
+        query = key.slice(key.indexOf(':') + 1);
+      // Stored titles carry their tags (`Title #[[id|source]]`); rows, the inserted name and the picked identity all read the tagless live title.
+      const label = (text: string) => displayTitle(text, props.notebook.lookup);
+      if (kind === 'type') {
+        const result = await completeTypes(props.notebook, query);
+        // A type whose name starts with the query leads, so Enter files under it rather than minting a tag; Create tag comes last.
+        const key = foldName(query),
+          starts = (title: string) => (foldName(title).startsWith(key) ? 0 : 1);
+        const existing = result.rows
+          .map(block => ({ title: label(block.text), id: block.id, icon: block.icon }))
+          .sort((a, b) => starts(a.title) - starts(b.title));
+        return [...existing, ...(result.canCreate ? [{ title: query.trim(), create: true }] : [])];
+      }
+      const result = await completeNames(props.notebook, query, props.notebook.roots());
+      const rows: Choice[] = result.rows.map(({ page, alias }) => ({
+        title: label(page.text),
+        id: page.id,
+        block: page,
+        alias,
+      }));
+      const title = query.trim();
+      return title && result.canCreate && !/^\d{4}-\d{2}-\d{2}$/.test(title)
+        ? [...rows, { title, create: true }]
+        : rows;
+    },
+  );
   // The registry gives each kind its own glyph; read it only once the draft holds a tag.
-  const [kinds] = createResource(() => tags().length > 0 || undefined, () => props.notebook.api.noteIndex().then(value => value.kinds));
+  const [kinds] = createResource(
+    () => tags().length > 0 || undefined,
+    () => props.notebook.api.noteIndex().then(value => value.kinds),
+  );
   const tagIcon = (tag: TextToken): IconName => {
-    const kind = kinds()?.find(value => tag.id ? value.type_id === tag.id : foldName(value.name) === foldName(tag.value));
+    const kind = kinds()?.find(value =>
+      tag.id ? value.type_id === tag.id : foldName(value.name) === foldName(tag.value),
+    );
     return kind ? noteKindIcon(kind) : 'tag';
   };
   // The boxed Add a task field is one clipped line; the slip's grows. Both share the input's props and value handling.
@@ -131,7 +165,12 @@ export function CaptureField(props: CaptureFieldProps) {
     input.style.height = 'auto';
     input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
   };
-  createEffect(on(() => token()?.query, () => setIndex(0)));
+  createEffect(
+    on(
+      () => token()?.query,
+      () => setIndex(0),
+    ),
+  );
   const open = () => !!token() && !!choices()?.length;
 
   const plan = createMemo(() => {
@@ -147,7 +186,11 @@ export function CaptureField(props: CaptureFieldProps) {
   const preview = createMemo(() => {
     const state = plan();
     if (!state) return null;
-    if (!state.choice) return { warning: true, label: `Not a date: ${bodyText().slice(state.token.from, state.token.to)} · it stays in the text` };
+    if (!state.choice)
+      return {
+        warning: true,
+        label: `Not a date: ${bodyText().slice(state.token.from, state.token.to)} · it stays in the text`,
+      };
     const when = `${relativeDate(state.choice.date, props.notebook.todayDate())}${state.choice.time ? ` ${state.choice.time}` : ''}`;
     return { warning: false, label: `${state.token.field === 'deadline' ? `due ${when}` : when}` };
   });
@@ -159,16 +202,29 @@ export function CaptureField(props: CaptureFieldProps) {
     props.onTextChange?.(next);
     const at = from + capturePresentation(insert).text.length;
     setCaret(at);
-    queueMicrotask(() => { input.value = capturePresentation(next).text; fit(); input.setSelectionRange(at, at); input.focus(); });
+    queueMicrotask(() => {
+      input.value = capturePresentation(next).text;
+      fit();
+      input.setSelectionRange(at, at);
+      input.focus();
+    });
   };
   const choose = async (choice: Choice | undefined) => {
     const current = token();
     if (!current || !choice) return;
     let id = choice.id;
     if (choice.create && current.kind === 'page') {
-      try { id = await props.notebook.createPage(choice.title); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return; }
+      try {
+        id = await props.notebook.createPage(choice.title);
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason));
+        return;
+      }
     }
-    if (current.kind === 'type') { replace(current.from, current.to, `${typeSpelling(choice.title, id || undefined)} `); return; }
+    if (current.kind === 'type') {
+      replace(current.from, current.to, `${typeSpelling(choice.title, id || undefined)} `);
+      return;
+    }
     if (id) picked.set(foldName(choice.title), id);
     replace(current.from, current.to, `[[${choice.title}]]`);
   };
@@ -180,21 +236,41 @@ export function CaptureField(props: CaptureFieldProps) {
     if (!text || accepting) return;
     const submittedDraft = draft();
     const state = plan();
-    let body = text, value: TaskState | null = null;
-    if (state?.choice) ({ text: body, value } = planDateToken(text, state.token, state.choice, isTask() ? newTask('todo') : null));
+    let body = text,
+      value: TaskState | null = null;
+    if (state?.choice)
+      ({ text: body, value } = planDateToken(text, state.token, state.choice, isTask() ? newTask('todo') : null));
     else if (isTask()) value = { ...newTask('todo'), scheduled: props.schedule ? props.contextDate() : null };
     const links = new Map(picked);
     accepting = true;
-    setPending(count => count + 1); setError('');
+    setPending(count => count + 1);
+    setError('');
     try {
-      const receipt = await props.notebook.appendCapture(props.prepare ? props.prepare(body.trim()) : body.trim(), value, [...links], { targetPageId: props.targetPageId, question: props.question, section: props.targetPageId ? undefined : props.section } satisfies Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>);
+      const receipt = await props.notebook.appendCapture(
+        props.prepare ? props.prepare(body.trim()) : body.trim(),
+        value,
+        [...links],
+        {
+          targetPageId: props.targetPageId,
+          question: props.question,
+          section: props.targetPageId ? undefined : props.section,
+        } satisfies Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>,
+      );
       // Typing while the storage transaction finishes stays in the next line.
-      const next = draft() === submittedDraft ? '' : draft().startsWith(submittedDraft) ? draft().slice(submittedDraft.length) : draft();
+      const next =
+        draft() === submittedDraft
+          ? ''
+          : draft().startsWith(submittedDraft)
+            ? draft().slice(submittedDraft.length)
+            : draft();
       if (next !== draft()) {
         picked.clear();
         setDraft(next);
         const visible = capturePresentation(next).text;
-        setCaret(visible.length); input.value = visible; fit(); input.setSelectionRange(visible.length, visible.length);
+        setCaret(visible.length);
+        input.value = visible;
+        fit();
+        input.setSelectionRange(visible.length, visible.length);
       }
       if (!props.taskOnly && !again && !next) setTask(false);
       props.onSaved?.(again, receipt);
@@ -212,7 +288,10 @@ export function CaptureField(props: CaptureFieldProps) {
     if (open() && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
       event.preventDefault();
       setIndex(value => (value + (event.key === 'ArrowDown' ? 1 : -1) + count) % count);
-    } else if (open() && (event.key === 'Enter' && !event.metaKey && !event.ctrlKey || event.key === 'Tab' && !event.shiftKey)) {
+    } else if (
+      open() &&
+      ((event.key === 'Enter' && !event.metaKey && !event.ctrlKey) || (event.key === 'Tab' && !event.shiftKey))
+    ) {
       event.preventDefault();
       void choose(choices()?.[index()]);
     } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -221,11 +300,19 @@ export function CaptureField(props: CaptureFieldProps) {
     } else if (event.key === 'Enter') {
       event.preventDefault();
       void submit(event.shiftKey);
-    } else if (event.key === 'Backspace' && !props.taskOnly && task() && !draft() && input.selectionStart === 0 && input.selectionEnd === 0) {
+    } else if (
+      event.key === 'Backspace' &&
+      !props.taskOnly &&
+      task() &&
+      !draft() &&
+      input.selectionStart === 0 &&
+      input.selectionEnd === 0
+    ) {
       event.preventDefault();
       setTask(false);
     } else if (event.key === 'Escape') {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
       if (token()) setDismissed(presentation().text);
       else props.onCancel?.();
     }
@@ -249,44 +336,174 @@ export function CaptureField(props: CaptureFieldProps) {
     }
     const next = editCaptureDraft(draft(), input.value);
     fit();
-    setDraft(next); track(); setError('');
+    setDraft(next);
+    track();
+    setError('');
     props.onTextChange?.(next);
   };
-  onMount(() => { acceptInput(); props.inputRef?.(input); requestAnimationFrame(fit); });
+  onMount(() => {
+    acceptInput();
+    props.inputRef?.(input);
+    requestAnimationFrame(fit);
+  });
 
-  return <div class="capture-field" classList={{ busy: busy() }}>
-    <div ref={line} class="capture-line" classList={{ 'capture-boxed': !!props.boxed }} onPointerDown={event => { if (props.boxed && event.target !== input) { event.preventDefault(); input.focus(); } }}>
-      <Show when={!props.boxed} fallback={<Icon name="plus" class="capture-plus" />}><Show when={!props.taskOnly && !props.fixedKind} fallback={props.leading ?? <Icon name={props.taskOnly ? 'select' : 'bullet'} />}>
-        <button type="button" class="capture-kind" aria-pressed={task()} aria-label="Task" title="Task" onMouseDown={event => event.preventDefault()} onClick={() => setTask(value => !value)}>
-          <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
-        </button>
-      </Show></Show>
-      <Dynamic component={field} ref={(element: HTMLInputElement) => { input = element; if (element instanceof HTMLTextAreaElement) element.rows = 1; }} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={presentation().text} aria-busy={busy()} autocomplete="off" spellcheck
-        role="combobox" aria-expanded={open()} aria-autocomplete="list"
-        onInput={event => { if (event.isComposing) { setDraft(editCaptureDraft(draft(), event.currentTarget.value)); track(); fit(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
-      <Show when={preview()}>{state => <span class="capture-inline-preview" classList={{ warning: state().warning }} role="status">
-        <Show when={!state().warning}><Icon name="calendar" /></Show><span class="capture-inline-plan">{state().label}</span><Show when={!state().warning}><span class="capture-inline-enter">↵ add</span></Show>
-      </span>}</Show>
-      <Show when={props.boxed && !preview() && props.trailing}><span class="capture-trailing" aria-hidden="true">{props.trailing}</span></Show>
-    </div>
-    <Show when={tags().length}><div class="capture-tags" aria-label="Tags in draft"><For each={tags()}>{tag => <span class="capture-tag"><Icon name={tagIcon(tag)} />{tag.value}</span>}</For></div></Show>
-    <Show when={open()}>
-      <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Tags' : 'Atoms'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(presentation().text)}>
-        <div class="picker-list" onMouseDown={event => event.preventDefault()}>
-          <For each={choices()}>{(choice, row) => {
-            const pageIcon = choice.block ? createPageIcon(props.notebook, () => choice.block!) : undefined;
-            const icon = (): IconName => choice.create ? 'plus' : token()?.kind === 'type' ? choice.icon ? noteKindIcon({ key: '', icon: choice.icon }) : 'tag' : pageIcon?.() ?? 'page';
-            return <div role="option" aria-selected={index() === row()} class="picker-row" classList={{ selected: index() === row() }} onMouseMove={() => { if (index() !== row()) setIndex(row()); }} onClick={() => { void choose(choice); }}>
-              <Icon name={icon()} />
-              <span class="picker-text">{choice.create ? `${token()?.kind === 'type' ? 'Create tag' : 'Create atom'} “${choice.title}”` : choice.title}</span>
-              <Show when={choice.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
-            </div>;
-          }}</For>
+  return (
+    <div class="capture-field" classList={{ busy: busy() }}>
+      <div
+        ref={line}
+        class="capture-line"
+        classList={{ 'capture-boxed': !!props.boxed }}
+        onPointerDown={event => {
+          if (props.boxed && event.target !== input) {
+            event.preventDefault();
+            input.focus();
+          }
+        }}
+      >
+        <Show when={!props.boxed} fallback={<Icon name="plus" class="capture-plus" />}>
+          <Show
+            when={!props.taskOnly && !props.fixedKind}
+            fallback={props.leading ?? <Icon name={props.taskOnly ? 'select' : 'bullet'} />}
+          >
+            <button
+              type="button"
+              class="capture-kind"
+              aria-pressed={task()}
+              aria-label="Task"
+              title="Task"
+              onMouseDown={event => event.preventDefault()}
+              onClick={() => setTask(value => !value)}
+            >
+              <Icon
+                name={isTask() || (plan()?.explicit && plan()?.choice) ? 'select' : hasCards() ? 'card' : 'bullet'}
+              />
+            </button>
+          </Show>
+        </Show>
+        <Dynamic
+          component={field}
+          ref={(element: HTMLInputElement) => {
+            input = element;
+            if (element instanceof HTMLTextAreaElement) element.rows = 1;
+          }}
+          class="capture-input"
+          aria-label={props.label}
+          placeholder={props.placeholder}
+          value={presentation().text}
+          aria-busy={busy()}
+          autocomplete="off"
+          spellcheck
+          role="combobox"
+          aria-expanded={open()}
+          aria-autocomplete="list"
+          onInput={event => {
+            if (event.isComposing) {
+              setDraft(editCaptureDraft(draft(), event.currentTarget.value));
+              track();
+              fit();
+            } else acceptInput();
+          }}
+          onCompositionEnd={acceptInput}
+          onKeyDown={keydown}
+          onKeyUp={track}
+          onClick={track}
+          onSelect={track}
+        />
+        <Show when={preview()}>
+          {state => (
+            <span class="capture-inline-preview" classList={{ warning: state().warning }} role="status">
+              <Show when={!state().warning}>
+                <Icon name="calendar" />
+              </Show>
+              <span class="capture-inline-plan">{state().label}</span>
+              <Show when={!state().warning}>
+                <span class="capture-inline-enter">↵ add</span>
+              </Show>
+            </span>
+          )}
+        </Show>
+        <Show when={props.boxed && !preview() && props.trailing}>
+          <span class="capture-trailing" aria-hidden="true">
+            {props.trailing}
+          </span>
+        </Show>
+      </div>
+      <Show when={tags().length}>
+        <div class="capture-tags" aria-label="Tags in draft">
+          <For each={tags()}>
+            {tag => (
+              <span class="capture-tag">
+                <Icon name={tagIcon(tag)} />
+                {tag.value}
+              </span>
+            )}
+          </For>
         </div>
-      </Popup>
-    </Show>
-    <Show when={props.hint}><p class="capture-hint">{props.hint}</p></Show>
-    <Show when={error()}><p class="capture-error" role="alert">{error()}</p></Show>
-    {props.children?.({ task: isTask, busy, submit: again => { void submit(again); } })}
-  </div>;
+      </Show>
+      <Show when={open()}>
+        <Popup
+          anchor={line}
+          role="listbox"
+          label={token()?.kind === 'type' ? 'Tags' : 'Atoms'}
+          class="picker capture-choices"
+          width={line.offsetWidth}
+          autofocus={false}
+          onDismiss={() => setDismissed(presentation().text)}
+        >
+          <div class="picker-list" onMouseDown={event => event.preventDefault()}>
+            <For each={choices()}>
+              {(choice, row) => {
+                const pageIcon = choice.block ? createPageIcon(props.notebook, () => choice.block!) : undefined;
+                const icon = (): IconName =>
+                  choice.create
+                    ? 'plus'
+                    : token()?.kind === 'type'
+                      ? choice.icon
+                        ? noteKindIcon({ key: '', icon: choice.icon })
+                        : 'tag'
+                      : (pageIcon?.() ?? 'page');
+                return (
+                  <div
+                    role="option"
+                    aria-selected={index() === row()}
+                    class="picker-row"
+                    classList={{ selected: index() === row() }}
+                    onMouseMove={() => {
+                      if (index() !== row()) setIndex(row());
+                    }}
+                    onClick={() => {
+                      void choose(choice);
+                    }}
+                  >
+                    <Icon name={icon()} />
+                    <span class="picker-text">
+                      {choice.create
+                        ? `${token()?.kind === 'type' ? 'Create tag' : 'Create atom'} “${choice.title}”`
+                        : choice.title}
+                    </span>
+                    <Show when={choice.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
+                  </div>
+                );
+              }}
+            </For>
+          </div>
+        </Popup>
+      </Show>
+      <Show when={props.hint}>
+        <p class="capture-hint">{props.hint}</p>
+      </Show>
+      <Show when={error()}>
+        <p class="capture-error" role="alert">
+          {error()}
+        </p>
+      </Show>
+      {props.children?.({
+        task: isTask,
+        busy,
+        submit: again => {
+          void submit(again);
+        },
+      })}
+    </div>
+  );
 }

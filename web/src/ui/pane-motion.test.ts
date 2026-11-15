@@ -4,32 +4,63 @@ import { typeQuery } from '../table/query';
 
 describe('pane motion identity', () => {
   test('caret, zoom, popup requests, mode tabs and query edits do not replay navigation entry', () => {
-    expect(paneTargetIdentity({ kind: 'page', pageId: 'note', blockId: 'row', caretId: 'row', caretOffset: 7 })).toBe(paneTargetIdentity({ kind: 'page', pageId: 'note' }));
-    expect(paneTargetIdentity({ kind: 'library', tab: 'all', add: true })).toBe(paneTargetIdentity({ kind: 'library', tab: 'reading' }));
-    expect(paneTargetIdentity({ kind: 'agenda', mode: 'week' })).toBe(paneTargetIdentity({ kind: 'agenda', mode: 'tasks' }));
-    expect(paneTargetIdentity({ kind: 'table', typeId: 'type', viewId: null, query: { ...typeQuery('type'), text: 'edited' } })).toBe(paneTargetIdentity({ kind: 'table', typeId: 'type', viewId: null, query: typeQuery('type') }));
+    expect(paneTargetIdentity({ kind: 'page', pageId: 'note', blockId: 'row', caretId: 'row', caretOffset: 7 })).toBe(
+      paneTargetIdentity({ kind: 'page', pageId: 'note' }),
+    );
+    expect(paneTargetIdentity({ kind: 'library', tab: 'all', add: true })).toBe(
+      paneTargetIdentity({ kind: 'library', tab: 'reading' }),
+    );
+    expect(paneTargetIdentity({ kind: 'agenda', mode: 'week' })).toBe(
+      paneTargetIdentity({ kind: 'agenda', mode: 'tasks' }),
+    );
+    expect(
+      paneTargetIdentity({
+        kind: 'table',
+        typeId: 'type',
+        viewId: null,
+        query: { ...typeQuery('type'), text: 'edited' },
+      }),
+    ).toBe(paneTargetIdentity({ kind: 'table', typeId: 'type', viewId: null, query: typeQuery('type') }));
   });
   test('destinations and dates are navigations', () => {
-    expect(paneTargetIdentity({ kind: 'page', pageId: 'first' })).not.toBe(paneTargetIdentity({ kind: 'page', pageId: 'second' }));
-    expect(paneTargetIdentity({ kind: 'agenda', date: '2026-10-13' })).not.toBe(paneTargetIdentity({ kind: 'agenda', date: '2026-10-14' }));
-    expect(paneTargetIdentity({ kind: 'fields', typeId: 'first' })).not.toBe(paneTargetIdentity({ kind: 'fields', typeId: 'second' }));
+    expect(paneTargetIdentity({ kind: 'page', pageId: 'first' })).not.toBe(
+      paneTargetIdentity({ kind: 'page', pageId: 'second' }),
+    );
+    expect(paneTargetIdentity({ kind: 'agenda', date: '2026-10-13' })).not.toBe(
+      paneTargetIdentity({ kind: 'agenda', date: '2026-10-14' }),
+    );
+    expect(paneTargetIdentity({ kind: 'fields', typeId: 'first' })).not.toBe(
+      paneTargetIdentity({ kind: 'fields', typeId: 'second' }),
+    );
   });
 });
 
 describe('what the entry animation follows', () => {
   test('a reader learning its snapshot, or a review changing deck, is not a new arrival', () => {
-    expect(paneMotionIdentity({ kind: 'reader', sourceId: 'book' })).toBe(paneMotionIdentity({ kind: 'reader', sourceId: 'book', snapshotId: 'snap' }));
+    expect(paneMotionIdentity({ kind: 'reader', sourceId: 'book' })).toBe(
+      paneMotionIdentity({ kind: 'reader', sourceId: 'book', snapshotId: 'snap' }),
+    );
     expect(paneMotionIdentity({ kind: 'review' })).toBe(paneMotionIdentity({ kind: 'review', deckId: 'deck' }));
   });
   test('another source, and every other destination, still is', () => {
-    expect(paneMotionIdentity({ kind: 'reader', sourceId: 'book' })).not.toBe(paneMotionIdentity({ kind: 'reader', sourceId: 'other' }));
-    expect(paneMotionIdentity({ kind: 'page', pageId: 'first' })).not.toBe(paneMotionIdentity({ kind: 'page', pageId: 'second' }));
-    expect(paneMotionIdentity({ kind: 'agenda', date: '2026-10-13' })).not.toBe(paneMotionIdentity({ kind: 'agenda', date: '2026-10-14' }));
+    expect(paneMotionIdentity({ kind: 'reader', sourceId: 'book' })).not.toBe(
+      paneMotionIdentity({ kind: 'reader', sourceId: 'other' }),
+    );
+    expect(paneMotionIdentity({ kind: 'page', pageId: 'first' })).not.toBe(
+      paneMotionIdentity({ kind: 'page', pageId: 'second' }),
+    );
+    expect(paneMotionIdentity({ kind: 'agenda', date: '2026-10-13' })).not.toBe(
+      paneMotionIdentity({ kind: 'agenda', date: '2026-10-14' }),
+    );
     expect(paneMotionIdentity({ kind: 'review' })).not.toBe(paneMotionIdentity({ kind: 'library' }));
   });
   test('phone history still tells readers of different snapshots and reviews of different decks apart', () => {
-    expect(paneTargetIdentity({ kind: 'reader', sourceId: 'book' })).not.toBe(paneTargetIdentity({ kind: 'reader', sourceId: 'book', snapshotId: 'snap' }));
-    expect(paneTargetIdentity({ kind: 'review', deckId: 'a' })).not.toBe(paneTargetIdentity({ kind: 'review', deckId: 'b' }));
+    expect(paneTargetIdentity({ kind: 'reader', sourceId: 'book' })).not.toBe(
+      paneTargetIdentity({ kind: 'reader', sourceId: 'book', snapshotId: 'snap' }),
+    );
+    expect(paneTargetIdentity({ kind: 'review', deckId: 'a' })).not.toBe(
+      paneTargetIdentity({ kind: 'review', deckId: 'b' }),
+    );
   });
 });
 

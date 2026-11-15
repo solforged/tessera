@@ -28,24 +28,42 @@ const KEYBOARD_WAIT_MS = 5000;
 export function installQuickCapture(ready: Accessor<boolean>, capture: (request: CreateRequest) => void): void {
   const [requested, setRequested] = createSignal<CreateRequest | null>(null);
   let stopWaiting: (() => void) | undefined;
-  const take = () => { const request = source?.take(); if (request) setRequested(request); };
+  const take = () => {
+    const request = source?.take();
+    if (request) setRequested(request);
+  };
   const event = (event: Event) => {
-    if (source) { take(); return; }
+    if (source) {
+      take();
+      return;
+    }
     const detail = (event as CustomEvent<unknown>).detail;
-    setRequested(detail ? parseCreateRequest(detail) ?? blankCapture() : blankCapture());
+    setRequested(detail ? (parseCreateRequest(detail) ?? blankCapture()) : blankCapture());
   };
   const raiseKeyboardOnEditor = () => {
     const show = source?.showKeyboard;
     if (!show) return;
     stopWaiting?.();
     const focused = (event: FocusEvent) => {
-      if (!(event.target instanceof HTMLElement) || !(event.target.isContentEditable || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) return;
+      if (
+        !(event.target instanceof HTMLElement) ||
+        !(
+          event.target.isContentEditable ||
+          event.target instanceof HTMLInputElement ||
+          event.target instanceof HTMLTextAreaElement
+        )
+      )
+        return;
       stopWaiting?.();
       show();
     };
     const timer = window.setTimeout(() => stopWaiting?.(), KEYBOARD_WAIT_MS);
     document.addEventListener('focusin', focused);
-    stopWaiting = () => { clearTimeout(timer); document.removeEventListener('focusin', focused); stopWaiting = undefined; };
+    stopWaiting = () => {
+      clearTimeout(timer);
+      document.removeEventListener('focusin', focused);
+      stopWaiting = undefined;
+    };
   };
   createEffect(() => {
     const request = requested();
@@ -54,7 +72,9 @@ export function installQuickCapture(ready: Accessor<boolean>, capture: (request:
     raiseKeyboardOnEditor();
     capture(request);
   });
-  const visible = () => { if (document.visibilityState === 'visible') take(); };
+  const visible = () => {
+    if (document.visibilityState === 'visible') take();
+  };
   onMount(() => {
     document.addEventListener('visibilitychange', visible);
     window.addEventListener('tessera-quick-capture', event);

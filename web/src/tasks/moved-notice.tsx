@@ -11,12 +11,30 @@ const MOVED_NOTICE_MS = 4000;
  * refetch the list; a refused undo (a task changed since) reports its reason in a notice of its own. Returns the function that
  * closes this notice.
  */
-export function showMovedNotice(options: { moved: Rescheduled; date: string; today: string; onUndone?(): void }): () => void {
+export function showMovedNotice(options: {
+  moved: Rescheduled;
+  date: string;
+  today: string;
+  onUndone?(): void;
+}): () => void {
   const when = movedWhen(options.date, options.today);
   return showNotice({
-    text: <>{options.moved.count === 1 ? 'Moved to ' : `Moved ${options.moved.count} to `}<b>{when}</b></>,
+    text: (
+      <>
+        {options.moved.count === 1 ? 'Moved to ' : `Moved ${options.moved.count} to `}
+        <b>{when}</b>
+      </>
+    ),
     duration: MOVED_NOTICE_MS,
-    action: { label: 'Undo', run: async () => { await options.moved.undo(); options.onUndone?.(); } },
-    onError: reason => { showNotice({ text: reason instanceof Error ? reason.message : String(reason) }); },
+    action: {
+      label: 'Undo',
+      run: async () => {
+        await options.moved.undo();
+        options.onUndone?.();
+      },
+    },
+    onError: reason => {
+      showNotice({ text: reason instanceof Error ? reason.message : String(reason) });
+    },
   });
 }

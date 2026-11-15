@@ -19,7 +19,11 @@ export function setOpenedFilesInbox(take: () => Promise<OpenedFiles>): void {
 }
 
 /** Both shells reveal the import through the normal Library jobs/source view. */
-export function installOpenedFiles(ready: Accessor<boolean>, showLibrary: () => void, reportError: (reason: unknown) => void): void {
+export function installOpenedFiles(
+  ready: Accessor<boolean>,
+  showLibrary: () => void,
+  reportError: (reason: unknown) => void,
+): void {
   const nativeWindow = window as OpenedFilesWindow;
   const pending = nativeWindow.__tesseraPendingOpenedFiles ?? [];
   delete nativeWindow.__tesseraPendingOpenedFiles;
@@ -42,7 +46,10 @@ export function installOpenedFiles(ready: Accessor<boolean>, showLibrary: () => 
   createEffect(reveal);
   const take = async () => {
     if (!takeOpenedFiles || disposed) return;
-    if (taking) { takeAgain = true; return; }
+    if (taking) {
+      takeAgain = true;
+      return;
+    }
     taking = true;
     try {
       do {
@@ -52,9 +59,13 @@ export function installOpenedFiles(ready: Accessor<boolean>, showLibrary: () => 
       } while (takeAgain && !disposed);
     } catch (reason) {
       if (!disposed) reportError(reason);
-    } finally { taking = false; }
+    } finally {
+      taking = false;
+    }
   };
-  const visible = () => { if (document.visibilityState === 'visible') void take(); };
+  const visible = () => {
+    if (document.visibilityState === 'visible') void take();
+  };
   onMount(() => {
     document.addEventListener('visibilitychange', visible);
     window.addEventListener('tessera-opened-files-ready', take);

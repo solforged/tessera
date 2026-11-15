@@ -4,11 +4,42 @@ import { createStore } from 'solid-js/store';
 import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
-import type { Batch, Block, BlockCapabilities, Committed, PageView, QuoteState, TextRewrite, WorkSession } from '../api/types';
-import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, PasteRow, PendingTextCommit, SaveState, SourceDetailsEdit, TextRange } from './contract';
+import type {
+  Batch,
+  Block,
+  BlockCapabilities,
+  Committed,
+  PageView,
+  QuoteState,
+  TextRewrite,
+  WorkSession,
+} from '../api/types';
+import type {
+  BlockClipboard,
+  BlockState,
+  Caret,
+  DocumentChange,
+  Edit,
+  EditResult,
+  HistoryCaret,
+  PageDocument,
+  PasteRow,
+  PendingTextCommit,
+  SaveState,
+  SourceDetailsEdit,
+  TextRange,
+} from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
-import { currentReading, emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
+import {
+  currentReading,
+  emptyCapabilities,
+  isCapabilityAction,
+  questionState,
+  questionStatus,
+  sameState,
+  sourceState,
+} from './types';
 import { parseCardText } from '../review/card-text';
 import { isStableReference, quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
@@ -26,7 +57,14 @@ export interface DocumentHost {
   commands(pageId: string): PageCommand[];
   loadPage(id: string): Promise<PageView>;
   cachePage(view: PageView): void;
-  enqueue(doc: Document, actions: Action[], inverse: Action[], before: Caret | null, after: Caret | null, coalesce: boolean): PageCommand;
+  enqueue(
+    doc: Document,
+    actions: Action[],
+    inverse: Action[],
+    before: Caret | null,
+    after: Caret | null,
+    coalesce: boolean,
+  ): PageCommand;
   flushPage(pageId: string): Promise<void>;
   holdTag(pageId: string, blockId: string, typing: boolean): void;
   runningWork(): WorkSession | undefined;
@@ -43,11 +81,43 @@ export interface DocumentHost {
   prepareClipboard(content: BlockClipboard): Promise<BlockClipboard>;
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
-interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, relation: null, question: null, quote: null, image: null, occlusion: null, assessment: null, mergeProtected: false, reviewedCards: false, loggedWorkMs: 0, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+interface Cell {
+  state: MutableBlockState;
+  set: SetStoreFunction<MutableBlockState>;
+}
+const stateOf = (block: Block): BlockState => ({
+  id: block.id,
+  kind: block.kind,
+  parentId: block.parent_id,
+  pageId: block.page_id,
+  text: block.text,
+  heading: block.heading,
+  archived: block.archived,
+  keptCopy: block.kept_copy,
+  manual_types: [],
+  task: null,
+  project: null,
+  position: null,
+  relation: null,
+  question: null,
+  quote: null,
+  image: null,
+  occlusion: null,
+  assessment: null,
+  mergeProtected: false,
+  reviewedCards: false,
+  loggedWorkMs: 0,
+  source: null,
+  citations: [],
+  revision: block.revision,
+  pending: false,
+  conflict: null,
+});
 /** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
 const splitToken = (text: string, offset: number) =>
-  textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end);
+  textTokens(text).find(
+    token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end,
+  );
 
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
@@ -85,15 +155,27 @@ export class Document implements PageDocument {
   holds = 0;
   status = this.loadStatus[0];
   statusMessage = this.loadMessage[0];
-  constructor(readonly pageId: string, private host: DocumentHost) {
+  constructor(
+    readonly pageId: string,
+    private host: DocumentHost,
+  ) {
     this.outline = new OutlineIndex(pageId);
     this.baseOutline = new OutlineIndex(pageId);
-    void host.ready.then(() => { if (this.status() === 'loading') return this.reload(); }).catch(error => this.fail(error));
+    void host.ready
+      .then(() => {
+        if (this.status() === 'loading') return this.reload();
+      })
+      .catch(error => this.fail(error));
   }
-  root() { return this.block(this.pageId); }
+  root() {
+    return this.block(this.pageId);
+  }
   block(id: string) {
     let presence = this.presence.get(id);
-    if (!presence) { presence = createSignal(0); this.presence.set(id, presence); }
+    if (!presence) {
+      presence = createSignal(0);
+      this.presence.set(id, presence);
+    }
     presence[0]();
     return this.cells.get(id)?.state;
   }
@@ -101,35 +183,68 @@ export class Document implements PageDocument {
     this.block(id);
     return this.baseBlocks.get(id)?.created_at;
   }
-  private presenceChanged(id: string) { this.presence.get(id)?.[1](value => value + 1); }
+  private presenceChanged(id: string) {
+    this.presence.get(id)?.[1](value => value + 1);
+  }
   /** Page-only renames refresh cached manual labels without rewriting member text. */
   renameManualType(before: string, after: string) {
     const key = titleKey(before);
-    for (const [id, titles] of this.baseManualTypes) if (titles.some(title => titleKey(title) === key)) {
-      this.baseManualTypes.set(id, titles.map(title => titleKey(title) === key ? after : title));
-    }
-    for (const cell of this.cells.values()) if (cell.state.manual_types.some(title => titleKey(title) === key)) {
-      cell.set('manual_types', cell.state.manual_types.map(title => titleKey(title) === key ? after : title));
-    }
+    for (const [id, titles] of this.baseManualTypes)
+      if (titles.some(title => titleKey(title) === key)) {
+        this.baseManualTypes.set(
+          id,
+          titles.map(title => (titleKey(title) === key ? after : title)),
+        );
+      }
+    for (const cell of this.cells.values())
+      if (cell.state.manual_types.some(title => titleKey(title) === key)) {
+        cell.set(
+          'manual_types',
+          cell.state.manual_types.map(title => (titleKey(title) === key ? after : title)),
+        );
+      }
   }
-  isArchived(id: string) { return this.archived.has(id); }
+  isArchived(id: string) {
+    return this.archived.has(id);
+  }
   private markArchived(id: string, archived: boolean) {
     if (this.archived.has(id) === archived) return;
-    if (archived) this.archived.add(id); else this.archived.delete(id);
+    if (archived) this.archived.add(id);
+    else this.archived.delete(id);
     this.archiveChange[1](value => value + 1);
   }
   needsRefresh(blocks: readonly Block[], removed: readonly string[]) {
     if (this.status() !== 'ready') return true;
-    return blocks.some(block => block.page_id === this.pageId && (this.baseBlocks.get(block.id)?.revision ?? -1) < block.revision)
-      || removed.some(id => this.cells.has(id));
+    return (
+      blocks.some(
+        block => block.page_id === this.pageId && (this.baseBlocks.get(block.id)?.revision ?? -1) < block.revision,
+      ) || removed.some(id => this.cells.has(id))
+    );
   }
-  saveState() { return this.host.state(this.pageId); }
-  saveMessage() { return this.host.message(this.pageId); }
-  async flush() { while (this.historyPending) await this.historyPending; await this.host.flushPage(this.pageId); }
-  holdTag(id: string, typing: boolean) { this.host.holdTag(this.pageId, id, typing); }
-  canUndo() { this.historyVersion[0](); return this.status() === 'ready' && !this.historyPending && this.undoStack.length > 0; }
-  canRedo() { this.historyVersion[0](); return this.status() === 'ready' && !this.historyPending && this.redoStack.length > 0; }
-  release() { this.host.release(this); }
+  saveState() {
+    return this.host.state(this.pageId);
+  }
+  saveMessage() {
+    return this.host.message(this.pageId);
+  }
+  async flush() {
+    while (this.historyPending) await this.historyPending;
+    await this.host.flushPage(this.pageId);
+  }
+  holdTag(id: string, typing: boolean) {
+    this.host.holdTag(this.pageId, id, typing);
+  }
+  canUndo() {
+    this.historyVersion[0]();
+    return this.status() === 'ready' && !this.historyPending && this.undoStack.length > 0;
+  }
+  canRedo() {
+    this.historyVersion[0]();
+    return this.status() === 'ready' && !this.historyPending && this.redoStack.length > 0;
+  }
+  release() {
+    this.host.release(this);
+  }
   async reload(conflicts = true) {
     try {
       while (!this.closed) {
@@ -141,10 +256,13 @@ export class Document implements PageDocument {
         return;
       }
     } catch (error) {
-      if (!this.closed && (this.status() !== 'ready' || error instanceof ApiError && error.status === 404)) this.fail(error);
+      if (!this.closed && (this.status() !== 'ready' || (error instanceof ApiError && error.status === 404)))
+        this.fail(error);
     }
   }
-  close() { this.closed = true; }
+  close() {
+    this.closed = true;
+  }
   markMissing(message = 'This atom has been deleted.') {
     this.syncGeneration++;
     batch(() => {
@@ -179,18 +297,60 @@ export class Document implements PageDocument {
   private fail(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof ApiError && error.status === 404) this.markMissing(message);
-    else { this.loadStatus[1]('error'); this.loadMessage[1](message); }
+    else {
+      this.loadStatus[1]('error');
+      this.loadMessage[1](message);
+    }
   }
-  isResolving(id: string) { return this.resolving.has(id); }
-  private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
+  isResolving(id: string) {
+    return this.resolving.has(id);
+  }
+  private put(
+    block: Block,
+    pending = false,
+    manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [],
+    capability = this.capabilities(block.id),
+  ) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, relation: capability.relation ?? null, spread: capability.spread ?? false, question: capability.question ?? null, quote: capability.quote ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards, loggedWorkMs: capability.logged_work_ms ?? 0, templateCards: capability.template_cards ?? 0 };
+    const sidecar = {
+      task: capability.task,
+      project: capability.project,
+      position: capability.position ?? null,
+      relation: capability.relation ?? null,
+      spread: capability.spread ?? false,
+      question: capability.question ?? null,
+      quote: capability.quote ?? null,
+      assessment: capability.assessment ?? null,
+      source: capability.source ?? null,
+      citations: capability.citations ?? [],
+      history: capability.history,
+      mergeProtected: capability.merge_protected,
+      reviewedCards: capability.reviewed_cards,
+      loggedWorkMs: capability.logged_work_ms ?? 0,
+      templateCards: capability.template_cards ?? 0,
+    };
     const image = capability.image ?? null;
     this.trackInvestigation(capability);
     this.markArchived(block.id, block.archived);
-    if (cell) cell.set({ ...stateOf(block), ...sidecar, image, occlusion: capability.occlusion ?? null, manual_types, pending, conflict: cell.state.conflict });
+    if (cell)
+      cell.set({
+        ...stateOf(block),
+        ...sidecar,
+        image,
+        occlusion: capability.occlusion ?? null,
+        manual_types,
+        pending,
+        conflict: cell.state.conflict,
+      });
     else {
-      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), ...sidecar, image, occlusion: capability.occlusion ?? null, manual_types, pending });
+      const [state, set] = createStore<MutableBlockState>({
+        ...stateOf(block),
+        ...sidecar,
+        image,
+        occlusion: capability.occlusion ?? null,
+        manual_types,
+        pending,
+      });
       this.cells.set(block.id, { state, set });
       this.presenceChanged(block.id);
     }
@@ -205,68 +365,148 @@ export class Document implements PageDocument {
     const state = this.cells.get(id)?.state;
     if (!state) throw new Error('The atom no longer exists.');
     const saved = this.baseBlocks.get(id);
-    return { id, kind: state.kind, parent_id: state.parentId, page_id: state.pageId, text: state.text, heading: state.heading, archived: state.archived, kept_copy: state.keptCopy ? { ...state.keptCopy } : null, revision: state.revision, created_at: saved?.created_at ?? Date.now(), updated_at: saved?.updated_at ?? Date.now() };
+    return {
+      id,
+      kind: state.kind,
+      parent_id: state.parentId,
+      page_id: state.pageId,
+      text: state.text,
+      heading: state.heading,
+      archived: state.archived,
+      kept_copy: state.keptCopy ? { ...state.keptCopy } : null,
+      revision: state.revision,
+      created_at: saved?.created_at ?? Date.now(),
+      updated_at: saved?.updated_at ?? Date.now(),
+    };
   }
   private changed(id: string, patch: Partial<Block>, base: boolean) {
     const block = { ...this.snapshot(id, base), ...patch };
     if (base) this.baseBlocks.set(id, block);
-    else { this.put(block, true); if (block.kind !== 'block') this.host.updateRoot(block); }
+    else {
+      this.put(block, true);
+      if (block.kind !== 'block') this.host.updateRoot(block);
+    }
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, built_in_tag: this.baseCapabilities.get(id)?.built_in_tag ?? false, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, occlusion: cell.occlusion, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, logged_work_ms: cell.loggedWorkMs, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
+    const value = cell
+      ? {
+          block_id: id,
+          built_in_tag: this.baseCapabilities.get(id)?.built_in_tag ?? false,
+          task: cell.task,
+          project: cell.project,
+          position: cell.position,
+          relation: cell.relation,
+          spread: cell.spread ?? false,
+          question: cell.question,
+          quote: cell.quote,
+          image: cell.image,
+          occlusion: cell.occlusion,
+          assessment: cell.assessment,
+          source: cell.source,
+          citations: cell.citations,
+          history: cell.history,
+          merge_protected: cell.mergeProtected,
+          reviewed_cards: cell.reviewedCards,
+          logged_work_ms: cell.loggedWorkMs,
+          template_cards: cell.templateCards ?? 0,
+        }
+      : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
-    return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
+    return value ? (JSON.parse(JSON.stringify(value)) as BlockCapabilities) : emptyCapabilities(id);
   }
   clipboard(ids: readonly string[], cut = false): BlockClipboard {
     const selected = new Set(ids);
-    const roots = [...selected].filter(id => {
-      if (this.outline.indexOf(id) < 0) return false;
-      let parent = this.outline.parentOf(id);
-      while (parent !== this.pageId) {
-        if (selected.has(parent)) return false;
-        parent = this.outline.parentOf(parent);
-      }
-      return true;
-    }).sort((left, right) => this.outline.indexOf(left) - this.outline.indexOf(right));
-    return { version: 1, scope: this.host.clipboardScope(), cut, blocks: roots.flatMap(id => {
-      const at = this.outline.indexOf(id);
-      const depth = this.outline.depth(id);
-      return this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => ({
-        block: this.snapshot(row.id), depth: row.depth - depth,
-        manualTypes: [...this.block(row.id)!.manual_types], capabilities: this.capabilities(row.id),
-      }));
-    }) };
+    const roots = [...selected]
+      .filter(id => {
+        if (this.outline.indexOf(id) < 0) return false;
+        let parent = this.outline.parentOf(id);
+        while (parent !== this.pageId) {
+          if (selected.has(parent)) return false;
+          parent = this.outline.parentOf(parent);
+        }
+        return true;
+      })
+      .sort((left, right) => this.outline.indexOf(left) - this.outline.indexOf(right));
+    return {
+      version: 1,
+      scope: this.host.clipboardScope(),
+      cut,
+      blocks: roots.flatMap(id => {
+        const at = this.outline.indexOf(id);
+        const depth = this.outline.depth(id);
+        return this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => ({
+          block: this.snapshot(row.id),
+          depth: row.depth - depth,
+          manualTypes: [...this.block(row.id)!.manual_types],
+          capabilities: this.capabilities(row.id),
+        }));
+      }),
+    };
   }
-  prepareClipboard(content: BlockClipboard) { return this.host.prepareClipboard(content); }
+  prepareClipboard(content: BlockClipboard) {
+    return this.host.prepareClipboard(content);
+  }
   private trackInvestigation(value: BlockCapabilities) {
     if (value.question || value.assessment) this.investigationIds.add(value.block_id);
     else this.investigationIds.delete(value.block_id);
   }
   private updateCapabilities(value: BlockCapabilities, base: boolean) {
-    value.merge_protected = value.task !== null || value.project !== null || Boolean(value.image || value.position || value.relation || value.spread || value.question || value.assessment) || value.history || value.reviewed_cards;
+    value.merge_protected =
+      value.task !== null ||
+      value.project !== null ||
+      Boolean(value.image || value.position || value.relation || value.spread || value.question || value.assessment) ||
+      value.history ||
+      value.reviewed_cards;
     if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
-    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, loggedWorkMs: value.logged_work_ms ?? 0, templateCards: value.template_cards ?? 0, pending: true });
+    else
+      this.cells
+        .get(value.block_id)
+        ?.set({
+          task: value.task,
+          project: value.project,
+          position: value.position ?? null,
+          relation: value.relation ?? null,
+          spread: value.spread ?? false,
+          question: value.question ?? null,
+          quote: value.quote ?? null,
+          assessment: value.assessment ?? null,
+          source: value.source ?? null,
+          citations: value.citations ?? [],
+          history: value.history,
+          mergeProtected: value.merge_protected,
+          reviewedCards: value.reviewed_cards,
+          loggedWorkMs: value.logged_work_ms ?? 0,
+          templateCards: value.template_cards ?? 0,
+          pending: true,
+        });
     if (!base) this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
     if (value.image) throw new Error("Image atoms can't be merged.");
-    if (value.merge_protected) throw new Error(value.history
-      ? 'This task has completion or work history; delete it or keep it separate.'
-      : 'Cannot merge away an active task, project, perspective, argument, question, answer, or reviewed card.');
+    if (value.merge_protected)
+      throw new Error(
+        value.history
+          ? 'This task has completion or work history; delete it or keep it separate.'
+          : 'Cannot merge away an active task, project, perspective, argument, question, answer, or reviewed card.',
+      );
   }
   receiveCardRevisions(cards: NonNullable<Committed['cards']>) {
     if (!cards.length) return;
     const revisions = new Map(cards.map(card => [card.id, card.revision]));
     const actions = [
-      ...this.host.commands(this.pageId).filter(command => !command.frozen).flatMap(command => [...command.actions, ...command.inverse]),
+      ...this.host
+        .commands(this.pageId)
+        .filter(command => !command.frozen)
+        .flatMap(command => [...command.actions, ...command.inverse]),
       ...[...this.undoStack, ...this.redoStack].flatMap(entry => [...entry.forward, ...entry.inverse]),
     ];
-    for (const action of actions) if (action.kind === 'cardHeld' && revisions.has(action.id)) {
-      action.baseRevision = revisions.get(action.id)!;
-    }
+    for (const action of actions)
+      if (action.kind === 'cardHeld' && revisions.has(action.id)) {
+        action.baseRevision = revisions.get(action.id)!;
+      }
   }
   receiveCapabilities(values: readonly BlockCapabilities[]) {
     const received = new Set<string>();
@@ -274,22 +514,49 @@ export class Document implements PageDocument {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, loggedWorkMs: value.logged_work_ms ?? 0, templateCards: value.template_cards ?? 0 });
+      this.cells
+        .get(value.block_id)
+        ?.set({
+          task: value.task,
+          project: value.project,
+          position: value.position ?? null,
+          relation: value.relation ?? null,
+          spread: value.spread ?? false,
+          question: value.question ?? null,
+          quote: value.quote ?? null,
+          assessment: value.assessment ?? null,
+          source: value.source ?? null,
+          citations: value.citations ?? [],
+          history: value.history,
+          mergeProtected: value.merge_protected,
+          reviewedCards: value.reviewed_cards,
+          loggedWorkMs: value.logged_work_ms ?? 0,
+          templateCards: value.template_cards ?? 0,
+        });
       this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
       this.trackInvestigation(value);
       received.add(value.block_id);
     }
-    for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
-      if (isCapabilityAction(action) && (received.has(action.id) || action.kind === 'question' || action.kind === 'assessment')) this.apply(action);
-    }
+    for (const command of this.host.commands(this.pageId))
+      for (const action of command.actions) {
+        if (
+          isCapabilityAction(action) &&
+          (received.has(action.id) || action.kind === 'question' || action.kind === 'assessment')
+        )
+          this.apply(action);
+      }
     if (received.size && this.investigationIds.size) this.refreshInvestigations(false);
   }
   private guardHide(id: string) {
     const known = this.host.runningWork();
     const pendingSessions = new Set<string>();
-    for (const command of this.host.commands(this.pageId)) for (const action of command.actions) if (isCapabilityAction(action) && 'session' in action) pendingSessions.add(action.session.id);
-    const active = [...this.work.values()].find(session => pendingSessions.has(session.id) && !session.reversed && session.ended_at === null)
-      ?? (known && !pendingSessions.has(known.id) ? known : undefined);
+    for (const command of this.host.commands(this.pageId))
+      for (const action of command.actions)
+        if (isCapabilityAction(action) && 'session' in action) pendingSessions.add(action.session.id);
+    const active =
+      [...this.work.values()].find(
+        session => pendingSessions.has(session.id) && !session.reversed && session.ended_at === null,
+      ) ?? (known && !pendingSessions.has(known.id) ? known : undefined);
     if (!active) return;
     let parent: string | null = active.block_id;
     while (parent) {
@@ -302,7 +569,7 @@ export class Document implements PageDocument {
       ? [...this.baseCapabilities.values()].filter(value => value.question || value.assessment)
       : [...this.investigationIds].filter(id => this.cells.has(id)).map(id => this.capabilities(id));
     const byId = new Map(values.map(value => [value.block_id, value]));
-    const parent = (id: string) => base ? this.baseBlocks.get(id)?.parent_id : this.cells.get(id)?.state.parentId;
+    const parent = (id: string) => (base ? this.baseBlocks.get(id)?.parent_id : this.cells.get(id)?.state.parentId);
     const visible = (id: string) => {
       for (let current: string | null | undefined = id; current; current = parent(current)) {
         const block = base ? this.baseBlocks.get(current) : this.cells.get(current)?.state;
@@ -310,39 +577,58 @@ export class Document implements PageDocument {
       }
       return true;
     };
-    for (const value of values) if (value.assessment) {
-      let questionId: string | null = null;
-      for (let id = parent(value.block_id); id; id = parent(id)) {
-        if (byId.get(id)?.question) { questionId = id; break; }
+    for (const value of values)
+      if (value.assessment) {
+        let questionId: string | null = null;
+        for (let id = parent(value.block_id); id; id = parent(id)) {
+          if (byId.get(id)?.question) {
+            questionId = id;
+            break;
+          }
+        }
+        value.assessment.question_id = questionId;
+        value.assessment.accepted =
+          visible(value.block_id) &&
+          questionId !== null &&
+          byId.get(questionId)?.question?.state.accepted === value.block_id;
       }
-      value.assessment.question_id = questionId;
-      value.assessment.accepted = visible(value.block_id) && questionId !== null
-        && byId.get(questionId)?.question?.state.accepted === value.block_id;
-    }
     for (const value of values) {
       if (value.question) {
         const answer = value.question.state.accepted ? byId.get(value.question.state.accepted)?.assessment : null;
-        value.question.status = questionStatus(value.question.state, Boolean(answer?.accepted && answer.question_id === value.block_id));
+        value.question.status = questionStatus(
+          value.question.state,
+          Boolean(answer?.accepted && answer.question_id === value.block_id),
+        );
         const explicit = value.question.state.parent;
         const local = explicit ? byId.get(explicit)?.question : null;
         // A remote parent is authoritative in server hydration; local parents
         // can be recomputed immediately for undo and capability removal.
-        const remote = explicit && !this.cells.has(explicit) && !this.baseBlocks.has(explicit)
-          && value.question.parent_explicit && value.question.parent_id === explicit;
+        const remote =
+          explicit &&
+          !this.cells.has(explicit) &&
+          !this.baseBlocks.has(explicit) &&
+          value.question.parent_explicit &&
+          value.question.parent_id === explicit;
         value.question.parent_explicit = Boolean(local || remote);
         value.question.parent_id = local || remote ? explicit! : null;
-        if (!value.question.parent_id) for (let id = parent(value.block_id); id; id = parent(id)) {
-          if (byId.get(id)?.question) { value.question.parent_id = id; break; }
-        }
+        if (!value.question.parent_id)
+          for (let id = parent(value.block_id); id; id = parent(id)) {
+            if (byId.get(id)?.question) {
+              value.question.parent_id = id;
+              break;
+            }
+          }
       }
       const current = this.cells.get(value.block_id)?.state;
-      if (base || !sameState(current?.question, value.question) || !sameState(current?.assessment, value.assessment)) this.updateCapabilities(value, base);
+      if (base || !sameState(current?.question, value.question) || !sameState(current?.assessment, value.assessment))
+        this.updateCapabilities(value, base);
     }
   }
   /** Applies only touched blocks/subtrees; inverse size follows the edit, not the page. */
   apply(action: Action, base = false): Action[] {
     const inverse = this.applyAction(action, base);
-    if (['question', 'assessment', 'move', 'archive', 'delete', 'restore', 'merge'].includes(action.kind)) this.refreshInvestigations(base);
+    if (['question', 'assessment', 'move', 'archive', 'delete', 'restore', 'merge'].includes(action.kind))
+      this.refreshInvestigations(base);
     return inverse;
   }
   private applyAction(action: Action, base = false): Action[] {
@@ -363,9 +649,16 @@ export class Document implements PageDocument {
         if (action.kind === 'task') value.task = action.value;
         else value.project = action.value;
         this.updateCapabilities(value, base);
-        return [action.kind === 'task'
-          ? { ...action, value: previous as typeof action.value, previous: action.value, restore: previous?.status === 'done' && action.value !== null && action.value.status !== 'done' }
-          : { ...action, value: previous as typeof action.value, previous: action.value }];
+        return [
+          action.kind === 'task'
+            ? {
+                ...action,
+                value: previous as typeof action.value,
+                previous: action.value,
+                restore: previous?.status === 'done' && action.value !== null && action.value.status !== 'done',
+              }
+            : { ...action, value: previous as typeof action.value, previous: action.value },
+        ];
       }
       case 'position': {
         const value = this.capabilities(action.id, base);
@@ -377,16 +670,26 @@ export class Document implements PageDocument {
       case 'relation': {
         const value = this.capabilities(action.id, base);
         const previous = value.relation?.kind ?? null;
-        let source = this.pageId, question: string | null = null;
-        for (let parent = this.snapshot(action.id, base).parent_id; parent; parent = this.snapshot(parent, base).parent_id) {
+        let source = this.pageId,
+          question: string | null = null;
+        for (
+          let parent = this.snapshot(action.id, base).parent_id;
+          parent;
+          parent = this.snapshot(parent, base).parent_id
+        ) {
           const ancestor = this.capabilities(parent, base);
-          if (ancestor.position || ancestor.assessment) { source = parent; break; }
+          if (ancestor.position || ancestor.assessment) {
+            source = parent;
+            break;
+          }
           if (ancestor.question) question ??= parent;
         }
         if (source === this.pageId && question) source = question;
         const first = textTokens(this.snapshot(action.id, base).text).find(token => token.kind === 'reference');
         const target = first && isStableReference(first) ? first.id! : null;
-        value.relation = action.value ? { kind: action.value, source_id: source, target_id: target, problem: target ? null : 'Choose a target.' } : null;
+        value.relation = action.value
+          ? { kind: action.value, source_id: source, target_id: target, problem: target ? null : 'Choose a target.' }
+          : null;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }
@@ -400,7 +703,14 @@ export class Document implements PageDocument {
       case 'question': {
         const value = this.capabilities(action.id, base);
         const previous = value.question?.state ?? null;
-        value.question = action.value ? { state: action.value, status: questionStatus(action.value, false), parent_id: value.question?.parent_id ?? null, parent_explicit: value.question?.parent_explicit ?? false } : null;
+        value.question = action.value
+          ? {
+              state: action.value,
+              status: questionStatus(action.value, false),
+              parent_id: value.question?.parent_id ?? null,
+              parent_explicit: value.question?.parent_explicit ?? false,
+            }
+          : null;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }
@@ -435,11 +745,21 @@ export class Document implements PageDocument {
       case 'source': {
         const value = this.capabilities(action.id, base);
         const previous = sourceState(value.source);
-        value.source = action.value ? {
-          block_id: action.id, added_at: Date.now(), state_changed_at: Date.now(), last_read_at: null, current_snapshot_id: null,
-          siglum: '?', siglum_basis: '?', siglum_authored: false, siglum_disambiguation: null,
-          ...value.source, ...action.value,
-        } : null;
+        value.source = action.value
+          ? {
+              block_id: action.id,
+              added_at: Date.now(),
+              state_changed_at: Date.now(),
+              last_read_at: null,
+              current_snapshot_id: null,
+              siglum: '?',
+              siglum_basis: '?',
+              siglum_authored: false,
+              siglum_disambiguation: null,
+              ...value.source,
+              ...action.value,
+            }
+          : null;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }
@@ -490,33 +810,76 @@ export class Document implements PageDocument {
       case 'completeTask': {
         const value = this.capabilities(action.id, base);
         // Recurrence is authoritative server state, never a second client calendar.
-        const completed = action.previous.repeater ? action.previous : { ...action.previous, status: 'done' as const, completed_on: action.completedOn };
-        value.task = completed; value.history = true;
+        const completed = action.previous.repeater
+          ? action.previous
+          : { ...action.previous, status: 'done' as const, completed_on: action.completedOn };
+        value.task = completed;
+        value.history = true;
         this.updateCapabilities(value, base);
-        return [{ kind: 'reverseTaskCompletion', id: action.id, occurrenceId: action.occurrenceId, completedOn: action.completedOn, value: action.previous, previous: completed, baseRevision: action.baseRevision }];
+        return [
+          {
+            kind: 'reverseTaskCompletion',
+            id: action.id,
+            occurrenceId: action.occurrenceId,
+            completedOn: action.completedOn,
+            value: action.previous,
+            previous: completed,
+            baseRevision: action.baseRevision,
+          },
+        ];
       }
       case 'reverseTaskCompletion': {
         const value = this.capabilities(action.id, base);
         value.task = action.value;
         // Other occurrences or work may remain; only the server can clear history.
         this.updateCapabilities(value, base);
-        return [{ kind: 'completeTask', id: action.id, occurrenceId: ulid(), completedOn: action.completedOn, previous: action.value, baseRevision: action.baseRevision }];
+        return [
+          {
+            kind: 'completeTask',
+            id: action.id,
+            occurrenceId: ulid(),
+            completedOn: action.completedOn,
+            previous: action.value,
+            baseRevision: action.baseRevision,
+          },
+        ];
       }
       case 'startWork':
       case 'stopWork':
       case 'workNote':
       case 'workState': {
         const old = action.session;
-        const value = action.kind === 'startWork' ? old : action.kind === 'workNote' ? { ...old, note: action.note }
-          : action.kind === 'stopWork' ? { ...old, ended_at: action.endedAt, note: action.note }
-          : { ...old, ended_at: action.endedAt, reversed: action.reversed };
+        const value =
+          action.kind === 'startWork'
+            ? old
+            : action.kind === 'workNote'
+              ? { ...old, note: action.note }
+              : action.kind === 'stopWork'
+                ? { ...old, ended_at: action.endedAt, note: action.note }
+                : { ...old, ended_at: action.endedAt, reversed: action.reversed };
         const capability = this.capabilities(action.id, base);
         if (!value.reversed) capability.history = true;
         this.updateCapabilities(capability, base);
         if (!base) this.work.set(old.id, value);
         if (action.kind === 'workNote') return [{ ...action, session: value, note: old.note }];
-        const inverse: Action[] = [{ kind: 'workState', id: action.id, session: value, endedAt: old.ended_at, reversed: action.kind === 'startWork' ? true : old.reversed, baseRevision: action.baseRevision }];
-        if (action.kind === 'stopWork' && old.note !== action.note) inverse.push({ kind: 'workNote', id: action.id, session: value, note: old.note, baseRevision: action.baseRevision });
+        const inverse: Action[] = [
+          {
+            kind: 'workState',
+            id: action.id,
+            session: value,
+            endedAt: old.ended_at,
+            reversed: action.kind === 'startWork' ? true : old.reversed,
+            baseRevision: action.baseRevision,
+          },
+        ];
+        if (action.kind === 'stopWork' && old.note !== action.note)
+          inverse.push({
+            kind: 'workNote',
+            id: action.id,
+            session: value,
+            note: old.note,
+            baseRevision: action.baseRevision,
+          });
         return inverse;
       }
       case 'split': {
@@ -541,7 +904,9 @@ export class Document implements PageDocument {
         const old = this.snapshot(action.id, base).text;
         action.expectedText ??= old;
         this.changed(action.id, { text: action.text }, base);
-        return [{ kind: 'text', id: action.id, text: old, expectedText: action.text, baseRevision: action.baseRevision }];
+        return [
+          { kind: 'text', id: action.id, text: old, expectedText: action.text, baseRevision: action.baseRevision },
+        ];
       }
       case 'heading': {
         const old = this.snapshot(action.id, base).heading;
@@ -578,17 +943,26 @@ export class Document implements PageDocument {
       case 'addType':
       case 'removeType': {
         this.snapshot(action.id, base);
-        const previous = base ? this.baseManualTypes.get(action.id) ?? [] : this.cells.get(action.id)!.state.manual_types;
+        const previous = base
+          ? (this.baseManualTypes.get(action.id) ?? [])
+          : this.cells.get(action.id)!.state.manual_types;
         const key = titleKey(action.title);
         const old = previous.find(title => titleKey(title) === key);
-        const titles = action.kind === 'addType'
-          ? old === undefined ? [...previous, action.title] : [...previous]
-          : previous.filter(title => titleKey(title) !== key);
+        const titles =
+          action.kind === 'addType'
+            ? old === undefined
+              ? [...previous, action.title]
+              : [...previous]
+            : previous.filter(title => titleKey(title) !== key);
         if (base) this.baseManualTypes.set(action.id, titles);
         else this.cells.get(action.id)!.set({ manual_types: titles, pending: true });
         return old === undefined
-          ? action.kind === 'addType' ? [{ kind: 'removeType', id: action.id, title: action.title }] : []
-          : action.kind === 'removeType' ? [{ kind: 'addType', id: action.id, title: old }] : [];
+          ? action.kind === 'addType'
+            ? [{ kind: 'removeType', id: action.id, title: action.title }]
+            : []
+          : action.kind === 'removeType'
+            ? [{ kind: 'addType', id: action.id, title: old }]
+            : [];
       }
       case 'insert': {
         const block = { ...action.block };
@@ -596,10 +970,15 @@ export class Document implements PageDocument {
           if (!base) this.put({ ...(this.baseBlocks.get(block.id) ?? block), text: block.text }, true);
           return [{ kind: 'delete', id: block.id }];
         }
-        if (base) this.baseBlocks.set(block.id, block); else this.put(block, true);
+        if (base) this.baseBlocks.set(block.id, block);
+        else this.put(block, true);
         if (block.parent_id) {
           const depth = block.parent_id === this.pageId ? 0 : index.depth(block.parent_id) + 1;
-          const at = action.after ? index.subtreeEnd(index.indexOf(action.after)) : block.parent_id === this.pageId ? 0 : index.indexOf(block.parent_id) + 1;
+          const at = action.after
+            ? index.subtreeEnd(index.indexOf(action.after))
+            : block.parent_id === this.pageId
+              ? 0
+              : index.indexOf(block.parent_id) + 1;
           index.splice(at, 0, [{ id: block.id, parentId: block.parent_id, depth }]);
         }
         return [{ kind: 'delete', id: block.id }];
@@ -607,17 +986,38 @@ export class Document implements PageDocument {
       case 'delete': {
         if (!base) this.guardHide(action.id);
         const at = index.indexOf(action.id);
-        const rows = action.id === this.pageId ? index.slice(0, index.size()) : at < 0 ? [] : index.slice(at, index.subtreeEnd(at));
+        const rows =
+          action.id === this.pageId
+            ? index.slice(0, index.size())
+            : at < 0
+              ? []
+              : index.slice(at, index.subtreeEnd(at));
         const after = at < 0 ? null : index.previousSibling(action.id);
-        const snapshots: Snapshot[] = rows.map(row => ({ row, block: this.snapshot(row.id, base), manual_types: [...(base ? this.baseManualTypes.get(row.id) ?? [] : this.cells.get(row.id)!.state.manual_types)], capabilities: this.capabilities(row.id, base) }));
-        if (action.id === this.pageId) snapshots.unshift({ row: null, block: this.snapshot(action.id, base), manual_types: [], capabilities: this.capabilities(action.id, base) });
+        const snapshots: Snapshot[] = rows.map(row => ({
+          row,
+          block: this.snapshot(row.id, base),
+          manual_types: [
+            ...(base ? (this.baseManualTypes.get(row.id) ?? []) : this.cells.get(row.id)!.state.manual_types),
+          ],
+          capabilities: this.capabilities(row.id, base),
+        }));
+        if (action.id === this.pageId)
+          snapshots.unshift({
+            row: null,
+            block: this.snapshot(action.id, base),
+            manual_types: [],
+            capabilities: this.capabilities(action.id, base),
+          });
         if (at >= 0) index.splice(at, rows.length, []);
         else if (action.id === this.pageId) index.replace([]);
-        if (!base) for (const snapshot of snapshots) {
-          this.cells.delete(snapshot.block.id); this.conflicts.delete(snapshot.block.id);
-          this.investigationIds.delete(snapshot.block.id);
-          this.presenceChanged(snapshot.block.id); this.host.publish(null, snapshot.block.id);
-        }
+        if (!base)
+          for (const snapshot of snapshots) {
+            this.cells.delete(snapshot.block.id);
+            this.conflicts.delete(snapshot.block.id);
+            this.investigationIds.delete(snapshot.block.id);
+            this.presenceChanged(snapshot.block.id);
+            this.host.publish(null, snapshot.block.id);
+          }
         if (!base) this.conflictVersion[1](value => value + 1);
         if (!base && action.id === this.pageId) this.host.updateRoot(null, this.pageId);
         return [{ kind: 'restore', id: action.id, snapshots, after }];
@@ -633,22 +1033,47 @@ export class Document implements PageDocument {
           return index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : [];
         });
         for (const { block, manual_types, capabilities } of action.snapshots) {
-          if (base) { this.baseBlocks.set(block.id, { ...block }); this.baseManualTypes.set(block.id, manual_types); this.baseCapabilities.set(block.id, capabilities ?? emptyCapabilities(block.id)); }
-          else this.put(block, true, manual_types, capabilities ?? emptyCapabilities(block.id));
+          if (base) {
+            this.baseBlocks.set(block.id, { ...block });
+            this.baseManualTypes.set(block.id, manual_types);
+            this.baseCapabilities.set(block.id, capabilities ?? emptyCapabilities(block.id));
+          } else this.put(block, true, manual_types, capabilities ?? emptyCapabilities(block.id));
           if (!base && block.kind !== 'block') this.host.updateRoot(block);
         }
         if (rows.length) {
           const parent = rows[0]!.parentId;
-          const at = action.after && index.indexOf(action.after) >= 0 ? index.subtreeEnd(index.indexOf(action.after)) : parent === this.pageId ? 0 : index.indexOf(parent) + 1;
+          const at =
+            action.after && index.indexOf(action.after) >= 0
+              ? index.subtreeEnd(index.indexOf(action.after))
+              : parent === this.pageId
+                ? 0
+                : index.indexOf(parent) + 1;
           index.splice(at, 0, rows);
         }
-        if (!base && action.id === this.pageId) { this.loadStatus[1]('ready'); this.loadMessage[1](''); }
+        if (!base && action.id === this.pageId) {
+          this.loadStatus[1]('ready');
+          this.loadMessage[1]('');
+        }
         return [{ kind: 'delete', id: action.id }];
       }
       case 'move': {
         if (index.indexOf(action.id) < 0) throw new Error('The atom to move no longer exists.');
-        if (!base) for (let ancestor: string | null = action.parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(action.id); break; }
-        const inverse: Action = { kind: 'move', id: action.id, parentId: index.parentOf(action.id), after: index.previousSibling(action.id) };
+        if (!base)
+          for (
+            let ancestor: string | null = action.parentId;
+            ancestor;
+            ancestor = this.block(ancestor)?.parentId ?? null
+          )
+            if (this.block(ancestor)?.archived) {
+              this.guardHide(action.id);
+              break;
+            }
+        const inverse: Action = {
+          kind: 'move',
+          id: action.id,
+          parentId: index.parentOf(action.id),
+          after: index.previousSibling(action.id),
+        };
         const after = action.after && index.parentOf(action.after) === action.parentId ? action.after : null;
         if (inverse.parentId === action.parentId && inverse.after === after) return [];
         index.move(action.id, action.parentId, after);
@@ -677,11 +1102,15 @@ export class Document implements PageDocument {
             sentText.set(action.id, versions);
           }
         }
-        if (action.kind === 'insert' || action.kind === 'split') { latestText.set(action.block.id, action.block.text); if (!originalText.has(action.block.id)) originalText.set(action.block.id, action.block.text); }
+        if (action.kind === 'insert' || action.kind === 'split') {
+          latestText.set(action.block.id, action.block.text);
+          if (!originalText.has(action.block.id)) originalText.set(action.block.id, action.block.text);
+        }
         if (action.kind === 'split') latestText.set(action.id, action.left);
         if (action.kind === 'merge') latestText.set(action.destinationId, action.text);
       }
-      for (const action of command.inverse) if (action.kind === 'text' && !originalText.has(action.id)) originalText.set(action.id, action.text);
+      for (const action of command.inverse)
+        if (action.kind === 'text' && !originalText.has(action.id)) originalText.set(action.id, action.text);
     }
     for (const incoming of [view.root, ...view.rows.map(row => row.block)]) {
       const local = this.block(incoming.id);
@@ -692,7 +1121,14 @@ export class Document implements PageDocument {
       // before the continuation; the intermediate server text is not another author's conflicting edit.
       const ownWrite = sentText.get(incoming.id)?.has(incoming.text);
       if (local?.conflict && !ownWrite) conflicts.set(incoming.id, local.conflict);
-      if (detectConflicts && !ownWrite && pendingText.has(incoming.id) && expected !== undefined && expected !== incoming.text && localText !== incoming.text) {
+      if (
+        detectConflicts &&
+        !ownWrite &&
+        pendingText.has(incoming.id) &&
+        expected !== undefined &&
+        expected !== incoming.text &&
+        localText !== incoming.text
+      ) {
         conflicts.set(incoming.id, { remoteText: incoming.text, remoteRevision: incoming.revision });
       }
     }
@@ -706,13 +1142,21 @@ export class Document implements PageDocument {
       for (const block of [view.root, ...view.rows.map(row => row.block)]) this.baseBlocks.set(block.id, { ...block });
       const rows = view.rows.map(({ block, depth }) => ({ id: block.id, parentId: block.parent_id!, depth }));
       this.baseOutline.replace(rows);
-      for (const id of this.cells.keys()) if (!this.baseBlocks.has(id)) { this.cells.delete(id); this.presenceChanged(id); }
-      for (const block of this.baseBlocks.values()) this.put(block, false, this.baseManualTypes.get(block.id) ?? [], this.capabilities(block.id, true));
+      for (const id of this.cells.keys())
+        if (!this.baseBlocks.has(id)) {
+          this.cells.delete(id);
+          this.presenceChanged(id);
+        }
+      for (const block of this.baseBlocks.values())
+        this.put(block, false, this.baseManualTypes.get(block.id) ?? [], this.capabilities(block.id, true));
       this.outline.replace(rows);
       for (const command of this.host.commands(this.pageId)) {
         for (const action of command.actions) {
-          try { this.apply(action); }
-          catch (error) { command.failed = `A structural change could not be applied: ${error instanceof Error ? error.message : String(error)}`; }
+          try {
+            this.apply(action);
+          } catch (error) {
+            command.failed = `A structural change could not be applied: ${error instanceof Error ? error.message : String(error)}`;
+          }
         }
       }
       this.conflicts.clear();
@@ -734,7 +1178,8 @@ export class Document implements PageDocument {
             this.conflicts.add(choice.id);
           }
           const following = this.host.commands(this.pageId).slice(this.host.commands(this.pageId).indexOf(command) + 1);
-          if (!following.some(item => item.actions.some(action => action.kind === 'text' && action.id === choice.id))) cell.set('text', choice.localText);
+          if (!following.some(item => item.actions.some(action => action.kind === 'text' && action.id === choice.id)))
+            cell.set('text', choice.localText);
           this.resolving.add(choice.id);
           return true;
         });
@@ -750,19 +1195,28 @@ export class Document implements PageDocument {
   }
   pendingText() {
     const ids = new Set<string>();
-    for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
-      if (action.kind === 'text') ids.add(action.id);
-      else if (action.kind === 'split') { ids.add(action.id); ids.add(action.block.id); }
-      else if (action.kind === 'merge') ids.add(action.destinationId);
-      else if (action.kind === 'insert') ids.add(action.block.id);
-    }
+    for (const command of this.host.commands(this.pageId))
+      for (const action of command.actions) {
+        if (action.kind === 'text') ids.add(action.id);
+        else if (action.kind === 'split') {
+          ids.add(action.id);
+          ids.add(action.block.id);
+        } else if (action.kind === 'merge') ids.add(action.destinationId);
+        else if (action.kind === 'insert') ids.add(action.block.id);
+      }
     return ids;
   }
-  hasConflict() { this.conflictVersion[0](); return this.conflicts.size > 0; }
+  hasConflict() {
+    this.conflictVersion[0]();
+    return this.conflicts.size > 0;
+  }
   receive(block: Block) {
     const previous = this.baseBlocks.get(block.id);
     const cell = this.cells.get(block.id);
-    if (!previous && !cell) { this.syncGeneration++; return; }
+    if (!previous && !cell) {
+      this.syncGeneration++;
+      return;
+    }
     if (previous && block.revision <= previous.revision) {
       if (cell) this.host.publish(this.snapshot(block.id));
       return;
@@ -771,14 +1225,39 @@ export class Document implements PageDocument {
     this.syncGeneration++;
     if (!cell) return;
     const commands = this.host.commands(this.pageId);
-    const pending = commands.some(command => command.actions.some(action => action.kind === 'insert' ? action.block.id === block.id : action.kind === 'split' ? action.id === block.id || action.block.id === block.id : action.kind === 'merge' ? action.id === block.id || action.destinationId === block.id : action.id === block.id));
+    const pending = commands.some(command =>
+      command.actions.some(action =>
+        action.kind === 'insert'
+          ? action.block.id === block.id
+          : action.kind === 'split'
+            ? action.id === block.id || action.block.id === block.id
+            : action.kind === 'merge'
+              ? action.id === block.id || action.destinationId === block.id
+              : action.id === block.id,
+      ),
+    );
     let previousText = previous?.text;
-    if (previousText === undefined) for (const command of commands) {
-      const inserted = command.actions.find(action => (action.kind === 'insert' || action.kind === 'split') && action.block.id === block.id);
-      if (inserted?.kind === 'insert' || inserted?.kind === 'split') { previousText = inserted.block.text; break; }
-    }
-    const ownWrite = commands.some(command => command.frozen && command.actions.some(action => action.kind === 'text' && action.id === block.id && action.text === block.text));
-    if (!ownWrite && this.pendingText().has(block.id) && previousText !== block.text && cell.state.text !== block.text) {
+    if (previousText === undefined)
+      for (const command of commands) {
+        const inserted = command.actions.find(
+          action => (action.kind === 'insert' || action.kind === 'split') && action.block.id === block.id,
+        );
+        if (inserted?.kind === 'insert' || inserted?.kind === 'split') {
+          previousText = inserted.block.text;
+          break;
+        }
+      }
+    const ownWrite = commands.some(
+      command =>
+        command.frozen &&
+        command.actions.some(action => action.kind === 'text' && action.id === block.id && action.text === block.text),
+    );
+    if (
+      !ownWrite &&
+      this.pendingText().has(block.id) &&
+      previousText !== block.text &&
+      cell.state.text !== block.text
+    ) {
       cell.set('conflict', { remoteText: block.text, remoteRevision: block.revision });
       this.conflicts.add(block.id);
       this.resolving.delete(block.id);
@@ -794,44 +1273,60 @@ export class Document implements PageDocument {
     const texts = new Map<string, TextPair>();
     for (const block of this.baseBlocks.values()) texts.set(block.id, { before: block.text, after: block.text });
     for (const rewrite of rewrites) texts.set(rewrite.id, { before: rewrite.before, after: rewrite.after });
-    const rewriteText = (text: string, pair?: TextPair) => pair ? rebaseText(pair.before, pair.after, text) ?? text : text;
+    const rewriteText = (text: string, pair?: TextPair) =>
+      pair ? (rebaseText(pair.before, pair.after, text) ?? text) : text;
     const caret = (value: HistoryCaret | null, state: ReadonlyMap<string, TextPair>): HistoryCaret | null => {
       if (!value) return null;
       const pair = state.get(value.id);
-      return { ...value, offset: pair ? mapTextOffset(pair.before, pair.after, value.offset) : value.offset,
-        ...value.range ? { range: { anchor: caret(value.range.anchor, state)!, head: caret(value.range.head, state)! } } : {} };
+      return {
+        ...value,
+        offset: pair ? mapTextOffset(pair.before, pair.after, value.offset) : value.offset,
+        ...(value.range
+          ? { range: { anchor: caret(value.range.anchor, state)!, head: caret(value.range.head, state)! } }
+          : {}),
+      };
     };
     // Walk authored actions in order: a split transfers the right-hand rewrite to
     // its new ID, and a merge transfers both rewrites to the surviving ID.
     const actions = (values: Action[], state: Map<string, TextPair>, expected?: ReadonlyMap<string, TextPair>) => {
       for (const action of values) {
         if (action.kind === 'text') {
-          const before = action.text, pair = state.get(action.id);
+          const before = action.text,
+            pair = state.get(action.id);
           action.text = rewriteText(before, pair);
-          if (action.expectedText !== undefined) action.expectedText = rewriteText(action.expectedText, expected?.get(action.id) ?? pair);
+          if (action.expectedText !== undefined)
+            action.expectedText = rewriteText(action.expectedText, expected?.get(action.id) ?? pair);
           state.set(action.id, { before, after: action.text });
         } else if (action.kind === 'split') {
-          const before = action.left + action.right, after = rewriteText(before, state.get(action.id));
+          const before = action.left + action.right,
+            after = rewriteText(before, state.get(action.id));
           const at = mapTextOffset(before, after, action.left.length);
-          const left = action.left, right = action.right;
+          const left = action.left,
+            right = action.right;
           action.left = after.slice(0, at);
           action.right = after.slice(at);
           action.block = { ...action.block, text: action.right };
           state.set(action.id, { before: left, after: action.left });
           state.set(action.block.id, { before: right, after: action.right });
         } else if (action.kind === 'merge') {
-          const destination = state.get(action.destinationId), source = state.get(action.id);
-          const pair = destination && source ? { before: destination.before + source.before, after: destination.after + source.after } : undefined;
+          const destination = state.get(action.destinationId),
+            source = state.get(action.id);
+          const pair =
+            destination && source
+              ? { before: destination.before + source.before, after: destination.after + source.after }
+              : undefined;
           const before = action.text;
           action.text = rewriteText(before, pair);
           state.set(action.destinationId, { before, after: action.text });
         } else if (action.kind === 'insert') {
-          const before = action.block.text, after = rewriteText(before, state.get(action.block.id));
+          const before = action.block.text,
+            after = rewriteText(before, state.get(action.block.id));
           action.block = { ...action.block, text: after };
           state.set(action.block.id, { before, after });
         } else if (action.kind === 'restore') {
           action.snapshots = action.snapshots.map(snapshot => {
-            const before = snapshot.block.text, after = rewriteText(before, state.get(snapshot.block.id));
+            const before = snapshot.block.text,
+              after = rewriteText(before, state.get(snapshot.block.id));
             state.set(snapshot.block.id, { before, after });
             return { ...snapshot, block: { ...snapshot.block, text: after } };
           });
@@ -855,7 +1350,8 @@ export class Document implements PageDocument {
       }
     }
     for (const [entry, state] of histories) {
-      const before = entry.applied ? state.before : state.after, after = entry.applied ? state.after : state.before;
+      const before = entry.applied ? state.before : state.after,
+        after = entry.applied ? state.after : state.before;
       entry.before = caret(entry.before, before);
       entry.after = caret(entry.after, after);
       actions(entry.forward, new Map(before));
@@ -870,38 +1366,58 @@ export class Document implements PageDocument {
       }
     }
   }
-  acknowledged(command: Command, revisions: Map<string, number>, rewrites: readonly TextRewrite[], receipt?: Committed) {
+  acknowledged(
+    command: Command,
+    revisions: Map<string, number>,
+    rewrites: readonly TextRewrite[],
+    receipt?: Committed,
+  ) {
     const previousRevisions = new Map([...revisions.keys()].map(id => [id, this.baseBlocks.get(id)?.revision ?? 0]));
     const sentRevisions = new Map<string, number>();
     const sent: Batch | undefined = command.frozen ? JSON.parse(command.frozen) : undefined;
-    for (const operation of sent?.operations ?? []) if ('id' in operation && 'base_revision' in operation && typeof operation.base_revision === 'number' && !sentRevisions.has(operation.id)) sentRevisions.set(operation.id, operation.base_revision);
+    for (const operation of sent?.operations ?? [])
+      if (
+        'id' in operation &&
+        'base_revision' in operation &&
+        typeof operation.base_revision === 'number' &&
+        !sentRevisions.has(operation.id)
+      )
+        sentRevisions.set(operation.id, operation.base_revision);
     batch(() => {
       this.syncGeneration++;
       for (const action of command.actions) {
         const id = action.kind === 'insert' ? action.block.id : action.id;
         const acknowledgedRevision = revisions.get(id);
         if (action.kind === 'split') {
-          if ((this.baseBlocks.get(id)?.revision ?? 0) <= (acknowledgedRevision ?? 0)) this.apply({ kind: 'text', id, text: action.left }, true);
+          if ((this.baseBlocks.get(id)?.revision ?? 0) <= (acknowledgedRevision ?? 0))
+            this.apply({ kind: 'text', id, text: action.left }, true);
           const saved = this.baseBlocks.get(action.block.id);
           const block = saved && saved.revision > (revisions.get(saved.id) ?? 0) ? saved : action.block;
           this.apply({ kind: 'insert', block, after: action.id }, true);
           continue;
         }
         if (acknowledgedRevision !== undefined && (this.baseBlocks.get(id)?.revision ?? 0) > acknowledgedRevision) {
-          if (action.kind === 'insert' && this.baseOutline.indexOf(id) < 0) this.apply({ ...action, block: this.snapshot(id, true) }, true);
+          if (action.kind === 'insert' && this.baseOutline.indexOf(id) < 0)
+            this.apply({ ...action, block: this.snapshot(id, true) }, true);
           continue;
         }
         if (action.kind === 'delete' && !this.baseBlocks.has(id)) continue;
         if (action.kind === 'text' && action.baseRevision !== undefined && !this.baseBlocks.has(id)) continue;
         if (action.kind === 'merge') {
           const destination = this.baseBlocks.get(action.destinationId);
-          this.apply(destination && destination.revision > (revisions.get(destination.id) ?? 0) ? { ...action, text: destination.text } : action, true);
+          this.apply(
+            destination && destination.revision > (revisions.get(destination.id) ?? 0)
+              ? { ...action, text: destination.text }
+              : action,
+            true,
+          );
         } else this.apply(action, true);
       }
       // Normalization is the final accepted text, not an edit to replay before the authored actions.
       for (const rewrite of rewrites) {
         const block = this.baseBlocks.get(rewrite.id);
-        if (block && block.revision <= rewrite.revision) this.baseBlocks.set(rewrite.id, { ...block, text: rewrite.after, revision: rewrite.revision });
+        if (block && block.revision <= rewrite.revision)
+          this.baseBlocks.set(rewrite.id, { ...block, text: rewrite.after, revision: rewrite.revision });
       }
       this.rebasePendingRewrites(rewrites);
       for (const [id, revision] of revisions) {
@@ -912,25 +1428,38 @@ export class Document implements PageDocument {
       }
       const capabilityRows = receipt?.capabilities ?? [];
       const allActions = [
-        ...this.host.commands(this.pageId).filter(item => !item.frozen).flatMap(item => [...item.actions, ...item.inverse]),
+        ...this.host
+          .commands(this.pageId)
+          .filter(item => !item.frozen)
+          .flatMap(item => [...item.actions, ...item.inverse]),
         ...[...this.undoStack, ...this.redoStack].flatMap(entry => [...entry.forward, ...entry.inverse]),
       ];
-      for (const action of allActions) if (action.kind === 'cardTemplate' && revisions.has(action.id)) {
-        action.baseRevision = revisions.get(action.id)!;
-      }
-      for (const action of allActions) if (isCapabilityAction(action)) {
-        const revision = revisions.get(action.id);
-        if (revision !== undefined && (previousRevisions.get(action.id) ?? 0) <= revision
-          && (action.baseRevision === previousRevisions.get(action.id) || action.baseRevision === sentRevisions.get(action.id))) action.baseRevision = revision;
-        if (action.kind === 'reverseTaskCompletion' && command.actions.some(sent => sent.kind === 'completeTask' && sent.occurrenceId === action.occurrenceId)) {
-          const task = capabilityRows.find(value => value.block_id === action.id)?.task;
-          if (task) action.previous = structuredClone(task);
+      for (const action of allActions)
+        if (action.kind === 'cardTemplate' && revisions.has(action.id)) {
+          action.baseRevision = revisions.get(action.id)!;
         }
-        if ('session' in action) {
-          const session = receipt?.work_sessions?.find(value => value.id === action.session.id);
-          if (session) action.session = { ...action.session, revision: session.revision };
+      for (const action of allActions)
+        if (isCapabilityAction(action)) {
+          const revision = revisions.get(action.id);
+          if (
+            revision !== undefined &&
+            (previousRevisions.get(action.id) ?? 0) <= revision &&
+            (action.baseRevision === previousRevisions.get(action.id) ||
+              action.baseRevision === sentRevisions.get(action.id))
+          )
+            action.baseRevision = revision;
+          if (
+            action.kind === 'reverseTaskCompletion' &&
+            command.actions.some(sent => sent.kind === 'completeTask' && sent.occurrenceId === action.occurrenceId)
+          ) {
+            const task = capabilityRows.find(value => value.block_id === action.id)?.task;
+            if (task) action.previous = structuredClone(task);
+          }
+          if ('session' in action) {
+            const session = receipt?.work_sessions?.find(value => value.id === action.session.id);
+            if (session) action.session = { ...action.session, revision: session.revision };
+          }
         }
-      }
       for (const session of receipt?.work_sessions ?? []) this.work.set(session.id, session);
       this.receiveCapabilities(capabilityRows);
       const touched = new Set(revisions.keys());
@@ -941,28 +1470,38 @@ export class Document implements PageDocument {
       }
       this.refreshPending(touched);
       if (command.actions.some(action => action.kind === 'delete' && action.id === this.pageId)) this.markMissing();
-      if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) { this.retainHistoryOnDelete = false; this.loadStatus[1]('ready'); this.loadMessage[1](''); }
+      if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) {
+        this.retainHistoryOnDelete = false;
+        this.loadStatus[1]('ready');
+        this.loadMessage[1]('');
+      }
       this.recordPrunedPages(command, receipt?.pruned_pages ?? []);
     });
   }
   private recordPrunedPages(command: Command, pages: NonNullable<Committed['pruned_pages']>) {
     const restored = new Set(command.actions.filter(action => action.kind === 'restoreTag').map(action => action.id));
     if (restored.size) {
-      for (const entry of new Set([...this.undoStack, ...this.redoStack, ...[...this.historyCommands.values()].map(history => history.entry)])) {
+      for (const entry of new Set([
+        ...this.undoStack,
+        ...this.redoStack,
+        ...[...this.historyCommands.values()].map(history => history.entry),
+      ])) {
         entry.forward = entry.forward.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
         entry.inverse = entry.inverse.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
       }
-      for (const pending of this.host.commands(this.pageId)) if (!pending.frozen) {
-        pending.actions = pending.actions.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
-      }
+      for (const pending of this.host.commands(this.pageId))
+        if (!pending.frozen) {
+          pending.actions = pending.actions.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
+        }
     }
     const history = this.historyCommands.get(command.id);
     if (!history || !pages.length) return;
     const retain = (actions: Action[]) => {
       // Restore the entire pruning effect, including tags used by generated titles.
-      for (const page of pages) if (!actions.some(action => action.kind === 'restoreTag' && action.id === page.id)) {
-        actions.unshift({ kind: 'restoreTag', id: page.id, deletionId: page.deletion_id, revision: page.revision });
-      }
+      for (const page of pages)
+        if (!actions.some(action => action.kind === 'restoreTag' && action.id === page.id)) {
+          actions.unshift({ kind: 'restoreTag', id: page.id, deletionId: page.deletion_id, revision: page.revision });
+        }
     };
     retain(history.undo ? history.entry.forward : history.entry.inverse);
     // Redo may already be queued while the undo receipt was in flight.
@@ -991,12 +1530,20 @@ export class Document implements PageDocument {
       const history = this.historyCommands.get(command.id);
       if (!history || !history.travel || !entries.has(history.entry) || command.frozen) continue;
       const actions = history.undo ? history.entry.inverse : history.entry.forward;
-      for (const action of command.actions) if (action.kind === 'text' && action.baseRevision !== undefined) {
-        const pair = history.entry.rewrites?.get(action.id);
-        if (pair) { const desired = history.undo ? pair.before : pair.after; action.text = desired.text; action.expectedText = desired.expectedText; action.baseRevision = desired.baseRevision; }
-      }
-      const present = new Set(command.actions.map(action => action.kind === 'insert' ? action.block.id : action.id));
-      for (const action of actions) if (action.kind === 'text' && action.baseRevision !== undefined && !present.has(action.id)) command.actions.push({ ...action });
+      for (const action of command.actions)
+        if (action.kind === 'text' && action.baseRevision !== undefined) {
+          const pair = history.entry.rewrites?.get(action.id);
+          if (pair) {
+            const desired = history.undo ? pair.before : pair.after;
+            action.text = desired.text;
+            action.expectedText = desired.expectedText;
+            action.baseRevision = desired.baseRevision;
+          }
+        }
+      const present = new Set(command.actions.map(action => (action.kind === 'insert' ? action.block.id : action.id)));
+      for (const action of actions)
+        if (action.kind === 'text' && action.baseRevision !== undefined && !present.has(action.id))
+          command.actions.push({ ...action });
       changed.push(command);
     }
     return changed;
@@ -1007,43 +1554,78 @@ export class Document implements PageDocument {
     const { entry, undo } = history;
     let copied = false;
     for (const rewrite of rewrites) {
-      const authored = command.actions.some(action => action.kind === 'text' && action.id === rewrite.id
-        || (action.kind === 'insert' || action.kind === 'split') && action.block.id === rewrite.id
-        || action.kind === 'split' && action.id === rewrite.id || action.kind === 'merge' && action.destinationId === rewrite.id);
+      const authored = command.actions.some(
+        action =>
+          (action.kind === 'text' && action.id === rewrite.id) ||
+          ((action.kind === 'insert' || action.kind === 'split') && action.block.id === rewrite.id) ||
+          (action.kind === 'split' && action.id === rewrite.id) ||
+          (action.kind === 'merge' && action.destinationId === rewrite.id),
+      );
       if (authored) {
         // A normalized authored edit is still one undo step back to its original inverse.
         for (const action of undo ? entry.inverse : entry.forward) {
-          if (action.kind === 'text' && action.id === rewrite.id && action.text === rewrite.before) action.text = rewrite.after;
-          if ((action.kind === 'insert' || action.kind === 'split') && action.block.id === rewrite.id && action.block.text === rewrite.before) action.block = { ...action.block, text: rewrite.after };
-          if (action.kind === 'split' && action.id === rewrite.id && action.left === rewrite.before) action.left = rewrite.after;
-          if (action.kind === 'merge' && action.destinationId === rewrite.id && action.text === rewrite.before) action.text = rewrite.after;
+          if (action.kind === 'text' && action.id === rewrite.id && action.text === rewrite.before)
+            action.text = rewrite.after;
+          if (
+            (action.kind === 'insert' || action.kind === 'split') &&
+            action.block.id === rewrite.id &&
+            action.block.text === rewrite.before
+          )
+            action.block = { ...action.block, text: rewrite.after };
+          if (action.kind === 'split' && action.id === rewrite.id && action.left === rewrite.before)
+            action.left = rewrite.after;
+          if (action.kind === 'merge' && action.destinationId === rewrite.id && action.text === rewrite.before)
+            action.text = rewrite.after;
         }
         for (const action of undo ? entry.forward : entry.inverse) {
-          if (action.kind === 'text' && action.id === rewrite.id && action.expectedText === rewrite.before) action.expectedText = rewrite.after;
+          if (action.kind === 'text' && action.id === rewrite.id && action.expectedText === rewrite.before)
+            action.expectedText = rewrite.after;
         }
         // A coalesced history still queued behind this receipt was already mapped
         // with its full pending actions, not just this acknowledged prefix.
-        if (!this.host.commands(this.pageId).some(pending => !pending.frozen && this.historyCommands.get(pending.id)?.entry === entry)) {
+        if (
+          !this.host
+            .commands(this.pageId)
+            .some(pending => !pending.frozen && this.historyCommands.get(pending.id)?.entry === entry)
+        ) {
           const caret = undo ? entry.before : entry.after;
-          for (const bound of [caret, caret?.range?.anchor, caret?.range?.head]) if (bound?.id === rewrite.id) {
-            bound.offset = mapTextOffset(rewrite.before, rewrite.after, bound.offset);
-          }
+          for (const bound of [caret, caret?.range?.anchor, caret?.range?.head])
+            if (bound?.id === rewrite.id) {
+              bound.offset = mapTextOffset(rewrite.before, rewrite.after, bound.offset);
+            }
         }
         continue;
       }
       entry.rewrites ??= new Map();
       let pair = entry.rewrites.get(rewrite.id);
       if (!pair) {
-        if (!copied) { entry.inverse = [...entry.inverse]; entry.forward = [...entry.forward]; copied = true; }
+        if (!copied) {
+          entry.inverse = [...entry.inverse];
+          entry.forward = [...entry.forward];
+          copied = true;
+        }
         pair = {
-          before: { kind: 'text', id: rewrite.id, text: undo ? rewrite.after : rewrite.before, baseRevision: rewrite.revision },
-          after: { kind: 'text', id: rewrite.id, text: undo ? rewrite.before : rewrite.after, baseRevision: rewrite.revision },
+          before: {
+            kind: 'text',
+            id: rewrite.id,
+            text: undo ? rewrite.after : rewrite.before,
+            baseRevision: rewrite.revision,
+          },
+          after: {
+            kind: 'text',
+            id: rewrite.id,
+            text: undo ? rewrite.before : rewrite.after,
+            baseRevision: rewrite.revision,
+          },
         };
         entry.rewrites.set(rewrite.id, pair);
         entry.inverse.push(pair.before);
         entry.forward.push(pair.after);
         let guards = this.guardHistories.get(rewrite.id);
-        if (!guards) { guards = new Set(); this.guardHistories.set(rewrite.id, guards); }
+        if (!guards) {
+          guards = new Set();
+          this.guardHistories.set(rewrite.id, guards);
+        }
         guards.add(entry);
       } else if (!undo) pair.after.text = rewrite.after;
       pair.before.baseRevision = rewrite.revision;
@@ -1062,35 +1644,39 @@ export class Document implements PageDocument {
     delete action.relationPick;
     const entry = this.historyCommands.get(command.id)?.entry;
     for (const change of [...command.inverse, ...(entry?.inverse ?? [])]) {
-      if (change.kind === 'text' && change.id === action.id && change.expectedText === before) change.expectedText = text;
+      if (change.kind === 'text' && change.id === action.id && change.expectedText === before)
+        change.expectedText = text;
     }
-    for (const change of entry?.forward ?? []) if (change.kind === 'text' && change.id === action.id && change.text === before) {
-      change.text = text;
-      delete change.relationPick;
-    }
+    for (const change of entry?.forward ?? [])
+      if (change.kind === 'text' && change.id === action.id && change.text === before) {
+        change.text = text;
+        delete change.relationPick;
+      }
     this.refreshPending(new Set([action.id]));
   }
   refreshGuardVersions(blocks: readonly Block[], revisions: ReadonlyMap<string, number>): Command[] {
     let changed: Set<HistoryEntry> | undefined;
-    for (const block of blocks) for (const entry of this.guardHistories.get(block.id) ?? []) {
-      if (revisions.get(block.id) !== block.revision) continue;
-      const pair = entry.rewrites!.get(block.id)!;
-      const expected = entry.applied ? pair.after.text : pair.before.text;
-      if (block.text !== expected || pair.before.baseRevision === block.revision) continue;
-      pair.before.baseRevision = block.revision;
-      pair.after.baseRevision = block.revision;
-      (changed ??= new Set()).add(entry);
-    }
+    for (const block of blocks)
+      for (const entry of this.guardHistories.get(block.id) ?? []) {
+        if (revisions.get(block.id) !== block.revision) continue;
+        const pair = entry.rewrites!.get(block.id)!;
+        const expected = entry.applied ? pair.after.text : pair.before.text;
+        if (block.text !== expected || pair.before.baseRevision === block.revision) continue;
+        pair.before.baseRevision = block.revision;
+        pair.after.baseRevision = block.revision;
+        (changed ??= new Set()).add(entry);
+      }
     return changed ? this.syncHistoryCommands(changed) : [];
   }
   private pendingIds() {
     const pending = new Set<string>();
-    for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
-      pending.add(action.kind === 'insert' ? action.block.id : action.id);
-      if (action.kind === 'split') pending.add(action.block.id);
-      if (action.kind === 'merge') pending.add(action.destinationId);
-      if (action.kind === 'restore') for (const snapshot of action.snapshots) pending.add(snapshot.block.id);
-    }
+    for (const command of this.host.commands(this.pageId))
+      for (const action of command.actions) {
+        pending.add(action.kind === 'insert' ? action.block.id : action.id);
+        if (action.kind === 'split') pending.add(action.block.id);
+        if (action.kind === 'merge') pending.add(action.destinationId);
+        if (action.kind === 'restore') for (const snapshot of action.snapshots) pending.add(snapshot.block.id);
+      }
     return pending;
   }
   refreshPending(touched?: Set<string>) {
@@ -1099,20 +1685,57 @@ export class Document implements PageDocument {
       const cell = this.cells.get(id);
       if (!cell) continue;
       cell.set('pending', pending.has(id));
-      if (!pending.has(id) && !this.resolving.has(id) && cell.state.conflict && cell.state.text === this.baseBlocks.get(id)?.text) {
-        cell.set('conflict', null); this.conflicts.delete(id); this.conflictVersion[1](value => value + 1);
+      if (
+        !pending.has(id) &&
+        !this.resolving.has(id) &&
+        cell.state.conflict &&
+        cell.state.text === this.baseBlocks.get(id)?.text
+      ) {
+        cell.set('conflict', null);
+        this.conflicts.delete(id);
+        this.conflictVersion[1](value => value + 1);
       }
       const saved = this.baseBlocks.get(id);
       if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
         const value = this.capabilities(id, true);
         this.markArchived(id, saved.archived);
-        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, loggedWorkMs: value.logged_work_ms ?? 0, templateCards: value.template_cards ?? 0 });
+        cell.set({
+          text: saved.text,
+          heading: saved.heading,
+          archived: saved.archived,
+          parentId: saved.parent_id,
+          manual_types: this.baseManualTypes.get(id) ?? [],
+          task: value.task,
+          project: value.project,
+          position: value.position ?? null,
+          relation: value.relation ?? null,
+          spread: value.spread ?? false,
+          source: value.source ?? null,
+          citations: value.citations ?? [],
+          history: value.history,
+          mergeProtected: value.merge_protected,
+          reviewedCards: value.reviewed_cards,
+          loggedWorkMs: value.logged_work_ms ?? 0,
+          templateCards: value.template_cards ?? 0,
+        });
       }
       this.host.publish(this.snapshot(id));
     }
   }
   view(): PageView {
-    return { root: this.snapshot(this.pageId, true), root_manual_types: this.baseManualTypes.get(this.pageId) ?? [], rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth, manual_types: this.baseManualTypes.get(row.id) ?? [] })), targets: [], capabilities: [...this.baseCapabilities.values()] };
+    return {
+      root: this.snapshot(this.pageId, true),
+      root_manual_types: this.baseManualTypes.get(this.pageId) ?? [],
+      rows: this.baseOutline
+        .slice(0, this.baseOutline.size())
+        .map(row => ({
+          block: this.snapshot(row.id, true),
+          depth: row.depth,
+          manual_types: this.baseManualTypes.get(row.id) ?? [],
+        })),
+      targets: [],
+      capabilities: [...this.baseCapabilities.values()],
+    };
   }
   /** Shared by page-local history and acknowledged, cross-page source commands. */
   sourceDetailsActions(edit: SourceDetailsEdit): Action[] {
@@ -1123,7 +1746,23 @@ export class Document implements PageDocument {
     };
     const insert = (parentId: string, after: string | null, value: string) => {
       const id = ulid();
-      actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text: value, heading: null, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
+      actions.push({
+        kind: 'insert',
+        after,
+        block: {
+          id,
+          kind: 'block',
+          parent_id: parentId,
+          page_id: this.pageId,
+          text: value,
+          heading: null,
+          archived: false,
+          kept_copy: null,
+          revision: 0,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        },
+      });
       return id;
     };
     if (edit.title !== undefined) {
@@ -1135,7 +1774,8 @@ export class Document implements PageDocument {
     let after = this.outline.children(this.pageId).at(-1) ?? null;
     for (const field of edit.fields) {
       for (const id of field.entries) {
-        if (this.block(id)?.parentId !== this.pageId || this.isArchived(id)) throw new Error('The field changed. Refresh before saving.');
+        if (this.block(id)?.parentId !== this.pageId || this.isArchived(id))
+          throw new Error('The field changed. Refresh before saving.');
       }
       const current = field.entries.flatMap(id => this.outline.children(id)).filter(id => !this.isArchived(id));
       let entry = field.entries[0];
@@ -1143,9 +1783,10 @@ export class Document implements PageDocument {
         entry = insert(this.pageId, after, `[[${field.id}]]`);
         after = entry;
       }
-      let childAfter = entry ? this.outline.children(entry).at(-1) ?? null : null;
+      let childAfter = entry ? (this.outline.children(entry).at(-1) ?? null) : null;
       for (let index = 0; index < Math.max(current.length, field.values.length); index++) {
-        const id = current[index], value = field.values[index];
+        const id = current[index],
+          value = field.values[index];
         // Retain empty authored overrides so reingest cannot refill cleared values.
         if (id) text(id, value ?? '');
         else if (entry && value !== undefined) childAfter = insert(entry, childAfter, value);
@@ -1154,11 +1795,19 @@ export class Document implements PageDocument {
     if (edit.source !== undefined) {
       const previous = sourceState(this.root()?.source);
       const value = sourceState(edit.source);
-      if (!sameState(previous, value)) actions.push({ kind: 'source', id: this.pageId, value, previous, baseRevision: this.snapshot(this.pageId).revision });
+      if (!sameState(previous, value))
+        actions.push({
+          kind: 'source',
+          id: this.pageId,
+          value,
+          previous,
+          baseRevision: this.snapshot(this.pageId).revision,
+        });
     }
     if (edit.tags !== undefined) {
       const previous = this.root()?.manual_types ?? [];
-      for (const title of edit.tags) if (!title || title.trim() !== title || /[\[\]\r\n]/.test(title)) throw new Error('Invalid tag title.');
+      for (const title of edit.tags)
+        if (!title || title.trim() !== title || /[\[\]\r\n]/.test(title)) throw new Error('Invalid tag title.');
       // Replace in order: undo must recover the original spellings and ordering.
       if (!sameState(previous, edit.tags)) {
         for (const title of previous) actions.push({ kind: 'removeType', id: this.pageId, title });
@@ -1170,13 +1819,26 @@ export class Document implements PageDocument {
   /** Capture inverses without applying optimistic state to any selected page. */
   sourceActionsInverse(actions: readonly Action[]): Action[] {
     const inverse: Action[] = [];
-    const inserted = new Set(actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
+    const inserted = new Set(actions.flatMap(action => (action.kind === 'insert' ? [action.block.id] : [])));
     for (const action of actions) {
       switch (action.kind) {
-        case 'text': inverse.unshift({ kind: 'text', id: action.id, text: this.snapshot(action.id).text, expectedText: action.text }); break;
-        case 'source': inverse.unshift({ ...action, value: action.previous, previous: action.value }); break;
-        case 'addType': inverse.unshift({ kind: 'removeType', id: action.id, title: action.title }); break;
-        case 'removeType': inverse.unshift({ kind: 'addType', id: action.id, title: action.title }); break;
+        case 'text':
+          inverse.unshift({
+            kind: 'text',
+            id: action.id,
+            text: this.snapshot(action.id).text,
+            expectedText: action.text,
+          });
+          break;
+        case 'source':
+          inverse.unshift({ ...action, value: action.previous, previous: action.value });
+          break;
+        case 'addType':
+          inverse.unshift({ kind: 'removeType', id: action.id, title: action.title });
+          break;
+        case 'removeType':
+          inverse.unshift({ kind: 'addType', id: action.id, title: action.title });
+          break;
         case 'insert':
           if (!inserted.has(action.block.parent_id!)) inverse.unshift({ kind: 'delete', id: action.block.id });
           break;
@@ -1185,47 +1847,74 @@ export class Document implements PageDocument {
           const at = this.outline.indexOf(action.id);
           if (at < 0) throw new Error('The field no longer exists.');
           const snapshots = this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => ({
-            row: { ...row }, block: this.snapshot(row.id), manual_types: [...this.block(row.id)!.manual_types], capabilities: this.capabilities(row.id),
+            row: { ...row },
+            block: this.snapshot(row.id),
+            manual_types: [...this.block(row.id)!.manual_types],
+            capabilities: this.capabilities(row.id),
           }));
-          inverse.unshift({ kind: 'restore', id: action.id, snapshots, after: this.outline.previousSibling(action.id) });
+          inverse.unshift({
+            kind: 'restore',
+            id: action.id,
+            snapshots,
+            after: this.outline.previousSibling(action.id),
+          });
           break;
         }
-        case 'restore': inverse.unshift({ kind: 'delete', id: action.id }); break;
-        default: throw new Error('Unsupported source action.');
+        case 'restore':
+          inverse.unshift({ kind: 'delete', id: action.id });
+          break;
+        default:
+          throw new Error('Unsupported source action.');
       }
     }
     // add_type appends; reverse inversion would otherwise reverse the original tag order.
     const tags = inverse.filter(action => action.kind === 'addType');
     let index = tags.length;
-    return inverse.map(action => action.kind === 'addType' ? tags[--index]! : action);
+    return inverse.map(action => (action.kind === 'addType' ? tags[--index]! : action));
   }
   /** Compare only affected values, not revisions changed by intervening undo steps. */
   sourceActionsState(actions: readonly Action[]): string {
-    return JSON.stringify(actions.map(action => {
-      if (action.kind === 'insert') return this.outline.children(action.block.parent_id!);
-      if (action.kind === 'restore') return null;
-      if (action.kind === 'source') return sourceState(this.root()?.source);
-      if (action.kind === 'addType' || action.kind === 'removeType') return this.block(action.id)?.manual_types;
-      if (action.kind === 'text') return this.block(action.id)?.text;
-      if (action.kind === 'delete') {
-        const at = this.outline.indexOf(action.id);
-        return at < 0 ? null : this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => {
-          const block = this.block(row.id)!;
-          return [row.id, row.parentId, block.text, block.archived, block.heading, block.manual_types, this.capabilities(row.id)];
-        });
-      }
-      throw new Error('Unsupported source action.');
-    }));
+    return JSON.stringify(
+      actions.map(action => {
+        if (action.kind === 'insert') return this.outline.children(action.block.parent_id!);
+        if (action.kind === 'restore') return null;
+        if (action.kind === 'source') return sourceState(this.root()?.source);
+        if (action.kind === 'addType' || action.kind === 'removeType') return this.block(action.id)?.manual_types;
+        if (action.kind === 'text') return this.block(action.id)?.text;
+        if (action.kind === 'delete') {
+          const at = this.outline.indexOf(action.id);
+          return at < 0
+            ? null
+            : this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => {
+                const block = this.block(row.id)!;
+                return [
+                  row.id,
+                  row.parentId,
+                  block.text,
+                  block.archived,
+                  block.heading,
+                  block.manual_types,
+                  this.capabilities(row.id),
+                ];
+              });
+        }
+        throw new Error('Unsupported source action.');
+      }),
+    );
   }
   beginTextCommit(write: (edit: PageDocument['edit']) => EditResult): PendingTextCommit {
     const group: { entry?: HistoryEntry } = {};
     let finished = false;
     const apply = (edit: Edit, before?: HistoryCaret | null) => {
-      if (finished || group.entry && (!group.entry.applied || !group.entry.retained)) return { ok: false, reason: 'This cell commit is no longer active.' } as const;
+      if (finished || (group.entry && (!group.entry.applied || !group.entry.retained)))
+        return { ok: false, reason: 'This cell commit is no longer active.' } as const;
       const previous = this.textCommit;
       this.textCommit = group;
-      try { return this.edit(edit, before); }
-      finally { this.textCommit = previous; }
+      try {
+        return this.edit(edit, before);
+      } finally {
+        this.textCommit = previous;
+      }
     };
     const result = write(apply);
     const id = result.ok ? result.caret?.id : undefined;
@@ -1233,12 +1922,15 @@ export class Document implements PageDocument {
     return {
       result,
       replace: text => {
-        if (!id || this.block(id)?.text !== expected) return { ok: false, reason: 'The cell changed elsewhere before its reference lookup finished.' };
+        if (!id || this.block(id)?.text !== expected)
+          return { ok: false, reason: 'The cell changed elsewhere before its reference lookup finished.' };
         const result = apply({ kind: 'text', id, text });
         if (result.ok) expected = text;
         return result;
       },
-      finish: () => { finished = true; },
+      finish: () => {
+        finished = true;
+      },
     };
   }
   edit(edit: Edit, caretBefore: HistoryCaret | null = null): EditResult {
@@ -1246,13 +1938,36 @@ export class Document implements PageDocument {
     const actions: Action[] = [];
     let caret: Caret | null = caretBefore ? { id: caretBefore.id, offset: caretBefore.offset } : null;
     const created: string[] = [];
-    const insert = (parentId: string, after: string | null, text: string, heading: 1 | 2 | 3 | null = null, quote?: QuoteState) => {
+    const insert = (
+      parentId: string,
+      after: string | null,
+      text: string,
+      heading: 1 | 2 | 3 | null = null,
+      quote?: QuoteState,
+    ) => {
       if (!this.block(parentId) && !created.includes(parentId)) throw new Error('The parent no longer exists.');
       const id = ulid();
       created.push(id);
-      actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text, heading, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
+      actions.push({
+        kind: 'insert',
+        after,
+        block: {
+          id,
+          kind: 'block',
+          parent_id: parentId,
+          page_id: this.pageId,
+          text,
+          heading,
+          archived: false,
+          kept_copy: null,
+          revision: 0,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        },
+      });
       if (quote) {
-        if (quoteTarget(text) !== quote.target_id || quote.target_id === id) throw new Error('Quote target must match a different atom.');
+        if (quoteTarget(text) !== quote.target_id || quote.target_id === id)
+          throw new Error('Quote target must match a different atom.');
         actions.push({ kind: 'quote', id, value: structuredClone(quote), previous: null, baseRevision: 0 });
       }
       return id;
@@ -1263,21 +1978,41 @@ export class Document implements PageDocument {
         const start = this.outline.indexOf(zoomRoot);
         if (start < 0) return [];
         const end = this.outline.subtreeEnd(start);
-        if (ids.some(id => { const at = this.outline.indexOf(id); return at <= start || at >= end; })) return [];
+        if (
+          ids.some(id => {
+            const at = this.outline.indexOf(id);
+            return at <= start || at >= end;
+          })
+        )
+          return [];
       }
-      return ids.filter(id => {
-        if (this.outline.indexOf(id) < 0) throw new Error('A selected atom no longer exists.');
-        let parent = this.outline.parentOf(id);
-        while (parent !== this.pageId) { if (set.has(parent)) return false; parent = this.outline.parentOf(parent); }
-        return true;
-      }).sort((a, b) => this.outline.indexOf(a) - this.outline.indexOf(b));
+      return ids
+        .filter(id => {
+          if (this.outline.indexOf(id) < 0) throw new Error('A selected atom no longer exists.');
+          let parent = this.outline.parentOf(id);
+          while (parent !== this.pageId) {
+            if (set.has(parent)) return false;
+            parent = this.outline.parentOf(parent);
+          }
+          return true;
+        })
+        .sort((a, b) => this.outline.indexOf(a) - this.outline.indexOf(b));
     };
     const move = (ids: string[], parentId: string, after: string | null) => {
       for (const id of ids) {
         let parent = parentId;
-        while (parent !== this.pageId) { if (parent === id) throw new Error('An atom cannot move into its own subtree.'); if (!this.block(parent)) throw new Error('The destination no longer exists.'); parent = this.outline.parentOf(parent); }
-        if (after && !ids.includes(after) && this.outline.parentOf(after) !== parentId) throw new Error('The destination sibling no longer exists.');
-        for (let ancestor: string | null = parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(id); break; }
+        while (parent !== this.pageId) {
+          if (parent === id) throw new Error('An atom cannot move into its own subtree.');
+          if (!this.block(parent)) throw new Error('The destination no longer exists.');
+          parent = this.outline.parentOf(parent);
+        }
+        if (after && !ids.includes(after) && this.outline.parentOf(after) !== parentId)
+          throw new Error('The destination sibling no longer exists.');
+        for (let ancestor: string | null = parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null)
+          if (this.block(ancestor)?.archived) {
+            this.guardHide(id);
+            break;
+          }
         actions.push({ kind: 'move', id, parentId, after });
         after = id;
       }
@@ -1293,10 +2028,17 @@ export class Document implements PageDocument {
       }
     };
     const guardSplit = (block: Block, prefix: string, suffix: string) => {
-      if (!parseCardText(block.text).cards.length || !suffix && prefix === block.text) return;
-      if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one atom.');
+      if (!parseCardText(block.text).cards.length || (!suffix && prefix === block.text)) return;
+      if (prefix || this.block(block.id)?.reviewedCards)
+        throw new Error('This split would divide or move a card. Keep its source in one atom.');
     };
-    const split = (block: Block, prefix: string, suffix: string, zoomRoot?: string | null, fieldEntry?: string | null) => {
+    const split = (
+      block: Block,
+      prefix: string,
+      suffix: string,
+      zoomRoot?: string | null,
+      fieldEntry?: string | null,
+    ) => {
       if (this.block(block.id)?.image && !prefix && suffix) {
         caret = { id: insert(block.parent_id!, block.id, ''), offset: 0 };
         return;
@@ -1309,8 +2051,15 @@ export class Document implements PageDocument {
         caret = { id: block.id, offset: 0 };
         return;
       }
-      if (fieldEntry && fieldEntry === block.parent_id && zoomRoot !== block.id && zoomRoot !== fieldEntry
-        && !prefix && !suffix && !this.outline.children(block.id).length) {
+      if (
+        fieldEntry &&
+        fieldEntry === block.parent_id &&
+        zoomRoot !== block.id &&
+        zoomRoot !== fieldEntry &&
+        !prefix &&
+        !suffix &&
+        !this.outline.children(block.id).length
+      ) {
         this.guardHide(block.id);
         actions.push({ kind: 'delete', id: block.id });
         caret = { id: insert(this.outline.parentOf(fieldEntry), fieldEntry, ''), offset: 0 };
@@ -1318,7 +2067,13 @@ export class Document implements PageDocument {
       }
       if (task?.status === 'todo' && !prefix && !suffix && !this.outline.children(block.id).length) {
         setText(block, '');
-        actions.push({ kind: 'task', id: block.id, value: null, previous: this.capabilities(block.id).task, baseRevision: block.revision });
+        actions.push({
+          kind: 'task',
+          id: block.id,
+          value: null,
+          previous: this.capabilities(block.id).task,
+          baseRevision: block.revision,
+        });
         caret = { id: block.id, offset: 0 };
         return;
       }
@@ -1330,8 +2085,11 @@ export class Document implements PageDocument {
       }
       guardSplit(block, prefix, suffix);
       setText(block, prefix + suffix);
-      const child = zoomRoot === block.id || !suffix && (this.outline.children(block.id).length > 0
-        || parseCardText(block.text).cards.some(card => card.kind === 'multiline' || card.kind === 'list'));
+      const child =
+        zoomRoot === block.id ||
+        (!suffix &&
+          (this.outline.children(block.id).length > 0 ||
+            parseCardText(block.text).cards.some(card => card.kind === 'multiline' || card.kind === 'list')));
       const id = insert(block.parent_id!, block.id, suffix, block.heading);
       const insertion = actions.pop() as Extract<Action, { kind: 'insert' }>;
       actions.push({ kind: 'split', id: block.id, block: insertion.block, left: prefix, right: suffix });
@@ -1343,12 +2101,21 @@ export class Document implements PageDocument {
     const paste = (block: Block, prefix: string, suffix: string, rows: PasteRow[], zoomRoot?: string | null) => {
       if (!rows.length) return;
       const style = (id: string, row: PasteRow, previousHeading: Block['heading'], revision: number) => {
-        if (row.heading !== null && row.heading !== previousHeading) actions.push({ kind: 'heading', id, heading: row.heading });
+        if (row.heading !== null && row.heading !== previousHeading)
+          actions.push({ kind: 'heading', id, heading: row.heading });
         if (row.task) {
           const previous = this.block(id)?.task ?? null;
           const value = previous ?? newTask('todo');
           if (!previous) actions.push({ kind: 'task', id, value, previous: null, baseRevision: revision });
-          if (row.task === 'done' && value.status !== 'done') actions.push({ kind: 'completeTask', id, occurrenceId: ulid(), completedOn: this.host.todayDate(), previous: value, baseRevision: revision });
+          if (row.task === 'done' && value.status !== 'done')
+            actions.push({
+              kind: 'completeTask',
+              id,
+              occurrenceId: ulid(),
+              completedOn: this.host.todayDate(),
+              previous: value,
+              baseRevision: revision,
+            });
         }
       };
       const first = rows[0]!;
@@ -1392,30 +2159,57 @@ export class Document implements PageDocument {
         caret = { id, offset: row.text.length };
       }
     };
-    const replace = (range: TextRange, visible: string[], text: string, mode: 'text' | 'paste' | 'split', zoomRoot?: string | null, fieldEntry?: string | null, rows?: PasteRow[]) => {
+    const replace = (
+      range: TextRange,
+      visible: string[],
+      text: string,
+      mode: 'text' | 'paste' | 'split',
+      zoomRoot?: string | null,
+      fieldEntry?: string | null,
+      rows?: PasteRow[],
+    ) => {
       let { anchor: start, head: end } = range;
-      if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0) throw new Error('A selected atom no longer exists.');
-      if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
+      if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0)
+        throw new Error('A selected atom no longer exists.');
+      if (
+        this.outline.indexOf(start.id) > this.outline.indexOf(end.id) ||
+        (start.id === end.id && start.offset > end.offset)
+      )
+        [start, end] = [end, start];
       const first = this.snapshot(start.id);
       const last = this.snapshot(end.id);
       let startOffset = Math.max(0, Math.min(start.offset, first.text.length));
       let endOffset = Math.max(0, Math.min(end.offset, last.text.length));
-      if (mode === 'split' && start.id === end.id && startOffset === endOffset) startOffset = endOffset = splitToken(first.text, startOffset)?.end ?? startOffset;
+      if (mode === 'split' && start.id === end.id && startOffset === endOffset)
+        startOffset = endOffset = splitToken(first.text, startOffset)?.end ?? startOffset;
       else if (mode === 'split') {
         startOffset = splitToken(first.text, startOffset)?.start ?? startOffset;
         endOffset = splitToken(last.text, endOffset)?.end ?? endOffset;
       }
       if (mode === 'text' && !text && (start.id !== end.id || startOffset !== endOffset)) {
-        for (const token of textTokens(first.text)) if (token.kind === 'reference' && startOffset > token.start && startOffset < token.end) startOffset = token.start;
-        for (const token of textTokens(last.text)) if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
+        for (const token of textTokens(first.text))
+          if (token.kind === 'reference' && startOffset > token.start && startOffset < token.end)
+            startOffset = token.start;
+        for (const token of textTokens(last.text))
+          if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
       }
-      const between = this.outline.slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id)).map(row => row.id);
-      if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden atoms before deleting this text range.');
+      const between = this.outline
+        .slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id))
+        .map(row => row.id);
+      if (between.length !== visible.length || between.some((id, i) => id !== visible[i]))
+        throw new Error('Expand hidden atoms before deleting this text range.');
       if (start.id !== end.id) this.guardMerge(end.id);
       if (start.id !== end.id && this.block(start.id)?.image) throw new Error("Image atoms can't be merged.");
-      const multiline = mode === 'split' || mode === 'paste' && (rows ? rows.length > 1 : /[\r\n]/.test(text));
-      if (multiline && (parseCardText(first.text).cards.length || start.id !== end.id && parseCardText(last.text).cards.length)
-        && !(start.id === end.id && startOffset === endOffset && (endOffset === first.text.length || mode === 'split' && startOffset === 0))) {
+      const multiline = mode === 'split' || (mode === 'paste' && (rows ? rows.length > 1 : /[\r\n]/.test(text)));
+      if (
+        multiline &&
+        (parseCardText(first.text).cards.length || (start.id !== end.id && parseCardText(last.text).cards.length)) &&
+        !(
+          start.id === end.id &&
+          startOffset === endOffset &&
+          (endOffset === first.text.length || (mode === 'split' && startOffset === 0))
+        )
+      ) {
         throw new Error('Replace this card in place before splitting its source.');
       }
       const deleted = start.id === end.id ? [] : selected([...between, end.id]);
@@ -1437,12 +2231,20 @@ export class Document implements PageDocument {
         }
         move(preserved, first.id, after);
       }
-      if (start.id !== end.id) actions.push({ kind: 'merge', id: end.id, destinationId: first.id, text: first.text + last.text });
-      for (const id of deleted) if (id !== end.id) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+      if (start.id !== end.id)
+        actions.push({ kind: 'merge', id: end.id, destinationId: first.id, text: first.text + last.text });
+      for (const id of deleted)
+        if (id !== end.id) {
+          this.guardHide(id);
+          actions.push({ kind: 'delete', id });
+        }
       const merged = start.id === end.id ? first : { ...first, text: first.text + last.text };
       if (mode === 'split') split(merged, prefix + text, suffix, zoomRoot, fieldEntry);
       else if (mode === 'paste') paste(merged, prefix, suffix, rows ?? markdownPasteRows(text), zoomRoot);
-      else { setText(merged, prefix + text + suffix); caret = { id: first.id, offset: prefix.length + text.length }; }
+      else {
+        setText(merged, prefix + text + suffix);
+        caret = { id: first.id, offset: prefix.length + text.length };
+      }
     };
     const rowPasteTarget = (ids: string[], zoomRoot?: string | null): Block => {
       const roots = selected(ids, zoomRoot);
@@ -1460,18 +2262,42 @@ export class Document implements PageDocument {
       switch (edit.kind) {
         case 'cardHeld': {
           for (const card of edit.cards) {
-            if (!card.active || !this.block(card.source_block_id)) throw new Error('The card is no longer active on this atom.');
-            if (card.held !== edit.held) actions.push({ kind: 'cardHeld', id: card.id, value: edit.held, previous: card.held, baseRevision: card.revision });
+            if (!card.active || !this.block(card.source_block_id))
+              throw new Error('The card is no longer active on this atom.');
+            if (card.held !== edit.held)
+              actions.push({
+                kind: 'cardHeld',
+                id: card.id,
+                value: edit.held,
+                previous: card.held,
+                baseRevision: card.revision,
+              });
           }
           break;
         }
         case 'cardTemplate': {
-          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their tag.');
+          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId)
+            throw new Error('Card templates belong to their tag.');
           const { previous, value } = edit;
-          if (previous && value && previous.name === value.name && previous.front === value.front && previous.back === value.back
-            && (previous.hint ?? null) === (value.hint ?? null) && JSON.stringify(previous.details ?? []) === JSON.stringify(value.details ?? [])
-            && previous.applied === value.applied && previous.new_per_day === value.new_per_day) break;
-          actions.push({ kind: 'cardTemplate', id: edit.id, value: edit.value, previous: edit.previous, baseRevision: edit.previous?.revision ?? 0 });
+          if (
+            previous &&
+            value &&
+            previous.name === value.name &&
+            previous.front === value.front &&
+            previous.back === value.back &&
+            (previous.hint ?? null) === (value.hint ?? null) &&
+            JSON.stringify(previous.details ?? []) === JSON.stringify(value.details ?? []) &&
+            previous.applied === value.applied &&
+            previous.new_per_day === value.new_per_day
+          )
+            break;
+          actions.push({
+            kind: 'cardTemplate',
+            id: edit.id,
+            value: edit.value,
+            previous: edit.previous,
+            baseRevision: edit.previous?.revision ?? 0,
+          });
           if (!edit.previous) created.push(edit.id);
           break;
         }
@@ -1484,7 +2310,8 @@ export class Document implements PageDocument {
           } else {
             this.guardHide(edit.id);
             if (edit.choice === 'use') {
-              if (!this.block(copy.of)) throw new Error('The original is not on this atom. Both versions are unchanged.');
+              if (!this.block(copy.of))
+                throw new Error('The original is not on this atom. Both versions are unchanged.');
               actions.push({ kind: 'text', id: copy.of, text: block.text });
             }
             actions.push({ kind: 'delete', id: edit.id });
@@ -1493,13 +2320,20 @@ export class Document implements PageDocument {
         }
         case 'sourceDetails':
           actions.push(...this.sourceDetailsActions(edit));
-          created.push(...actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
+          created.push(...actions.flatMap(action => (action.kind === 'insert' ? [action.block.id] : [])));
           break;
         case 'source': {
           if (edit.value === null) removeCapabilityTags(edit.id, 'source');
           const previous = sourceState(this.capabilities(edit.id).source);
           const value = sourceState(edit.value);
-          if (!sameState(previous, value)) actions.push({ kind: 'source', id: edit.id, value, previous, baseRevision: this.snapshot(edit.id).revision });
+          if (!sameState(previous, value))
+            actions.push({
+              kind: 'source',
+              id: edit.id,
+              value,
+              previous,
+              baseRevision: this.snapshot(edit.id).revision,
+            });
           break;
         }
         case 'mergeHighlights': {
@@ -1509,13 +2343,28 @@ export class Document implements PageDocument {
             if (!previous) throw new Error('Citation not found.');
             const baseRevision = this.snapshot(id).revision;
             if (!sameState(previous.start, merge.citation.start) || !sameState(previous.end, merge.citation.end)) {
-              actions.push({ kind: 'citationRange', id, citation: { ...merge.citation, color: previous.color }, previous, baseRevision });
+              actions.push({
+                kind: 'citationRange',
+                id,
+                citation: { ...merge.citation, color: previous.color },
+                previous,
+                baseRevision,
+              });
               const block = this.snapshot(id);
               // Authored notes or card syntax stay intact; only a verbatim quote follows its evidence.
               if (block.text === previous.quote) setText(block, merge.citation.quote);
             }
-            if (previous.color !== merge.citation.color) actions.push({ kind: 'highlightColor', id, citationId: previous.id, color: merge.citation.color, previous: previous.color, baseRevision });
-            for (const citationId of merge.removeCitationIds ?? []) actions.push({ kind: 'uncite', id, citationId, baseRevision });
+            if (previous.color !== merge.citation.color)
+              actions.push({
+                kind: 'highlightColor',
+                id,
+                citationId: previous.id,
+                color: merge.citation.color,
+                previous: previous.color,
+                baseRevision,
+              });
+            for (const citationId of merge.removeCitationIds ?? [])
+              actions.push({ kind: 'uncite', id, citationId, baseRevision });
             let after = this.outline.children(id).at(-1) ?? null;
             const removedIds = [...merge.removeIds].sort((a, b) => this.outline.indexOf(b) - this.outline.indexOf(a));
             for (const removed of removedIds) {
@@ -1524,8 +2373,11 @@ export class Document implements PageDocument {
               // Hoist a survivor nested under a highlight that is being absorbed.
               let ancestor = this.block(id)?.parentId;
               while (ancestor && ancestor !== removed) ancestor = this.block(ancestor)?.parentId;
-              if (ancestor === removed) actions.push({ kind: 'move', id, parentId: this.outline.parentOf(removed), after: removed });
-              const children = this.outline.children(removed).filter(child => child !== id && !merge.removeIds.includes(child));
+              if (ancestor === removed)
+                actions.push({ kind: 'move', id, parentId: this.outline.parentOf(removed), after: removed });
+              const children = this.outline
+                .children(removed)
+                .filter(child => child !== id && !merge.removeIds.includes(child));
               for (const child of children) {
                 actions.push({ kind: 'move', id: child, parentId: id, after });
                 after = child;
@@ -1539,33 +2391,71 @@ export class Document implements PageDocument {
         }
         case 'cite':
         case 'highlight': {
-          const id = edit.kind === 'highlight'
-            ? insert(edit.parentId, edit.after === undefined ? this.outline.children(edit.parentId).at(-1) ?? null : edit.after, edit.text)
-            : edit.id;
+          const id =
+            edit.kind === 'highlight'
+              ? insert(
+                  edit.parentId,
+                  edit.after === undefined ? (this.outline.children(edit.parentId).at(-1) ?? null) : edit.after,
+                  edit.text,
+                )
+              : edit.id;
           const citation = edit.citation;
-          actions.push({ kind: 'cite', id, baseRevision: edit.kind === 'highlight' ? 0 : this.snapshot(id).revision,
-            citation: { id: citation.id, block_id: id, source_id: citation.sourceId, snapshot_id: citation.snapshotId,
-              start: { ...citation.start }, end: { ...citation.end }, quote: citation.quote, locator: citation.locator, ordinal: citation.ordinal, triage: null, color: edit.kind === 'highlight' ? edit.color ?? null : null } });
-          if (edit.kind === 'highlight') caret = edit.note ? { id: insert(id, null, ''), offset: 0 } : { id, offset: edit.text.length };
+          actions.push({
+            kind: 'cite',
+            id,
+            baseRevision: edit.kind === 'highlight' ? 0 : this.snapshot(id).revision,
+            citation: {
+              id: citation.id,
+              block_id: id,
+              source_id: citation.sourceId,
+              snapshot_id: citation.snapshotId,
+              start: { ...citation.start },
+              end: { ...citation.end },
+              quote: citation.quote,
+              locator: citation.locator,
+              ordinal: citation.ordinal,
+              triage: null,
+              color: edit.kind === 'highlight' ? (edit.color ?? null) : null,
+            },
+          });
+          if (edit.kind === 'highlight')
+            caret = edit.note ? { id: insert(id, null, ''), offset: 0 } : { id, offset: edit.text.length };
           break;
         }
         case 'uncite': {
           const baseRevision = this.snapshot(edit.id).revision;
           for (const citationId of new Set(edit.citationIds)) {
-            if (this.block(edit.id)!.citations.some(citation => citation.id === citationId)) actions.push({ kind: 'uncite', id: edit.id, citationId, baseRevision });
+            if (this.block(edit.id)!.citations.some(citation => citation.id === citationId))
+              actions.push({ kind: 'uncite', id: edit.id, citationId, baseRevision });
           }
           break;
         }
         case 'citationTriage': {
           const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
           if (!citation) throw new Error('Citation not found.');
-          if (citation.triage !== edit.triage) actions.push({ kind: 'citationTriage', id: edit.id, citationId: edit.citationId, triage: edit.triage, previous: citation.triage, baseRevision: this.snapshot(edit.id).revision });
+          if (citation.triage !== edit.triage)
+            actions.push({
+              kind: 'citationTriage',
+              id: edit.id,
+              citationId: edit.citationId,
+              triage: edit.triage,
+              previous: citation.triage,
+              baseRevision: this.snapshot(edit.id).revision,
+            });
           break;
         }
         case 'highlightColor': {
           const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
           if (!citation) throw new Error('Citation not found.');
-          if (citation.color !== edit.color) actions.push({ kind: 'highlightColor', id: edit.id, citationId: edit.citationId, color: edit.color, previous: citation.color, baseRevision: this.snapshot(edit.id).revision });
+          if (citation.color !== edit.color)
+            actions.push({
+              kind: 'highlightColor',
+              id: edit.id,
+              citationId: edit.citationId,
+              color: edit.color,
+              previous: citation.color,
+              baseRevision: this.snapshot(edit.id).revision,
+            });
           break;
         }
         case 'position': {
@@ -1573,23 +2463,27 @@ export class Document implements PageDocument {
           if (block.kind !== 'block') throw new Error('Only ordinary atoms can be perspectives.');
           if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
           const previous = !!this.capabilities(edit.id).position;
-          if (previous !== edit.value) actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
+          if (previous !== edit.value)
+            actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
           break;
         }
         case 'relation': {
           const block = this.snapshot(edit.id);
           if (block.kind !== 'block') throw new Error('Only ordinary atoms can be arguments.');
           const capability = this.capabilities(edit.id);
-          if (edit.value && (capability.position || capability.question || capability.assessment)) throw new Error('An argument cannot also be a perspective, question or answer.');
+          if (edit.value && (capability.position || capability.question || capability.assessment))
+            throw new Error('An argument cannot also be a perspective, question or answer.');
           const previous = capability.relation?.kind ?? null;
           if (edit.text !== undefined) setText(block, edit.text);
-          if (previous !== edit.value) actions.push({ kind: 'relation', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
+          if (previous !== edit.value)
+            actions.push({ kind: 'relation', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
           break;
         }
         case 'addRelation': {
           const parent = this.snapshot(edit.parentId);
           const capability = this.capabilities(edit.parentId);
-          if (!capability.position && !capability.assessment && !capability.question) throw new Error('Select a perspective, question or answer.');
+          if (!capability.position && !capability.assessment && !capability.question)
+            throw new Error('Select a perspective, question or answer.');
           if (edit.sourceText !== undefined) setText(parent, edit.sourceText);
           const text = `[[${edit.targetId}]]`;
           const id = insert(edit.parentId, this.outline.children(edit.parentId).at(-1) ?? null, text);
@@ -1608,10 +2502,25 @@ export class Document implements PageDocument {
         case 'addBranchQuestion': {
           const question = this.block(edit.parentId)?.question;
           if (!question) throw new Error('Select a question.');
-          if (edit.kind === 'writeAssessment' && question.state.parked) throw new Error('Resume the question before writing an assessment.');
+          if (edit.kind === 'writeAssessment' && question.state.parked)
+            throw new Error('Resume the question before writing an assessment.');
           const id = insert(edit.parentId, this.outline.children(edit.parentId).at(-1) ?? null, '');
-          if (edit.kind === 'writeAssessment') actions.push({ kind: 'assessment', id, value: { assessed_on: edit.assessedOn, aporia: false }, previous: null, baseRevision: 0 });
-          else actions.push({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null, reading_history: [] }, previous: null, baseRevision: 0 });
+          if (edit.kind === 'writeAssessment')
+            actions.push({
+              kind: 'assessment',
+              id,
+              value: { assessed_on: edit.assessedOn, aporia: false },
+              previous: null,
+              baseRevision: 0,
+            });
+          else
+            actions.push({
+              kind: 'question',
+              id,
+              value: { unsettled: false, parked: false, accepted: null, review_on: null, reading_history: [] },
+              previous: null,
+              baseRevision: 0,
+            });
           caret = { id, offset: 0 };
           break;
         }
@@ -1619,22 +2528,47 @@ export class Document implements PageDocument {
           if (edit.value === null) removeCapabilityTags(edit.id, 'question');
           const previous = questionState(this.capabilities(edit.id).question?.state);
           let value = questionState(edit.value);
-          if (previous && value && previous.accepted !== value.accepted && sameState(previous.reading_history, value.reading_history)) {
+          if (
+            previous &&
+            value &&
+            previous.accepted !== value.accepted &&
+            sameState(previous.reading_history, value.reading_history)
+          ) {
             value = currentReading({ ...value, accepted: previous.accepted }, value.accepted, this.host.todayDate());
           }
           if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-          if (edit.value && this.block(edit.id)?.assessment) throw new Error('An atom cannot be both a question and an answer.');
-          if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) && edit.value?.accepted) throw new Error('Resume the question before accepting a reading.');
-          if (!sameState(previous, value)) actions.push({ ...edit, value: structuredClone(value), previous, baseRevision: this.snapshot(edit.id).revision });
+          if (edit.value && this.block(edit.id)?.assessment)
+            throw new Error('An atom cannot be both a question and an answer.');
+          if (
+            (previous?.parked || edit.value?.parked) &&
+            (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) &&
+            edit.value?.accepted
+          )
+            throw new Error('Resume the question before accepting a reading.');
+          if (!sameState(previous, value))
+            actions.push({
+              ...edit,
+              value: structuredClone(value),
+              previous,
+              baseRevision: this.snapshot(edit.id).revision,
+            });
           break;
         }
         case 'quote': {
           const block = this.snapshot(edit.id);
           const text = edit.text ?? block.text;
-          if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id)) throw new Error('Quote target must match a different atom.');
+          if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id))
+            throw new Error('Quote target must match a different atom.');
           const previous = this.capabilities(edit.id).quote ?? null;
           setText(block, text);
-          if (!sameState(previous, edit.value)) actions.push({ kind: 'quote', id: edit.id, value: structuredClone(edit.value), previous, baseRevision: block.revision });
+          if (!sameState(previous, edit.value))
+            actions.push({
+              kind: 'quote',
+              id: edit.id,
+              value: structuredClone(edit.value),
+              previous,
+              baseRevision: block.revision,
+            });
           if (edit.text !== undefined) caret = { id: edit.id, offset: text.length };
           break;
         }
@@ -1646,15 +2580,29 @@ export class Document implements PageDocument {
             let owner = this.block(edit.id)?.parentId;
             while (owner && !this.block(owner)?.question) owner = this.block(owner)?.parentId;
             if (!owner) throw new Error('Put the answer under a question first.');
-            if (!previous && this.block(owner)?.question?.state.parked) throw new Error('Resume the question before answering it.');
+            if (!previous && this.block(owner)?.question?.state.parked)
+              throw new Error('Resume the question before answering it.');
           }
           if (!edit.value && previous) {
             for (const ownerId of this.investigationIds) {
               const question = this.capabilities(ownerId).question?.state;
-              if (question?.accepted === edit.id) actions.push({ kind: 'question', id: ownerId, value: currentReading(question, null, this.host.todayDate()), previous: questionState(question), baseRevision: this.snapshot(ownerId).revision });
+              if (question?.accepted === edit.id)
+                actions.push({
+                  kind: 'question',
+                  id: ownerId,
+                  value: currentReading(question, null, this.host.todayDate()),
+                  previous: questionState(question),
+                  baseRevision: this.snapshot(ownerId).revision,
+                });
             }
           }
-          if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
+          if (!sameState(previous, edit.value))
+            actions.push({
+              ...edit,
+              value: structuredClone(edit.value),
+              previous,
+              baseRevision: this.snapshot(edit.id).revision,
+            });
           break;
         }
         case 'task':
@@ -1666,41 +2614,96 @@ export class Document implements PageDocument {
         case 'workNote': {
           const block = this.snapshot(edit.id);
           const state = this.capabilities(edit.id);
-          if (this.host.commands(this.pageId).some(command => command.actions.some(action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater))) throw new Error('Wait for the recurring completion before changing this task.');
+          if (
+            this.host
+              .commands(this.pageId)
+              .some(command =>
+                command.actions.some(
+                  action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater,
+                ),
+              )
+          )
+            throw new Error('Wait for the recurring completion before changing this task.');
           const baseRevision = block.revision;
           if (edit.kind === 'task' || edit.kind === 'planTask') {
             if (edit.value === null) removeCapabilityTags(edit.id, 'task');
             const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
-            if (value?.status === 'done' && state.task?.status !== 'done') throw new Error('Complete the task to record its occurrence.');
-            if (!state.task && value && value.status !== null && value.status !== 'todo') throw new Error('A new task starts Todo.');
-            if (!sameState(state.task, value)) actions.push({ kind: 'task', id: edit.id, value, previous: state.task, baseRevision });
-            if (edit.kind === 'planTask') { setText(block, edit.text); caret = { id: edit.id, offset: edit.text.length }; }
+            if (value?.status === 'done' && state.task?.status !== 'done')
+              throw new Error('Complete the task to record its occurrence.');
+            if (!state.task && value && value.status !== null && value.status !== 'todo')
+              throw new Error('A new task starts Todo.');
+            if (!sameState(state.task, value))
+              actions.push({ kind: 'task', id: edit.id, value, previous: state.task, baseRevision });
+            if (edit.kind === 'planTask') {
+              setText(block, edit.text);
+              caret = { id: edit.id, offset: edit.text.length };
+            }
           } else if (edit.kind === 'project') {
             if (edit.value === null) removeCapabilityTags(edit.id, 'project');
             const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
-            if (!sameState(state.project, value)) actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
+            if (!sameState(state.project, value))
+              actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
           } else if (edit.kind === 'completeTask') {
             let task = state.task;
             if (!task?.status) throw new Error('Add #task before completing.');
             if (task.status === 'done' && !task.repeater) break;
             if (edit.stopWork) {
-              if (edit.stopWork.block_id !== edit.id || edit.stopWork.ended_at !== null || edit.stopWork.reversed) throw new Error('Refresh the running work session before completing.');
+              if (edit.stopWork.block_id !== edit.id || edit.stopWork.ended_at !== null || edit.stopWork.reversed)
+                throw new Error('Refresh the running work session before completing.');
               const known = this.work.get(edit.stopWork.id);
-              if (known && known.revision >= edit.stopWork.revision && !sameState(known, edit.stopWork)) throw new Error('The work session changed. Refresh before completing.');
-              actions.push({ kind: 'stopWork', id: edit.id, session: { ...edit.stopWork }, endedAt: Date.now(), note: edit.stopWork.note, baseRevision });
+              if (known && known.revision >= edit.stopWork.revision && !sameState(known, edit.stopWork))
+                throw new Error('The work session changed. Refresh before completing.');
+              actions.push({
+                kind: 'stopWork',
+                id: edit.id,
+                session: { ...edit.stopWork },
+                endedAt: Date.now(),
+                note: edit.stopWork.note,
+                baseRevision,
+              });
             }
-            actions.push({ kind: 'completeTask', id: edit.id, occurrenceId: ulid(), completedOn: edit.completedOn, previous: task, baseRevision });
+            actions.push({
+              kind: 'completeTask',
+              id: edit.id,
+              occurrenceId: ulid(),
+              completedOn: edit.completedOn,
+              previous: task,
+              baseRevision,
+            });
           } else if (edit.kind === 'startWork') {
             const active = this.host.runningWork();
             if (active) throw new Error('Stop the running work session before starting another.');
-            actions.push({ kind: 'startWork', id: edit.id, session: { id: ulid(), block_id: edit.id, started_at: edit.startedAt, ended_at: null, note: '', reversed: false, revision: 0 }, baseRevision });
+            actions.push({
+              kind: 'startWork',
+              id: edit.id,
+              session: {
+                id: ulid(),
+                block_id: edit.id,
+                started_at: edit.startedAt,
+                ended_at: null,
+                note: '',
+                reversed: false,
+                revision: 0,
+              },
+              baseRevision,
+            });
           } else {
             if (edit.session.block_id !== edit.id) throw new Error('The work session belongs to another task.');
             const session = { ...edit.session };
             const known = this.work.get(session.id);
-            if (known && known.revision >= session.revision && !sameState(known, session)) throw new Error('The work session changed. Refresh before editing it.');
-            if (edit.kind === 'stopWork') actions.push({ kind: 'stopWork', id: edit.id, session, endedAt: edit.endedAt, note: edit.note, baseRevision });
-            else if (session.note !== edit.note) actions.push({ kind: 'workNote', id: edit.id, session, note: edit.note, baseRevision });
+            if (known && known.revision >= session.revision && !sameState(known, session))
+              throw new Error('The work session changed. Refresh before editing it.');
+            if (edit.kind === 'stopWork')
+              actions.push({
+                kind: 'stopWork',
+                id: edit.id,
+                session,
+                endedAt: edit.endedAt,
+                note: edit.note,
+                baseRevision,
+              });
+            else if (session.note !== edit.note)
+              actions.push({ kind: 'workNote', id: edit.id, session, note: edit.note, baseRevision });
           }
           break;
         }
@@ -1708,22 +2711,34 @@ export class Document implements PageDocument {
           setText(this.snapshot(edit.id), edit.text);
           break;
         case 'text':
-          if (this.snapshot(edit.id).text !== edit.text || edit.relationPick) actions.push({ kind: 'text', id: edit.id, text: edit.text, ...(edit.relationPick ? { relationPick: edit.relationPick } : {}) });
-          if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading) actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });
-          if (edit.caret !== undefined) caret = { id: edit.id, offset: Math.max(0, Math.min(edit.text.length, edit.caret)) };
+          if (this.snapshot(edit.id).text !== edit.text || edit.relationPick)
+            actions.push({
+              kind: 'text',
+              id: edit.id,
+              text: edit.text,
+              ...(edit.relationPick ? { relationPick: edit.relationPick } : {}),
+            });
+          if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading)
+            actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });
+          if (edit.caret !== undefined)
+            caret = { id: edit.id, offset: Math.max(0, Math.min(edit.text.length, edit.caret)) };
           break;
-        case 'heading': actions.push({ kind: 'heading', id: edit.id, heading: edit.level }); break;
+        case 'heading':
+          actions.push({ kind: 'heading', id: edit.id, heading: edit.level });
+          break;
         case 'archive':
           if (edit.archived) this.guardHide(edit.id);
           actions.push({ kind: 'archive', id: edit.id, archived: edit.archived });
           break;
         case 'addField': {
           const root = this.root();
-          if (root?.kind !== 'page' || titleKey(root.text) !== 'fields') throw new Error('Field definitions belong on the Fields register.');
+          if (root?.kind !== 'page' || titleKey(root.text) !== 'fields')
+            throw new Error('Field definitions belong on the Fields register.');
           if (!edit.name.trim()) throw new Error('A field needs a name.');
           const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
           if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });
-          if (edit.role && edit.role !== 'attribute') actions.push({ kind: 'fieldRole', id, value: edit.role, previous: 'attribute' });
+          if (edit.role && edit.role !== 'attribute')
+            actions.push({ kind: 'fieldRole', id, value: edit.role, previous: 'attribute' });
           caret = { id, offset: 0 };
           break;
         }
@@ -1739,7 +2754,8 @@ export class Document implements PageDocument {
           break;
         }
         case 'addReading': {
-          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId) throw new Error('The destination sibling no longer exists.');
+          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId)
+            throw new Error('The destination sibling no longer exists.');
           const id = insert(edit.parentId, edit.after, `[[${edit.holderId}]]`);
           actions.push({ kind: 'position', id, value: true, previous: false, baseRevision: 0 });
           const entry = insert(id, null, `[[${edit.gistFieldId}]]`);
@@ -1748,7 +2764,8 @@ export class Document implements PageDocument {
         }
         case 'addFieldEntries': {
           if (!edit.entries.length) throw new Error('Choose a field.');
-          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId) throw new Error('The destination sibling no longer exists.');
+          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId)
+            throw new Error('The destination sibling no longer exists.');
           let after = edit.after;
           let first: Caret | undefined;
           for (const entry of edit.entries) {
@@ -1761,76 +2778,144 @@ export class Document implements PageDocument {
         }
         case 'taskProject': {
           if (!this.block(edit.id)?.task) throw new Error('Task removed.');
-          const entries = this.outline.children(edit.id).filter(id => !this.block(id)?.archived && fieldEntryId(this.block(id)?.text ?? '') === edit.fieldId);
+          const entries = this.outline
+            .children(edit.id)
+            .filter(id => !this.block(id)?.archived && fieldEntryId(this.block(id)?.text ?? '') === edit.fieldId);
           const remove = edit.projectId === null ? entries : entries.slice(1);
-          for (const id of remove) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+          for (const id of remove) {
+            this.guardHide(id);
+            actions.push({ kind: 'delete', id });
+          }
           if (edit.projectId !== null) {
-            const entry = entries[0] ?? insert(edit.id, this.outline.children(edit.id).at(-1) ?? null, `[[${edit.fieldId}]]`);
+            const entry =
+              entries[0] ?? insert(edit.id, this.outline.children(edit.id).at(-1) ?? null, `[[${edit.fieldId}]]`);
             const values = this.outline.children(entry).filter(id => !this.block(id)?.archived);
             const text = `[[${edit.projectId}]]`;
             if (values[0]) setText(this.snapshot(values[0]), text);
             else insert(entry, null, text);
-            for (const id of values.slice(1)) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+            for (const id of values.slice(1)) {
+              this.guardHide(id);
+              actions.push({ kind: 'delete', id });
+            }
           }
           break;
         }
         case 'fieldKind': {
           const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its format.');
-          if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
+            throw new Error('The field changed. Refresh before changing its format.');
+          if (definition.kind !== edit.value)
+            actions.push({
+              kind: 'fieldKind',
+              id: definition.id,
+              value: edit.value,
+              previous: definition.kind,
+              baseRevision: definition.revision,
+            });
           break;
         }
         case 'fieldHide': {
           const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its hide setting.');
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
+            throw new Error('The field changed. Refresh before changing its hide setting.');
           const previous = fieldHide(definition);
-          if (previous !== edit.value) actions.push({ kind: 'fieldHide', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
+          if (previous !== edit.value)
+            actions.push({
+              kind: 'fieldHide',
+              id: definition.id,
+              value: edit.value,
+              previous,
+              baseRevision: definition.revision,
+            });
           break;
         }
         case 'fieldRole': {
           const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its role.');
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
+            throw new Error('The field changed. Refresh before changing its role.');
           const previous = fieldRole(definition);
-          if (previous !== edit.value) actions.push({ kind: 'fieldRole', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
+          if (previous !== edit.value)
+            actions.push({
+              kind: 'fieldRole',
+              id: definition.id,
+              value: edit.value,
+              previous,
+              baseRevision: definition.revision,
+            });
           break;
         }
         case 'fieldCountsAs': {
           const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing what it counts as.');
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
+            throw new Error('The field changed. Refresh before changing what it counts as.');
           const reason = countsReason(definition);
           if (reason) throw new Error(reason);
           const previous = fieldCounts(definition);
-          if (previous !== edit.value) actions.push({ kind: 'fieldCountsAs', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
+          if (previous !== edit.value)
+            actions.push({
+              kind: 'fieldCountsAs',
+              id: definition.id,
+              value: edit.value,
+              previous,
+              baseRevision: definition.revision,
+            });
           break;
         }
         case 'fieldTargets': {
           const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its targets.');
-          if (JSON.stringify(definition.targets) !== JSON.stringify(edit.targets)) actions.push({ kind: 'fieldTargets', id: definition.id, targets: edit.targets, previous: definition.targets, baseRevision: definition.revision });
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending)
+            throw new Error('The field changed. Refresh before changing its targets.');
+          if (JSON.stringify(definition.targets) !== JSON.stringify(edit.targets))
+            actions.push({
+              kind: 'fieldTargets',
+              id: definition.id,
+              targets: edit.targets,
+              previous: definition.targets,
+              baseRevision: definition.revision,
+            });
           break;
         }
         case 'subjectCriteria': {
-          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The subject changed. Refresh before changing its criteria.');
-          actions.push({ kind: 'subjectCriteria', id: edit.id, fields: [...edit.fields], previous: [...edit.previous], baseRevision: edit.revision });
+          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending)
+            throw new Error('The subject changed. Refresh before changing its criteria.');
+          actions.push({
+            kind: 'subjectCriteria',
+            id: edit.id,
+            fields: [...edit.fields],
+            previous: [...edit.previous],
+            baseRevision: edit.revision,
+          });
           break;
         }
         case 'typePresentation': {
-          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The tag changed. Refresh before changing its icon or name.');
-          if (!sameState(edit.value, edit.previous)) actions.push({ kind: 'typePresentation', id: edit.id, value: { ...edit.value }, previous: { ...edit.previous }, baseRevision: edit.revision });
+          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending)
+            throw new Error('The tag changed. Refresh before changing its icon or name.');
+          if (!sameState(edit.value, edit.previous))
+            actions.push({
+              kind: 'typePresentation',
+              id: edit.id,
+              value: { ...edit.value },
+              previous: { ...edit.previous },
+              baseRevision: edit.revision,
+            });
           break;
         }
         case 'addType':
         case 'removeType': {
           const block = this.block(edit.id);
           if (!block) throw new Error('The atom no longer exists.');
-          if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title)) throw new Error('Invalid tag title.');
+          if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title))
+            throw new Error('Invalid tag title.');
           const exists = block.manual_types.some(title => titleKey(title) === titleKey(edit.title));
           if (edit.kind === 'addType' && exists) break;
-          if (edit.kind === 'removeType' && !exists) throw new Error('From the text. Edit the #tag there to remove it.');
+          if (edit.kind === 'removeType' && !exists)
+            throw new Error('From the text. Edit the #tag there to remove it.');
           actions.push({ kind: edit.kind, id: edit.id, title: edit.title });
           break;
         }
-        case 'insert': caret = { id: insert(edit.parentId, edit.after, edit.text ?? '', null, edit.quote), offset: 0 }; break;
+        case 'insert':
+          caret = { id: insert(edit.parentId, edit.after, edit.text ?? '', null, edit.quote), offset: 0 };
+          break;
         case 'image': {
           const block = this.snapshot(edit.id);
           const previous = this.capabilities(edit.id).image ?? null;
@@ -1843,19 +2928,43 @@ export class Document implements PageDocument {
           const block = this.snapshot(edit.id);
           const previous = this.capabilities(edit.id).occlusion ?? null;
           if (sameState(previous, edit.occlusion)) break;
-          if (edit.occlusion && !this.capabilities(edit.id).image) throw new Error('Add an image before drawing masks.');
-          actions.push({ kind: 'occlusion', id: edit.id, value: structuredClone(edit.occlusion), previous, baseRevision: block.revision });
+          if (edit.occlusion && !this.capabilities(edit.id).image)
+            throw new Error('Add an image before drawing masks.');
+          actions.push({
+            kind: 'occlusion',
+            id: edit.id,
+            value: structuredClone(edit.occlusion),
+            previous,
+            baseRevision: block.revision,
+          });
           break;
         }
         case 'insertImages':
         case 'placeImages': {
           const target = edit.kind === 'placeImages' ? this.snapshot(edit.targetId) : null;
-          const parentId = target ? target.parent_id ?? target.id : edit.kind === 'insertImages' ? edit.parentId : this.pageId;
-          let after = target ? target.parent_id ? target.id : this.outline.children(target.id).at(-1) ?? null : edit.kind === 'insertImages' ? edit.after : null;
+          const parentId = target
+            ? (target.parent_id ?? target.id)
+            : edit.kind === 'insertImages'
+              ? edit.parentId
+              : this.pageId;
+          let after = target
+            ? target.parent_id
+              ? target.id
+              : (this.outline.children(target.id).at(-1) ?? null)
+            : edit.kind === 'insertImages'
+              ? edit.after
+              : null;
           for (let index = 0; index < edit.images.length; index++) {
-            const reuse = index === 0 && target?.kind === 'block' && !target.text.trim() && !this.block(target.id)?.image;
+            const reuse =
+              index === 0 && target?.kind === 'block' && !target.text.trim() && !this.block(target.id)?.image;
             const id = reuse ? target.id : insert(parentId, after, '');
-            actions.push({ kind: 'image', id, value: edit.images[index]!, previous: null, baseRevision: reuse ? target.revision : 0 });
+            actions.push({
+              kind: 'image',
+              id,
+              value: edit.images[index]!,
+              previous: null,
+              baseRevision: reuse ? target.revision : 0,
+            });
             after = id;
             caret ??= { id, offset: 0 };
           }
@@ -1874,22 +2983,45 @@ export class Document implements PageDocument {
           const destination = this.snapshot(edit.destinationId);
           if (source.kind !== 'block') throw new Error('A titled atom cannot merge into an outline atom.');
           let parent = destination.id;
-          while (parent !== this.pageId) { if (parent === source.id) throw new Error('Cannot merge into a descendant.'); parent = this.outline.parentOf(parent); }
-          for (let ancestor: string | null = destination.id; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(source.id); break; }
+          while (parent !== this.pageId) {
+            if (parent === source.id) throw new Error('Cannot merge into a descendant.');
+            parent = this.outline.parentOf(parent);
+          }
+          for (
+            let ancestor: string | null = destination.id;
+            ancestor;
+            ancestor = this.block(ancestor)?.parentId ?? null
+          )
+            if (this.block(ancestor)?.archived) {
+              this.guardHide(source.id);
+              break;
+            }
           this.guardMerge(source.id);
           if (this.block(destination.id)?.image) throw new Error("Image atoms can't be merged.");
-          actions.push({ kind: 'merge', id: source.id, destinationId: destination.id, text: destination.text + source.text });
+          actions.push({
+            kind: 'merge',
+            id: source.id,
+            destinationId: destination.id,
+            text: destination.text + source.text,
+          });
           caret = { id: destination.id, offset: destination.text.length };
           break;
         }
         case 'delete': {
           const roots = selected(edit.ids);
           let removed = 0;
-          for (const id of roots) { this.guardHide(id); actions.push({ kind: 'delete', id }); const at = this.outline.indexOf(id); removed += this.outline.subtreeEnd(at) - at; }
+          for (const id of roots) {
+            this.guardHide(id);
+            actions.push({ kind: 'delete', id });
+            const at = this.outline.indexOf(id);
+            removed += this.outline.subtreeEnd(at) - at;
+          }
           caret = removed && removed === this.outline.size() ? { id: insert(this.pageId, null, ''), offset: 0 } : null;
           break;
         }
-        case 'moveTo': move(selected(edit.ids), edit.parentId, edit.after); break;
+        case 'moveTo':
+          move(selected(edit.ids), edit.parentId, edit.after);
+          break;
         case 'indent': {
           const ids = selected(edit.ids, edit.zoomRoot);
           if (!ids.length) break;
@@ -1914,8 +3046,22 @@ export class Document implements PageDocument {
           // An empty todo that Enter continued leaves the task list with its indent: below a plain line it becomes a plain line.
           const only = ids.length === 1 ? this.snapshot(ids[0]!) : null;
           const task = only && this.block(only.id)?.task;
-          if (only && groups.size && task && !only.text && !this.outline.children(only.id).length && !this.block(parent)?.task && sameState(task, newTask('todo')))
-            actions.push({ kind: 'task', id: only.id, value: null, previous: this.capabilities(only.id).task, baseRevision: only.revision });
+          if (
+            only &&
+            groups.size &&
+            task &&
+            !only.text &&
+            !this.outline.children(only.id).length &&
+            !this.block(parent)?.task &&
+            sameState(task, newTask('todo'))
+          )
+            actions.push({
+              kind: 'task',
+              id: only.id,
+              value: null,
+              previous: this.capabilities(only.id).task,
+              baseRevision: only.revision,
+            });
           break;
         }
         case 'move': {
@@ -1943,7 +3089,12 @@ export class Document implements PageDocument {
           break;
         case 'paste': {
           const block = this.snapshot(edit.at.id);
-          paste(block, block.text.slice(0, edit.at.offset), block.text.slice(edit.at.offset), markdownPasteRows(edit.text));
+          paste(
+            block,
+            block.text.slice(0, edit.at.offset),
+            block.text.slice(edit.at.offset),
+            markdownPasteRows(edit.text),
+          );
           break;
         }
         case 'pasteRows': {
@@ -1956,34 +3107,52 @@ export class Document implements PageDocument {
           const content = edit.content;
           if (!content.blocks.length) break;
           const replacing = edit.replaceRoots?.length ? selected(edit.replaceRoots, edit.zoomRoot) : null;
-          if (replacing && replacing.length !== edit.replaceRoots!.length) throw new Error('The selected rows changed before paste.');
+          if (replacing && replacing.length !== edit.replaceRoots!.length)
+            throw new Error('The selected rows changed before paste.');
           let { anchor: start, head: end } = replacing
-            ? { anchor: { id: replacing[0]!, offset: 0 }, head: { id: replacing.at(-1)!, offset: this.block(replacing.at(-1)!)!.text.length } }
+            ? {
+                anchor: { id: replacing[0]!, offset: 0 },
+                head: { id: replacing.at(-1)!, offset: this.block(replacing.at(-1)!)!.text.length },
+              }
             : edit.range;
-          if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
+          if (
+            this.outline.indexOf(start.id) > this.outline.indexOf(end.id) ||
+            (start.id === end.id && start.offset > end.offset)
+          )
+            [start, end] = [end, start];
           const target = this.snapshot(start.id);
           const last = this.snapshot(end.id);
           const prefix = replacing ? '' : target.text.slice(0, start.offset);
           const suffix = replacing ? '' : last.text.slice(end.offset);
           const zoom = !replacing && edit.zoomRoot === target.id;
           if (replacing) {
-            for (const id of replacing) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+            for (const id of replacing) {
+              this.guardHide(id);
+              actions.push({ kind: 'delete', id });
+            }
           } else {
             if (!zoom) guardSplit(target, prefix, suffix);
             replace(edit.range, edit.between, '', 'text', edit.zoomRoot);
           }
           const parentId = zoom ? target.id : target.parent_id!;
           const depth = zoom ? this.outline.depth(target.id) + 1 : this.outline.depth(target.id);
-          const emptyLeaf = !replacing && start.id === end.id && !prefix && !suffix && !zoom
-            && !this.outline.children(target.id).length && !this.capabilities(target.id).merge_protected;
+          const emptyLeaf =
+            !replacing &&
+            start.id === end.id &&
+            !prefix &&
+            !suffix &&
+            !zoom &&
+            !this.outline.children(target.id).length &&
+            !this.capabilities(target.id).merge_protected;
           let after = zoom ? null : !prefix || emptyLeaf ? this.outline.previousSibling(target.id) : target.id;
           if (emptyLeaf) actions.push({ kind: 'delete', id: target.id });
           else if (!zoom && prefix && suffix) setText({ ...target, text: prefix + suffix }, prefix);
           const roots = content.blocks.filter(item => item.depth === 0);
           const moving = content.cut && content.scope === this.host.clipboardScope();
-          if (moving && !this.host.canRestore(roots.map(item => item.block.id))) throw new Error('Prepare this cut before pasting it.');
+          if (moving && !this.host.canRestore(roots.map(item => item.block.id)))
+            throw new Error('Prepare this cut before pasting it.');
           if (moving) {
-            for (let at = 0; at < content.blocks.length;) {
+            for (let at = 0; at < content.blocks.length; ) {
               let end = at + 1;
               while (end < content.blocks.length && content.blocks[end]!.depth > 0) end++;
               const root = content.blocks[at]!;
@@ -1992,7 +3161,8 @@ export class Document implements PageDocument {
                 return {
                   block: { ...item.block, parent_id: parent, page_id: this.pageId },
                   row: { id: item.block.id, parentId: parent, depth: depth + item.depth },
-                  manual_types: [...item.manualTypes], capabilities: item.capabilities,
+                  manual_types: [...item.manualTypes],
+                  capabilities: item.capabilities,
                 };
               });
               actions.push({ kind: 'restore', id: root.block.id, snapshots, after });
@@ -2008,14 +3178,45 @@ export class Document implements PageDocument {
             for (const item of content.blocks) {
               const parent = item.depth ? stack[item.depth - 1]! : parentId;
               if (!parent) throw new Error('The clipboard hierarchy is invalid.');
-              const id = insert(parent, item.depth ? previous.get(parent) ?? null : after, item.block.text, item.block.heading);
-              if (content.scope === this.host.clipboardScope() && item.capabilities.image) actions.push({ kind: 'image', id, value: structuredClone(item.capabilities.image), previous: null, baseRevision: 0 });
-              if (content.scope === this.host.clipboardScope() && item.capabilities.image && item.capabilities.occlusion) actions.push({ kind: 'occlusion', id, value: structuredClone(item.capabilities.occlusion), previous: null, baseRevision: 0 });
+              const id = insert(
+                parent,
+                item.depth ? (previous.get(parent) ?? null) : after,
+                item.block.text,
+                item.block.heading,
+              );
+              if (content.scope === this.host.clipboardScope() && item.capabilities.image)
+                actions.push({
+                  kind: 'image',
+                  id,
+                  value: structuredClone(item.capabilities.image),
+                  previous: null,
+                  baseRevision: 0,
+                });
+              if (
+                content.scope === this.host.clipboardScope() &&
+                item.capabilities.image &&
+                item.capabilities.occlusion
+              )
+                actions.push({
+                  kind: 'occlusion',
+                  id,
+                  value: structuredClone(item.capabilities.occlusion),
+                  previous: null,
+                  baseRevision: 0,
+                });
               if (item.capabilities.task) {
                 const task = item.capabilities.task;
                 const value = task.status === 'done' ? { ...task, status: 'todo' as const, completed_on: null } : task;
                 actions.push({ kind: 'task', id, value, previous: null, baseRevision: 0 });
-                if (task.status === 'done') actions.push({ kind: 'completeTask', id, occurrenceId: ulid(), completedOn: task.completed_on!, previous: value, baseRevision: 0 });
+                if (task.status === 'done')
+                  actions.push({
+                    kind: 'completeTask',
+                    id,
+                    occurrenceId: ulid(),
+                    completedOn: task.completed_on!,
+                    previous: value,
+                    baseRevision: 0,
+                  });
               }
               for (const title of item.manualTypes) actions.push({ kind: 'addType', id, title });
               if (item.block.archived) actions.push({ kind: 'archive', id, archived: true });
@@ -2032,21 +3233,45 @@ export class Document implements PageDocument {
       }
       if (!actions.length) return { ok: true, caret, created };
       const inverse: Action[] = [];
-      batch(() => { for (const action of actions) {
-        const undo = this.apply(action);
-        if (edit.kind !== 'highlight' || action.kind !== 'cite') inverse.unshift(...undo);
-      } });
-      const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : edit.kind === 'pasteBlocks' || edit.kind === 'pasteRows' ? edit.range : null;
-      const before: HistoryCaret | null = beforeRange ? { ...(caretBefore ?? beforeRange.head), range: { anchor: { ...beforeRange.anchor }, head: { ...beforeRange.head } } } : caretBefore;
+      batch(() => {
+        for (const action of actions) {
+          const undo = this.apply(action);
+          if (edit.kind !== 'highlight' || action.kind !== 'cite') inverse.unshift(...undo);
+        }
+      });
+      const beforeRange =
+        edit.kind === 'replaceRange'
+          ? (edit.selectionBefore ?? edit.range)
+          : edit.kind === 'pasteBlocks' || edit.kind === 'pasteRows'
+            ? edit.range
+            : null;
+      const before: HistoryCaret | null = beforeRange
+        ? {
+            ...(caretBefore ?? beforeRange.head),
+            range: { anchor: { ...beforeRange.anchor }, head: { ...beforeRange.head } },
+          }
+        : caretBefore;
       const selection = caretBefore?.selection;
-      const treeMove = edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';
-      const after: HistoryCaret | null = caret && treeMove && selection ? { ...caret, selection: { ...selection } } : caret;
+      const treeMove =
+        edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';
+      const after: HistoryCaret | null =
+        caret && treeMove && selection ? { ...caret, selection: { ...selection } } : caret;
       const last = this.textCommit?.entry ?? this.undoStack.at(-1);
-      const typing = edit.kind === 'text' && edit.heading === undefined
-        ? { id: edit.id, group: edit.group }
-        : edit.kind === 'replaceRange' && edit.mode === 'text' && edit.text && caret ? { id: caret.id } : undefined;
-      const textGroup = !!this.textCommit?.entry || !this.textCommit && edit.kind === 'text' && !edit.relationPick && typing && last?.typing?.id === typing.id
-        && last.typing.group === typing.group && Date.now() - this.lastTextEditAt < 1000;
+      const typing =
+        edit.kind === 'text' && edit.heading === undefined
+          ? { id: edit.id, group: edit.group }
+          : edit.kind === 'replaceRange' && edit.mode === 'text' && edit.text && caret
+            ? { id: caret.id }
+            : undefined;
+      const textGroup =
+        !!this.textCommit?.entry ||
+        (!this.textCommit &&
+          edit.kind === 'text' &&
+          !edit.relationPick &&
+          typing &&
+          last?.typing?.id === typing.id &&
+          last.typing.group === typing.group &&
+          Date.now() - this.lastTextEditAt < 1000);
       const command = this.host.enqueue(this, actions, inverse, before, after, !!textGroup);
       let entry: HistoryEntry;
       if (last && (last.commandId === command.id || textGroup)) {
@@ -2056,29 +3281,50 @@ export class Document implements PageDocument {
           tail.text = edit.text;
           if (edit.relationPick) tail.relationPick = edit.relationPick;
           else delete tail.relationPick;
-        }
-        else entry.forward.push(...actions);
-        if (edit.kind === 'text') for (const action of entry.inverse) {
-          if (action.kind === 'text' && action.id === edit.id) { action.expectedText = edit.text; break; }
-        }
+        } else entry.forward.push(...actions);
+        if (edit.kind === 'text')
+          for (const action of entry.inverse) {
+            if (action.kind === 'text' && action.id === edit.id) {
+              action.expectedText = edit.text;
+              break;
+            }
+          }
         entry.after = after;
         entry.typing = typing;
+      } else {
+        entry = {
+          forward: actions,
+          inverse,
+          before,
+          after,
+          commandId: command.id,
+          commands: new Set(),
+          applied: true,
+          retained: true,
+          typing,
+        };
+        this.undoStack.push(entry);
       }
-      else { entry = { forward: actions, inverse, before, after, commandId: command.id, commands: new Set(), applied: true, retained: true, typing }; this.undoStack.push(entry); }
       if (this.textCommit) this.textCommit.entry = entry;
       this.rememberHistory(command, entry, false);
       this.lastTextEditAt = typing ? Date.now() : 0;
       const discarded = this.redoStack;
       this.redoStack = [];
-      for (const entry of discarded) { entry.retained = false; this.pruneHistory(entry); }
+      for (const entry of discarded) {
+        entry.retained = false;
+        this.pruneHistory(entry);
+      }
       this.historyVersion[1](value => value + 1);
       return { ok: true, caret, created };
-    } catch (error) { return { ok: false, reason: error instanceof Error ? error.message : String(error) }; }
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+    }
   }
   rename(title: string): EditResult {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };
     if (!title.trim()) return { ok: false, reason: 'A title is required.' };
-    if (!this.host.titleAvailable(title.trim(), this.pageId)) return { ok: false, reason: 'An atom with this title already exists.' };
+    if (!this.host.titleAvailable(title.trim(), this.pageId))
+      return { ok: false, reason: 'An atom with this title already exists.' };
     return this.edit({ kind: 'text', id: this.pageId, text: title.trim() });
   }
   addType(blockId: string, title: string): EditResult {
@@ -2088,7 +3334,16 @@ export class Document implements PageDocument {
     return this.edit({ kind: 'removeType', id: blockId, title });
   }
   rememberChange(change: DocumentChange | Promise<DocumentChange>): DocumentChange {
-    const entry: HistoryEntry = { forward: [], inverse: [], before: null, after: null, commandId: '', commands: new Set(), applied: true, retained: true };
+    const entry: HistoryEntry = {
+      forward: [],
+      inverse: [],
+      before: null,
+      after: null,
+      commandId: '',
+      commands: new Set(),
+      applied: true,
+      retained: true,
+    };
     const ready = Promise.resolve(change);
     void ready.catch(() => {
       this.undoStack = this.undoStack.filter(item => item !== entry);
@@ -2102,23 +3357,30 @@ export class Document implements PageDocument {
       const from = undo ? this.undoStack : this.redoStack;
       const to = undo ? this.redoStack : this.undoStack;
       if (!from.includes(entry)) return Promise.resolve();
-      const pending = ready.then(change => undo ? change.undo() : change.redo()).then(() => {
-        from.splice(from.indexOf(entry), 1);
-        entry.applied = !undo;
-        to.push(entry);
-      }).catch(error => {
-        this.historyNotice[1](error instanceof Error ? error.message : String(error));
-        throw error;
-      }).finally(() => {
-        this.historyPending = null;
-        this.historyVersion[1](value => value + 1);
-      });
+      const pending = ready
+        .then(change => (undo ? change.undo() : change.redo()))
+        .then(() => {
+          from.splice(from.indexOf(entry), 1);
+          entry.applied = !undo;
+          to.push(entry);
+        })
+        .catch(error => {
+          this.historyNotice[1](error instanceof Error ? error.message : String(error));
+          throw error;
+        })
+        .finally(() => {
+          this.historyPending = null;
+          this.historyVersion[1](value => value + 1);
+        });
       this.historyPending = pending;
       this.historyVersion[1](value => value + 1);
       return pending;
     };
     entry.external = { undo: () => travel(true), redo: () => travel(false) };
-    for (const discarded of this.redoStack) { discarded.retained = false; this.pruneHistory(discarded); }
+    for (const discarded of this.redoStack) {
+      discarded.retained = false;
+      this.pruneHistory(discarded);
+    }
     this.redoStack = [];
     this.undoStack.push(entry);
     this.lastTextEditAt = 0;
@@ -2127,7 +3389,9 @@ export class Document implements PageDocument {
   }
   private travel(undo: boolean): HistoryCaret | null {
     if (this.historyPending) {
-      const resume = () => { this.travel(undo); };
+      const resume = () => {
+        this.travel(undo);
+      };
       void this.historyPending.then(resume, resume);
       return null;
     }
@@ -2143,13 +3407,24 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).map<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldHide' || action.kind === 'fieldRole' || action.kind === 'fieldCountsAs' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
+      if (
+        !undo &&
+        (action.kind === 'fieldKind' ||
+          action.kind === 'fieldHide' ||
+          action.kind === 'fieldRole' ||
+          action.kind === 'fieldCountsAs' ||
+          action.kind === 'fieldTargets' ||
+          action.kind === 'subjectCriteria' ||
+          action.kind === 'typePresentation')
+      )
+        return { ...action, baseRevision: undefined };
       return { ...action };
     });
     // Check all text patches before applying any part of the transaction.
     const texts = new Map<string, string>();
     for (const action of actions) {
-      if (action.kind === 'restore') for (const snapshot of action.snapshots) texts.set(snapshot.block.id, snapshot.block.text);
+      if (action.kind === 'restore')
+        for (const snapshot of action.snapshots) texts.set(snapshot.block.id, snapshot.block.text);
       else if (action.kind === 'insert' || action.kind === 'split') texts.set(action.block.id, action.block.text);
       if (action.kind !== 'text') continue;
       const current = texts.get(action.id) ?? this.cells.get(action.id)?.state.text;
@@ -2168,18 +3443,27 @@ export class Document implements PageDocument {
     }
     try {
       const inverse: Action[] = [];
-      batch(() => { for (const action of actions) {
-        if (action.kind === 'text' && action.baseRevision !== undefined && !this.cells.has(action.id)) {
-          // Cross-page spelling guards are applied by the server, not this document.
-          // Retain their opposite guard when replacing history with actual inverses.
-          const pair = entry.rewrites?.get(action.id);
-          const opposite = undo ? pair?.after : pair?.before;
-          if (opposite) inverse.unshift(opposite);
-          continue;
+      batch(() => {
+        for (const action of actions) {
+          if (action.kind === 'text' && action.baseRevision !== undefined && !this.cells.has(action.id)) {
+            // Cross-page spelling guards are applied by the server, not this document.
+            // Retain their opposite guard when replacing history with actual inverses.
+            const pair = entry.rewrites?.get(action.id);
+            const opposite = undo ? pair?.after : pair?.before;
+            if (opposite) inverse.unshift(opposite);
+            continue;
+          }
+          inverse.unshift(...this.apply(action));
         }
-        inverse.unshift(...this.apply(action));
-      } });
-      const command = this.host.enqueue(this, actions, inverse, undo ? entry.after : entry.before, undo ? entry.before : entry.after, false);
+      });
+      const command = this.host.enqueue(
+        this,
+        actions,
+        inverse,
+        undo ? entry.after : entry.before,
+        undo ? entry.before : entry.after,
+        false,
+      );
       // Redo replays the inverse of what undo actually applied. Inserts therefore
       // become restores even when their original acknowledgement is still in flight.
       // Keep spelling-rewrite guard identities used by later acknowledgements.
@@ -2187,14 +3471,21 @@ export class Document implements PageDocument {
         if (action.kind !== 'text' || action.baseRevision === undefined) continue;
         const pair = entry.rewrites?.get(action.id);
         const guard = undo ? pair?.before : pair?.after;
-        if (guard) { guard.text = action.text; guard.expectedText = action.expectedText; }
+        if (guard) {
+          guard.text = action.text;
+          guard.expectedText = action.expectedText;
+        }
       }
       for (let index = 0; index < inverse.length; index++) {
         const action = inverse[index]!;
         if (action.kind !== 'text' || action.baseRevision === undefined) continue;
         const pair = entry.rewrites?.get(action.id);
         const guard = undo ? pair?.after : pair?.before;
-        if (guard) { guard.text = action.text; guard.expectedText = action.expectedText; inverse[index] = guard; }
+        if (guard) {
+          guard.text = action.text;
+          guard.expectedText = action.expectedText;
+          inverse[index] = guard;
+        }
       }
       if (undo) entry.forward = inverse;
       else entry.inverse = inverse;
@@ -2203,10 +3494,17 @@ export class Document implements PageDocument {
       to.push(entry);
       this.historyVersion[1](value => value + 1);
       return undo ? entry.before : entry.after;
-    } catch { from.push(entry); return null; }
+    } catch {
+      from.push(entry);
+      return null;
+    }
   }
-  undo() { return this.travel(true); }
-  redo() { return this.travel(false); }
+  undo() {
+    return this.travel(true);
+  }
+  redo() {
+    return this.travel(false);
+  }
   resolveConflict(id: string, keep: 'mine' | 'theirs') {
     const cell = this.cells.get(id);
     if (!cell?.state.conflict) return;
@@ -2214,16 +3512,33 @@ export class Document implements PageDocument {
     this.resolving.add(id);
     // Update existing rejected/unsent text in place; no frozen request is altered.
     let found = false;
-    const choice = { id, text, localText: cell.state.text, remoteRevision: cell.state.conflict.remoteRevision, deferred: false };
+    const choice = {
+      id,
+      text,
+      localText: cell.state.text,
+      remoteRevision: cell.state.conflict.remoteRevision,
+      deferred: false,
+    };
     for (const command of this.host.commands(this.pageId)) {
       if (!command.actions.some(action => action.kind === 'text' && action.id === id)) continue;
       found = true;
-      command.resolutions = [...(command.resolutions ?? []).filter(item => item.id !== id), { ...choice, deferred: Boolean(command.frozen) }];
-      if (!command.frozen) for (const action of command.actions) if (action.kind === 'text' && action.id === id) action.text = text;
+      command.resolutions = [
+        ...(command.resolutions ?? []).filter(item => item.id !== id),
+        { ...choice, deferred: Boolean(command.frozen) },
+      ];
+      if (!command.frozen)
+        for (const action of command.actions) if (action.kind === 'text' && action.id === id) action.text = text;
       command.failed = undefined;
     }
     if (!found) {
-      const command = this.host.enqueue(this, [{ kind: 'text', id, text }], [{ kind: 'text', id, text: cell.state.text }], null, null, false);
+      const command = this.host.enqueue(
+        this,
+        [{ kind: 'text', id, text }],
+        [{ kind: 'text', id, text: cell.state.text }],
+        null,
+        null,
+        false,
+      );
       command.resolutions = [choice];
     }
     cell.set('pending', true);
@@ -2239,9 +3554,19 @@ export class Document implements PageDocument {
     const entry = this.historyCommands.get(commandId)?.entry;
     this.undoStack = this.undoStack.filter(item => item !== entry && item.commandId !== commandId);
     this.redoStack = this.redoStack.filter(item => item !== entry && item.commandId !== commandId);
-    if (entry) { entry.retained = false; this.pruneHistory(entry); }
+    if (entry) {
+      entry.retained = false;
+      this.pruneHistory(entry);
+    }
     this.historyVersion[1](value => value + 1);
   }
-  conflictResolved(id: string) { this.cells.get(id)?.set('conflict', null); this.resolving.delete(id); this.conflicts.delete(id); this.conflictVersion[1](value => value + 1); }
-  localText() { return [...this.pendingText()].map(id => this.block(id)?.text ?? '').join('\n'); }
+  conflictResolved(id: string) {
+    this.cells.get(id)?.set('conflict', null);
+    this.resolving.delete(id);
+    this.conflicts.delete(id);
+    this.conflictVersion[1](value => value + 1);
+  }
+  localText() {
+    return [...this.pendingText()].map(id => this.block(id)?.text ?? '').join('\n');
+  }
 }

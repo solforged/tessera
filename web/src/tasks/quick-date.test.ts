@@ -1,12 +1,27 @@
 import { describe, expect, test } from 'bun:test';
 import type { TaskState } from '../api/types';
-import { captureDateToken, dateQueryError, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from './quick-date';
+import {
+  captureDateToken,
+  dateQueryError,
+  dateSuggestions,
+  dateTokenAt,
+  flipDateToken,
+  newTask,
+  planDateToken,
+  removeToken,
+} from './quick-date';
 
 const context = '2026-10-03';
 const task: TaskState = {
-  status: 'waiting', scheduled: '2026-09-01', scheduled_time: '10:30',
-  deadline: '2026-12-31', deadline_time: '17:00', warning_days: 3,
-  repeater: { every: 2, unit: 'week', mode: 'fixed' }, priority: 'high', completed_on: null,
+  status: 'waiting',
+  scheduled: '2026-09-01',
+  scheduled_time: '10:30',
+  deadline: '2026-12-31',
+  deadline_time: '17:00',
+  warning_days: 3,
+  repeater: { every: 2, unit: 'week', mode: 'fixed' },
+  priority: 'high',
+  completed_on: null,
 };
 const atEnd = (text: string) => dateTokenAt(text, text.length);
 
@@ -42,7 +57,14 @@ describe('date completion tokens', () => {
   });
 
   test('rejects mid-word, doubled and escaped @ markers without falling back to an earlier marker', () => {
-    for (const text of ['name@today', '@@today', 'Read @@today', String.raw`\@today`, String.raw`Read \@today`, 'Read @today name@tom']) {
+    for (const text of [
+      'name@today',
+      '@@today',
+      'Read @@today',
+      String.raw`\@today`,
+      String.raw`Read \@today`,
+      'Read @today name@tom',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     expect(dateTokenAt('@today', 0)).toBeNull();
@@ -50,7 +72,12 @@ describe('date completion tokens', () => {
   });
 
   test('uses the caret rather than the end of text', () => {
-    expect(dateTokenAt('Read @tomorrow then translate @today', 14)).toEqual({ from: 5, to: 14, query: 'tomorrow', field: 'scheduled' });
+    expect(dateTokenAt('Read @tomorrow then translate @today', 14)).toEqual({
+      from: 5,
+      to: 14,
+      query: 'tomorrow',
+      field: 'scheduled',
+    });
     expect(dateTokenAt('Read @tomorrow', 6)).toEqual({ from: 5, to: 6, query: '', field: 'scheduled' });
     expect(dateTokenAt('Read @tomorrow', 5)).toBeNull();
   });
@@ -70,12 +97,24 @@ describe('date completion tokens', () => {
     }
     expect(dateTokenAt('When:: @tomorrow then translate', 15)).toBeNull();
     for (const text of ['Front >> Back::suffix @tomorrow', '{{c1::answer}} @tomorrow']) {
-      expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query: 'tomorrow', field: 'scheduled' });
+      expect(atEnd(text)).toEqual({
+        from: text.lastIndexOf('@'),
+        to: text.length,
+        query: 'tomorrow',
+        field: 'scheduled',
+      });
     }
   });
 
   test('protects complete and unfinished references, respecting escaped delimiters', () => {
-    for (const text of ['Read [[source| @today]]', 'Read [[source| @today', 'Read [[ @tomorrow', 'Read #[[source| @today', 'Read #[[ @today]]', String.raw`Read [[source \]] @today`]) {
+    for (const text of [
+      'Read [[source| @today]]',
+      'Read [[source| @today',
+      'Read [[ @tomorrow',
+      'Read #[[source| @today',
+      'Read #[[ @today]]',
+      String.raw`Read [[source \]] @today`,
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     const reference = 'Read [[source| @today]]';
@@ -97,7 +136,12 @@ describe('date completion tokens', () => {
   });
 
   test('protects backtick and tilde fences until a matching closing line', () => {
-    for (const text of ['```\nplan @today', '~~~md\nplan @today', '  ````md\n```\nplan @today', '~~~\n~~~ still code\nplan @today']) {
+    for (const text of [
+      '```\nplan @today',
+      '~~~md\nplan @today',
+      '  ````md\n```\nplan @today',
+      '~~~\n~~~ still code\nplan @today',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     expect(atEnd('```md\n@today\n```\nRead @tomorrow')?.query).toBe('tomorrow');
@@ -106,10 +150,18 @@ describe('date completion tokens', () => {
 
   test('recognizes complete by and due keywords followed by spaces or the caret', () => {
     for (const [text, query] of [
-      ['@by', ''], ['@by ', ''], ['@BY   ', ''], ['@By fri', 'fri'],
-      ['@due', ''], ['@due ', ''], ['@DUE   ', ''], ['@Due fri', 'fri'],
-      ['Read @by   in 2 weeks', 'in 2 weeks'], ['@by oct 12 3pm', 'oct 12 3pm'],
-      ['Read @due   in 2 weeks', 'in 2 weeks'], ['@due tomorrow 09:05', 'tomorrow 09:05'],
+      ['@by', ''],
+      ['@by ', ''],
+      ['@BY   ', ''],
+      ['@By fri', 'fri'],
+      ['@due', ''],
+      ['@due ', ''],
+      ['@DUE   ', ''],
+      ['@Due fri', 'fri'],
+      ['Read @by   in 2 weeks', 'in 2 weeks'],
+      ['@by oct 12 3pm', 'oct 12 3pm'],
+      ['Read @due   in 2 weeks', 'in 2 weeks'],
+      ['@due tomorrow 09:05', 'tomorrow 09:05'],
     ] as const) {
       expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query, field: 'deadline' });
     }
@@ -125,7 +177,14 @@ describe('date completion tokens', () => {
       const text = `Read @${word} september 12 2027 15:00`;
       expect(atEnd(text)).toEqual({ from: 5, to: text.length, query: 'september 12 2027 15:00', field: 'deadline' });
     }
-    for (const text of ['@by\nfri', '@due\nfri', 'When:: @due fri', 'Read [[ @due fri', 'Read ` @due fri', 'name@due fri']) {
+    for (const text of [
+      '@by\nfri',
+      '@due\nfri',
+      'When:: @due fri',
+      'Read [[ @due fri',
+      'Read ` @due fri',
+      'name@due fri',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
   });
@@ -157,7 +216,10 @@ describe('date completion field flips', () => {
     expect(flipDateToken(deadline.text, dateTokenAt(deadline.text, deadline.caret)!)).toEqual({ text, caret });
     const due = 'Read @due  fri! and rest';
     const dueCaret = due.indexOf('!');
-    expect(flipDateToken(due, dateTokenAt(due, dueCaret)!)).toEqual({ text: 'Read @fri! and rest', caret: dueCaret - 5 });
+    expect(flipDateToken(due, dateTokenAt(due, dueCaret)!)).toEqual({
+      text: 'Read @fri! and rest',
+      caret: dueCaret - 5,
+    });
   });
 });
 
@@ -182,11 +244,18 @@ describe('date completion suggestions', () => {
     expect(dateSuggestions('mon', context)).toEqual([{ label: 'Monday', date: '2026-10-05', time: null }]);
     expect(dateSuggestions('  TOMORROW  ', context)).toEqual([{ label: 'Tomorrow', date: '2026-10-04', time: null }]);
     expect(dateSuggestions('yesterday', context)).toEqual([{ label: 'Yesterday', date: '2026-10-02', time: null }]);
-    expect(dateSuggestions('Next   thu', '2026-12-31')).toEqual([{ label: 'Next Thursday', date: '2027-01-07', time: null }]);
+    expect(dateSuggestions('Next   thu', '2026-12-31')).toEqual([
+      { label: 'Next Thursday', date: '2027-01-07', time: null },
+    ]);
   });
 
   test('matches case-insensitive label prefixes and next-week aliases in preset order', () => {
-    expect(dateSuggestions('t', context).map(choice => choice.label)).toEqual(['Today', 'Tomorrow', 'Tuesday', 'Thursday']);
+    expect(dateSuggestions('t', context).map(choice => choice.label)).toEqual([
+      'Today',
+      'Tomorrow',
+      'Tuesday',
+      'Thursday',
+    ]);
     expect(dateSuggestions('TOD', context).map(choice => choice.label)).toEqual(['Today']);
     expect(dateSuggestions('w', context).map(choice => choice.label)).toEqual(['Wednesday', 'Next week']);
     for (const query of ['next', 'next week', 'week']) {
@@ -207,17 +276,31 @@ describe('date completion suggestions', () => {
     ]);
     expect(dateSuggestions('+2d', '2024-02-28')).toEqual([{ label: 'Friday', date: '2024-03-01', time: null }]);
     expect(dateSuggestions('2027-01-01', '2026-12-31')).toEqual([{ label: 'Friday', date: '2027-01-01', time: null }]);
-    expect(dateSuggestions('in 2 weeks', '2026-12-31')).toEqual([{ label: 'Thursday', date: '2027-01-14', time: null }]);
+    expect(dateSuggestions('in 2 weeks', '2026-12-31')).toEqual([
+      { label: 'Thursday', date: '2027-01-14', time: null },
+    ]);
     expect(dateSuggestions('+0d', '0001-01-01')).toEqual([{ label: 'Monday', date: '0001-01-01', time: null }]);
     expect(dateSuggestions('+1d', '0099-12-31')).toEqual([{ label: 'Friday', date: '0100-01-01', time: null }]);
   });
 
   test('retains parsed local time in natural and computed weekday labels', () => {
-    expect(dateSuggestions('tomorrow 09:05', '2024-02-28')).toEqual([{ label: 'Tomorrow 09:05', date: '2024-02-29', time: '09:05' }]);
-    expect(dateSuggestions('NEXT THU 23:59', '2026-12-31')).toEqual([{ label: 'Next Thursday 23:59', date: '2027-01-07', time: '23:59' }]);
-    expect(dateSuggestions('2027-01-01 00:00', context)).toEqual([{ label: 'Friday 00:00', date: '2027-01-01', time: '00:00' }]);
-    expect(dateSuggestions('+2d 09:05', '2024-02-28')).toEqual([{ label: 'Friday 09:05', date: '2024-03-01', time: '09:05' }]);
-    expect(dateSuggestions('tomorrow 9:05', '2024-02-28')[0]).toEqual({ label: 'Tomorrow 09:05', date: '2024-02-29', time: '09:05' });
+    expect(dateSuggestions('tomorrow 09:05', '2024-02-28')).toEqual([
+      { label: 'Tomorrow 09:05', date: '2024-02-29', time: '09:05' },
+    ]);
+    expect(dateSuggestions('NEXT THU 23:59', '2026-12-31')).toEqual([
+      { label: 'Next Thursday 23:59', date: '2027-01-07', time: '23:59' },
+    ]);
+    expect(dateSuggestions('2027-01-01 00:00', context)).toEqual([
+      { label: 'Friday 00:00', date: '2027-01-01', time: '00:00' },
+    ]);
+    expect(dateSuggestions('+2d 09:05', '2024-02-28')).toEqual([
+      { label: 'Friday 09:05', date: '2024-03-01', time: '09:05' },
+    ]);
+    expect(dateSuggestions('tomorrow 9:05', '2024-02-28')[0]).toEqual({
+      label: 'Tomorrow 09:05',
+      date: '2024-02-29',
+      time: '09:05',
+    });
     expect(dateSuggestions('09:05', context)[0]).toEqual({ label: 'Today 09:05', date: context, time: '09:05' });
     for (const query of ['today 24:00', '2026-02-29']) expect(dateSuggestions(query, context)).toEqual([]);
   });
@@ -226,7 +309,11 @@ describe('date completion suggestions', () => {
     for (const query of ['oct 12 3pm', '12 october 2026 15:00']) {
       expect(dateSuggestions(query, context)[0]).toEqual({ label: 'Monday 15:00', date: '2026-10-12', time: '15:00' });
     }
-    expect(dateSuggestions('next fri 3:30pm', '2026-10-05')[0]).toEqual({ label: 'Next Friday 15:30', date: '2026-10-16', time: '15:30' });
+    expect(dateSuggestions('next fri 3:30pm', '2026-10-05')[0]).toEqual({
+      label: 'Next Friday 15:30',
+      date: '2026-10-16',
+      time: '15:30',
+    });
     expect(dateSuggestions('3pm', context)[0]).toEqual({ label: 'Today 15:00', date: context, time: '15:00' });
     expect(dateSuggestions('jan 3', '2026-12-28')[0]?.date).toBe('2027-01-03');
     expect(dateSuggestions('feb 30', context)).toEqual([]);
@@ -268,7 +355,17 @@ describe('date completion plans', () => {
     expect(planDateToken(text, atEnd(text)!, choice, null)).toEqual({
       text: 'Read',
       caret: 4,
-      value: { status: null, scheduled: '2026-10-04', scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null },
+      value: {
+        status: null,
+        scheduled: '2026-10-04',
+        scheduled_time: null,
+        deadline: null,
+        deadline_time: null,
+        warning_days: null,
+        repeater: null,
+        priority: null,
+        completed_on: null,
+      },
     });
     const first = newTask();
     first.status = 'done';
@@ -294,7 +391,9 @@ describe('date completion plans', () => {
     const text = 'Read @ next';
     const token = dateTokenAt(text, 6)!;
     expect(planDateToken(text, token, dateSuggestions('', context)[0]!, task)).toEqual({
-      text: 'Read next', caret: 4, value: { ...task, scheduled: context, scheduled_time: null },
+      text: 'Read next',
+      caret: 4,
+      value: { ...task, scheduled: context, scheduled_time: null },
     });
   });
 
@@ -302,7 +401,11 @@ describe('date completion plans', () => {
     const text = 'Read @tom.';
     const token = dateTokenAt(text, 9)!;
     const choice = dateSuggestions('tomorrow', context)[0]!;
-    expect(planDateToken(text, token, choice, task)).toEqual({ text: 'Read .', caret: 5, value: { ...task, scheduled: choice.date, scheduled_time: null } });
+    expect(planDateToken(text, token, choice, task)).toEqual({
+      text: 'Read .',
+      caret: 5,
+      value: { ...task, scheduled: choice.date, scheduled_time: null },
+    });
   });
 
   test('opening or cancelling a full picker produces no plan and keeps invalid tokens and task state', () => {
@@ -321,7 +424,9 @@ describe('date completion plans', () => {
     const token = atEnd(text)!;
     const choice = dateSuggestions(token.query, context)[0]!;
     expect(planDateToken(text, token, choice, null)).toEqual({
-      text: 'Read', caret: 4, value: { ...newTask(), deadline: '2026-10-04', deadline_time: '09:05' },
+      text: 'Read',
+      caret: 4,
+      value: { ...newTask(), deadline: '2026-10-04', deadline_time: '09:05' },
     });
   });
 
@@ -329,10 +434,15 @@ describe('date completion plans', () => {
     for (const word of ['by', 'due']) {
       const text = `Read @${word} oct 12 3pm`;
       const token = atEnd(text)!;
-      for (const [from, deadline] of [[context, '2026-10-12'], ['2026-10-13', '2027-10-12']] as const) {
+      for (const [from, deadline] of [
+        [context, '2026-10-12'],
+        ['2026-10-13', '2027-10-12'],
+      ] as const) {
         const choice = dateSuggestions(token.query, from)[0]!;
         expect(planDateToken(text, token, choice, null)).toEqual({
-          text: 'Read', caret: 4, value: { ...newTask(), deadline, deadline_time: '15:00' },
+          text: 'Read',
+          caret: 4,
+          value: { ...newTask(), deadline, deadline_time: '15:00' },
         });
       }
     }
@@ -345,7 +455,9 @@ describe('date completion plans', () => {
     const token = atEnd(text)!;
     const choice = dateSuggestions(token.query, context)[0]!;
     expect(planDateToken(text, token, choice, task)).toEqual({
-      text: 'Read', caret: 4, value: { ...task, deadline: '2026-10-04', deadline_time: '09:05' },
+      text: 'Read',
+      caret: 4,
+      value: { ...task, deadline: '2026-10-04', deadline_time: '09:05' },
     });
     expect(task.deadline).toBe('2026-12-31');
     expect(task.deadline_time).toBe('17:00');
@@ -355,7 +467,9 @@ describe('date completion plans', () => {
     const text = 'Read @due';
     const token = atEnd(text)!;
     expect(planDateToken(text, token, dateSuggestions('', context)[0]!, task)).toEqual({
-      text: 'Read', caret: 4, value: { ...task, deadline: context, deadline_time: null },
+      text: 'Read',
+      caret: 4,
+      value: { ...task, deadline: context, deadline_time: null },
     });
     expect(planDateToken(text, token, null, task)).toBeNull();
     expect(planDateToken(text, token, null, null)).toBeNull();

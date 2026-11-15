@@ -35,7 +35,13 @@ export function freePort(): number {
  * Serve an empty workshop from a temporary folder with the debug build of
  * `tessera`: `TESSERA_TEST_BINARY`, or the one in Cargo's target directory.
  */
-export async function startService({ name, port = freePort() }: { name: string; port?: number }): Promise<WorkshopService> {
+export async function startService({
+  name,
+  port = freePort(),
+}: {
+  name: string;
+  port?: number;
+}): Promise<WorkshopService> {
   const directory = await mkdtemp(join(tmpdir(), `tessera-${name}-`));
   const baseUrl = `http://127.0.0.1:${port}`;
   const api = createApi(baseUrl);
@@ -44,10 +50,17 @@ export async function startService({ name, port = freePort() }: { name: string; 
   held.delete(port);
   let child: Service;
   try {
-    child = Bun.spawn([binary, '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' });
+    child = Bun.spawn([binary, '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], {
+      cwd: root,
+      stdin: 'ignore',
+      stdout: 'ignore',
+      stderr: 'pipe',
+    });
   } catch (error) {
     await rm(directory, { recursive: true, force: true });
-    throw new Error(`The workshop service could not start (${binary}): ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `The workshop service could not start (${binary}): ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   const stop = async () => {
     child.kill();
@@ -74,18 +87,23 @@ async function ready(api: ApiClient, directory: string, child: Service): Promise
   const deadline = Date.now() + READY_MS;
   const stderr = drain(child.stderr);
   let exited = false;
-  void child.exited.then(() => { exited = true; });
+  void child.exited.then(() => {
+    exited = true;
+  });
   for (;;) {
-    if (exited) throw new Error(`The workshop service exited before it was ready (${child.exitCode}).${await stderr()}`);
+    if (exited)
+      throw new Error(`The workshop service exited before it was ready (${child.exitCode}).${await stderr()}`);
     let info;
     try {
       info = await api.notebook(AbortSignal.timeout(2_000));
     } catch {
-      if (Date.now() > deadline) throw new Error(`The workshop service was not ready within ${READY_MS / 1000} s.${await stderr()}`);
+      if (Date.now() > deadline)
+        throw new Error(`The workshop service was not ready within ${READY_MS / 1000} s.${await stderr()}`);
       await Bun.sleep(20);
       continue;
     }
-    if (await realpath(info.path) !== expected) throw new Error(`The test port serves another workshop, ${info.path}.`);
+    if ((await realpath(info.path)) !== expected)
+      throw new Error(`The test port serves another workshop, ${info.path}.`);
     return info.id;
   }
 }
@@ -97,7 +115,9 @@ function drain(stream: ReadableStream<Uint8Array>): () => Promise<string> {
   const finished = (async () => {
     try {
       for await (const chunk of stream) text = (text + decoder.decode(chunk, { stream: true })).slice(-8_000);
-    } catch { /* the service was killed */ }
+    } catch {
+      /* the service was killed */
+    }
   })();
   return async () => {
     await Promise.race([finished, Bun.sleep(200)]);

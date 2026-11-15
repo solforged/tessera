@@ -3,7 +3,18 @@ import type { Block, BlockInPage } from '../api/types';
 import { findMatchSegments, paletteRows } from './palette-rows';
 
 function page(id: string, text: string): Block {
-  return { id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+  return {
+    id,
+    text,
+    kind: 'page',
+    parent_id: null,
+    page_id: id,
+    heading: null,
+    archived: false,
+    revision: 1,
+    created_at: 0,
+    updated_at: 0,
+  };
 }
 function hit(id: string, text: string, page: Block): BlockInPage {
   return { block: { ...page, id, text, kind: 'block', parent_id: page.id }, page };
@@ -17,7 +28,9 @@ describe('palette ranking', () => {
     const prose = hit('prose', 'Training nanoGPT in prose', research);
     const url = hit('url', 'https://example.test/nanoGPT', links);
     expect(paletteRows([url, prose, { block: title, page: title }], 'nanoGPT')).toEqual([
-      { kind: 'hit', hit: { block: title, page: title } }, { kind: 'hit', hit: prose }, { kind: 'hit', hit: url },
+      { kind: 'hit', hit: { block: title, page: title } },
+      { kind: 'hit', hit: prose },
+      { kind: 'hit', hit: url },
     ]);
   });
 
@@ -28,7 +41,10 @@ describe('palette ranking', () => {
     const four = hit('four', 'nanoGPT four', research);
     const other = hit('other', 'nanoGPT other', links);
     expect(paletteRows([one, other, two, three, four], 'nanoGPT')).toEqual([
-      { kind: 'hit', hit: one }, { kind: 'hit', hit: two }, { kind: 'more', page: research, count: 2 }, { kind: 'hit', hit: other },
+      { kind: 'hit', hit: one },
+      { kind: 'hit', hit: two },
+      { kind: 'more', page: research, count: 2 },
+      { kind: 'hit', hit: other },
     ]);
   });
 
@@ -39,21 +55,39 @@ describe('palette ranking', () => {
     const label = hit('label', '[nanoGPT](https://example.test/nanogpt)', research);
     const input = [https, http, prose, label];
     expect(paletteRows(input, '  NaNoGPT  ')).toEqual([
-      { kind: 'hit', hit: prose }, { kind: 'hit', hit: label }, { kind: 'more', page: research, count: 2 },
+      { kind: 'hit', hit: prose },
+      { kind: 'hit', hit: label },
+      { kind: 'more', page: research, count: 2 },
     ]);
     expect(input).toEqual([https, http, prose, label]);
   });
 
   test('more scope shows all matching blocks on that page without another cap', () => {
-    const rows = [hit('url', 'https://example.test/nanoGPT', research), hit('one', 'nanoGPT one', research), hit('other', 'nanoGPT other', links), hit('two', 'nanoGPT two', research)];
+    const rows = [
+      hit('url', 'https://example.test/nanoGPT', research),
+      hit('one', 'nanoGPT one', research),
+      hit('other', 'nanoGPT other', links),
+      hit('two', 'nanoGPT two', research),
+    ];
     expect(paletteRows([{ block: research, page: research }, ...rows], 'nanoGPT', research.id)).toEqual([
-      { kind: 'hit', hit: rows[1]! }, { kind: 'hit', hit: rows[3]! }, { kind: 'hit', hit: rows[0]! },
+      { kind: 'hit', hit: rows[1]! },
+      { kind: 'hit', hit: rows[3]! },
+      { kind: 'hit', hit: rows[0]! },
     ]);
   });
 
   test('empty queries preserve root order and two hits do not add a more row', () => {
-    expect(paletteRows([{ block: research, page: research }, { block: links, page: links }], '')).toEqual([
-      { kind: 'hit', hit: { block: research, page: research } }, { kind: 'hit', hit: { block: links, page: links } },
+    expect(
+      paletteRows(
+        [
+          { block: research, page: research },
+          { block: links, page: links },
+        ],
+        '',
+      ),
+    ).toEqual([
+      { kind: 'hit', hit: { block: research, page: research } },
+      { kind: 'hit', hit: { block: links, page: links } },
     ]);
     const rows = [hit('one', 'nanoGPT', research), hit('two', 'nanoGPT', research)];
     expect(paletteRows(rows, 'nanoGPT')).toEqual(rows.map(hit => ({ kind: 'hit', hit })));
@@ -65,10 +99,20 @@ describe('palette ranking', () => {
     const otherDefinition = page('concept-type', 'Concept');
     const prose = hit('prose', 'A note about books', research);
     const definitions = new Set([definition.id, otherDefinition.id]);
-    expect(paletteRows([
-      { block: definition, page: definition }, { block: research, page: research },
-      { block: otherDefinition, page: otherDefinition }, { block: links, page: links }, prose,
-    ], '', undefined, definitions)).toEqual([
+    expect(
+      paletteRows(
+        [
+          { block: definition, page: definition },
+          { block: research, page: research },
+          { block: otherDefinition, page: otherDefinition },
+          { block: links, page: links },
+          prose,
+        ],
+        '',
+        undefined,
+        definitions,
+      ),
+    ).toEqual([
       { kind: 'hit', hit: { block: research, page: research } },
       { kind: 'hit', hit: { block: links, page: links } },
       { kind: 'hit', hit: prose },
@@ -83,10 +127,19 @@ describe('find match text', () => {
     const text = 'The RITZ hotel, Ritz’s hotel.';
     const segments = findMatchSegments(text, 'ritz hotel');
     expect(segments.map(segment => segment.text).join('')).toBe(text);
-    expect(segments.filter(segment => segment.match).map(segment => segment.text)).toEqual(['RITZ', 'hotel', 'Ritz', 'hotel']);
+    expect(segments.filter(segment => segment.match).map(segment => segment.text)).toEqual([
+      'RITZ',
+      'hotel',
+      'Ritz',
+      'hotel',
+    ]);
   });
   test('keeps literal punctuation safe and matches Unicode terms', () => {
-    expect(findMatchSegments('École (Ritz)', 'école (ritz)').filter(segment => segment.match).map(segment => segment.text)).toEqual(['École', 'Ritz']);
+    expect(
+      findMatchSegments('École (Ritz)', 'école (ritz)')
+        .filter(segment => segment.match)
+        .map(segment => segment.text),
+    ).toEqual(['École', 'Ritz']);
     expect(findMatchSegments('A [note] stays.', '')).toEqual([{ text: 'A [note] stays.', match: false }]);
     expect(findMatchSegments('A line', '[]()')).toEqual([{ text: 'A line', match: false }]);
   });

@@ -10,7 +10,12 @@ import type { ButtonProps } from './Button';
  * `detail` may carry figures set in mono; `onClick` makes the capsule a button that opens the thing the title measures
  * (the reader's progress card), handed the capsule as its anchor.
  */
-export interface BarTitle { title: string; detail?: JSX.Element; glass?: boolean; onClick?(anchor: HTMLElement): void }
+export interface BarTitle {
+  title: string;
+  detail?: JSX.Element;
+  glass?: boolean;
+  onClick?(anchor: HTMLElement): void;
+}
 
 /** A pane's nav bar, as its surfaces see it. Pane (shell/App.tsx) provides one to everything it renders. */
 export interface PaneChrome {
@@ -28,7 +33,15 @@ export const PaneChromeContext = createContext<PaneChrome>();
  */
 export function NavEnd(props: { children: JSX.Element }) {
   const chrome = useContext(PaneChromeContext);
-  return <Show keyed when={chrome?.end()}>{host => <Portal mount={host} ref={container => container.classList.add('pane-bar-portal')}>{props.children}</Portal>}</Show>;
+  return (
+    <Show keyed when={chrome?.end()}>
+      {host => (
+        <Portal mount={host} ref={container => container.classList.add('pane-bar-portal')}>
+          {props.children}
+        </Portal>
+      )}
+    </Show>
+  );
 }
 
 /**
@@ -52,5 +65,9 @@ export function NavButton(props: ButtonProps) {
 
 /** Two or more NavButtons share one glass capsule, as Today's + and ··· do. */
 export function NavGroup(props: { children: JSX.Element; label?: string }) {
-  return <div class="nav-group" role="group" aria-label={props.label}>{props.children}</div>;
+  return (
+    <div class="nav-group" role="group" aria-label={props.label}>
+      {props.children}
+    </div>
+  );
 }

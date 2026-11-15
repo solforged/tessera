@@ -3,4 +3,6 @@
 try {
   var stored = localStorage.getItem('tessera.theme');
   if (stored === 'light' || stored === 'dark') document.documentElement.dataset.theme = stored;
-} catch (error) { /* Storage can be unavailable; the system theme paints. */ }
+} catch (error) {
+  /* Storage can be unavailable; the system theme paints. */
+}

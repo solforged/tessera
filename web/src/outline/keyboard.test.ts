@@ -9,19 +9,33 @@ import { createOutlineKeyboard } from './keyboard';
 function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
   let row = 0;
   let textRange: TextRange | null = null;
-  let state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(Math.min(10, texts[row]!.length)) });
+  let state = EditorState.create({
+    doc: texts[row],
+    selection: EditorSelection.cursor(Math.min(10, texts[row]!.length)),
+  });
   const view = {
-    get state() { return state; },
+    get state() {
+      return state;
+    },
     textDirectionAt: () => Direction.LTR,
-    moveByChar: (range: SelectionRange, forward: boolean) => EditorSelection.cursor(Math.max(0, Math.min(state.doc.length, range.head + (forward ? 1 : -1)))),
+    moveByChar: (range: SelectionRange, forward: boolean) =>
+      EditorSelection.cursor(Math.max(0, Math.min(state.doc.length, range.head + (forward ? 1 : -1)))),
     moveToLineBoundary: (range: SelectionRange, forward: boolean) => {
       const line = state.doc.lineAt(range.head);
       return EditorSelection.cursor(forward ? line.to : line.from);
     },
     contentDOM: { getBoundingClientRect: () => ({ left: origins[row] }) },
-    coordsAtPos: (offset: number) => ({ left: origins[row]! + offset * 10, right: origins[row]! + offset * 10, top: row * 30, bottom: row * 30 + 24 }),
-    posAtCoords: ({ x }: { x: number }) => Math.max(0, Math.min(state.doc.length, Math.round((x - origins[row]!) / 10))),
-    dispatch: (spec: TransactionSpec) => { state = state.update(spec).state; },
+    coordsAtPos: (offset: number) => ({
+      left: origins[row]! + offset * 10,
+      right: origins[row]! + offset * 10,
+      top: row * 30,
+      bottom: row * 30 + 24,
+    }),
+    posAtCoords: ({ x }: { x: number }) =>
+      Math.max(0, Math.min(state.doc.length, Math.round((x - origins[row]!) / 10))),
+    dispatch: (spec: TransactionSpec) => {
+      state = state.update(spec).state;
+    },
   } as unknown as EditorView;
   const editor = { id: String(row), view, mode: () => 'insert' };
   const keyboard = createOutlineKeyboard({
@@ -40,7 +54,9 @@ function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
     replaceSelection: () => {},
     textRange: () => textRange,
     rowRange: () => null,
-    setTextRange: (range: TextRange | null) => { textRange = range; },
+    setTextRange: (range: TextRange | null) => {
+      textRange = range;
+    },
     setRowRange: () => {},
     forgetReferenceSpace: () => false,
     slashKey: () => false,
@@ -52,12 +68,29 @@ function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
     view,
     position: () => ({ row, offset: state.selection.main.head }),
     text: () => state.doc.toString(),
-    remount: (offset = state.selection.main.head) => { state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(offset) }); },
-    select: (anchor: number, head: number, assoc = 0) => { state = state.update({ selection: EditorSelection.range(anchor, head, undefined, undefined, assoc) }).state; },
-    setRange: (range: TextRange | null) => { textRange = range; },
+    remount: (offset = state.selection.main.head) => {
+      state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(offset) });
+    },
+    select: (anchor: number, head: number, assoc = 0) => {
+      state = state.update({ selection: EditorSelection.range(anchor, head, undefined, undefined, assoc) }).state;
+    },
+    setRange: (range: TextRange | null) => {
+      textRange = range;
+    },
     range: () => textRange,
     press: async (key: string, modifiers: Partial<KeyboardEvent> = {}) => {
-      const handled = keyboard.editorKey({ key, code: '', shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, ...modifiers } as KeyboardEvent, view);
+      const handled = keyboard.editorKey(
+        {
+          key,
+          code: '',
+          shiftKey: false,
+          metaKey: false,
+          ctrlKey: false,
+          altKey: false,
+          ...modifiers,
+        } as KeyboardEvent,
+        view,
+      );
       await Promise.resolve();
       return handled;
     },
@@ -106,20 +139,33 @@ describe('field filling after a picker commit', () => {
     const edits: string[] = [];
     const advances: string[] = [];
     let filling = true;
-    const keyboard = createOutlineKeyboard({
-      scroll, props: { active: true, vim: false },
-      editing: () => null, selected: () => 'second-author',
-      composition: () => false, textRange: () => null, rowRange: () => null,
-      roots: () => ['second-author'],
-      apply: (intent: { kind: string }) => { edits.push(intent.kind); },
-    } as unknown as Parameters<typeof createOutlineKeyboard>[0], (event, id) => {
-      if (!filling || event.key !== 'Tab') return false;
-      advances.push(`${id}:${event.shiftKey ? 'previous' : 'next'}`);
-      return true;
-    });
-    const tab = (shiftKey = false) => keyboard.structuralKey({
-      target: scroll, key: 'Tab', shiftKey, preventDefault() {},
-    } as unknown as KeyboardEvent);
+    const keyboard = createOutlineKeyboard(
+      {
+        scroll,
+        props: { active: true, vim: false },
+        editing: () => null,
+        selected: () => 'second-author',
+        composition: () => false,
+        textRange: () => null,
+        rowRange: () => null,
+        roots: () => ['second-author'],
+        apply: (intent: { kind: string }) => {
+          edits.push(intent.kind);
+        },
+      } as unknown as Parameters<typeof createOutlineKeyboard>[0],
+      (event, id) => {
+        if (!filling || event.key !== 'Tab') return false;
+        advances.push(`${id}:${event.shiftKey ? 'previous' : 'next'}`);
+        return true;
+      },
+    );
+    const tab = (shiftKey = false) =>
+      keyboard.structuralKey({
+        target: scroll,
+        key: 'Tab',
+        shiftKey,
+        preventDefault() {},
+      } as unknown as KeyboardEvent);
     tab();
     tab(true);
     expect(advances).toEqual(['second-author:next', 'second-author:previous']);
@@ -182,7 +228,7 @@ test('an RTL edge with a line-start association still moves into its visual text
   const harness = navigationHarness(['BEFORE', 'العربية', 'AFTER']);
   await harness.press('ArrowDown');
   harness.select(0, 0, -1);
-  harness.view.moveByChar = range => range.assoc < 0 ? range : EditorSelection.cursor(1, -1, 1);
+  harness.view.moveByChar = range => (range.assoc < 0 ? range : EditorSelection.cursor(1, -1, 1));
   expect(await harness.press('ArrowLeft')).toBe(true);
   expect(harness.position()).toEqual({ row: 1, offset: 1 });
 });
@@ -198,14 +244,39 @@ describe('selected-row syntax sheet shortcut', () => {
   for (const vim of [false, true]) {
     test(`? opens the registered sheet with Vim ${vim ? 'on' : 'off'}`, () => {
       const scroll = {} as HTMLDivElement;
-      let opened = 0, prevented = false;
+      let opened = 0,
+        prevented = false;
       const keyboard = createOutlineKeyboard({
-        scroll, props: { active: true, vim, commands: { list: () => [{ id: 'shell.shortcuts', run: () => { opened++; } }] } },
-        editing: () => null, selected: () => 'row', composition: () => false,
-        textRange: () => null, rowRange: () => null,
+        scroll,
+        props: {
+          active: true,
+          vim,
+          commands: {
+            list: () => [
+              {
+                id: 'shell.shortcuts',
+                run: () => {
+                  opened++;
+                },
+              },
+            ],
+          },
+        },
+        editing: () => null,
+        selected: () => 'row',
+        composition: () => false,
+        textRange: () => null,
+        rowRange: () => null,
         forgetReferenceSpace: () => false,
       } as unknown as Parameters<typeof createOutlineKeyboard>[0]);
-      keyboard.structuralKey({ target: scroll, key: '?', shiftKey: true, preventDefault: () => { prevented = true; } } as unknown as KeyboardEvent);
+      keyboard.structuralKey({
+        target: scroll,
+        key: '?',
+        shiftKey: true,
+        preventDefault: () => {
+          prevented = true;
+        },
+      } as unknown as KeyboardEvent);
       expect(opened).toBe(1);
       expect(prevented).toBe(true);
     });

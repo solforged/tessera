@@ -11,9 +11,20 @@ import type { FieldEntryConversion } from './source-fields';
 import type { PopupAnchor } from '../ui/Popup';
 import type { Completion } from './completions';
 
-export interface RowRange { anchor: string; head: string }
+export interface RowRange {
+  anchor: string;
+  head: string;
+}
 /** `title` and `context` head a desktop menu; a phone pull-down has no head, so `caption` says in one line what its rows decide. */
-export interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string; title?: string; context?: JSX.Element; caption?: JSX.Element; header?: JSX.Element }
+export interface MenuState {
+  anchor: HTMLElement;
+  items: MenuItem[];
+  label: string;
+  title?: string;
+  context?: JSX.Element;
+  caption?: JSX.Element;
+  header?: JSX.Element;
+}
 
 /** Operations consumed by outline controls; the capability factory owns their state. */
 export interface OutlineCapabilityActions {
@@ -69,7 +80,12 @@ export interface OutlineContext {
   editAt: (id: string, offset?: number, insert?: boolean, reveal?: boolean, activate?: boolean) => void;
   restoreFocus: () => void;
   props: OutlinePaneProps;
-  replaceSelection: (text: string, mode: 'text' | 'paste' | 'split', range?: TextRange | null, selectionBefore?: TextRange) => void;
+  replaceSelection: (
+    text: string,
+    mode: 'text' | 'paste' | 'split',
+    range?: TextRange | null,
+    selectionBefore?: TextRange,
+  ) => void;
   fields: Resource<Fields>;
   definitionsById: Accessor<Map<string, FieldDefinition>>;
   definitions: Accessor<FieldDefinition[]>;

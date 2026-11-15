@@ -20,16 +20,36 @@ export function Seg<T extends string>(props: {
   class?: string;
 }) {
   const move = (event: KeyboardEvent, index: number) => {
-    const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+    const step =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? -1
+          : 0;
     if (!step) return;
     event.preventDefault();
     const next = props.options[(index + step + props.options.length) % props.options.length]!;
     props.onChange(next.value);
-    (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')[props.options.indexOf(next)]?.focus();
+    (event.currentTarget as HTMLElement).parentElement
+      ?.querySelectorAll<HTMLElement>('[role="radio"]')
+      [props.options.indexOf(next)]?.focus();
   };
-  return <div class={`seg${props.class ? ` ${props.class}` : ''}`} role="radiogroup" aria-label={props.label}>
-    <For each={props.options}>{(option, index) =>
-      <button type="button" role="radio" aria-checked={props.value === option.value} tabIndex={props.value === option.value ? 0 : -1}
-        onClick={() => props.onChange(option.value)} onKeyDown={event => move(event, index())}>{option.label}</button>}</For>
-  </div>;
+  return (
+    <div class={`seg${props.class ? ` ${props.class}` : ''}`} role="radiogroup" aria-label={props.label}>
+      <For each={props.options}>
+        {(option, index) => (
+          <button
+            type="button"
+            role="radio"
+            aria-checked={props.value === option.value}
+            tabIndex={props.value === option.value ? 0 : -1}
+            onClick={() => props.onChange(option.value)}
+            onKeyDown={event => move(event, index())}
+          >
+            {option.label}
+          </button>
+        )}
+      </For>
+    </div>
+  );
 }

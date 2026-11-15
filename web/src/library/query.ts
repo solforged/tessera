@@ -1,4 +1,13 @@
-import type { Citation, HighlightRow, IngestJob, LibraryQuery, LibraryRow, Operation, ReadingState, SourceFormat } from '../api/types';
+import type {
+  Citation,
+  HighlightRow,
+  IngestJob,
+  LibraryQuery,
+  LibraryRow,
+  Operation,
+  ReadingState,
+  SourceFormat,
+} from '../api/types';
 import type { LibraryGroup, LibraryViewState } from '../shell/contract';
 import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
@@ -6,7 +15,9 @@ import { referenceValue } from '../outline/names';
 import { sameState } from '../document/types';
 import { textTokens } from '../document/text-tokens';
 
-export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'>): LibraryQuery {
+export function libraryQuery(
+  view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'>,
+): LibraryQuery {
   return {
     states: view.tab === 'all' || view.tab === 'highlights' || view.tab === 'collections' ? [] : [view.tab],
     collection_id: view.collection ?? null,
@@ -17,9 +28,20 @@ export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort
   };
 }
 
-export interface SourceGroup { key: string; label: string; personId: string | null; rows: LibraryRow[] }
+export interface SourceGroup {
+  key: string;
+  label: string;
+  personId: string | null;
+  rows: LibraryRow[];
+}
 
-const missingGroup: Record<Exclude<LibraryGroup, 'none'>, string> = { author: 'No author', year: 'Undated', decade: 'Undated', publisher: 'No publisher', language: 'No language' };
+const missingGroup: Record<Exclude<LibraryGroup, 'none'>, string> = {
+  author: 'No author',
+  year: 'Undated',
+  decade: 'Undated',
+  publisher: 'No publisher',
+  language: 'No language',
+};
 
 /**
  * Splits rows into groups, keeping each group's rows in their listed order. A source belongs to one group: by its
@@ -29,31 +51,66 @@ const missingGroup: Record<Exclude<LibraryGroup, 'none'>, string> = { author: 'N
 export function groupSources(rows: readonly LibraryRow[], group: Exclude<LibraryGroup, 'none'>): SourceGroup[] {
   const groups = new Map<string, SourceGroup & { order: string | number }>();
   for (const row of rows) {
-    const person = row.people.find(value => value.role === 'author') ?? row.people.find(value => value.role === 'editor');
+    const person =
+      row.people.find(value => value.role === 'author') ?? row.people.find(value => value.role === 'editor');
     const name = person && referenceValue(person.name).name;
     const year = Number(row.published?.slice(0, 4));
     const dated = year > 0 ? { key: String(year), label: String(year), personId: null, order: -year } : undefined;
-    const value = group === 'author' ? person && name && { key: person.id ?? `name:${name}`, label: name, personId: person.id, order: (name.includes(',') ? name.split(',')[0]! : name.split(/\s+/).at(-1)!) + ' ' + name }
-      : group === 'year' ? dated
-        : group === 'decade' ? (year > 0 ? { key: String(year - year % 10), label: `${year - year % 10}s`, personId: null, order: -(year - year % 10) } : undefined)
-          : group === 'publisher' ? row.publisher && { key: row.publisher, label: row.publisher, personId: null, order: row.publisher }
-            : row.language && { key: row.language, label: formatSourceValue('language', row.language), personId: null, order: formatSourceValue('language', row.language) };
+    const value =
+      group === 'author'
+        ? person &&
+          name && {
+            key: person.id ?? `name:${name}`,
+            label: name,
+            personId: person.id,
+            order: (name.includes(',') ? name.split(',')[0]! : name.split(/\s+/).at(-1)!) + ' ' + name,
+          }
+        : group === 'year'
+          ? dated
+          : group === 'decade'
+            ? year > 0
+              ? {
+                  key: String(year - (year % 10)),
+                  label: `${year - (year % 10)}s`,
+                  personId: null,
+                  order: -(year - (year % 10)),
+                }
+              : undefined
+            : group === 'publisher'
+              ? row.publisher && { key: row.publisher, label: row.publisher, personId: null, order: row.publisher }
+              : row.language && {
+                  key: row.language,
+                  label: formatSourceValue('language', row.language),
+                  personId: null,
+                  order: formatSourceValue('language', row.language),
+                };
     const entry = value || { key: '', label: missingGroup[group], personId: null, order: '' };
     let existing = groups.get(entry.key);
-    if (!existing) { existing = { ...entry, rows: [] }; groups.set(entry.key, existing); }
+    if (!existing) {
+      existing = { ...entry, rows: [] };
+      groups.set(entry.key, existing);
+    }
     existing.rows.push(row);
   }
   return [...groups.values()]
-    .sort((a, b) => (a.key === '') !== (b.key === '') ? (a.key === '' ? 1 : -1)
-      : typeof a.order === 'number' && typeof b.order === 'number' ? a.order - b.order
-        : String(a.order).localeCompare(String(b.order), undefined, { sensitivity: 'base' }))
+    .sort((a, b) =>
+      (a.key === '') !== (b.key === '')
+        ? a.key === ''
+          ? 1
+          : -1
+        : typeof a.order === 'number' && typeof b.order === 'number'
+          ? a.order - b.order
+          : String(a.order).localeCompare(String(b.order), undefined, { sensitivity: 'base' }),
+    )
     .map(({ order: _, ...value }) => value);
 }
 
 export function sourceStateOperation(row: LibraryRow, state: ReadingState): Operation {
   const { format, origin, match_key, citation_key } = row.source;
   return {
-    op: 'set_source', id: row.page.id, base_revision: row.page.revision,
+    op: 'set_source',
+    id: row.page.id,
+    base_revision: row.page.revision,
     source: { format, origin, match_key, citation_key, state },
   };
 }
@@ -82,7 +139,9 @@ export function sourceKindLabel(form: string | null | undefined, format: SourceF
 }
 
 /** A source's facts in Find: what it is, then reading progress and highlights only once there are any. */
-export function sourceFacts(row: Pick<LibraryRow, 'form' | 'source' | 'snapshot_format' | 'progress' | 'highlights'>): string[] {
+export function sourceFacts(
+  row: Pick<LibraryRow, 'form' | 'source' | 'snapshot_format' | 'progress' | 'highlights'>,
+): string[] {
   return [
     sourceKindLabel(row.form, row.snapshot_format ?? row.source.format),
     row.progress > 0 ? formatProgress(row.progress) : '',
@@ -111,17 +170,26 @@ export function highlightEmptyMessage(total: number | undefined, unprocessedOnly
 
 /** Filing tags are shown separately from a highlight's authored prose and frozen evidence. */
 export function highlightProse(text: string): string {
-  return textTokens(text).filter(token => token.kind !== 'tag').map(token => text.slice(token.start, token.end)).join('').trim();
+  return textTokens(text)
+    .filter(token => token.kind !== 'tag')
+    .map(token => text.slice(token.start, token.end))
+    .join('')
+    .trim();
 }
 
 export function highlightMatches(row: HighlightRow, query: string): boolean {
   const text = query.toLocaleLowerCase();
-  return row.citation.quote.toLocaleLowerCase().includes(text)
-    || row.block.block.text.toLocaleLowerCase().includes(text)
-    || row.tags.some(tag => tag.toLocaleLowerCase().includes(text));
+  return (
+    row.citation.quote.toLocaleLowerCase().includes(text) ||
+    row.block.block.text.toLocaleLowerCase().includes(text) ||
+    row.tags.some(tag => tag.toLocaleLowerCase().includes(text))
+  );
 }
 
-export function highlightLocation(citation: Pick<Citation, 'ordinal' | 'chapter_title'>, sections: readonly HighlightSection[]): string {
+export function highlightLocation(
+  citation: Pick<Citation, 'ordinal' | 'chapter_title'>,
+  sections: readonly HighlightSection[],
+): string {
   if (citation.chapter_title) return citation.chapter_title;
   for (let index = sections.length - 1; index >= 0; index--) {
     if (sections[index]!.ordinal <= citation.ordinal) return sections[index]!.title;
@@ -132,16 +200,23 @@ export function highlightLocation(citation: Pick<Citation, 'ordinal' | 'chapter_
 /** The passage and the notebook date; the chapter is the heading the highlight sits under. */
 export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, timeZone: string): string {
   // Civil dates read as ISO everywhere the apparatus shows them, like journal titles and task plans.
-  const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(row.created_at);
+  const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    row.created_at,
+  );
   return `¶${row.citation.ordinal + 1} · ${date}`;
 }
 
-export interface HighlightChapter { title: string | null; rows: HighlightRow[] }
+export interface HighlightChapter {
+  title: string | null;
+  rows: HighlightRow[];
+}
 
 /** One source's highlights in reading order, split where the chapter changes; highlights before the first contents entry form an untitled run. */
 export function highlightChapters(rows: readonly HighlightRow[]): HighlightChapter[] {
   const chapters: HighlightChapter[] = [];
-  for (const row of [...rows].sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset)) {
+  for (const row of [...rows].sort(
+    (a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset,
+  )) {
     const title = row.citation.chapter_title ?? null;
     const last = chapters.at(-1);
     if (last?.title === title) last.rows.push(row);
@@ -191,23 +266,38 @@ export function importJobName(name: string): string {
   }
 }
 
-export function jobLabel(job: IngestJob, titles: ReadonlyMap<string, string>): { name: string; state: string; attempt: string | null } {
+export function jobLabel(
+  job: IngestJob,
+  titles: ReadonlyMap<string, string>,
+): { name: string; state: string; attempt: string | null } {
   return {
-    name: (job.state === 'done' ? titles.get(job.source_id ?? '') ?? job.name : job.name).replace(/\.epub$/i, ''),
+    name: (job.state === 'done' ? (titles.get(job.source_id ?? '') ?? job.name) : job.name).replace(/\.epub$/i, ''),
     state: job.state === 'done' ? 'Added' : job.state[0]!.toUpperCase() + job.state.slice(1),
     attempt: job.attempts > 1 ? `attempt ${job.attempts}` : null,
   };
 }
 
 export function retryTime(timestamp: number, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(timestamp);
+  return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(
+    timestamp,
+  );
 }
 
-export function selectSources(ids: readonly string[], selected: ReadonlySet<string>, id: string, anchor: string | null, range: boolean): Set<string> {
+export function selectSources(
+  ids: readonly string[],
+  selected: ReadonlySet<string>,
+  id: string,
+  anchor: string | null,
+  range: boolean,
+): Set<string> {
   const next = new Set(selected);
-  const start = anchor === null ? -1 : ids.indexOf(anchor), end = ids.indexOf(id);
+  const start = anchor === null ? -1 : ids.indexOf(anchor),
+    end = ids.indexOf(id);
   const targets = range && start >= 0 && end >= 0 ? ids.slice(Math.min(start, end), Math.max(start, end) + 1) : [id];
   const checked = !selected.has(id);
-  for (const target of targets) { if (checked) next.add(target); else next.delete(target); }
+  for (const target of targets) {
+    if (checked) next.add(target);
+    else next.delete(target);
+  }
   return next;
 }

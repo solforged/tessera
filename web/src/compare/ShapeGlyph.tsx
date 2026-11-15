@@ -14,5 +14,22 @@ const shapes: [RegExp, string][] = [
 
 export function ShapeGlyph(props: { value: string }) {
   const path = () => shapes.find(([pattern]) => pattern.test(props.value.toLowerCase()))?.[1];
-  return <Show when={path()}>{d => <svg class="shape-glyph" viewBox="0 0 30 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={d()} /></svg>}</Show>;
+  return (
+    <Show when={path()}>
+      {d => (
+        <svg
+          class="shape-glyph"
+          viewBox="0 0 30 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d={d()} />
+        </svg>
+      )}
+    </Show>
+  );
 }

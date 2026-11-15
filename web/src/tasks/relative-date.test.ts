@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarDate, civilDate, daysBetween, proseDate, provenanceDay, relativeDate, weekRangeProse, weekRangeTitle } from './relative-date';
+import {
+  calendarDate,
+  civilDate,
+  daysBetween,
+  proseDate,
+  provenanceDay,
+  relativeDate,
+  weekRangeProse,
+  weekRangeTitle,
+} from './relative-date';
 
 describe('relativeDate', () => {
   const today = '2026-10-26';

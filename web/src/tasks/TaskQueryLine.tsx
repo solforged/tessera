@@ -22,17 +22,31 @@ export function TaskQueryLine(props: TaskQueryLineProps) {
   let input: HTMLInputElement | undefined;
   let highlight: HTMLDivElement | undefined;
   let previousFormatted = formatted();
-  createEffect(on(() => props.query, () => setDraft(formatted()), { defer: true }));
-  createEffect(on(formatted, next => {
-    // Titles can hydrate after history; rewrite only an untouched spelling.
-    if (draft() === previousFormatted) setDraft(next);
-    previousFormatted = next;
-  }, { defer: true }));
+  createEffect(
+    on(
+      () => props.query,
+      () => setDraft(formatted()),
+      { defer: true },
+    ),
+  );
+  createEffect(
+    on(
+      formatted,
+      next => {
+        // Titles can hydrate after history; rewrite only an untouched spelling.
+        if (draft() === previousFormatted) setDraft(next);
+        previousFormatted = next;
+      },
+      { defer: true },
+    ),
+  );
   createEffect(() => props.onDraftState(draft() !== formatted(), result().errors[0]?.message ?? ''));
   const edit = () => {
     if (props.disabled) return;
     setFocused(true);
-    queueMicrotask(() => { input?.focus(); });
+    queueMicrotask(() => {
+      input?.focus();
+    });
   };
   const apply = (text = draft()) => {
     const next = parseTaskQueryLine(text, props.context);
@@ -46,28 +60,109 @@ export function TaskQueryLine(props: TaskQueryLineProps) {
     const text = `${draft().slice(0, start).trimEnd()} ${draft().slice(end).trimStart()}`.trim();
     apply(text);
   };
-  return <div class="task-query-line">
-    <Show when={focused()} fallback={<div class="task-query-chips" role="group" aria-label="Task query" tabIndex={props.disabled ? -1 : 0} onFocus={event => { if (event.target === event.currentTarget) edit(); }} onClick={edit}>
-      <For each={terms()}>{term => {
-        const label = createMemo(() => {
-          if (!term.term.startsWith('[[')) return term.term;
-          const parsed = parseTaskQueryLine(term.term, props.context);
-          const project = parsed.query.filter.project_id;
-          return !parsed.errors.length && project ? props.context.projectTitle(project) ?? term.term : term.term;
-        });
-        return <span class="task-query-chip" title={term.term} classList={{ 'task-query-invalid': result().errors.some(error => error.start === term.start) }}>
-          <span>{label()}</span><Button disabled={props.disabled} label={`Remove ${label()}`} onClick={event => { event.stopPropagation(); remove(term.start, term.end); }}>×</Button>
-        </span>;
-      }}</For>
-      <Show when={!terms().length}><span class="task-query-placeholder">Filter tasks · is:todo @..fri #Book</span></Show>
-    </div>}>
-      <div class="task-query-editor">
-        <div ref={highlight} class="task-query-highlight" aria-hidden="true"><For each={terms()}>{(term, index) => <>{draft().slice(index() ? terms()[index() - 1]!.end : 0, term.start)}<span classList={{ 'task-query-invalid': result().errors.some(error => error.start === term.start) }}>{term.term}</span></>}</For>{draft().slice(terms().at(-1)?.end ?? 0)}</div>
-        <input ref={input} class="input task-query-input" aria-label="Task query" aria-invalid={result().errors.length > 0} aria-describedby={result().errors.length ? errorId : undefined} placeholder="Filter tasks · is:todo @..fri #Book" value={draft()} disabled={props.disabled} onInput={event => setDraft(event.currentTarget.value)} onScroll={event => { if (highlight) highlight.scrollLeft = event.currentTarget.scrollLeft; }} onBlur={() => { apply(); setFocused(false); }} onKeyDown={event => {
-          if (event.key === 'Enter') { event.preventDefault(); if (apply()) event.currentTarget.blur(); }
-        }} />
-      </div>
-    </Show>
-    <Show when={result().errors.length}><div id={errorId} class="task-query-errors" role="alert"><For each={result().errors}>{error => <p>{error.term}: {error.message}</p>}</For></div></Show>
-  </div>;
+  return (
+    <div class="task-query-line">
+      <Show
+        when={focused()}
+        fallback={
+          <div
+            class="task-query-chips"
+            role="group"
+            aria-label="Task query"
+            tabIndex={props.disabled ? -1 : 0}
+            onFocus={event => {
+              if (event.target === event.currentTarget) edit();
+            }}
+            onClick={edit}
+          >
+            <For each={terms()}>
+              {term => {
+                const label = createMemo(() => {
+                  if (!term.term.startsWith('[[')) return term.term;
+                  const parsed = parseTaskQueryLine(term.term, props.context);
+                  const project = parsed.query.filter.project_id;
+                  return !parsed.errors.length && project
+                    ? (props.context.projectTitle(project) ?? term.term)
+                    : term.term;
+                });
+                return (
+                  <span
+                    class="task-query-chip"
+                    title={term.term}
+                    classList={{ 'task-query-invalid': result().errors.some(error => error.start === term.start) }}
+                  >
+                    <span>{label()}</span>
+                    <Button
+                      disabled={props.disabled}
+                      label={`Remove ${label()}`}
+                      onClick={event => {
+                        event.stopPropagation();
+                        remove(term.start, term.end);
+                      }}
+                    >
+                      ×
+                    </Button>
+                  </span>
+                );
+              }}
+            </For>
+            <Show when={!terms().length}>
+              <span class="task-query-placeholder">Filter tasks · is:todo @..fri #Book</span>
+            </Show>
+          </div>
+        }
+      >
+        <div class="task-query-editor">
+          <div ref={highlight} class="task-query-highlight" aria-hidden="true">
+            <For each={terms()}>
+              {(term, index) => (
+                <>
+                  {draft().slice(index() ? terms()[index() - 1]!.end : 0, term.start)}
+                  <span classList={{ 'task-query-invalid': result().errors.some(error => error.start === term.start) }}>
+                    {term.term}
+                  </span>
+                </>
+              )}
+            </For>
+            {draft().slice(terms().at(-1)?.end ?? 0)}
+          </div>
+          <input
+            ref={input}
+            class="input task-query-input"
+            aria-label="Task query"
+            aria-invalid={result().errors.length > 0}
+            aria-describedby={result().errors.length ? errorId : undefined}
+            placeholder="Filter tasks · is:todo @..fri #Book"
+            value={draft()}
+            disabled={props.disabled}
+            onInput={event => setDraft(event.currentTarget.value)}
+            onScroll={event => {
+              if (highlight) highlight.scrollLeft = event.currentTarget.scrollLeft;
+            }}
+            onBlur={() => {
+              apply();
+              setFocused(false);
+            }}
+            onKeyDown={event => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                if (apply()) event.currentTarget.blur();
+              }
+            }}
+          />
+        </div>
+      </Show>
+      <Show when={result().errors.length}>
+        <div id={errorId} class="task-query-errors" role="alert">
+          <For each={result().errors}>
+            {error => (
+              <p>
+                {error.term}: {error.message}
+              </p>
+            )}
+          </For>
+        </div>
+      </Show>
+    </div>
+  );
 }

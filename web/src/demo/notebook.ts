@@ -15,4 +15,6 @@ export interface BrowserNotebookActions {
 }
 
 export let browserNotebook: BrowserNotebookActions;
-export function setBrowserNotebook(actions: BrowserNotebookActions): void { browserNotebook = actions; }
+export function setBrowserNotebook(actions: BrowserNotebookActions): void {
+  browserNotebook = actions;
+}

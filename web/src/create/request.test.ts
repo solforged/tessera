@@ -9,22 +9,61 @@ describe('creation kind inference', () => {
   });
   test('only a task prefix makes a task; planning alone leaves an appointment', () => {
     for (const text of ['[] buy tiles', '[ ] buy tiles']) expect(inferKind(text)).toBe('task');
-    for (const text of ['buy tiles @fri', 'buy tiles @2026-10-20', 'buy tiles friday', 'buy tiles @nonsense', '`@fri`', '[[buy @fri]]', 'mail a@b.com', '[ ]']) expect(inferKind(text)).toBeNull();
+    for (const text of [
+      'buy tiles @fri',
+      'buy tiles @2026-10-20',
+      'buy tiles friday',
+      'buy tiles @nonsense',
+      '`@fri`',
+      '[[buy @fri]]',
+      'mail a@b.com',
+      '[ ]',
+    ])
+      expect(inferKind(text)).toBeNull();
   });
   test('complete card syntax uses the shared parser', () => {
     for (const text of ['Front >> Back', 'Front <> Back', '{{c1::answer}}']) expect(inferKind(text)).toBe('card');
-    for (const text of ['Front >>', '`Front >> Back`', '[[Front >> Back]]', 'Front \\>> Back']) expect(inferKind(text)).toBeNull();
+    for (const text of ['Front >>', '`Front >> Back`', '[[Front >> Back]]', 'Front \\>> Back'])
+      expect(inferKind(text)).toBeNull();
   });
   test('tags never infer a kind or promote a journal draft to a typed page', () => {
     const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-    for (const text of ['#essay ', 'Phone note #essay ', `Phone note #[[${id}|essay]] `, '#task', '#question', '#project', '#source']) {
+    for (const text of [
+      '#essay ',
+      'Phone note #essay ',
+      `Phone note #[[${id}|essay]] `,
+      '#task',
+      '#question',
+      '#project',
+      '#source',
+    ]) {
       expect(inferKind(text)).toBeNull();
     }
     expect(inferKind('[] Read #essay')).toBe('task');
     expect(inferKind('Read #essay?')).toBe('question');
   });
   test('a source identifier must occupy the whole draft', () => {
-    for (const text of ['https://example.org/article', '9780393339758', '0-393-33975-0', 'ISBN: 978-0-393-33975-8', '10.1000/example', 'doi:10.1000/example', 'arxiv:2401.12345v2', 'hep-th/9901001']) expect(inferKind(text)).toBe('source');
-    for (const text of ['', 'https://', 'Read https://example.org', 'ISBN 123', '978039333975', 'See 10.1000/example', '2401.12', 'buy 9780393339758']) expect(inferKind(text)).toBeNull();
+    for (const text of [
+      'https://example.org/article',
+      '9780393339758',
+      '0-393-33975-0',
+      'ISBN: 978-0-393-33975-8',
+      '10.1000/example',
+      'doi:10.1000/example',
+      'arxiv:2401.12345v2',
+      'hep-th/9901001',
+    ])
+      expect(inferKind(text)).toBe('source');
+    for (const text of [
+      '',
+      'https://',
+      'Read https://example.org',
+      'ISBN 123',
+      '978039333975',
+      'See 10.1000/example',
+      '2401.12',
+      'buy 9780393339758',
+    ])
+      expect(inferKind(text)).toBeNull();
   });
 });

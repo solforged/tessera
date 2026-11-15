@@ -18,11 +18,20 @@ export function ListGroup(props: {
   class?: string;
   children: JSX.Element;
 }) {
-  return <section class={`list-group${props.class ? ` ${props.class}` : ''}`}>
-    <Show when={props.label || props.action}><header class="list-label"><span>{props.label}</span>{props.action}</header></Show>
-    <div class="list-leaf leaf">{props.children}</div>
-    <Show when={props.footnote}><p class="list-foot">{props.footnote}</p></Show>
-  </section>;
+  return (
+    <section class={`list-group${props.class ? ` ${props.class}` : ''}`}>
+      <Show when={props.label || props.action}>
+        <header class="list-label">
+          <span>{props.label}</span>
+          {props.action}
+        </header>
+      </Show>
+      <div class="list-leaf leaf">{props.children}</div>
+      <Show when={props.footnote}>
+        <p class="list-foot">{props.footnote}</p>
+      </Show>
+    </section>
+  );
 }
 
 export interface ListRowProps {
@@ -57,23 +66,71 @@ export interface ListRowProps {
 
 /** One row of a ListGroup. A button when it pushes or has an onClick, otherwise a plain row. */
 export function ListRow(props: ListRowProps) {
-  const [local, rest] = splitProps(props, ['icon', 'lead', 'children', 'name', 'detail', 'count', 'value', 'trailing', 'push', 'onClick', 'danger', 'disabled', 'class', 'label']);
-  const body = () => <>
-    <Show when={local.icon}>{icon => <Icon name={icon()} />}</Show>
-    <Show when={local.lead}><span class="list-row-lead">{local.lead}</span></Show>
-    <span class="list-row-text">
-      <span class="list-row-label" classList={{ 'list-row-thing': local.name === 'thing' || local.name === 'work', 'list-row-work': local.name === 'work' }}>{local.children}</span>
-      <Show when={local.detail}><span class="list-row-detail">{local.detail}</span></Show>
-    </span>
-    <Show when={local.value !== undefined}><span class="list-row-value">{local.value}</span></Show>
-    <Show when={local.count !== undefined}><span class="list-row-count">{local.count}</span></Show>
-    {local.trailing}
-    <Show when={local.push}><span class="list-chev"><Icon name="right" /></span></Show>
-  </>;
+  const [local, rest] = splitProps(props, [
+    'icon',
+    'lead',
+    'children',
+    'name',
+    'detail',
+    'count',
+    'value',
+    'trailing',
+    'push',
+    'onClick',
+    'danger',
+    'disabled',
+    'class',
+    'label',
+  ]);
+  const body = () => (
+    <>
+      <Show when={local.icon}>{icon => <Icon name={icon()} />}</Show>
+      <Show when={local.lead}>
+        <span class="list-row-lead">{local.lead}</span>
+      </Show>
+      <span class="list-row-text">
+        <span
+          class="list-row-label"
+          classList={{
+            'list-row-thing': local.name === 'thing' || local.name === 'work',
+            'list-row-work': local.name === 'work',
+          }}
+        >
+          {local.children}
+        </span>
+        <Show when={local.detail}>
+          <span class="list-row-detail">{local.detail}</span>
+        </Show>
+      </span>
+      <Show when={local.value !== undefined}>
+        <span class="list-row-value">{local.value}</span>
+      </Show>
+      <Show when={local.count !== undefined}>
+        <span class="list-row-count">{local.count}</span>
+      </Show>
+      {local.trailing}
+      <Show when={local.push}>
+        <span class="list-chev">
+          <Icon name="right" />
+        </span>
+      </Show>
+    </>
+  );
   const classes = () => `list-row${local.danger ? ' danger' : ''}${local.class ? ` ${local.class}` : ''}`;
-  return <Show when={local.push || local.onClick} fallback={<div class={classes()}>{body()}</div>}>
-    <button type="button" {...rest} class={classes()} aria-label={local.label} disabled={local.disabled} onClick={event => local.onClick?.(event)}>{body()}</button>
-  </Show>;
+  return (
+    <Show when={local.push || local.onClick} fallback={<div class={classes()}>{body()}</div>}>
+      <button
+        type="button"
+        {...rest}
+        class={classes()}
+        aria-label={local.label}
+        disabled={local.disabled}
+        onClick={event => local.onClick?.(event)}
+      >
+        {body()}
+      </button>
+    </Show>
+  );
 }
 
 /** A property row: the label at the left in muted prose, its value at the right, as a person's fields read. */
@@ -86,12 +143,23 @@ export function PropertyRow(props: {
   /** Names the control when the row is a button. */
   'aria-label'?: string;
 }) {
-  const body = () => <>
-    <span class="property-label">{props.label}</span>
-    <span class="property-value">{props.children}</span>
-  </>;
+  const body = () => (
+    <>
+      <span class="property-label">{props.label}</span>
+      <span class="property-value">{props.children}</span>
+    </>
+  );
   const classes = () => `property-row${props.class ? ` ${props.class}` : ''}`;
-  return <Show when={props.onClick} fallback={<div class={classes()}>{body()}</div>}>
-    <button type="button" class={classes()} aria-label={props['aria-label']} onClick={event => props.onClick?.(event)}>{body()}</button>
-  </Show>;
+  return (
+    <Show when={props.onClick} fallback={<div class={classes()}>{body()}</div>}>
+      <button
+        type="button"
+        class={classes()}
+        aria-label={props['aria-label']}
+        onClick={event => props.onClick?.(event)}
+      >
+        {body()}
+      </button>
+    </Show>
+  );
 }

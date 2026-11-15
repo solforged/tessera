@@ -14,7 +14,7 @@ const [phone, setPhone] = createSignal(false);
  */
 export function isPhone(): boolean {
   if (!media) {
-    const list = media = window.matchMedia(phoneQuery);
+    const list = (media = window.matchMedia(phoneQuery));
     const read = () => setPhone(list.matches);
     read();
     list.addEventListener?.('change', read);

@@ -2,8 +2,9 @@ type ViewportDevice = { userAgent: string; platform: string; maxTouchPoints: num
 
 /** WebKit honors pinch zoom but skips text-focus zoom with this iOS-only viewport limit. */
 export function iosViewportContent(content: string, device: ViewportDevice): string {
-  const ios = /iPad|iPhone|iPod/.test(device.userAgent)
-    || (device.platform === 'MacIntel' || /Macintosh/.test(device.userAgent)) && device.maxTouchPoints > 1;
+  const ios =
+    /iPad|iPhone|iPod/.test(device.userAgent) ||
+    ((device.platform === 'MacIntel' || /Macintosh/.test(device.userAgent)) && device.maxTouchPoints > 1);
   if (!ios) return content;
   return /(?:^|,)\s*maximum-scale\s*=/i.test(content)
     ? content.replace(/((?:^|,)\s*maximum-scale\s*=)\s*[^,]+/i, (_, prefix: string) => `${prefix}1`)

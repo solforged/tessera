@@ -15,7 +15,8 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const actualFetch = globalThis.fetch;
 const clients: Notebook[] = [];
-const pageId = ulid(), blockId = ulid();
+const pageId = ulid(),
+  blockId = ulid();
 let service: WorkshopService | undefined;
 let notebookId: string;
 
@@ -33,9 +34,10 @@ function client(databaseName = `replay-${ulid()}`) {
   return instance;
 }
 async function edit(text: string) {
-  return api.submit({ actor: { kind: 'agent', name: 'replay regression' }, operations: [
-    { op: 'edit_text', id: blockId, base_revision: (await api.block(blockId)).revision, text },
-  ] });
+  return api.submit({
+    actor: { kind: 'agent', name: 'replay regression' },
+    operations: [{ op: 'edit_text', id: blockId, base_revision: (await api.block(blockId)).revision, text }],
+  });
 }
 function recordHistory() {
   const after: number[] = [];
@@ -52,15 +54,29 @@ async function cachePage(database: string) {
   const doc = instance.open(pageId);
   await eventually(() => doc.status() === 'ready' && instance.connection() === 'live', 'initial page did not load');
   await instance.dispose();
-  const outbox = new Outbox(notebookId, database, error => { throw error; }, database);
+  const outbox = new Outbox(
+    notebookId,
+    database,
+    error => {
+      throw error;
+    },
+    database,
+  );
   try {
     const cached = (await outbox.cachedPage(pageId))!;
     expect(cached.cursor).toBeGreaterThan(0);
     return cached;
-  } finally { await outbox.close(); }
+  } finally {
+    await outbox.close();
+  }
 }
 async function offlineRestore(database: string) {
-  globalThis.fetch = Object.assign(async (): Promise<Response> => { throw new TypeError('Offline restart'); }, { preconnect: actualFetch.preconnect });
+  globalThis.fetch = Object.assign(
+    async (): Promise<Response> => {
+      throw new TypeError('Offline restart');
+    },
+    { preconnect: actualFetch.preconnect },
+  );
   const instance = client(database);
   await instance.ready;
   const doc = instance.open(pageId);
@@ -71,10 +87,13 @@ async function offlineRestore(database: string) {
 beforeAll(async () => {
   service = await startService({ name: 'replay-tests', port });
   notebookId = service.workshopId;
-  await api.submit({ actor: { kind: 'person' }, operations: [
-    { op: 'create_page', id: pageId, title: 'Replay regression' },
-    { op: 'insert', id: blockId, parent_id: pageId, after: null, text: 'Original', heading: null },
-  ] });
+  await api.submit({
+    actor: { kind: 'person' },
+    operations: [
+      { op: 'create_page', id: pageId, title: 'Replay regression' },
+      { op: 'insert', id: blockId, parent_id: pageId, after: null, text: 'Original', heading: null },
+    ],
+  });
   for (let index = 0; index < 520; index++) await edit(`Prior event ${index}`);
 }, 60000);
 
@@ -89,7 +108,8 @@ afterAll(async () => {
 test('a fresh window starts at the editor head and receives edits after its snapshot', async () => {
   const head = await api.changeHead();
   expect(head).toBeGreaterThan(500);
-  const history: number[] = [], streams: number[] = [];
+  const history: number[] = [],
+    streams: number[] = [];
   const gate = Promise.withResolvers<void>();
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -101,20 +121,28 @@ test('a fresh window starts at the editor head and receives edits after its snap
   }) as typeof fetch;
   const instance = client();
   const stream = instance.api.stream;
-  instance.api.stream = after => { streams.push(after); return stream(after); };
+  instance.api.stream = after => {
+    streams.push(after);
+    return stream(after);
+  };
   try {
     await instance.ready;
     const doc = instance.open(pageId);
     await eventually(() => doc.status() === 'ready', 'fresh snapshot did not load');
     const committed = await edit('After the snapshot, before catch-up');
     gate.resolve();
-    await eventually(() => instance.connection() === 'live' && doc.block(blockId)?.text === 'After the snapshot, before catch-up', 'snapshot race edit did not arrive');
+    await eventually(
+      () => instance.connection() === 'live' && doc.block(blockId)?.text === 'After the snapshot, before catch-up',
+      'snapshot race edit did not arrive',
+    );
     expect(history).toEqual([head]);
     expect(streams).toEqual([committed.seq]);
     await edit('After subscribing');
     await eventually(() => doc.block(blockId)?.text === 'After subscribing', 'live edit did not arrive');
     expect(doc.block(blockId)?.conflict).toBeNull();
-  } finally { gate.resolve(); }
+  } finally {
+    gate.resolve();
+  }
 });
 
 test('an offline restart resumes the cursor stored atomically with its cached page', async () => {
@@ -125,7 +153,10 @@ test('an offline restart resumes the cursor stored atomically with its cached pa
   expect(doc.block(blockId)?.text).toBe(cached.view.rows[0]!.block.text);
   const history = recordHistory();
   instance.retry();
-  await eventually(() => instance.connection() === 'live' && doc.block(blockId)?.text === 'Written while the window was closed', 'cached restart missed the closed-window edit');
+  await eventually(
+    () => instance.connection() === 'live' && doc.block(blockId)?.text === 'Written while the window was closed',
+    'cached restart missed the closed-window edit',
+  );
   expect(history).toEqual([cached.cursor!]);
   expect(doc.block(blockId)?.conflict).toBeNull();
 });
@@ -137,16 +168,41 @@ test('reload replays an acknowledged-in-flight text prefix before its durable co
   const sentId = ulid();
   const intermediate = 'See [[Accepted reference]] ';
   const final = 'See [[01ARZ3NDEKTSV4RRFFQ69G5FAV]] suffix';
-  const sent: Batch = { actor: { kind: 'client', name: database }, idempotency_key: sentId, reason: null, operations: [
-    { op: 'edit_text', id: blockId, base_revision: base.rows[0]!.block.revision, text: intermediate },
-  ] };
+  const sent: Batch = {
+    actor: { kind: 'client', name: database },
+    idempotency_key: sentId,
+    reason: null,
+    operations: [{ op: 'edit_text', id: blockId, base_revision: base.rows[0]!.block.revision, text: intermediate }],
+  };
   // The server applied the request, but a closed window never stored its delayed receipt.
   await api.submit(sent);
-  const prefix: PageCommand = { id: sentId, order: 1, pageId, actions: [{ kind: 'text', id: blockId, text: intermediate, expectedText: base.rows[0]!.block.text }],
-    inverse: [{ kind: 'text', id: blockId, text: base.rows[0]!.block.text }], before: null, after: null, frozen: JSON.stringify(sent) };
-  const continuation: PageCommand = { id: ulid(), order: 2, pageId, actions: [{ kind: 'text', id: blockId, text: final, expectedText: intermediate }],
-    inverse: [{ kind: 'text', id: blockId, text: intermediate }], before: null, after: null };
-  const stored = new Outbox(notebookId, database, error => { throw error; }, database);
+  const prefix: PageCommand = {
+    id: sentId,
+    order: 1,
+    pageId,
+    actions: [{ kind: 'text', id: blockId, text: intermediate, expectedText: base.rows[0]!.block.text }],
+    inverse: [{ kind: 'text', id: blockId, text: base.rows[0]!.block.text }],
+    before: null,
+    after: null,
+    frozen: JSON.stringify(sent),
+  };
+  const continuation: PageCommand = {
+    id: ulid(),
+    order: 2,
+    pageId,
+    actions: [{ kind: 'text', id: blockId, text: final, expectedText: intermediate }],
+    inverse: [{ kind: 'text', id: blockId, text: intermediate }],
+    before: null,
+    after: null,
+  };
+  const stored = new Outbox(
+    notebookId,
+    database,
+    error => {
+      throw error;
+    },
+    database,
+  );
   await stored.page(base);
   await stored.put(prefix);
   await stored.put(continuation);
@@ -164,13 +220,35 @@ test('reload replays an acknowledged-in-flight text prefix before its durable co
 test('a recovered accepted relation query resolves from its durable intent without reopening its picker', async () => {
   await edit('');
   const base = await api.page(pageId);
-  const target = ulid(), title = `Accepted relation ${ulid()}`;
+  const target = ulid(),
+    title = `Accepted relation ${ulid()}`;
   await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'create_page', id: target, title }] });
   const database = `replay-relation-${ulid()}`;
-  const command: PageCommand = { id: ulid(), order: 1, pageId,
-    actions: [{ kind: 'text', id: blockId, text: `[[${title}]]`, expectedText: '', relationPick: { query: title, targets: [], owner: { id: pageId, page: pageId }, createId: ulid() } }],
-    inverse: [{ kind: 'text', id: blockId, text: '', expectedText: `[[${title}]]` }], before: null, after: null };
-  const stored = new Outbox(notebookId, database, error => { throw error; }, database);
+  const command: PageCommand = {
+    id: ulid(),
+    order: 1,
+    pageId,
+    actions: [
+      {
+        kind: 'text',
+        id: blockId,
+        text: `[[${title}]]`,
+        expectedText: '',
+        relationPick: { query: title, targets: [], owner: { id: pageId, page: pageId }, createId: ulid() },
+      },
+    ],
+    inverse: [{ kind: 'text', id: blockId, text: '', expectedText: `[[${title}]]` }],
+    before: null,
+    after: null,
+  };
+  const stored = new Outbox(
+    notebookId,
+    database,
+    error => {
+      throw error;
+    },
+    database,
+  );
   await stored.page(base);
   await stored.put(command);
   await stored.close();
@@ -184,7 +262,8 @@ test('a recovered accepted relation query resolves from its durable intent witho
 });
 
 test('an offline restart restores pending text and structure and reconnects without another reload', async () => {
-  const database = `replay-drafts-${ulid()}`, online = client(database);
+  const database = `replay-drafts-${ulid()}`,
+    online = client(database);
   await online.ready;
   const id = await online.createPage(`Offline drafts ${ulid()}`);
   const original = online.open(id);
@@ -192,7 +271,12 @@ test('an offline restart restores pending text and structure and reconnects with
   const first = original.outline.idAt(0);
   expect(original.edit({ kind: 'text', id: first, text: 'Base' }).ok).toBe(true);
   await online.flush();
-  globalThis.fetch = Object.assign(async (): Promise<Response> => { throw new TypeError('Offline drafts'); }, { preconnect: actualFetch.preconnect });
+  globalThis.fetch = Object.assign(
+    async (): Promise<Response> => {
+      throw new TypeError('Offline drafts');
+    },
+    { preconnect: actualFetch.preconnect },
+  );
   expect(original.edit({ kind: 'text', id: first, text: 'Base pending' }).ok).toBe(true);
   const split = original.edit({ kind: 'split', id: first, offset: 'Base pending'.length });
   if (!split.ok) throw new Error(split.reason);
@@ -212,9 +296,13 @@ test('an offline restart restores pending text and structure and reconnects with
   expect(restored.edit({ kind: 'text', id: child, text: 'Edited after offline reload' }).ok).toBe(true);
   await recovered.flush();
   globalThis.fetch = actualFetch;
-  await eventually(() => recovered.connection() === 'live' && recovered.saveState() === 'saved', 'reconnected drafts did not save');
+  await eventually(
+    () => recovered.connection() === 'live' && recovered.saveState() === 'saved',
+    'reconnected drafts did not save',
+  );
   expect((await api.page(id)).rows.map(row => [row.block.id, row.block.text, row.depth])).toEqual([
-    [first, 'Base pending', 0], [child, 'Edited after offline reload', 1],
+    [first, 'Base pending', 0],
+    [child, 'Edited after offline reload', 1],
   ]);
   expect(restored.status()).toBe('ready');
   expect(recovered.queuedChanges()).toBe(0);
@@ -237,14 +325,23 @@ for (const kind of ['ahead', 'unknown', 'large gap'] as const) {
     const history = recordHistory();
     let pageReads = 0;
     const readPage = instance.api.page;
-    instance.api.page = (id, signal) => { pageReads++; return readPage(id, signal); };
+    instance.api.page = (id, signal) => {
+      pageReads++;
+      return readPage(id, signal);
+    };
     instance.retry();
-    await eventually(() => instance.connection() === 'live' && doc.block(blockId)?.text === `Fresh snapshot for ${kind}`, 'invalid cursor did not reload');
+    await eventually(
+      () => instance.connection() === 'live' && doc.block(blockId)?.text === `Fresh snapshot for ${kind}`,
+      'invalid cursor did not reload',
+    );
     expect(pageReads).toBeGreaterThan(0);
     expect(history).toEqual([currentHead]);
     expect(history).not.toContain(0);
     await edit(`Still live after ${kind}`);
-    await eventually(() => doc.block(blockId)?.text === `Still live after ${kind}`, 'reset recovery lost the live stream');
+    await eventually(
+      () => doc.block(blockId)?.text === `Still live after ${kind}`,
+      'reset recovery lost the live stream',
+    );
   });
 }
 
@@ -252,7 +349,8 @@ test('a text event during initial hydration retries the held snapshot', async ()
   const instance = client();
   await instance.ready;
   await eventually(() => instance.connection() === 'live', 'stream did not open');
-  const fetched = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const fetched = Promise.withResolvers<void>(),
+    release = Promise.withResolvers<void>();
   let held = false;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const response = await actualFetch(input, init);
@@ -269,6 +367,11 @@ test('a text event during initial hydration retries the held snapshot', async ()
     const committed = await edit('Arrived during hydration');
     await eventually(() => instance.changeSequence() >= committed.seq, 'held-snapshot event did not arrive');
     release.resolve();
-    await eventually(() => doc.status() === 'ready' && doc.block(blockId)?.text === 'Arrived during hydration', 'hydration discarded a concurrent event');
-  } finally { release.resolve(); }
+    await eventually(
+      () => doc.status() === 'ready' && doc.block(blockId)?.text === 'Arrived during hydration',
+      'hydration discarded a concurrent event',
+    );
+  } finally {
+    release.resolve();
+  }
 });

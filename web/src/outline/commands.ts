@@ -27,30 +27,130 @@ import { deleteFieldOptions, optionImpact } from '../fields/commands';
 import { plural } from '../sync/state';
 import { typeKeys } from '../fields/templates';
 
-export function createOutlineCommands(context: Pick<OutlineContext,
-  | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
-  | 'setMessage' | 'setMenu' | 'capabilities' | 'rename' | 'addGloss' | 'addAlias'
-  | 'localPositions' | 'depthTitles' | 'depthReason' | 'setStop' | 'depth'
-  | 'stepDepth' | 'heading' | 'adjacent' | 'horizontal' | 'ids'
-  | 'rowFocus' | 'editAt' | 'caret' | 'editor' | 'split'
-  | 'replaceSelection' | 'apply' | 'roots' | 'setRowRange' | 'fold'
-  | 'zoomTo' | 'zoom' | 'zoomOut' | 'anchored' | 'setShowArchived'
-  | 'scheduleReport' | 'undo' | 'setConflicts' | 'indices' | 'setFolds'
-  | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
-  | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
-  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'openMoveToPage' | 'positionReason' | 'placeReason' | 'usePlace'
-  | 'chooseImage' | 'openImage' | 'editOcclusion' | 'restoreFocus'
-  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'positionReason' | 'placeReason' | 'usePlace'
->) {
+export function createOutlineCommands(
+  context: Pick<
+    OutlineContext,
+    | 'doc'
+    | 'editing'
+    | 'commitFieldEntry'
+    | 'props'
+    | 'selected'
+    | 'setMessage'
+    | 'setMenu'
+    | 'capabilities'
+    | 'rename'
+    | 'addGloss'
+    | 'addAlias'
+    | 'localPositions'
+    | 'depthTitles'
+    | 'depthReason'
+    | 'setStop'
+    | 'depth'
+    | 'stepDepth'
+    | 'heading'
+    | 'adjacent'
+    | 'horizontal'
+    | 'ids'
+    | 'rowFocus'
+    | 'editAt'
+    | 'caret'
+    | 'editor'
+    | 'split'
+    | 'replaceSelection'
+    | 'apply'
+    | 'roots'
+    | 'setRowRange'
+    | 'fold'
+    | 'zoomTo'
+    | 'zoom'
+    | 'zoomOut'
+    | 'anchored'
+    | 'setShowArchived'
+    | 'scheduleReport'
+    | 'undo'
+    | 'setConflicts'
+    | 'indices'
+    | 'setFolds'
+    | 'setZoom'
+    | 'selectedSet'
+    | 'sourceResets'
+    | 'setCompletionIndex'
+    | 'setCompletion'
+    | 'rowAnchor'
+    | 'rewriteEditing'
+    | 'activeRange'
+    | 'fields'
+    | 'definitionsById'
+    | 'pickField'
+    | 'showNotice'
+    | 'openRelation'
+    | 'openMoveToPage'
+    | 'positionReason'
+    | 'placeReason'
+    | 'usePlace'
+    | 'chooseImage'
+    | 'openImage'
+    | 'editOcclusion'
+    | 'restoreFocus'
+    | 'fields'
+    | 'definitionsById'
+    | 'pickField'
+    | 'showNotice'
+    | 'openRelation'
+    | 'positionReason'
+    | 'placeReason'
+    | 'usePlace'
+  >,
+) {
   const {
-    doc, editing, commitFieldEntry, props, selected, setMessage,
-    setMenu, capabilities, rename, addGloss, addAlias, localPositions, depthTitles,
-    depthReason, setStop, depth, stepDepth, adjacent, horizontal,
-    ids, rowFocus, editAt, caret, split, replaceSelection,
-    apply, roots, setRowRange, fold, zoomTo, zoom,
-    zoomOut, anchored, setShowArchived, scheduleReport, undo, setConflicts,
-    indices, setFolds, setZoom, selectedSet, sourceResets, setCompletionIndex,
-    setCompletion, rowAnchor, rewriteEditing, pickField, restoreFocus,
+    doc,
+    editing,
+    commitFieldEntry,
+    props,
+    selected,
+    setMessage,
+    setMenu,
+    capabilities,
+    rename,
+    addGloss,
+    addAlias,
+    localPositions,
+    depthTitles,
+    depthReason,
+    setStop,
+    depth,
+    stepDepth,
+    adjacent,
+    horizontal,
+    ids,
+    rowFocus,
+    editAt,
+    caret,
+    split,
+    replaceSelection,
+    apply,
+    roots,
+    setRowRange,
+    fold,
+    zoomTo,
+    zoom,
+    zoomOut,
+    anchored,
+    setShowArchived,
+    scheduleReport,
+    undo,
+    setConflicts,
+    indices,
+    setFolds,
+    setZoom,
+    selectedSet,
+    sourceResets,
+    setCompletionIndex,
+    setCompletion,
+    rowAnchor,
+    rewriteEditing,
+    pickField,
+    restoreFocus,
   } = context;
   const { fieldEntry, fieldMenu } = createFieldMenu(context);
   function openTable(beside: boolean) {
@@ -58,24 +158,54 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     if (editing()) commitFieldEntry(editing()!, false);
     const root = doc.root()!;
     const collection = props.notebook.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
-    const isCollection = !root.source && typeKeys(root.text, root.manual_types).some(key => key === 'collection' || key === collection?.id.toLowerCase());
-    props.onOpen(isCollection ? { kind: 'library', tab: 'collections', collection: props.pageId } : pageTableTarget(props.pageId, !!root.project), beside);
+    const isCollection =
+      !root.source &&
+      typeKeys(root.text, root.manual_types).some(key => key === 'collection' || key === collection?.id.toLowerCase());
+    props.onOpen(
+      isCollection
+        ? { kind: 'library', tab: 'collections', collection: props.pageId }
+        : pageTableTarget(props.pageId, !!root.project),
+      beside,
+    );
   }
   function openSelected(beside: boolean, id = selected()) {
     if (!id) return;
     const reference = textTokens(doc.block(id)?.text ?? '').find(token => token.kind === 'reference');
     const target = reference?.id ? props.notebook.lookup(reference.id)() : null;
-    props.onOpen(target ? { kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined } : { kind: 'page', pageId: props.pageId, blockId: id }, beside);
+    props.onOpen(
+      target
+        ? { kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined }
+        : { kind: 'page', pageId: props.pageId, blockId: id },
+      beside,
+    );
   }
-  function copy(text: string) { void navigator.clipboard.writeText(text).catch(error => setMessage(`Couldn't copy: ${String(error)}`)); }
+  function copy(text: string) {
+    void navigator.clipboard.writeText(text).catch(error => setMessage(`Couldn't copy: ${String(error)}`));
+  }
   function referenceMenu(id: string, anchor: HTMLElement) {
     const block = props.notebook.lookup(id)();
-    const open = (beside: boolean) => block && props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
-    setMenu({ anchor, label: 'Reference actions', items: [
-      { label: 'Open', icon: 'link', disabledReason: block ? undefined : 'The reference is unresolved.', action: event => open(opensBeside(event)) },
-      { label: 'Open beside', icon: 'panes', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(true) },
-      { label: 'Copy reference', icon: 'copy', action: () => copy(`[[${id}]]`) },
-    ] });
+    const open = (beside: boolean) =>
+      block &&
+      props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
+    setMenu({
+      anchor,
+      label: 'Reference actions',
+      items: [
+        {
+          label: 'Open',
+          icon: 'link',
+          disabledReason: block ? undefined : 'The reference is unresolved.',
+          action: event => open(opensBeside(event)),
+        },
+        {
+          label: 'Open beside',
+          icon: 'panes',
+          disabledReason: block ? undefined : 'The reference is unresolved.',
+          action: () => open(true),
+        },
+        { label: 'Copy reference', icon: 'copy', action: () => copy(`[[${id}]]`) },
+      ],
+    });
   }
   function markRelation(id: string, kind: RelationKind | null, text?: string) {
     const block = doc.block(id);
@@ -85,19 +215,28 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const result = apply({ kind: 'relation', id, value: kind, text: next });
     if (!result?.ok) return;
     if (next !== undefined && context.editor?.id === id) context.editor.sync(next);
-    if (empty) requestAnimationFrame(() => {
-      editAt(id, 2, true);
-      setCompletionIndex(0);
-      setCompletion({ from: 0, to: 2, query: '' });
-    });
+    if (empty)
+      requestAnimationFrame(() => {
+        editAt(id, 2, true);
+        setCompletionIndex(0);
+        setCompletion({ from: 0, to: 2, query: '' });
+      });
     void doc.flush().catch(reason => capabilities.failure(id, reason));
   }
-  function relationItems(id: string, add = false, text?: string, anchor = rowAnchor(id) ?? context.heading): MenuItem[] {
+  function relationItems(
+    id: string,
+    add = false,
+    text?: string,
+    anchor = rowAnchor(id) ?? context.heading,
+  ): MenuItem[] {
     return relationKinds.map(kind => ({
       label: relationLabels[kind],
       checked: !add && doc.block(id)?.relation?.kind === kind,
       action: () => {
-        if (!add) { markRelation(id, kind, text); return; }
+        if (!add) {
+          markRelation(id, kind, text);
+          return;
+        }
         if (!anchor) return;
         setCompletionIndex(0);
         setCompletion({ from: 0, to: 0, query: '', relationTarget: { parentId: id, kind, anchor, sourceText: text } });
@@ -118,52 +257,175 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     let ownerId = block.parentId;
     while (ownerId && !doc.block(ownerId)?.question) ownerId = doc.block(ownerId)?.parentId ?? null;
     const owner = ownerId ? doc.block(ownerId)?.question : null;
-    const edit = (intent: Extract<Edit, { kind: 'question' | 'assessment' }>) => capabilities.invoke(capabilities.edit(intent.id, intent));
+    const edit = (intent: Extract<Edit, { kind: 'question' | 'assessment' }>) =>
+      capabilities.invoke(capabilities.edit(intent.id, intent));
     const items: MenuItem[] = [
-      ...(question ? [
-        { label: 'Open in desk', action: () => props.onOpen(deskTarget(id), false) },
-        { label: question.parked ? 'Resume' : 'Park', secondary: questionVerbs[question.parked ? 'Resume' : 'Park'], action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }) },
-        { label: question.unsettled ? 'Allow resolution' : 'Make recurrent', secondary: questionVerbs[question.unsettled ? 'Allow resolution' : 'Make recurrent'], action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
-        { label: 'Write assessment', secondary: questionVerbs['Write assessment'], disabledReason: question.parked ? 'Resume the question before writing an assessment.' : undefined, action: () => apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true) },
-        { label: 'Add branch question', secondary: questionVerbs['Add branch question'], action: () => apply({ kind: 'addBranchQuestion', parentId: id }, true) },
-        { label: 'Withdraw current answer', secondary: questionVerbs['Withdraw current answer'], disabledReason: !question.accepted ? 'There is no current answer.' : undefined, action: () => edit({ kind: 'question', id, value: currentReading(question, null, props.notebook.todayDate()) }) },
-        { label: 'Set revisit date…', secondary: questionDescriptions['Set revisit date…'], action: () => capabilities.open(id, 'review-date') },
-        { label: 'Set parent question…', secondary: questionDescriptions['Set parent question…'], action: () => capabilities.open(id, 'question-parent') },
-        ...(question.parent ? [{ label: 'Remove parent', secondary: questionDescriptions['Remove parent'], action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
-        { label: 'Remove question', secondary: questionDescriptions['Remove question'], danger: true, action: () => edit({ kind: 'question', id, value: null }) },
-      ] : [{ label: 'Make question', secondary: questionDescriptions['Make question'], disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make a non-journal atom a question.' : undefined,
-        action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
-      ...(assessment ? [
-        { label: 'Accept current answer', secondary: questionVerbs['Accept current answer'], disabledReason: !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before accepting an answer.' : assessment.accepted ? 'This is already the current answer.' : undefined,
-          action: () => { if (ownerId && owner) edit({ kind: 'question', id: ownerId, value: currentReading(owner.state, id, props.notebook.todayDate()) }); } },
-        { label: assessment.state.aporia ? 'Clear aporia' : 'Record aporia', action: () => edit({ kind: 'assessment', id, value: { ...assessment.state, aporia: !assessment.state.aporia } }) },
-        { label: 'Remove assessment', secondary: questionDescriptions['Remove assessment'], danger: true, action: () => edit({ kind: 'assessment', id, value: null }) },
-      ] : !question ? [{ label: 'Make assessment', secondary: questionDescriptions['Make assessment'], disabledReason: block.relation ? 'Remove the relation first.' : !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before writing an assessment.' : undefined,
-        action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }] : []),
-      ...(!addRelationReason(block) ? [{ label: 'Add argument…', submenu: () => ({ title: 'Add argument', items: relationItems(id, true) }) }] : []),
+      ...(question
+        ? [
+            { label: 'Open in desk', action: () => props.onOpen(deskTarget(id), false) },
+            {
+              label: question.parked ? 'Resume' : 'Park',
+              secondary: questionVerbs[question.parked ? 'Resume' : 'Park'],
+              action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }),
+            },
+            {
+              label: question.unsettled ? 'Allow resolution' : 'Make recurrent',
+              secondary: questionVerbs[question.unsettled ? 'Allow resolution' : 'Make recurrent'],
+              action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }),
+            },
+            {
+              label: 'Write assessment',
+              secondary: questionVerbs['Write assessment'],
+              disabledReason: question.parked ? 'Resume the question before writing an assessment.' : undefined,
+              action: () =>
+                apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true),
+            },
+            {
+              label: 'Add branch question',
+              secondary: questionVerbs['Add branch question'],
+              action: () => apply({ kind: 'addBranchQuestion', parentId: id }, true),
+            },
+            {
+              label: 'Withdraw current answer',
+              secondary: questionVerbs['Withdraw current answer'],
+              disabledReason: !question.accepted ? 'There is no current answer.' : undefined,
+              action: () =>
+                edit({ kind: 'question', id, value: currentReading(question, null, props.notebook.todayDate()) }),
+            },
+            {
+              label: 'Set revisit date…',
+              secondary: questionDescriptions['Set revisit date…'],
+              action: () => capabilities.open(id, 'review-date'),
+            },
+            {
+              label: 'Set parent question…',
+              secondary: questionDescriptions['Set parent question…'],
+              action: () => capabilities.open(id, 'question-parent'),
+            },
+            ...(question.parent
+              ? [
+                  {
+                    label: 'Remove parent',
+                    secondary: questionDescriptions['Remove parent'],
+                    action: () => {
+                      const { parent: _, ...value } = question;
+                      edit({ kind: 'question', id, value });
+                    },
+                  },
+                ]
+              : []),
+            {
+              label: 'Remove question',
+              secondary: questionDescriptions['Remove question'],
+              danger: true,
+              action: () => edit({ kind: 'question', id, value: null }),
+            },
+          ]
+        : [
+            {
+              label: 'Make question',
+              secondary: questionDescriptions['Make question'],
+              disabledReason: block.relation
+                ? 'Remove the relation first.'
+                : assessment
+                  ? 'Remove the assessment first.'
+                  : block.kind === 'journal'
+                    ? 'Make a non-journal atom a question.'
+                    : undefined,
+              action: () =>
+                edit({
+                  kind: 'question',
+                  id,
+                  value: { unsettled: false, parked: false, accepted: null, review_on: null },
+                }),
+            },
+          ]),
+      ...(assessment
+        ? [
+            {
+              label: 'Accept current answer',
+              secondary: questionVerbs['Accept current answer'],
+              disabledReason: !owner
+                ? 'Put the assessment under a question first.'
+                : owner.state.parked
+                  ? 'Resume the question before accepting an answer.'
+                  : assessment.accepted
+                    ? 'This is already the current answer.'
+                    : undefined,
+              action: () => {
+                if (ownerId && owner)
+                  edit({
+                    kind: 'question',
+                    id: ownerId,
+                    value: currentReading(owner.state, id, props.notebook.todayDate()),
+                  });
+              },
+            },
+            {
+              label: assessment.state.aporia ? 'Clear aporia' : 'Record aporia',
+              action: () =>
+                edit({ kind: 'assessment', id, value: { ...assessment.state, aporia: !assessment.state.aporia } }),
+            },
+            {
+              label: 'Remove assessment',
+              secondary: questionDescriptions['Remove assessment'],
+              danger: true,
+              action: () => edit({ kind: 'assessment', id, value: null }),
+            },
+          ]
+        : !question
+          ? [
+              {
+                label: 'Make assessment',
+                secondary: questionDescriptions['Make assessment'],
+                disabledReason: block.relation
+                  ? 'Remove the relation first.'
+                  : !owner
+                    ? 'Put the assessment under a question first.'
+                    : owner.state.parked
+                      ? 'Resume the question before writing an assessment.'
+                      : undefined,
+                action: () =>
+                  edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }),
+              },
+            ]
+          : []),
+      ...(!addRelationReason(block)
+        ? [{ label: 'Add argument…', submenu: () => ({ title: 'Add argument', items: relationItems(id, true) }) }]
+        : []),
     ];
     if (!manager) return items;
     const concise = (label: string) => {
       const item = items.find(item => item.label === label)!;
       return { ...item, secondary: undefined };
     };
-    if (assessment) return [
-      concise('Accept current answer'),
-      concise(assessment.state.aporia ? 'Clear aporia' : 'Record aporia'),
-      ...items.filter(item => item.label === 'Add argument…'),
-      { ...concise('Remove assessment'), divider: true },
-    ];
+    if (assessment)
+      return [
+        concise('Accept current answer'),
+        concise(assessment.state.aporia ? 'Clear aporia' : 'Record aporia'),
+        ...items.filter(item => item.label === 'Add argument…'),
+        { ...concise('Remove assessment'), divider: true },
+      ];
     if (!question) return [];
     return [
-      concise('Open in desk'), concise('Write assessment'), concise('Add branch question'),
+      concise('Open in desk'),
+      concise('Write assessment'),
+      concise('Add branch question'),
       concise('Set revisit date…'),
       ...items.filter(item => item.label === 'Add argument…'),
-      { label: 'Question settings…', submenu: () => ({ title: 'Question settings', items: [
-        concise(question.parked ? 'Resume' : 'Park'),
-        concise(question.unsettled ? 'Allow resolution' : 'Make recurrent'),
-        concise('Withdraw current answer'), concise('Set parent question…'),
-        ...(question.parent ? [concise('Remove parent')] : []),
-      ] }) },
+      {
+        label: 'Question settings…',
+        submenu: () => ({
+          title: 'Question settings',
+          items: [
+            concise(question.parked ? 'Resume' : 'Park'),
+            concise(question.unsettled ? 'Allow resolution' : 'Make recurrent'),
+            concise('Withdraw current answer'),
+            concise('Set parent question…'),
+            ...(question.parent ? [concise('Remove parent')] : []),
+          ],
+        }),
+      },
       { ...concise('Remove question'), divider: true },
     ];
   }
@@ -175,171 +437,854 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function pageTypes(removeOnly = false) {
     if (!context.heading) return;
     const types = doc.root()?.manual_types ?? [];
-    setMenu({ anchor: context.heading, label: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom', title: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom', context: doc.root()?.text, items: [
-      ...(!removeOnly ? [{ label: 'Add tag…', icon: 'plus' as const, action: addPageType }] : []),
-      ...types.map((title, index): MenuItem => ({ label: `Remove ${title}`, icon: 'tag', divider: !removeOnly && index === 0, action: () => {
-        const result = doc.removeType(props.pageId, title);
-        if (!result.ok) setMessage(result.reason);
-      } })),
-    ] });
+    setMenu({
+      anchor: context.heading,
+      label: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom',
+      title: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom',
+      context: doc.root()?.text,
+      items: [
+        ...(!removeOnly ? [{ label: 'Add tag…', icon: 'plus' as const, action: addPageType }] : []),
+        ...types.map(
+          (title, index): MenuItem => ({
+            label: `Remove ${title}`,
+            icon: 'tag',
+            divider: !removeOnly && index === 0,
+            action: () => {
+              const result = doc.removeType(props.pageId, title);
+              if (!result.ok) setMessage(result.reason);
+            },
+          }),
+        ),
+      ],
+    });
   }
   const moveReason = () => {
     const ids = roots();
     const parent = ids[0] ? doc.outline.parentOf(ids[0]) : null;
-    return ids.some(id => doc.outline.parentOf(id) !== parent) ? 'Select atoms with the same parent to move them up or down.' : undefined;
+    return ids.some(id => doc.outline.parentOf(id) !== parent)
+      ? 'Select atoms with the same parent to move them up or down.'
+      : undefined;
   };
   const commandsFor = (selected = context.selected): Command[] => [
-    { id: 'copy-page-reference', title: 'Copy atom reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
-    { id: 'rename', title: 'Rename atom', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
-    { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => context.fields.error ? 'Field definitions are unavailable.' : context.fields()?.page_id === props.pageId ? 'Field definitions are not a tag table.' : doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
-    { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
-    { id: 'types-root', title: 'Tags on this atom…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: () => pageTypes() },
-    { id: 'add-type-root', title: 'Add tag to this atom…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: addPageType },
-    { id: 'remove-type-root', title: 'Remove tag from this atom…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This atom has no manual tags.' : undefined, run: () => pageTypes(true) },
-    { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined, run: () => {
-      if (!doc.root()?.task?.status) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
-      capabilities.open(props.pageId, 'task');
-    } },
-    { id: 'project-root', title: 'Project', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined, run: () => {
-      if (!doc.root()?.project) capabilities.invoke(capabilities.edit(props.pageId, { kind: 'project', id: props.pageId, value: { status: 'active', outcome: '', deadline: null } }));
-      capabilities.open(props.pageId, 'project');
-    } },
+    {
+      id: 'copy-page-reference',
+      title: 'Copy atom reference',
+      section: 'Page',
+      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      run: () => copy(`[[${props.pageId}]]`),
+    },
+    {
+      id: 'rename',
+      title: 'Rename atom',
+      section: 'Page',
+      disabledReason: () => (doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.'),
+      run: rename,
+    },
+    {
+      id: 'open-table',
+      title: 'Open as table',
+      section: 'Page',
+      keys: ['⌘⇧T'],
+      disabledReason: () =>
+        context.fields.error
+          ? 'Field definitions are unavailable.'
+          : context.fields()?.page_id === props.pageId
+            ? 'Field definitions are not a tag table.'
+            : doc.root()?.kind === 'page'
+              ? undefined
+              : 'Journal days cannot be opened as tables.',
+      run: () => openTable(false),
+    },
+    {
+      id: 'add-field-root',
+      title: 'Add field…',
+      section: 'Page',
+      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      run: () => pickField(props.pageId, context.heading),
+    },
+    {
+      id: 'types-root',
+      title: 'Tags on this atom…',
+      section: 'Page',
+      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      run: () => pageTypes(),
+    },
+    {
+      id: 'add-type-root',
+      title: 'Add tag to this atom…',
+      section: 'Page',
+      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      run: addPageType,
+    },
+    {
+      id: 'remove-type-root',
+      title: 'Remove tag from this atom…',
+      section: 'Page',
+      disabledReason: () => (!doc.root()?.manual_types.length ? 'This atom has no manual tags.' : undefined),
+      run: () => pageTypes(true),
+    },
+    {
+      id: 'task-root',
+      title: 'Task',
+      section: 'Page',
+      disabledReason: () =>
+        doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined,
+      run: () => {
+        if (!doc.root()?.task?.status) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
+        capabilities.open(props.pageId, 'task');
+      },
+    },
+    {
+      id: 'project-root',
+      title: 'Project',
+      section: 'Page',
+      disabledReason: () =>
+        doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined,
+      run: () => {
+        if (!doc.root()?.project)
+          capabilities.invoke(
+            capabilities.edit(props.pageId, {
+              kind: 'project',
+              id: props.pageId,
+              value: { status: 'active', outcome: '', deadline: null },
+            }),
+          );
+        capabilities.open(props.pageId, 'project');
+      },
+    },
     // A stream page collects notes written under journal lines that link it; the Stream type marks it and lists it in the Index.
-    { id: 'stream-root', title: 'Make or remove stream', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days cannot be streams.' : undefined, run: () => {
-      const current = doc.root()?.manual_types.find(title => title.toLocaleLowerCase() === 'stream');
-      const result = current ? doc.removeType(props.pageId, current) : doc.addType(props.pageId, 'Stream');
-      if (!result.ok) setMessage(result.reason);
-    } },
-    { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
-    { id: 'alias', title: 'Add alias', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no aliases.' : undefined, run: addAlias },
-    { id: 'read', title: 'Read', section: 'Page', disabledReason: () => props.projectionReason ? props.projectionReason('read') : doc.root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.', run: () => props.onProjection?.('read') },
-    { id: 'outline', title: 'Outline', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.', run: () => props.onProjection?.('outline') },
-    { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this atom.' : undefined, run: () => props.onProjection?.('compare') },
-    { id: 'add-reading', title: 'Add perspective', section: 'Page', disabledReason: () => doc.root()?.source ? 'Add perspectives on the concept or question they are about.' : doc.root()?.kind === 'page' ? undefined : 'Add perspectives on a titled atom.', run: () => context.openRelation(props.pageId, 'reading', context.heading) },
-    ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
-    { id: 'depth-less', title: 'Show less of the atom', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
-    { id: 'depth-more', title: 'Show more of the atom', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole atom is showing.' : undefined), run: () => stepDepth(1) },
-    { id: 'question-root', title: 'Question', section: 'Page', disabledReason: () => !doc.root()?.question ? 'Make the atom a question first.' : capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined, run: () => {
-      if (context.heading) setMenu({ anchor: context.heading, label: 'Question', title: 'Question', context: doc.root()?.text, items: investigationItems(props.pageId, true) });
-    } },
-    { id: 'add-relation-root', title: 'Add argument…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
-    { id: 'question-parent', title: 'Set parent question…', description: questionDescriptions['Set parent question…'], section: 'Page', disabledReason: () => doc.block(selected() ?? '')?.question || doc.root()?.question ? undefined : 'Select a question.', run: () => {
-      const id = selected() && doc.block(selected()!)?.question ? selected()! : props.pageId;
-      capabilities.open(id, 'question-parent', id === props.pageId ? context.heading : undefined);
-    } },
-    { id: 'previous-row', title: 'Select previous atom', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
+    {
+      id: 'stream-root',
+      title: 'Make or remove stream',
+      section: 'Page',
+      disabledReason: () =>
+        doc.status() !== 'ready'
+          ? 'Atom is unavailable.'
+          : doc.root()?.kind !== 'page'
+            ? 'Journal days cannot be streams.'
+            : undefined,
+      run: () => {
+        const current = doc.root()?.manual_types.find(title => title.toLocaleLowerCase() === 'stream');
+        const result = current ? doc.removeType(props.pageId, current) : doc.addType(props.pageId, 'Stream');
+        if (!result.ok) setMessage(result.reason);
+      },
+    },
+    {
+      id: 'gloss',
+      title: 'Add or edit gloss',
+      section: 'Page',
+      disabledReason: () =>
+        doc.status() !== 'ready'
+          ? 'Atom is unavailable.'
+          : doc.root()?.kind !== 'page'
+            ? 'Journal days have no gloss.'
+            : undefined,
+      run: addGloss,
+    },
+    {
+      id: 'alias',
+      title: 'Add alias',
+      section: 'Page',
+      disabledReason: () =>
+        doc.status() !== 'ready'
+          ? 'Atom is unavailable.'
+          : doc.root()?.kind !== 'page'
+            ? 'Journal days have no aliases.'
+            : undefined,
+      run: addAlias,
+    },
+    {
+      id: 'read',
+      title: 'Read',
+      section: 'Page',
+      disabledReason: () =>
+        props.projectionReason
+          ? props.projectionReason('read')
+          : doc.root()?.kind === 'page'
+            ? undefined
+            : 'Only titled atoms have projections.',
+      run: () => props.onProjection?.('read'),
+    },
+    {
+      id: 'outline',
+      title: 'Outline',
+      section: 'Page',
+      disabledReason: () => (doc.root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.'),
+      run: () => props.onProjection?.('outline'),
+    },
+    {
+      id: 'compare',
+      title: 'Compare perspectives',
+      section: 'Page',
+      disabledReason: () =>
+        doc.status() !== 'ready'
+          ? 'Atom is unavailable.'
+          : localPositions() < 2
+            ? 'Compare needs two perspectives on this atom.'
+            : undefined,
+      run: () => props.onProjection?.('compare'),
+    },
+    {
+      id: 'add-reading',
+      title: 'Add perspective',
+      section: 'Page',
+      disabledReason: () =>
+        doc.root()?.source
+          ? 'Add perspectives on the concept or question they are about.'
+          : doc.root()?.kind === 'page'
+            ? undefined
+            : 'Add perspectives on a titled atom.',
+      run: () => context.openRelation(props.pageId, 'reading', context.heading),
+    },
+    ...depthStops.map(
+      (stop): Command => ({
+        id: `depth-${stop}`,
+        title: depthTitles[stop],
+        section: 'Page',
+        disabledReason: depthReason,
+        run: () => setStop(stop),
+      }),
+    ),
+    {
+      id: 'depth-less',
+      title: 'Show less of the atom',
+      section: 'Page',
+      keys: ['['],
+      disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined),
+      run: () => stepDepth(-1),
+    },
+    {
+      id: 'depth-more',
+      title: 'Show more of the atom',
+      section: 'Page',
+      keys: [']'],
+      disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole atom is showing.' : undefined),
+      run: () => stepDepth(1),
+    },
+    {
+      id: 'question-root',
+      title: 'Question',
+      section: 'Page',
+      disabledReason: () =>
+        !doc.root()?.question
+          ? 'Make the atom a question first.'
+          : capabilities.busy(props.pageId)
+            ? 'Atom is unavailable.'
+            : undefined,
+      run: () => {
+        if (context.heading)
+          setMenu({
+            anchor: context.heading,
+            label: 'Question',
+            title: 'Question',
+            context: doc.root()?.text,
+            items: investigationItems(props.pageId, true),
+          });
+      },
+    },
+    {
+      id: 'add-relation-root',
+      title: 'Add argument…',
+      section: 'Page',
+      disabledReason: () => addRelationReason(doc.root()),
+      run: () => relationMenu(props.pageId, true),
+    },
+    {
+      id: 'question-parent',
+      title: 'Set parent question…',
+      description: questionDescriptions['Set parent question…'],
+      section: 'Page',
+      disabledReason: () =>
+        doc.block(selected() ?? '')?.question || doc.root()?.question ? undefined : 'Select a question.',
+      run: () => {
+        const id = selected() && doc.block(selected()!)?.question ? selected()! : props.pageId;
+        capabilities.open(id, 'question-parent', id === props.pageId ? context.heading : undefined);
+      },
+    },
+    {
+      id: 'previous-row',
+      title: 'Select previous atom',
+      section: 'Navigation',
+      keys: ['↑', 'k'],
+      run: () => adjacent(-1),
+    },
     { id: 'next-row', title: 'Select next atom', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
-    { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
-    { id: 'child', title: 'Unfold children / select first child', section: 'Navigation', keys: ['→', 'l'], run: () => horizontal('right') },
-    { id: 'first-row', title: 'Select first atom', section: 'Navigation', keys: ['gg'], run: () => ids()[0] && rowFocus(ids()[0]!) },
-    { id: 'last-row', title: 'Select last atom', section: 'Navigation', keys: ['G'], run: () => ids().at(-1) && rowFocus(ids().at(-1)!) },
-    { id: 'extend-up', title: 'Extend atom selection up', section: 'Outline', keys: ['⇧↑'], run: () => adjacent(-1, true) },
-    { id: 'extend-down', title: 'Extend atom selection down', section: 'Outline', keys: ['⇧↓'], run: () => adjacent(1, true) },
-    { id: 'edit', title: 'Edit atom', section: 'Editing', keys: ['Enter', 'i'], run: () => selected() && editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true) },
-    { id: 'split', title: 'Split atom', section: 'Editing', keys: ['Enter'], disabledReason: () => editing() ? undefined : 'Edit an atom first.', run: () => editing() && context.editor && split(context.editor.view) },
-    { id: 'newline', title: 'Insert newline', section: 'Editing', keys: ['⇧Enter'], disabledReason: () => editing() ? undefined : 'Edit an atom first.', run: () => editing() && context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')) },
-    { id: 'insert-below', title: 'Insert atom below', section: 'Editing', keys: ['o'], run: () => selected() && apply({ kind: 'insert', parentId: doc.outline.parentOf(selected()!), after: selected() }, true) },
-    { id: 'insert-above', title: 'Insert atom above', section: 'Editing', keys: ['O'], run: () => { const id = selected(); if (!id) return; const parentId = doc.outline.parentOf(id); const siblings = doc.outline.children(parentId); apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true); } },
-    { id: 'indent', title: 'Indent atoms', section: 'Outline', keys: ['Tab', '>>'], run: () => apply({ kind: 'indent', ids: roots() }) },
-    { id: 'outdent', title: 'Outdent atoms', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
-    { id: 'move-up', title: 'Move atoms up', section: 'Outline', keys: ['⌥↑'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
-    { id: 'move-down', title: 'Move atoms down', section: 'Outline', keys: ['⌥↓'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
+    {
+      id: 'parent',
+      title: 'Fold children / select parent',
+      section: 'Navigation',
+      keys: ['←', 'h'],
+      run: () => horizontal('left'),
+    },
+    {
+      id: 'child',
+      title: 'Unfold children / select first child',
+      section: 'Navigation',
+      keys: ['→', 'l'],
+      run: () => horizontal('right'),
+    },
+    {
+      id: 'first-row',
+      title: 'Select first atom',
+      section: 'Navigation',
+      keys: ['gg'],
+      run: () => ids()[0] && rowFocus(ids()[0]!),
+    },
+    {
+      id: 'last-row',
+      title: 'Select last atom',
+      section: 'Navigation',
+      keys: ['G'],
+      run: () => ids().at(-1) && rowFocus(ids().at(-1)!),
+    },
+    {
+      id: 'extend-up',
+      title: 'Extend atom selection up',
+      section: 'Outline',
+      keys: ['⇧↑'],
+      run: () => adjacent(-1, true),
+    },
+    {
+      id: 'extend-down',
+      title: 'Extend atom selection down',
+      section: 'Outline',
+      keys: ['⇧↓'],
+      run: () => adjacent(1, true),
+    },
+    {
+      id: 'edit',
+      title: 'Edit atom',
+      section: 'Editing',
+      keys: ['Enter', 'i'],
+      run: () => selected() && editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true),
+    },
+    {
+      id: 'split',
+      title: 'Split atom',
+      section: 'Editing',
+      keys: ['Enter'],
+      disabledReason: () => (editing() ? undefined : 'Edit an atom first.'),
+      run: () => editing() && context.editor && split(context.editor.view),
+    },
+    {
+      id: 'newline',
+      title: 'Insert newline',
+      section: 'Editing',
+      keys: ['⇧Enter'],
+      disabledReason: () => (editing() ? undefined : 'Edit an atom first.'),
+      run: () => editing() && context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')),
+    },
+    {
+      id: 'insert-below',
+      title: 'Insert atom below',
+      section: 'Editing',
+      keys: ['o'],
+      run: () =>
+        selected() && apply({ kind: 'insert', parentId: doc.outline.parentOf(selected()!), after: selected() }, true),
+    },
+    {
+      id: 'insert-above',
+      title: 'Insert atom above',
+      section: 'Editing',
+      keys: ['O'],
+      run: () => {
+        const id = selected();
+        if (!id) return;
+        const parentId = doc.outline.parentOf(id);
+        const siblings = doc.outline.children(parentId);
+        apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true);
+      },
+    },
+    {
+      id: 'indent',
+      title: 'Indent atoms',
+      section: 'Outline',
+      keys: ['Tab', '>>'],
+      run: () => apply({ kind: 'indent', ids: roots() }),
+    },
+    {
+      id: 'outdent',
+      title: 'Outdent atoms',
+      section: 'Outline',
+      keys: ['⇧Tab', '<<'],
+      run: () => apply({ kind: 'outdent', ids: roots() }),
+    },
+    {
+      id: 'move-up',
+      title: 'Move atoms up',
+      section: 'Outline',
+      keys: ['⌥↑'],
+      disabledReason: moveReason,
+      run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }),
+    },
+    {
+      id: 'move-down',
+      title: 'Move atoms down',
+      section: 'Outline',
+      keys: ['⌥↓'],
+      disabledReason: moveReason,
+      run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }),
+    },
     { id: 'move-to-page', title: 'Move to atom…', section: 'Outline', run: () => context.openMoveToPage() },
-    { id: 'select', title: 'Select atoms', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
-    { id: 'select-all', title: 'Select all visible atoms', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
-    { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },
-    { id: 'zoom', title: 'Zoom into atom', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
-    { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the top of this outline.', run: zoomOut },
-    { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], disabledReason: () => props.besideReason, run: () => { if (!props.besideReason) openSelected(true, selected()); } },
-    { id: 'copy-reference', title: 'Copy atom reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
-    { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
-    { id: 'edit-occlusion', title: 'Edit image masks', section: 'Editing', disabledReason: () => selected() && doc.block(selected()!)?.image ? undefined : 'Add an image before drawing masks.', run: () => selected() && context.editOcclusion(selected()!) },
-    { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task?.status ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
-    { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
-    { id: 'toggle-task', title: 'Complete or reopen task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
-    ...(doc.block(selected() ?? '')?.task?.status === null ? [] : [{ id: 'task-status', title: 'Set task status…', section: 'Outline', keys: ['⌘⇧Enter', 'Space t'], run: () => selected() && statusMenu(selected()!) } satisfies Command]),
-    { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
-    { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['Space s', '@'], run: () => selected() && openPlanning(selected()!, 'schedule') },
-    { id: 'deadline-task', title: 'Set deadline', section: 'Outline', keys: ['Space d', '@due'], run: () => selected() && openPlanning(selected()!, 'deadline') },
-    { id: 'priority-task', title: 'Set priority', section: 'Outline', keys: ['Space p'], run: () => selected() && priorityMenu(selected()!) },
-    { id: 'repeat-task', title: 'Repeat task', section: 'Outline', keys: ['Space r'], run: () => selected() && openPlanning(selected()!, 'repeat') },
-    { id: 'clock', title: 'Clock in / out', section: 'Outline', keys: ['Space w'], run: () => selected() && capabilities.invoke(capabilities.clock(selected()!)) },
-    { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
-    { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c c', '>>'], run: () => selected() && addCard(selected()!) },
+    {
+      id: 'select',
+      title: 'Select atoms',
+      section: 'Outline',
+      keys: ['V', '⇧↑/↓'],
+      run: () => selected() && rowFocus(selected()!, true),
+    },
+    {
+      id: 'select-all',
+      title: 'Select all visible atoms',
+      section: 'Outline',
+      run: () => {
+        const first = ids()[0];
+        const last = ids().at(-1);
+        if (first && last) {
+          rowFocus(last);
+          setRowRange({ anchor: first, head: last });
+        }
+      },
+    },
+    {
+      id: 'fold',
+      title: 'Fold / unfold children',
+      section: 'View',
+      keys: ['←/→', 'h/l'],
+      run: () => fold(selected() ?? undefined),
+    },
+    {
+      id: 'zoom',
+      title: 'Zoom into atom',
+      section: 'Navigation',
+      keys: ['⌘.', 'Space z'],
+      run: () => selected() && zoomTo(selected()),
+    },
+    {
+      id: 'zoom-out',
+      title: 'Zoom out',
+      section: 'Navigation',
+      keys: ['⌘⇧.'],
+      disabledReason: () => (zoom() ? undefined : 'Already at the top of this outline.'),
+      run: zoomOut,
+    },
+    {
+      id: 'open-beside',
+      title: 'Open selected target beside',
+      section: 'Navigation',
+      keys: ['⌃⇧O'],
+      disabledReason: () => props.besideReason,
+      run: () => {
+        if (!props.besideReason) openSelected(true, selected());
+      },
+    },
+    {
+      id: 'copy-reference',
+      title: 'Copy atom reference',
+      section: 'Editing',
+      run: () => selected() && copy(`[[${selected()}]]`),
+    },
+    {
+      id: 'make-image',
+      title: 'Insert image',
+      section: 'Editing',
+      run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId),
+    },
+    {
+      id: 'edit-occlusion',
+      title: 'Edit image masks',
+      section: 'Editing',
+      disabledReason: () =>
+        selected() && doc.block(selected()!)?.image ? undefined : 'Add an image before drawing masks.',
+      run: () => selected() && context.editOcclusion(selected()!),
+    },
+    {
+      id: 'make-task',
+      title: 'Make task',
+      section: 'Outline',
+      disabledReason: () => (selected() && doc.block(selected()!)?.task?.status ? 'Already a task.' : undefined),
+      run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')),
+    },
+    {
+      id: 'remove-task',
+      title: 'Remove task',
+      section: 'Outline',
+      disabledReason: () => (selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.'),
+      run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)),
+    },
+    {
+      id: 'toggle-task',
+      title: 'Complete or reopen task',
+      section: 'Outline',
+      keys: ['⌘Enter'],
+      run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)),
+    },
+    ...(doc.block(selected() ?? '')?.task?.status === null
+      ? []
+      : [
+          {
+            id: 'task-status',
+            title: 'Set task status…',
+            section: 'Outline',
+            keys: ['⌘⇧Enter', 'Space t'],
+            run: () => selected() && statusMenu(selected()!),
+          } satisfies Command,
+        ]),
+    {
+      id: 'plan-task',
+      title: 'Plan task',
+      section: 'Outline',
+      disabledReason: () => (selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.'),
+      run: () => selected() && capabilities.open(selected()!, 'task'),
+    },
+    {
+      id: 'schedule-task',
+      title: 'Schedule task',
+      section: 'Outline',
+      keys: ['Space s', '@'],
+      run: () => selected() && openPlanning(selected()!, 'schedule'),
+    },
+    {
+      id: 'deadline-task',
+      title: 'Set deadline',
+      section: 'Outline',
+      keys: ['Space d', '@due'],
+      run: () => selected() && openPlanning(selected()!, 'deadline'),
+    },
+    {
+      id: 'priority-task',
+      title: 'Set priority',
+      section: 'Outline',
+      keys: ['Space p'],
+      run: () => selected() && priorityMenu(selected()!),
+    },
+    {
+      id: 'repeat-task',
+      title: 'Repeat task',
+      section: 'Outline',
+      keys: ['Space r'],
+      run: () => selected() && openPlanning(selected()!, 'repeat'),
+    },
+    {
+      id: 'clock',
+      title: 'Clock in / out',
+      section: 'Outline',
+      keys: ['Space w'],
+      run: () => selected() && capabilities.invoke(capabilities.clock(selected()!)),
+    },
+    {
+      id: 'work-sessions',
+      title: 'Work sessions',
+      section: 'Outline',
+      disabledReason: () => (selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.'),
+      run: () => selected() && capabilities.open(selected()!, 'work'),
+    },
+    {
+      id: 'add-card',
+      title: 'Add card',
+      section: 'Editing',
+      keys: ['Space c c', '>>'],
+      run: () => selected() && addCard(selected()!),
+    },
     { id: 'make-cloze', title: 'Make cloze', section: 'Editing', keys: ['⌘⇧C'], run: makeCloze },
-    { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
-    { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && openProject(selected()!) },
-    { id: 'make-perspective', title: 'Make perspective', section: 'Atom', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary atom.' : doc.block(selected()!)?.relation ? 'Remove the relation first.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
-    { id: 'remove-perspective', title: 'Remove perspective', section: 'Atom', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary atom.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
-    { id: 'change-holder', title: 'Change holder…', section: 'Atom', disabledReason: () => context.positionReason(selected() ?? ''), run: () => selected() && context.openRelation(selected()!, 'holder') },
-    { id: 'file-under', title: 'File under…', section: 'Atom', disabledReason: () => context.positionReason(selected() ?? '') ?? (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference') ? 'Choose a holder before filing this perspective.' : undefined), run: () => selected() && context.openRelation(selected()!, 'subject') },
-    { id: 'use-place', title: 'Use place', section: 'Atom', disabledReason: () => context.placeReason(selected() ?? ''), run: () => selected() && context.usePlace(selected()!) },
-    ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', section: 'Atom' as const, disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal atom.' : undefined, run: () => selected() && context.openRelation(selected()!, 'integrate') }] : []),
-    ...relationKinds.map((kind): Command => ({
-      id: `relation-${kind}`, title: `${relationLabels[kind]}…`, section: 'Atom',
-      disabledReason: () => relationReason(doc.block(selected() ?? '')),
-      run: () => { const id = selected(); if (id) markRelation(id, kind); },
-    })),
-    { id: 'relation-kind', title: 'Change relation', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
-    { id: 'remove-relation', title: 'Remove argument', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
-    { id: 'add-relation', title: 'Add argument…', section: 'Atom', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
-    ...['Make question', 'Make assessment', ...Object.keys(questionVerbs), 'Record aporia', 'Clear aporia', 'Set revisit date…', 'Remove parent', 'Remove question', 'Remove assessment'].map((title): Command => ({
-      id: title.toLowerCase().replaceAll(' ', '-'), title, description: questionDescriptions[title], section: selected() ? 'Outline' : 'Page', keys: title === 'Make question' || title === 'Make assessment' ? ['Space q'] : undefined,
+    {
+      id: 'leader',
+      title: 'Show leader keys',
+      section: 'Editing',
+      keys: ['Space'],
+      run: () => selected() && leaderMenu(selected()!),
+    },
+    {
+      id: 'make-project',
+      title: 'Make project',
+      section: 'Outline',
+      keys: ['Space o'],
+      disabledReason: () => (selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined),
+      run: () => selected() && openProject(selected()!),
+    },
+    {
+      id: 'make-perspective',
+      title: 'Make perspective',
+      section: 'Atom',
+      keys: ['Space v'],
+      disabledReason: () =>
+        doc.block(selected() ?? '')?.kind !== 'block'
+          ? 'Select an ordinary atom.'
+          : doc.block(selected()!)?.relation
+            ? 'Remove the relation first.'
+            : doc.block(selected()!)?.position
+              ? 'Already a perspective.'
+              : undefined,
+      run: () =>
+        selected() &&
+        capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })),
+    },
+    {
+      id: 'remove-perspective',
+      title: 'Remove perspective',
+      section: 'Atom',
+      keys: ['Space v'],
+      disabledReason: () =>
+        doc.block(selected() ?? '')?.kind !== 'block'
+          ? 'Select an ordinary atom.'
+          : !doc.block(selected()!)?.position
+            ? 'Select a perspective.'
+            : undefined,
+      run: () =>
+        selected() &&
+        capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })),
+    },
+    {
+      id: 'change-holder',
+      title: 'Change holder…',
+      section: 'Atom',
+      disabledReason: () => context.positionReason(selected() ?? ''),
+      run: () => selected() && context.openRelation(selected()!, 'holder'),
+    },
+    {
+      id: 'file-under',
+      title: 'File under…',
+      section: 'Atom',
+      disabledReason: () =>
+        context.positionReason(selected() ?? '') ??
+        (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference')
+          ? 'Choose a holder before filing this perspective.'
+          : undefined),
+      run: () => selected() && context.openRelation(selected()!, 'subject'),
+    },
+    {
+      id: 'use-place',
+      title: 'Use place',
+      section: 'Atom',
+      disabledReason: () => context.placeReason(selected() ?? ''),
+      run: () => selected() && context.usePlace(selected()!),
+    },
+    ...(doc.root()?.kind === 'journal'
+      ? [
+          {
+            id: 'integrate',
+            title: 'Integrate…',
+            section: 'Atom' as const,
+            disabledReason: () =>
+              doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal atom.' : undefined,
+            run: () => selected() && context.openRelation(selected()!, 'integrate'),
+          },
+        ]
+      : []),
+    ...relationKinds.map(
+      (kind): Command => ({
+        id: `relation-${kind}`,
+        title: `${relationLabels[kind]}…`,
+        section: 'Atom',
+        disabledReason: () => relationReason(doc.block(selected() ?? '')),
+        run: () => {
+          const id = selected();
+          if (id) markRelation(id, kind);
+        },
+      }),
+    ),
+    {
+      id: 'relation-kind',
+      title: 'Change relation',
+      section: 'Atom',
+      disabledReason: () => (doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.'),
+      run: () => {
+        const id = selected();
+        if (id) relationMenu(id);
+      },
+    },
+    {
+      id: 'remove-relation',
+      title: 'Remove argument',
+      section: 'Atom',
+      disabledReason: () => (doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.'),
+      run: () => {
+        const id = selected();
+        if (id) markRelation(id, null);
+      },
+    },
+    {
+      id: 'add-relation',
+      title: 'Add argument…',
+      section: 'Atom',
+      disabledReason: () => addRelationReason(doc.block(selected() ?? '')),
+      run: () => {
+        const id = selected();
+        if (id) relationMenu(id, true);
+      },
+    },
+    ...[
+      'Make question',
+      'Make assessment',
+      ...Object.keys(questionVerbs),
+      'Record aporia',
+      'Clear aporia',
+      'Set revisit date…',
+      'Remove parent',
+      'Remove question',
+      'Remove assessment',
+    ].map(
+      (title): Command => ({
+        id: title.toLowerCase().replaceAll(' ', '-'),
+        title,
+        description: questionDescriptions[title],
+        section: selected() ? 'Outline' : 'Page',
+        keys: title === 'Make question' || title === 'Make assessment' ? ['Space q'] : undefined,
+        disabledReason: () => {
+          const item = investigationItems(selected() ?? props.pageId).find(item => item.label === title);
+          return item ? item.disabledReason : 'Select a matching question or answer.';
+        },
+        run: () => {
+          const item = investigationItems(selected() ?? props.pageId).find(item => item.label === title);
+          if (item && !item.disabledReason) item.action?.();
+        },
+      }),
+    ),
+    {
+      id: 'project',
+      title: 'Project',
+      section: 'Outline',
+      keys: ['Space o'],
+      disabledReason: () => (selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.'),
+      run: () => selected() && capabilities.open(selected()!, 'project'),
+    },
+    {
+      id: 'project-actions',
+      title: 'Show actions',
+      section: 'Outline',
+      disabledReason: () => (selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.'),
+      run: () => selected() && capabilities.showActions(selected()!),
+    },
+    { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
+    {
+      id: 'card-source',
+      title: 'Show card source',
+      section: 'Navigation',
+      run: () => selected() && capabilities.source(selected()!),
+    },
+    {
+      id: 'archive',
+      title: 'Archive / unarchive atom',
+      section: 'Outline',
+      run: () =>
+        selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false),
+    },
+    {
+      id: 'show-archived',
+      title: 'Show / hide archived atoms',
+      section: 'View',
+      run: () => {
+        anchored(() => setShowArchived(value => !value));
+        scheduleReport();
+      },
+    },
+    {
+      id: 'delete',
+      title: 'Delete selected subtrees',
+      section: 'Outline',
+      keys: ['Backspace', 'dd'],
+      run: () => {
+        const selectedRoots = roots();
+        const definition = selectedRoots.find(id => context.definitionsById().has(id));
+        if (definition) {
+          props.onOpen({ kind: 'field', fieldId: definition }, false);
+          setMessage('Review the impact with Delete definition.');
+          return;
+        }
+        const options =
+          context
+            .fields()
+            ?.fields.filter(field => field.kind === 'choice')
+            .flatMap(field => field.options) ?? [];
+        if (!options.some(option => selectedRoots.includes(option.id))) {
+          apply({ kind: 'delete', ids: selectedRoots }, false);
+          return;
+        }
+        void (async () => {
+          await doc.flush();
+          const impact = await optionImpact(
+            props.notebook,
+            await Promise.all(selectedRoots.map(id => props.notebook.api.block(id))),
+            context.fields()?.fields ?? [],
+          );
+          const remove = async () => {
+            doc.rememberChange(await deleteFieldOptions(props.notebook, impact));
+            setMessage('Choice options deleted; written labels kept.');
+          };
+          if (!impact.values.length) {
+            await remove();
+            return;
+          }
+          const anchor = rowAnchor(selectedRoots[0]!);
+          if (!anchor) return;
+          const consequence = `${plural(impact.values.length, 'value')} · ${plural(new Set(impact.values.map(value => value.owner)).size, 'owner')}. Labels and child notes stay.`;
+          setMenu({
+            anchor,
+            label: 'Delete choice options',
+            title: 'Delete choice options?',
+            context: consequence,
+            caption: `Delete choice options? ${consequence}`,
+            items: [
+              { label: 'Cancel', action: () => {} },
+              {
+                label: 'Delete options',
+                danger: true,
+                action: () => {
+                  void remove().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
+                },
+              },
+            ],
+          });
+        })().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
+      },
+    },
+    {
+      id: 'undo',
+      title: 'Undo',
+      section: 'Editing',
+      keys: ['⌘Z', 'u'],
+      disabledReason: () => (doc.canUndo() ? undefined : 'Nothing to undo.'),
+      run: () => undo(),
+    },
+    {
+      id: 'redo',
+      title: 'Redo',
+      section: 'Editing',
+      keys: ['⌘⇧Z', '⌃R'],
+      disabledReason: () => (doc.canRedo() ? undefined : 'Nothing to redo.'),
+      run: () => undo(true),
+    },
+    {
+      id: 'review-conflict',
+      title: 'Review conflict',
+      section: 'Editing',
       disabledReason: () => {
-        const item = investigationItems(selected() ?? props.pageId).find(item => item.label === title);
-        return item ? item.disabledReason : 'Select a matching question or answer.';
+        doc.outline.version();
+        for (let index = 0; index < doc.outline.size(); index++)
+          if (doc.block(doc.outline.idAt(index))?.conflict) return undefined;
+        return 'No conflicting atoms.';
       },
       run: () => {
-        const item = investigationItems(selected() ?? props.pageId).find(item => item.label === title);
-        if (item && !item.disabledReason) item.action?.();
+        for (let index = 0; index < doc.outline.size(); index++) {
+          const id = doc.outline.idAt(index);
+          if (!doc.block(id)?.conflict) continue;
+          setConflicts(previous => new Set([...previous, id]));
+          if (!indices().has(id)) {
+            setFolds(new Set<string>());
+            setShowArchived(true);
+            setZoom(null);
+          }
+          editAt(id, 0, false);
+          break;
+        }
       },
+    },
+    ...([null, 1, 2, 3] as const).map(level => ({
+      id: `heading-${level ?? 'normal'}`,
+      title: level ? `Heading ${level}` : 'Normal text',
+      section: 'Editing' as const,
+      run: () => selected() && apply({ kind: 'heading', id: selected()!, level }),
     })),
-    { id: 'project', title: 'Project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
-    { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
-    { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
-    { id: 'card-source', title: 'Show card source', section: 'Navigation', run: () => selected() && capabilities.source(selected()!) },
-    { id: 'archive', title: 'Archive / unarchive atom', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
-    { id: 'show-archived', title: 'Show / hide archived atoms', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
-    { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => {
-      const selectedRoots = roots();
-      const definition = selectedRoots.find(id => context.definitionsById().has(id));
-      if (definition) { props.onOpen({ kind: 'field', fieldId: definition }, false); setMessage('Review the impact with Delete definition.'); return; }
-      const options = context.fields()?.fields.filter(field => field.kind === 'choice').flatMap(field => field.options) ?? [];
-      if (!options.some(option => selectedRoots.includes(option.id))) { apply({ kind: 'delete', ids: selectedRoots }, false); return; }
-      void (async () => {
-        await doc.flush();
-        const impact = await optionImpact(props.notebook, await Promise.all(selectedRoots.map(id => props.notebook.api.block(id))), context.fields()?.fields ?? []);
-        const remove = async () => {
-          doc.rememberChange(await deleteFieldOptions(props.notebook, impact));
-          setMessage('Choice options deleted; written labels kept.');
-        };
-        if (!impact.values.length) { await remove(); return; }
-        const anchor = rowAnchor(selectedRoots[0]!);
-        if (!anchor) return;
-        const consequence = `${plural(impact.values.length, 'value')} · ${plural(new Set(impact.values.map(value => value.owner)).size, 'owner')}. Labels and child notes stay.`;
-        setMenu({ anchor, label: 'Delete choice options', title: 'Delete choice options?', context: consequence, caption: `Delete choice options? ${consequence}`, items: [
-          { label: 'Cancel', action: () => {} },
-          { label: 'Delete options', danger: true, action: () => { void remove().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason))); } },
-        ] });
-      })().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
-    } },
-    { id: 'undo', title: 'Undo', section: 'Editing', keys: ['⌘Z', 'u'], disabledReason: () => doc.canUndo() ? undefined : 'Nothing to undo.', run: () => undo() },
-    { id: 'redo', title: 'Redo', section: 'Editing', keys: ['⌘⇧Z', '⌃R'], disabledReason: () => doc.canRedo() ? undefined : 'Nothing to redo.', run: () => undo(true) },
-    { id: 'review-conflict', title: 'Review conflict', section: 'Editing', disabledReason: () => {
-      doc.outline.version();
-      for (let index = 0; index < doc.outline.size(); index++) if (doc.block(doc.outline.idAt(index))?.conflict) return undefined;
-      return 'No conflicting atoms.';
-    }, run: () => {
-      for (let index = 0; index < doc.outline.size(); index++) {
-        const id = doc.outline.idAt(index);
-        if (!doc.block(id)?.conflict) continue;
-        setConflicts(previous => new Set([...previous, id]));
-        if (!indices().has(id)) { setFolds(new Set<string>()); setShowArchived(true); setZoom(null); }
-        editAt(id, 0, false);
-        break;
-      }
-    } },
-    ...([null, 1, 2, 3] as const).map(level => ({ id: `heading-${level ?? 'normal'}`, title: level ? `Heading ${level}` : 'Normal text', section: 'Editing' as const, run: () => selected() && apply({ kind: 'heading', id: selected()!, level }) })),
   ];
   const commandDefinitions = commandsFor();
   let unregister = () => {};
@@ -347,15 +1292,43 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const commands = commandsFor().map(command => ({
       ...command,
       id: `outline.${props.pane}.${command.id}`,
-      disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select an atom first.' : undefined),
-      ...(['add-field-root', 'change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id) ? { capture: (): Command => {
-        const id = selected();
-        const bound = commandsFor(() => id).find(candidate => candidate.id === command.id)!;
-        const label = id ? plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) : '';
-        const reason = !props.active ? 'This pane is not active.' : bound.disabledReason?.();
-        if (command.id === 'add-field-root') return { ...bound, id: `outline.${props.pane}.${command.id}`, section: id ? 'Atom' : 'Page', title: `${bound.title}${label ? ` · ${label}` : ''}`, disabledReason: () => reason, run: () => { const owner = id ?? props.pageId; pickField(owner, rowAnchor(owner) ?? context.heading); } };
-        return { ...bound, id: `outline.${props.pane}.${command.id}`, title: `${bound.title}${label ? ` · ${label}` : ''}`, disabledReason: () => reason };
-      } } : {}),
+      disabledReason: () =>
+        !props.active
+          ? 'This pane is not active.'
+          : (command.disabledReason?.() ??
+            (command.section !== 'Page' &&
+            !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) &&
+            !selected()
+              ? 'Select an atom first.'
+              : undefined)),
+      ...(['add-field-root', 'change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id)
+        ? {
+            capture: (): Command => {
+              const id = selected();
+              const bound = commandsFor(() => id).find(candidate => candidate.id === command.id)!;
+              const label = id ? plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) : '';
+              const reason = !props.active ? 'This pane is not active.' : bound.disabledReason?.();
+              if (command.id === 'add-field-root')
+                return {
+                  ...bound,
+                  id: `outline.${props.pane}.${command.id}`,
+                  section: id ? 'Atom' : 'Page',
+                  title: `${bound.title}${label ? ` · ${label}` : ''}`,
+                  disabledReason: () => reason,
+                  run: () => {
+                    const owner = id ?? props.pageId;
+                    pickField(owner, rowAnchor(owner) ?? context.heading);
+                  },
+                };
+              return {
+                ...bound,
+                id: `outline.${props.pane}.${command.id}`,
+                title: `${bound.title}${label ? ` · ${label}` : ''}`,
+                disabledReason: () => reason,
+              };
+            },
+          }
+        : {}),
     }));
     unregister();
     unregister = props.commands.register(commands);
@@ -365,16 +1338,32 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function holderFixes(id: string): MenuItem[] {
     const holder = doc.block(id)?.position?.problem ? doc.block(id)?.position?.holder_id : undefined;
     if (!holder) return [];
-    const name = plainText(props.notebook.lookup(holder)()?.text ?? '', target => props.notebook.lookup(target)) || 'the holder';
-    return entityKinds.map(kind => ({ label: `File ${name} as ${entityLabel(kind)}`, action: () => {
-      void fileAsEntity(props.notebook, holder, kind, [props.pageId]).catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
-    } }));
+    const name =
+      plainText(props.notebook.lookup(holder)()?.text ?? '', target => props.notebook.lookup(target)) || 'the holder';
+    return entityKinds.map(kind => ({
+      label: `File ${name} as ${entityLabel(kind)}`,
+      action: () => {
+        void fileAsEntity(props.notebook, holder, kind, [props.pageId]).catch(reason =>
+          setMessage(reason instanceof Error ? reason.message : String(reason)),
+        );
+      },
+    }));
   }
   function holderMenu(id: string, anchor: HTMLElement) {
     const problem = doc.block(id)?.position?.problem;
     if (!problem) return;
     if (!selectedSet().has(id)) rowFocus(id);
-    setMenu({ anchor, label: 'Holder', title: 'Holder', context: problem, caption: problem, items: [...holderFixes(id), { label: 'Change holder…', action: () => context.openRelation(id, 'holder', anchor) }] });
+    setMenu({
+      anchor,
+      label: 'Holder',
+      title: 'Holder',
+      context: problem,
+      caption: problem,
+      items: [
+        ...holderFixes(id),
+        { label: 'Change holder…', action: () => context.openRelation(id, 'holder', anchor) },
+      ],
+    });
   }
   /** What both of a row's menus draw from: the row's commands, its capability managers and its Make rows. Selects the row. */
   function blockMenuModel(id: string, anchor: HTMLElement) {
@@ -382,9 +1371,17 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const rowCommands = commandsFor(() => id);
     const item = (commandId: string, label?: string): MenuItem => {
       const command = rowCommands.find(candidate => candidate.id === commandId)!;
-      return { label: label ?? command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: () => command.run() };
+      return {
+        label: label ?? command.title,
+        shortcut: command.keys?.[0],
+        disabledReason: command.disabledReason?.(),
+        action: () => command.run(),
+      };
     };
-    const group = (label: string, title: string, items: () => MenuItem[]): MenuItem => ({ label, submenu: () => ({ title, items: items() }) });
+    const group = (label: string, title: string, items: () => MenuItem[]): MenuItem => ({
+      label,
+      submenu: () => ({ title, items: items() }),
+    });
     const entry = doc.block(id);
     if (!entry) return;
     const investigation = investigationItems(id);
@@ -395,56 +1392,118 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const hasCards = parseCardText(entry.text).cards.length > 0 || !!(entry.image && entry.occlusion?.groups.length);
     const sourceItems = [
       ...sourceResets(id),
-      ...(entry.citations.length ? [{ label: 'Remove citation', divider: true, danger: true, action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
+      ...(entry.citations.length
+        ? [
+            {
+              label: 'Remove citation',
+              divider: true,
+              danger: true,
+              action: () =>
+                apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false),
+            },
+          ]
+        : []),
     ];
     const managers: MenuItem[] = [
-      ...(entry.image ? [group('Image…', 'Image', () => [
-        { label: 'Open image', action: () => context.openImage(id) },
-        { label: entry.occlusion?.masks.length ? 'Edit masks…' : 'Draw masks…', action: () => context.editOcclusion(id) },
-        { label: 'Replace image…', action: () => context.chooseImage(id, true) },
-        { label: 'Remove image', action: () => apply({ kind: 'image', id, image: null }, false) },
-      ])] : []),
+      ...(entry.image
+        ? [
+            group('Image…', 'Image', () => [
+              { label: 'Open image', action: () => context.openImage(id) },
+              {
+                label: entry.occlusion?.masks.length ? 'Edit masks…' : 'Draw masks…',
+                action: () => context.editOcclusion(id),
+              },
+              { label: 'Replace image…', action: () => context.chooseImage(id, true) },
+              { label: 'Remove image', action: () => apply({ kind: 'image', id, image: null }, false) },
+            ]),
+          ]
+        : []),
       ...(fieldEntry(id) ? [{ label: 'Field…', action: () => fieldMenu(id, anchor) }] : []),
-      ...(entry.task ? [group('Task…', 'Task', () => [
-        ...(entry.task?.status ? [item('toggle-task', isFinished(entry.task) ? 'Reopen task' : 'Complete task'),
-          group('Set task status…', 'Task status', () => statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status))))] : []),
-        { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
-        { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
-        { ...item('remove-task'), divider: true, danger: true },
-      ])] : []),
-      ...(entry.project ? [group('Project…', 'Project', () => [
-        { label: 'Project', action: () => capabilities.open(id, 'project', anchor) },
-        { label: 'Show actions', action: () => capabilities.showActions(id) },
-      ])] : []),
-      ...(entry.position ? [group('Perspective…', 'Perspective', () => [
-        ...holderFixes(id), item('change-holder'), item('file-under'), item('use-place'),
-        ...(!addRelationReason(entry) ? [group('Add argument…', 'Add argument', () => relationItems(id, true, undefined, anchor))] : []),
-        { ...item('remove-perspective'), divider: true, danger: true },
-      ])] : []),
+      ...(entry.task
+        ? [
+            group('Task…', 'Task', () => [
+              ...(entry.task?.status
+                ? [
+                    item('toggle-task', isFinished(entry.task) ? 'Reopen task' : 'Complete task'),
+                    group('Set task status…', 'Task status', () =>
+                      statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status))),
+                    ),
+                  ]
+                : []),
+              { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
+              { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
+              { ...item('remove-task'), divider: true, danger: true },
+            ]),
+          ]
+        : []),
+      ...(entry.project
+        ? [
+            group('Project…', 'Project', () => [
+              { label: 'Project', action: () => capabilities.open(id, 'project', anchor) },
+              { label: 'Show actions', action: () => capabilities.showActions(id) },
+            ]),
+          ]
+        : []),
+      ...(entry.position
+        ? [
+            group('Perspective…', 'Perspective', () => [
+              ...holderFixes(id),
+              item('change-holder'),
+              item('file-under'),
+              item('use-place'),
+              ...(!addRelationReason(entry)
+                ? [group('Add argument…', 'Add argument', () => relationItems(id, true, undefined, anchor))]
+                : []),
+              { ...item('remove-perspective'), divider: true, danger: true },
+            ]),
+          ]
+        : []),
       ...(entry.question ? [group('Question…', 'Question', () => investigationItems(id, true))] : []),
       ...(entry.assessment ? [group('Assessment…', 'Assessment', () => investigationItems(id, true))] : []),
-      ...(entry.relation ? [group('Argument…', 'Argument', () => [
-        group('Change relation…', 'Argument relation', () => relationItems(id)),
-        { ...item('remove-relation'), divider: true, danger: true },
-      ])] : []),
-      ...(hasCards ? [group('Cards…', 'Cards', () => [
-        { label: 'Review cards', action: () => props.onOpen({ kind: 'review', blockId: id }, false) },
-        { label: 'Show card source', action: () => capabilities.source(id) },
-      ])] : []),
+      ...(entry.relation
+        ? [
+            group('Argument…', 'Argument', () => [
+              group('Change relation…', 'Argument relation', () => relationItems(id)),
+              { ...item('remove-relation'), divider: true, danger: true },
+            ]),
+          ]
+        : []),
+      ...(hasCards
+        ? [
+            group('Cards…', 'Cards', () => [
+              { label: 'Review cards', action: () => props.onOpen({ kind: 'review', blockId: id }, false) },
+              { label: 'Show card source', action: () => capabilities.source(id) },
+            ]),
+          ]
+        : []),
       ...(sourceItems.length ? [group('Citation…', 'Citation', () => sourceItems)] : []),
     ];
     const makeItems: MenuItem[] = [
-      { label: 'Tag…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
+      {
+        label: 'Tag…',
+        action: () => {
+          setCompletionIndex(0);
+          setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } });
+        },
+      },
       ...(!entry.image ? [item('make-image', 'Image…')] : []),
       ...(!entry.task ? [item('make-task', 'Task')] : []),
       ...(!entry.project ? [item('make-project', 'Project')] : []),
       ...(!entry.position ? [item('make-perspective', 'Perspective')] : []),
-      ...(!entry.question && !entry.assessment ? [makeInvestigation('question'), makeInvestigation('assessment')].filter((item): item is MenuItem => !!item) : []),
+      ...(!entry.question && !entry.assessment
+        ? [makeInvestigation('question'), makeInvestigation('assessment')].filter((item): item is MenuItem => !!item)
+        : []),
       // Perspectives, questions and assessments add relations from their own manager.
-      ...(!entry.relation && !entry.position && !entry.question && !entry.assessment ? [{
-        ...group('Argument…', 'Argument', () => relationKinds.map(kind => item(`relation-${kind}`, relationLabels[kind]))),
-        disabledReason: relationReason(entry),
-      }] : []),
+      ...(!entry.relation && !entry.position && !entry.question && !entry.assessment
+        ? [
+            {
+              ...group('Argument…', 'Argument', () =>
+                relationKinds.map(kind => item(`relation-${kind}`, relationLabels[kind])),
+              ),
+              disabledReason: relationReason(entry),
+            },
+          ]
+        : []),
       ...(!hasCards ? [group('Card…', 'Cards', () => cardItems(id))] : []),
     ];
     return { entry, item, group, managers, makeItems, hasCards };
@@ -454,22 +1513,36 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const model = blockMenuModel(id, anchor);
     if (!model) return;
     const { entry, item, group, managers, makeItems } = model;
-    setMenu({ anchor, label: 'Atom actions', title: 'Atom actions', context: plainText(entry.text, target => props.notebook.lookup(target)), items: [
-      item('edit', 'Edit'), item('insert-below', 'Insert below'),
-      group('Move…', 'Move', () => [
-        item('indent', 'Indent'), item('outdent', 'Outdent'),
-        item('move-up', 'Move up'), item('move-down', 'Move down'),
-        item('move-to-page'),
-        ...(doc.root()?.kind === 'journal' ? [item('integrate')] : []),
-      ]),
-      { ...item('copy-reference', 'Copy reference'), divider: true },
-      ...(!window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches ? [item('open-beside', 'Open beside')] : []),
-      ...managers.map((item, index) => ({ ...item, divider: index === 0 })),
-      { label: 'Add field…', divider: !managers.length, action: () => pickField(id, anchor) },
-      { label: 'Make…', submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this atom and keeps its text.' }) },
-      { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true },
-      { ...item('delete', 'Delete…'), danger: true },
-    ] });
+    setMenu({
+      anchor,
+      label: 'Atom actions',
+      title: 'Atom actions',
+      context: plainText(entry.text, target => props.notebook.lookup(target)),
+      items: [
+        item('edit', 'Edit'),
+        item('insert-below', 'Insert below'),
+        group('Move…', 'Move', () => [
+          item('indent', 'Indent'),
+          item('outdent', 'Outdent'),
+          item('move-up', 'Move up'),
+          item('move-down', 'Move down'),
+          item('move-to-page'),
+          ...(doc.root()?.kind === 'journal' ? [item('integrate')] : []),
+        ]),
+        { ...item('copy-reference', 'Copy reference'), divider: true },
+        ...(!window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches
+          ? [item('open-beside', 'Open beside')]
+          : []),
+        ...managers.map((item, index) => ({ ...item, divider: index === 0 })),
+        { label: 'Add field…', divider: !managers.length, action: () => pickField(id, anchor) },
+        {
+          label: 'Make…',
+          submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this atom and keeps its text.' }),
+        },
+        { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true },
+        { ...item('delete', 'Delete…'), danger: true },
+      ],
+    });
   }
   /** A phone's long-press menu, over the row lifted from the page: the outline moves as one palette row, the common acts, what the
    * row can turn into, and Delete alone at the foot. Zoom (the bullet), Open beside and Insert below (Return) are not offered. */
@@ -477,20 +1550,50 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const model = blockMenuModel(id, source);
     if (!model) return;
     const { entry, item, group, managers, makeItems, hasCards } = model;
-    const move = (commandId: string, label: string, icon: IconName): MenuPaletteButton => { const { disabledReason, action } = item(commandId); return { label, icon, disabledReason, action }; };
-    const act = (commandId: string, label: string, icon: IconName): MenuItem => ({ ...item(commandId, label), shortcut: undefined, icon });
+    const move = (commandId: string, label: string, icon: IconName): MenuPaletteButton => {
+      const { disabledReason, action } = item(commandId);
+      return { label, icon, disabledReason, action };
+    };
+    const act = (commandId: string, label: string, icon: IconName): MenuItem => ({
+      ...item(commandId, label),
+      shortcut: undefined,
+      icon,
+    });
     const turnInto = makeItems.filter(choice => choice.label !== 'Task' && choice.label !== 'Card…');
     const groups: MenuItem[][] = [
-      [{ label: 'Move', palette: [move('outdent', 'Outdent', 'outdent'), move('indent', 'Indent', 'indent'), move('move-up', 'Move up', 'up'), move('move-down', 'Move down', 'down')] }],
+      [
+        {
+          label: 'Move',
+          palette: [
+            move('outdent', 'Outdent', 'outdent'),
+            move('indent', 'Indent', 'indent'),
+            move('move-up', 'Move up', 'up'),
+            move('move-down', 'Move down', 'down'),
+          ],
+        },
+      ],
       [
         ...(!entry.task ? [act('make-task', 'Make task', 'maketask')] : []),
         ...(!hasCards ? [act('add-card', 'Add card', 'addcard')] : []),
         ...managers,
         { label: 'Add field', icon: 'field' as const, action: () => pickField(id, source) },
-        { label: 'Turn into', submenu: () => ({ title: 'Turn into', items: [
-          ...turnInto,
-          ...(!hasCards ? [{ label: 'Cloze', action: () => addCard(id, 'cloze') }, group('Card…', 'Cards', () => cardItems(id).filter(choice => choice.label !== 'Card' && choice.label !== 'Cloze'))] : []),
-        ] }) },
+        {
+          label: 'Turn into',
+          submenu: () => ({
+            title: 'Turn into',
+            items: [
+              ...turnInto,
+              ...(!hasCards
+                ? [
+                    { label: 'Cloze', action: () => addCard(id, 'cloze') },
+                    group('Card…', 'Cards', () =>
+                      cardItems(id).filter(choice => choice.label !== 'Card' && choice.label !== 'Cloze'),
+                    ),
+                  ]
+                : []),
+            ],
+          }),
+        },
       ],
       [
         act('move-to-page', 'Move to atom', 'moveto'),
@@ -500,15 +1603,35 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ],
       [{ ...act('delete', 'Delete', 'trash'), danger: true }],
     ];
-    openContextMenu({ source, label: 'Atom actions', items: groups.flatMap(rows => rows.map((row, at) => at ? row : { ...row, divider: true })), onClose: restoreFocus });
+    openContextMenu({
+      source,
+      label: 'Atom actions',
+      items: groups.flatMap(rows => rows.map((row, at) => (at ? row : { ...row, divider: true }))),
+      onClose: restoreFocus,
+    });
   }
   /** Keyboard menus hand focus back to the row or editor that opened them before their action runs. */
   function keyboardMenu(id: string, label: string, items: MenuItem[]) {
     const anchor = rowAnchor(id);
     if (!anchor) return;
     const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const refocus = () => { if (prior?.isConnected) prior.focus({ preventScroll: true }); };
-    setMenu({ anchor, label, ...(label === 'Question' ? { title: label, context: plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) } : {}), items: items.map(item => ({ ...item, action: () => { refocus(); item.action?.(); } })) });
+    const refocus = () => {
+      if (prior?.isConnected) prior.focus({ preventScroll: true });
+    };
+    setMenu({
+      anchor,
+      label,
+      ...(label === 'Question'
+        ? { title: label, context: plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) }
+        : {}),
+      items: items.map(item => ({
+        ...item,
+        action: () => {
+          refocus();
+          item.action?.();
+        },
+      })),
+    });
   }
   function statusMenu(id: string) {
     const task = doc.block(id)?.task;
@@ -531,49 +1654,90 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function openProject(id: string) {
     const block = doc.block(id);
     if (!block) return;
-    if (!block.project && block.kind === 'block' && doc.root()?.kind === 'journal') { void promoteToProject(id); return; }
-    if (!block.project) capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }));
+    if (!block.project && block.kind === 'block' && doc.root()?.kind === 'journal') {
+      void promoteToProject(id);
+      return;
+    }
+    if (!block.project)
+      capabilities.invoke(
+        capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }),
+      );
     capabilities.open(id, 'project');
   }
   async function promoteToProject(id: string) {
     const title = plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)).trim();
-    if (!title) { setMessage('Write the project’s name in the atom, then make it a project.'); return; }
+    if (!title) {
+      setMessage('Write the project’s name in the atom, then make it a project.');
+      return;
+    }
     // The block's sentence ends with a stop that a page title does not carry, and the notice supplies its own.
     const name = title.replace(/[.…,;:]+$/u, '').trimEnd() || title;
     rowFocus(id);
-    await capabilities.run(id, async () => {
-      const { change } = await props.notebook.promoteToProject(id, name);
-      context.showNotice(`Made project ${name}${/[.!?…]$/u.test(name) ? '' : '.'}`, change.undo);
-    }).catch(() => {});
+    await capabilities
+      .run(id, async () => {
+        const { change } = await props.notebook.promoteToProject(id, name);
+        context.showNotice(`Made project ${name}${/[.!?…]$/u.test(name) ? '' : '.'}`, change.undo);
+      })
+      .catch(() => {});
   }
   function addCard(id: string, kind: InsertCardKind = 'forward') {
     const next = insertCard(doc.block(id)?.text ?? '', kind, caret()?.id === id ? caret()!.offset : undefined);
-    if (context.editor?.id === id && editing() === id) { if (rewriteEditing(id, next)) editAt(id, next.caret, true); return; }
+    if (context.editor?.id === id && editing() === id) {
+      if (rewriteEditing(id, next)) editAt(id, next.caret, true);
+      return;
+    }
     const result = doc.edit({ kind: 'text', id, text: next.text }, caret());
-    if (!result.ok) { setMessage(result.reason); return; }
+    if (!result.ok) {
+      setMessage(result.reason);
+      return;
+    }
     editAt(id, next.caret, true);
   }
   function makeCloze() {
     const id = editing() ?? selected();
     if (!id) return;
     const range = context.activeRange();
-    if (range && range.anchor.id !== range.head.id) { setMessage('Select text in one atom.'); return; }
+    if (range && range.anchor.id !== range.head.id) {
+      setMessage('Select text in one atom.');
+      return;
+    }
     const text = doc.block(id)?.text ?? '';
-    const from = range ? Math.min(range.anchor.offset, range.head.offset) : caret()?.id === id ? caret()!.offset : text.length;
+    const from = range
+      ? Math.min(range.anchor.offset, range.head.offset)
+      : caret()?.id === id
+        ? caret()!.offset
+        : text.length;
     const to = range ? Math.max(range.anchor.offset, range.head.offset) : from;
     const next = wrapCloze(text, from, to);
-    if ('reason' in next) { setMessage(next.reason); return; }
+    if ('reason' in next) {
+      setMessage(next.reason);
+      return;
+    }
     // Range replacement is a discrete document history entry, separate from adjacent typing.
-    replaceSelection(next.text, 'text', { anchor: { id, offset: 0 }, head: { id, offset: text.length } }, range ?? undefined);
+    replaceSelection(
+      next.text,
+      'text',
+      { anchor: { id, offset: 0 }, head: { id, offset: text.length } },
+      range ?? undefined,
+    );
     editAt(id, next.caret, true);
   }
   function cardItems(id: string): MenuItem[] {
     const kinds: [string, string, InsertCardKind][] = [
-      ['c', 'Card', 'forward'], ['r', 'Reverse', 'reverse'], ['b', 'Reversible', 'both'],
-      ['m', 'Multi-line', 'multiline'], ['l', 'List', 'list'], ['d', 'Descriptor', 'descriptor'], ['z', 'Cloze', 'cloze'],
+      ['c', 'Card', 'forward'],
+      ['r', 'Reverse', 'reverse'],
+      ['b', 'Reversible', 'both'],
+      ['m', 'Multi-line', 'multiline'],
+      ['l', 'List', 'list'],
+      ['d', 'Descriptor', 'descriptor'],
+      ['z', 'Cloze', 'cloze'],
     ];
-    return [...kinds.map(([key, label, kind]) => ({ key, shortcut: key, label, action: () => addCard(id, kind) })),
-      ...(doc.block(id)?.image ? [{ key: 'i', shortcut: 'i', label: 'Image occlusion', action: () => context.editOcclusion(id) }] : [])];
+    return [
+      ...kinds.map(([key, label, kind]) => ({ key, shortcut: key, label, action: () => addCard(id, kind) })),
+      ...(doc.block(id)?.image
+        ? [{ key: 'i', shortcut: 'i', label: 'Image occlusion', action: () => context.editOcclusion(id) }]
+        : []),
+    ];
   }
   function cardMenu(id: string) {
     keyboardMenu(id, 'Cards', cardItems(id));
@@ -581,22 +1745,49 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
   function leaderMenu(id: string) {
     const rowCommands = commandsFor(() => id);
-    const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({ key, shortcut: key, label, section, action: run });
+    const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({
+      key,
+      shortcut: key,
+      label,
+      section,
+      action: run,
+    });
     const commandItem = (key: string, commandId: string, section?: string): MenuItem => {
       const command = rowCommands.find(command => command.id === commandId)!;
-      return { key, shortcut: key, label: command.title, section, disabledReason: command.disabledReason?.(), action: () => command.run() };
+      return {
+        key,
+        shortcut: key,
+        label: command.title,
+        section,
+        disabledReason: command.disabledReason?.(),
+        action: () => command.run(),
+      };
     };
     const block = doc.block(id);
     let ancestor = block?.parentId ?? null;
     while (ancestor && !doc.block(ancestor)?.question) ancestor = doc.block(ancestor)?.parentId ?? null;
     keyboardMenu(id, 'Leader keys', [
-      ...(fieldEntry(id) ? [leader('f', 'Field…', () => { const anchor = rowAnchor(id); if (anchor) fieldMenu(id, anchor); }, 'Field')] : []),
+      ...(fieldEntry(id)
+        ? [
+            leader(
+              'f',
+              'Field…',
+              () => {
+                const anchor = rowAnchor(id);
+                if (anchor) fieldMenu(id, anchor);
+              },
+              'Field',
+            ),
+          ]
+        : []),
       leader('t', 'Status…', () => statusMenu(id), 'Task'),
       leader('s', 'Schedule…', () => openPlanning(id, 'schedule')),
       leader('d', 'Deadline…', () => openPlanning(id, 'deadline')),
       leader('p', 'Priority…', () => priorityMenu(id)),
       leader('r', 'Repeat…', () => openPlanning(id, 'repeat')),
-      leader('w', doc.block(id)?.task ? 'Clock in / out' : 'Clock in', () => capabilities.invoke(capabilities.clock(id))),
+      leader('w', doc.block(id)?.task ? 'Clock in / out' : 'Clock in', () =>
+        capabilities.invoke(capabilities.clock(id)),
+      ),
       commandItem('o', block?.project ? 'project' : 'make-project', 'Project'),
       ...(block?.question
         ? [leader('q', 'Question…', () => keyboardMenu(id, 'Question', investigationItems(id, true)), 'Question')]
@@ -606,5 +1797,24 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
-  return { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, rowContext, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
+  return {
+    openTable,
+    investigationItems,
+    markRelation,
+    relationMenu,
+    commandDefinitions,
+    unregister,
+    blockMenu,
+    rowContext,
+    holderMenu,
+    fieldMenu,
+    statusMenu,
+    priorityMenu,
+    openPlanning,
+    openProject,
+    leaderMenu,
+    makeCloze,
+    referenceMenu,
+    copy,
+  };
 }

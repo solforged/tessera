@@ -8,8 +8,29 @@ import { isPhone } from '../ui/phone';
  * footnote under it. Elsewhere the rows keep the desktop layout, under the numbered head and the note's paragraph.
  * A group that only the phone splits off (Captures, the tiles) passes `label` and `footnote` instead.
  */
-export function Group(props: { heading?: JSX.Element; note?: JSX.Element; label?: JSX.Element; footnote?: JSX.Element; children: JSX.Element }) {
-  return <Show when={isPhone()} fallback={<>{props.heading}<Show when={props.note}><p class="settings-empty">{props.note}</p></Show>{props.children}</>}>
-    <ListGroup label={props.label ?? props.heading} footnote={props.footnote ?? props.note} class="settings-group">{props.children}</ListGroup>
-  </Show>;
+export function Group(props: {
+  heading?: JSX.Element;
+  note?: JSX.Element;
+  label?: JSX.Element;
+  footnote?: JSX.Element;
+  children: JSX.Element;
+}) {
+  return (
+    <Show
+      when={isPhone()}
+      fallback={
+        <>
+          {props.heading}
+          <Show when={props.note}>
+            <p class="settings-empty">{props.note}</p>
+          </Show>
+          {props.children}
+        </>
+      }
+    >
+      <ListGroup label={props.label ?? props.heading} footnote={props.footnote ?? props.note} class="settings-group">
+        {props.children}
+      </ListGroup>
+    </Show>
+  );
 }

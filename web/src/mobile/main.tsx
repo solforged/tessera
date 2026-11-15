@@ -25,11 +25,16 @@ setStreamFactory(notebookStream);
 setOpenedFilesInbox(() => invoke<OpenedFiles>('take_opened_files'));
 // MainActivity holds launcher, share, widget and tile requests as `{ kind, text }` JSON; taking one clears it.
 const capture = (window as Window & { TesseraCapture?: { take(): string; showKeyboard(): void } }).TesseraCapture;
-if (capture) setQuickCaptureSource({ take: () => parseCreateRequest(capture.take()), showKeyboard: () => capture.showKeyboard() });
+if (capture)
+  setQuickCaptureSource({ take: () => parseCreateRequest(capture.take()), showKeyboard: () => capture.showKeyboard() });
 // The status and gesture bars' heights, which the WebView leaves out of the safe-area insets on some devices. Folding
 // and the keyboard change them; MainActivity says so with `tessera-insets`. The reader hides both bars while its
 // chrome is away, and their icons follow the app's theme rather than the system's.
-const insets = (window as Window & { TesseraInsets?: { top(): number; bottom(): number; bars(visible: boolean): void; lightBars(light: boolean): void } }).TesseraInsets;
+const insets = (
+  window as Window & {
+    TesseraInsets?: { top(): number; bottom(): number; bars(visible: boolean): void; lightBars(light: boolean): void };
+  }
+).TesseraInsets;
 if (insets) {
   const apply = () => {
     document.documentElement.style.setProperty('--system-top', `${insets.top()}px`);

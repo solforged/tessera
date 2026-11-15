@@ -31,7 +31,11 @@ export interface HighlightMenu {
 export type HighlightSection = TocEntry & { ordinal: number };
 
 /** Resolve chapter boundaries in the citation's snapshot, not the newest version. */
-export async function highlightSections(api: ApiClient, snapshotId: string, signal?: AbortSignal): Promise<HighlightSection[]> {
+export async function highlightSections(
+  api: ApiClient,
+  snapshotId: string,
+  signal?: AbortSignal,
+): Promise<HighlightSection[]> {
   const { toc } = await api.passages(snapshotId, 0, 1, signal);
   return toc.filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal);
 }
@@ -40,30 +44,65 @@ export async function highlightSections(api: ApiClient, snapshotId: string, sign
  * Keep edited documents alive with the surface so their undo history survives the menu. A surface that can write a
  * new note in place passes `composeNote`; it returns false to fall back to opening the note on its page.
  */
-export function createHighlightActions(notebook: NotebookClient, onOpen: (target: OpenTarget, beside: boolean) => void, onError: (message: string) => void, onProcessed?: (row: HighlightRow) => void, onRemoved?: () => void, composeNote?: (row: HighlightRow, noteId: string) => boolean) {
+export function createHighlightActions(
+  notebook: NotebookClient,
+  onOpen: (target: OpenTarget, beside: boolean) => void,
+  onError: (message: string) => void,
+  onProcessed?: (row: HighlightRow) => void,
+  onRemoved?: () => void,
+  composeNote?: (row: HighlightRow, noteId: string) => boolean,
+) {
   const documents = new Map<string, PageDocument>();
   const tagPrompt = createHighlightTagPrompt();
   const [lastDocument, setLastDocument] = createSignal<PageDocument>();
-  const [cardDraft, setCardDraft] = createSignal<{ document: PageDocument; row: HighlightRow; anchor?: DOMRect; pane: HTMLElement | null; opener: HTMLElement | null }>();
+  const [cardDraft, setCardDraft] = createSignal<{
+    document: PageDocument;
+    row: HighlightRow;
+    anchor?: DOMRect;
+    pane: HTMLElement | null;
+    opener: HTMLElement | null;
+  }>();
   /** The caret handoff focuses the new atom's editor. If it has not taken focus after a couple of frames (WebKit), focus that pane's editor, else the control that started the card. */
   const settleFocus = (origin: HTMLElement | null, opener: HTMLElement | null) => {
     let frames = 0;
     const check = () => {
       if (disposed) return;
       const active = globalThis.document.activeElement;
-      if (active && active !== globalThis.document.body && !active.closest('.library-pane') && !active.closest('.popup')) return;
-      if (++frames < 3) { requestAnimationFrame(check); return; }
-      const panes = [...globalThis.document.querySelectorAll<HTMLElement>('.pane')].filter(pane => pane !== origin && pane.querySelector('.outline-pane'));
+      if (
+        active &&
+        active !== globalThis.document.body &&
+        !active.closest('.library-pane') &&
+        !active.closest('.popup')
+      )
+        return;
+      if (++frames < 3) {
+        requestAnimationFrame(check);
+        return;
+      }
+      const panes = [...globalThis.document.querySelectorAll<HTMLElement>('.pane')].filter(
+        pane => pane !== origin && pane.querySelector('.outline-pane'),
+      );
       const pane = panes.find(value => value.classList.contains('active')) ?? panes.at(-1);
-      const target = pane?.querySelector<HTMLElement>('[contenteditable="true"], textarea, .cm-content') ?? pane?.querySelector<HTMLElement>('.outline-pane') ?? (opener?.isConnected ? opener : null);
+      const target =
+        pane?.querySelector<HTMLElement>('[contenteditable="true"], textarea, .cm-content') ??
+        pane?.querySelector<HTMLElement>('.outline-pane') ??
+        (opener?.isConnected ? opener : null);
       target?.focus({ preventScroll: true });
     };
     requestAnimationFrame(check);
   };
   const [documentsVersion, setDocumentsVersion] = createSignal(0);
-  const [removal, setRemoval] = createSignal<{ anchor: DOMRect; written: number; references: number; remove(): Promise<void> }>();
+  const [removal, setRemoval] = createSignal<{
+    anchor: DOMRect;
+    written: number;
+    references: number;
+    remove(): Promise<void>;
+  }>();
   let disposed = false;
-  onCleanup(() => { disposed = true; for (const doc of documents.values()) doc.release(); });
+  onCleanup(() => {
+    disposed = true;
+    for (const doc of documents.values()) doc.release();
+  });
   const loadDocument = async (pageId: string) => {
     let doc = documents.get(pageId);
     if (!doc) {
@@ -74,31 +113,49 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     } else await documentReady(doc);
     return doc;
   };
-  const notes = (doc: PageDocument, id: string) => doc.outline.children(id).filter(child => {
-    const block = doc.block(child);
-    return block && !block.archived && !block.templateCards && !parseCardText(block.text).cards.length;
-  });
+  const notes = (doc: PageDocument, id: string) =>
+    doc.outline.children(id).filter(child => {
+      const block = doc.block(child);
+      return block && !block.archived && !block.templateCards && !parseCardText(block.text).cards.length;
+    });
   /** `anchor` is the highlight (or its row) the menu opened from, so follow-up popups open beside it. */
   const menu = async (row: HighlightRow, copyText?: string, anchor?: HTMLElement): Promise<HighlightMenu> => {
-    const id = row.citation.block_id, pageId = row.block.page.id;
+    const id = row.citation.block_id,
+      pageId = row.block.page.id;
     const active = globalThis.document.activeElement;
-    const opener = anchor ?? (active instanceof HTMLElement && active !== globalThis.document.body && !active.closest('.popup') ? active : null);
+    const opener =
+      anchor ??
+      (active instanceof HTMLElement && active !== globalThis.document.body && !active.closest('.popup')
+        ? active
+        : null);
     const document = await loadDocument(pageId);
     const hasNote = notes(document, id).some(child => !!document.block(child)?.text.trim());
-    const run = async (action: 'note' | 'card' | 'triage' | 'remove', confirmed = false, cancelInput?: (() => void) & { signal: AbortSignal }) => {
+    const run = async (
+      action: 'note' | 'card' | 'triage' | 'remove',
+      confirmed = false,
+      cancelInput?: (() => void) & { signal: AbortSignal },
+    ) => {
       await documentReady(document);
       if (disposed) return;
       if (action === 'card') {
         // Hang the draft from the control that started it: the focus now, else the one captured before loading (a busy button can drop focus to the body).
         const current = globalThis.document.activeElement;
-        const focused = current instanceof HTMLElement && current !== globalThis.document.body && !current.closest('.popup') ? current : opener?.isConnected ? opener : null;
+        const focused =
+          current instanceof HTMLElement && current !== globalThis.document.body && !current.closest('.popup')
+            ? current
+            : opener?.isConnected
+              ? opener
+              : null;
         const rect = focused?.getBoundingClientRect();
-        const pane = (anchor ?? focused)?.closest<HTMLElement>('.pane') ?? globalThis.document.querySelector<HTMLElement>('.pane.active');
+        const pane =
+          (anchor ?? focused)?.closest<HTMLElement>('.pane') ??
+          globalThis.document.querySelector<HTMLElement>('.pane.active');
         setCardDraft({ document, row, anchor: rect, pane, opener: focused });
         return;
       }
       if (action === 'remove' && !confirmed) {
-        const index = document.outline.indexOf(id), end = document.outline.subtreeEnd(index);
+        const index = document.outline.indexOf(id),
+          end = document.outline.subtreeEnd(index);
         const ids = new Set<string>([id]);
         let written = 0;
         for (let at = index + 1; at < end; at++) {
@@ -106,11 +163,21 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
           ids.add(child);
           if (document.block(child)?.text.trim()) written++;
         }
-        const references = (await notebook.api.referenceCounts(pageId)).filter(value => ids.has(value.block_id)).reduce((sum, value) => sum + value.count, 0);
+        const references = (await notebook.api.referenceCounts(pageId))
+          .filter(value => ids.has(value.block_id))
+          .reduce((sum, value) => sum + value.count, 0);
         if (disposed) return;
         if (written || references) {
-          const anchor = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : globalThis.document.body;
-          setRemoval({ anchor: anchor.getBoundingClientRect(), written, references, remove: () => run('remove', true) });
+          const anchor =
+            globalThis.document.activeElement instanceof HTMLElement
+              ? globalThis.document.activeElement
+              : globalThis.document.body;
+          setRemoval({
+            anchor: anchor.getBoundingClientRect(),
+            written,
+            references,
+            remove: () => run('remove', true),
+          });
           return;
         }
       }
@@ -118,31 +185,56 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       if (action === 'note') {
         // Open the first written note, else reuse a blank one left from an earlier Add note.
         const children = notes(document, id);
-        caretId = children.find(child => !!document.block(child)?.text.trim()) ?? children.find(child => document.block(child)?.text === '' && !document.outline.children(child).length);
+        caretId =
+          children.find(child => !!document.block(child)?.text.trim()) ??
+          children.find(child => document.block(child)?.text === '' && !document.outline.children(child).length);
         if (!caretId) {
-          const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: '' });
+          const result = document.edit({
+            kind: 'insert',
+            parentId: id,
+            after: document.outline.children(id).at(-1) ?? null,
+            text: '',
+          });
           if (!result.ok) throw new Error(result.reason);
           caretId = result.created[0];
         }
       } else {
-        const result = document.edit(action === 'remove' ? { kind: 'delete', ids: [id] } : { kind: 'citationTriage', id, citationId: row.citation.id, triage: row.processed ? 'unprocessed' : 'processed' });
+        const result = document.edit(
+          action === 'remove'
+            ? { kind: 'delete', ids: [id] }
+            : {
+                kind: 'citationTriage',
+                id,
+                citationId: row.citation.id,
+                triage: row.processed ? 'unprocessed' : 'processed',
+              },
+        );
         if (!result.ok) throw new Error(result.reason);
       }
       setLastDocument(document);
       if (action === 'remove') onRemoved?.();
       // The child is already in the shared local document. Delivery must not hold up typing.
       if (caretId && !hasNote && composeNote?.(row, caretId)) cancelInput?.();
-      else if (caretId && !cancelInput?.signal.aborted) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
+      else if (caretId && !cancelInput?.signal.aborted)
+        onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
       await document.flush();
       if (disposed) return;
       if (action === 'triage') onProcessed?.(row);
     };
-    const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };
+    const fail = (reason: unknown) => {
+      if (!disposed) onError(reason instanceof Error ? reason.message : String(reason));
+    };
     const fire = (action: Parameters<typeof run>[0]) => {
       const cancelInput = action === 'note' ? pendingCaretInput.prepare() : undefined;
-      void run(action, false, cancelInput).catch(reason => { cancelInput?.(); fail(reason); });
+      void run(action, false, cancelInput).catch(reason => {
+        cancelInput?.();
+        fail(reason);
+      });
     };
-    const tag = () => { setLastDocument(document); tagPrompt.open(document, id, anchor); };
+    const tag = () => {
+      setLastDocument(document);
+      tagPrompt.open(document, id, anchor);
+    };
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
     const setColor = (color: Citation['color']) => {
       void (async () => {
@@ -153,10 +245,16 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
         await document.flush();
       })().catch(fail);
     };
-    const secondaryItems: MenuItem[] = [
-      { label: 'Tag', icon: 'tag', shortcut: 'T', key: 't', action: tag },
-    ];
-    if (copyText !== undefined) secondaryItems.push({ label: 'Copy with citation', action: () => { void navigator.clipboard.writeText(copyText).catch(reason => onError(reason instanceof Error ? reason.message : String(reason))); } });
+    const secondaryItems: MenuItem[] = [{ label: 'Tag', icon: 'tag', shortcut: 'T', key: 't', action: tag }];
+    if (copyText !== undefined)
+      secondaryItems.push({
+        label: 'Copy with citation',
+        action: () => {
+          void navigator.clipboard
+            .writeText(copyText)
+            .catch(reason => onError(reason instanceof Error ? reason.message : String(reason)));
+        },
+      });
     secondaryItems.push({ label: 'Remove highlight', danger: true, action: () => fire('remove') });
     const items: MenuItem[] = [
       { label: hasNote ? 'Open atom' : 'Add atom', action: () => fire('note') },
@@ -164,60 +262,168 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       { label: row.processed ? 'Mark unprocessed' : 'Mark processed', action: () => fire('triage') },
       ...secondaryItems,
     ];
-    const Header: HighlightMenu['Header'] = props => <>
-      <p class="highlight-menu-quote">{row.citation.quote}</p>
-      <div class="highlight-menu-colors">
-        <For each={[...highlightColors, null]}>{value => {
-          const label = value ? value[0]!.toUpperCase() + value.slice(1) : 'No color';
-          return <Button class="icon-only" aria-label={label} aria-pressed={color === value} data-menu-key={value ? String(highlightColors.indexOf(value) + 1) : '0'} onClick={() => { props.onDismiss(); setColor(value); }}>
-            <span class={`highlight-color-dot ${value ? `highlight-color-${value}` : 'highlight-color-none'}`} aria-hidden="true" />
-          </Button>;
-        }}</For>
-      </div>
-    </>;
-    return { items, secondaryItems, Header, openNote: () => fire('note'), makeCard: () => fire('card'), toggleProcessed: () => run('triage'), tag, setColor };
+    const Header: HighlightMenu['Header'] = props => (
+      <>
+        <p class="highlight-menu-quote">{row.citation.quote}</p>
+        <div class="highlight-menu-colors">
+          <For each={[...highlightColors, null]}>
+            {value => {
+              const label = value ? value[0]!.toUpperCase() + value.slice(1) : 'No color';
+              return (
+                <Button
+                  class="icon-only"
+                  aria-label={label}
+                  aria-pressed={color === value}
+                  data-menu-key={value ? String(highlightColors.indexOf(value) + 1) : '0'}
+                  onClick={() => {
+                    props.onDismiss();
+                    setColor(value);
+                  }}
+                >
+                  <span
+                    class={`highlight-color-dot ${value ? `highlight-color-${value}` : 'highlight-color-none'}`}
+                    aria-hidden="true"
+                  />
+                </Button>
+              );
+            }}
+          </For>
+        </div>
+      </>
+    );
+    return {
+      items,
+      secondaryItems,
+      Header,
+      openNote: () => fire('note'),
+      makeCard: () => fire('card'),
+      toggleProcessed: () => run('triage'),
+      tag,
+      setColor,
+    };
   };
   return Object.assign(menu, {
-    prepare: async (rows: readonly HighlightRow[]) => { await Promise.all([...new Set(rows.filter(row => row.notes > 0).map(row => row.block.page.id))].map(loadDocument)); },
+    prepare: async (rows: readonly HighlightRow[]) => {
+      await Promise.all(
+        [...new Set(rows.filter(row => row.notes > 0).map(row => row.block.page.id))].map(loadDocument),
+      );
+    },
     noteCount: (row: HighlightRow) => {
       documentsVersion();
       const doc = documents.get(row.block.page.id);
-      return doc?.status() === 'ready' ? notes(doc, row.citation.block_id).filter(child => !!doc.block(child)?.text.trim()).length : row.notes === 0 ? 0 : undefined;
+      return doc?.status() === 'ready'
+        ? notes(doc, row.citation.block_id).filter(child => !!doc.block(child)?.text.trim()).length
+        : row.notes === 0
+          ? 0
+          : undefined;
     },
-    Popups: () => <><tagPrompt.TagPopup /><Show keyed when={removal()}>{state => {
-      const [busy, setBusy] = createSignal(false);
-      const [error, setError] = createSignal('');
-      return <Popup anchor={state.anchor} label="Remove highlight" placement="top" onDismiss={() => { if (!busy()) setRemoval(undefined); }}>
-        <h3 class="popup-title">Remove highlight?</h3>
-        <p>This also deletes {state.written} written child {state.written === 1 ? 'atom' : 'atoms'} and breaks {state.references} incoming {state.references === 1 ? 'reference' : 'references'}. You can undo this from the highlight actions.</p>
-        <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-        <div class="popup-actions"><Button disabled={busy()} onClick={() => setRemoval(undefined)}>Cancel</Button><Button class="bordered danger" disabled={busy()} onClick={() => {
-          setBusy(true); setError('');
-          void state.remove().then(() => { if (!disposed) setRemoval(undefined); }).catch(reason => { if (!disposed) { setError(reason instanceof Error ? reason.message : String(reason)); setBusy(false); } });
-        }}>Remove highlight</Button></div>
-      </Popup>;
-    }}</Show><Show keyed when={cardDraft()}>{draft => <CardComposer anchor={draft.anchor} bounds={() => draft.pane?.getBoundingClientRect() ?? null} initialBack={draft.row.citation.quote}
-      where={`${draft.row.source_title} · ¶${draft.row.citation.ordinal + 1}`} onDismiss={() => setCardDraft(undefined)}
-      onSave={async (text, again) => {
-        // Another card keeps the draft open, so only the last one opens its editor.
-        const cancelInput = again ? undefined : pendingCaretInput.prepare();
-        try {
-          const doc = draft.document, parentId = draft.row.citation.block_id;
-          await documentReady(doc);
-          const result = doc.edit({ kind: 'insert', parentId, after: doc.outline.children(parentId).at(-1) ?? null, text });
-          if (!result.ok) throw new Error(result.reason);
-          const id = result.created[0]!;
-          setLastDocument(doc);
-          if (cancelInput) {
-            if (!disposed && !cancelInput.signal.aborted) {
-              onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
-              settleFocus(draft.pane, draft.opener);
-            }
-            else cancelInput();
-          }
-          await doc.flush();
-        } catch (reason) { cancelInput?.(); throw reason; }
-      }} />}</Show></>,
+    Popups: () => (
+      <>
+        <tagPrompt.TagPopup />
+        <Show keyed when={removal()}>
+          {state => {
+            const [busy, setBusy] = createSignal(false);
+            const [error, setError] = createSignal('');
+            return (
+              <Popup
+                anchor={state.anchor}
+                label="Remove highlight"
+                placement="top"
+                onDismiss={() => {
+                  if (!busy()) setRemoval(undefined);
+                }}
+              >
+                <h3 class="popup-title">Remove highlight?</h3>
+                <p>
+                  This also deletes {state.written} written child {state.written === 1 ? 'atom' : 'atoms'} and breaks{' '}
+                  {state.references} incoming {state.references === 1 ? 'reference' : 'references'}. You can undo this
+                  from the highlight actions.
+                </p>
+                <Show when={error()}>
+                  <p class="error" role="alert">
+                    {error()}
+                  </p>
+                </Show>
+                <div class="popup-actions">
+                  <Button disabled={busy()} onClick={() => setRemoval(undefined)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    class="bordered danger"
+                    disabled={busy()}
+                    onClick={() => {
+                      setBusy(true);
+                      setError('');
+                      void state
+                        .remove()
+                        .then(() => {
+                          if (!disposed) setRemoval(undefined);
+                        })
+                        .catch(reason => {
+                          if (!disposed) {
+                            setError(reason instanceof Error ? reason.message : String(reason));
+                            setBusy(false);
+                          }
+                        });
+                    }}
+                  >
+                    Remove highlight
+                  </Button>
+                </div>
+              </Popup>
+            );
+          }}
+        </Show>
+        <Show keyed when={cardDraft()}>
+          {draft => (
+            <CardComposer
+              anchor={draft.anchor}
+              bounds={() => draft.pane?.getBoundingClientRect() ?? null}
+              initialBack={draft.row.citation.quote}
+              where={`${draft.row.source_title} · ¶${draft.row.citation.ordinal + 1}`}
+              onDismiss={() => setCardDraft(undefined)}
+              onSave={async (text, again) => {
+                // Another card keeps the draft open, so only the last one opens its editor.
+                const cancelInput = again ? undefined : pendingCaretInput.prepare();
+                try {
+                  const doc = draft.document,
+                    parentId = draft.row.citation.block_id;
+                  await documentReady(doc);
+                  const result = doc.edit({
+                    kind: 'insert',
+                    parentId,
+                    after: doc.outline.children(parentId).at(-1) ?? null,
+                    text,
+                  });
+                  if (!result.ok) throw new Error(result.reason);
+                  const id = result.created[0]!;
+                  setLastDocument(doc);
+                  if (cancelInput) {
+                    if (!disposed && !cancelInput.signal.aborted) {
+                      onOpen(
+                        {
+                          kind: 'page',
+                          pageId: draft.row.block.page.id,
+                          blockId: parentId,
+                          caretId: id,
+                          caretOffset: 0,
+                        },
+                        true,
+                      );
+                      settleFocus(draft.pane, draft.opener);
+                    } else cancelInput();
+                  }
+                  await doc.flush();
+                } catch (reason) {
+                  cancelInput?.();
+                  throw reason;
+                }
+              }}
+            />
+          )}
+        </Show>
+      </>
+    ),
     canUndo: () => lastDocument()?.canUndo() ?? false,
     undo: async () => {
       const doc = lastDocument();

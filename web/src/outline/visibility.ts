@@ -13,19 +13,32 @@ export interface HiddenFieldEntry {
 }
 
 /** Outline-only hiding. Tables and queries deliberately do not use this decision. */
-export function hiddenFieldEntries(entries: readonly HiddenFieldEntry[], retained: ReadonlySet<string>, revealed: boolean): Set<string> {
+export function hiddenFieldEntries(
+  entries: readonly HiddenFieldEntry[],
+  retained: ReadonlySet<string>,
+  revealed: boolean,
+): Set<string> {
   const hidden = new Set<string>();
   if (revealed) return hidden;
   for (const entry of entries) {
-    if (entry.hide === 'never' || entry.hide === 'when_empty' && entry.values.some(value => !value.blank)) continue;
-    if (retained.has(entry.id) || entry.values.some(value => retained.has(value.id)) || entry.descendants.some(id => retained.has(id))) continue;
+    if (entry.hide === 'never' || (entry.hide === 'when_empty' && entry.values.some(value => !value.blank))) continue;
+    if (
+      retained.has(entry.id) ||
+      entry.values.some(value => retained.has(value.id)) ||
+      entry.descendants.some(id => retained.has(id))
+    )
+      continue;
     hidden.add(entry.id);
   }
   return hidden;
 }
 
 /** The values that replace a known field entry in the visible list: all of its children, when none has children of its own. */
-export function inlineFieldValues(doc: PageDocument, id: string, definitions: ReadonlyMap<string, unknown>): readonly string[] | null {
+export function inlineFieldValues(
+  doc: PageDocument,
+  id: string,
+  definitions: ReadonlyMap<string, unknown>,
+): readonly string[] | null {
   const field = fieldEntryId(doc.block(id)?.text ?? '');
   if (!field || !definitions.has(field)) return null;
   const children = doc.outline.children(id);
@@ -43,7 +56,11 @@ export interface DepthFilter {
 }
 
 /** Retain the closest surviving zoom ancestor after a subtree disappears. Paths omit the page root. */
-export function survivingZoomPath(doc: Pick<PageDocument, 'outline'>, target: string | null, previous: readonly string[] = []): string[] {
+export function survivingZoomPath(
+  doc: Pick<PageDocument, 'outline'>,
+  target: string | null,
+  previous: readonly string[] = [],
+): string[] {
   if (!target) return [];
   const outline = doc.outline;
   let id: string | null = outline.indexOf(target) >= 0 ? target : null;
@@ -61,7 +78,14 @@ export function survivingZoomPath(doc: Pick<PageDocument, 'outline'>, target: st
 }
 
 /** Rebuilt for structure, folds, archive visibility, zoom, depth or inline-field eligibility. A zoomed page shows in full. */
-export function visibleIds(doc: PageDocument, zoom: string | null, folds: ReadonlySet<string>, archived: boolean, inlineFields?: ReadonlySet<string>, depth?: DepthFilter): string[] {
+export function visibleIds(
+  doc: PageDocument,
+  zoom: string | null,
+  folds: ReadonlySet<string>,
+  archived: boolean,
+  inlineFields?: ReadonlySet<string>,
+  depth?: DepthFilter,
+): string[] {
   const outline = doc.outline;
   const result: string[] = [];
   const start = zoom ? outline.indexOf(zoom) : 0;
@@ -90,15 +114,22 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
       if (positionDepth !== null && row.depth <= positionDepth) positionDepth = null;
       if (positionDepth !== null) {
         if (row.depth === positionDepth + 1 && depth!.gist(row.id)) openDepth = row.depth;
-        else { hiddenDepth = row.depth; return; }
+        else {
+          hiddenDepth = row.depth;
+          return;
+        }
       } else {
         if (row.depth <= sectionDepth) sectionDepth = row.depth - 1;
         const heading = !!doc.block(row.id)?.heading;
         if (row.depth === 0 && heading) opening = false;
         if (row.id === depth!.gloss || (stop !== 'gloss' && opening && row.depth === 0)) openDepth = row.depth;
         else if (stop === 'perspectives' && heading && row.depth === sectionDepth + 1) sectionDepth = row.depth;
-        else if (stop === 'perspectives' && row.depth === sectionDepth + 1 && depth!.position(row.id)) positionDepth = row.depth;
-        else { hiddenDepth = row.depth; return; }
+        else if (stop === 'perspectives' && row.depth === sectionDepth + 1 && depth!.position(row.id))
+          positionDepth = row.depth;
+        else {
+          hiddenDepth = row.depth;
+          return;
+        }
       }
     }
     if (!inlineFields?.has(row.id)) result.push(row.id);
@@ -108,8 +139,17 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
 }
 
 /** A structural edit must expose its caret target before the visible-row list restores selection. */
-export function editingDepth(doc: PageDocument, id: string, zoom: string | null, folds: ReadonlySet<string>, archived: boolean, depth?: DepthFilter): Depth {
-  return depth && depth.stop !== 'full' && !visibleIds(doc, zoom, folds, archived, undefined, depth).includes(id) ? 'full' : depth?.stop ?? 'full';
+export function editingDepth(
+  doc: PageDocument,
+  id: string,
+  zoom: string | null,
+  folds: ReadonlySet<string>,
+  archived: boolean,
+  depth?: DepthFilter,
+): Depth {
+  return depth && depth.stop !== 'full' && !visibleIds(doc, zoom, folds, archived, undefined, depth).includes(id)
+    ? 'full'
+    : (depth?.stop ?? 'full');
 }
 
 export function selectionIds(ids: readonly string[], range: TextRange): string[] {
@@ -123,15 +163,18 @@ export function orderedRange(doc: PageDocument, range: TextRange): [Caret, Caret
   const a = doc.outline.indexOf(range.anchor.id);
   const b = doc.outline.indexOf(range.head.id);
   return a < b || (a === b && range.anchor.offset <= range.head.offset)
-    ? [range.anchor, range.head] : [range.head, range.anchor];
+    ? [range.anchor, range.head]
+    : [range.head, range.anchor];
 }
 
 export function selectedText(doc: PageDocument, ids: readonly string[], range: TextRange): string {
   const [start, end] = orderedRange(doc, range);
-  return selectionIds(ids, range).map(id => {
-    const text = doc.block(id)?.text ?? '';
-    return text.slice(id === start.id ? start.offset : 0, id === end.id ? end.offset : undefined);
-  }).join('\n');
+  return selectionIds(ids, range)
+    .map(id => {
+      const text = doc.block(id)?.text ?? '';
+      return text.slice(id === start.id ? start.offset : 0, id === end.id ? end.offset : undefined);
+    })
+    .join('\n');
 }
 
 /** Subtree commands accept roots only, never both a parent and its child. */

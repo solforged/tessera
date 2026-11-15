@@ -12,43 +12,101 @@ import { civilDate, relativeDate } from '../tasks/relative-date';
 import './note-header.css';
 
 /** The kinds a note is filed under, in rubric capitals above its title; each opens that kind's index. */
-export function NoteEyebrow(props: { kinds: NoteKind[] | undefined; onOpen(target: OpenTarget, beside: boolean): void }) {
-  return <Show when={props.kinds?.length}>
-    <p class="note-eyebrow"><For each={props.kinds}>{(kind, index) => <>
-      <Show when={index()}><span class="note-eyebrow-separator" aria-hidden="true">/</span></Show>
-      <button type="button" title={`Open the ${kind.plural} index · ${besideHint}`} onClick={event => props.onOpen({ kind: 'index', key: kind.key }, opensBeside(event))}><Icon name={noteKindIcon(kind)} />{kind.plural}</button>
-    </>}</For></p>
-  </Show>;
+export function NoteEyebrow(props: {
+  kinds: NoteKind[] | undefined;
+  onOpen(target: OpenTarget, beside: boolean): void;
+}) {
+  return (
+    <Show when={props.kinds?.length}>
+      <p class="note-eyebrow">
+        <For each={props.kinds}>
+          {(kind, index) => (
+            <>
+              <Show when={index()}>
+                <span class="note-eyebrow-separator" aria-hidden="true">
+                  /
+                </span>
+              </Show>
+              <button
+                type="button"
+                title={`Open the ${kind.plural} index · ${besideHint}`}
+                onClick={event => props.onOpen({ kind: 'index', key: kind.key }, opensBeside(event))}
+              >
+                <Icon name={noteKindIcon(kind)} />
+                {kind.plural}
+              </button>
+            </>
+          )}
+        </For>
+      </p>
+    </Show>
+  );
 }
 
 /** Alternate names read from the open document, including unsaved value edits: every top-level Aliases entry's values, in outline order. */
 export function NoteAliases(props: { doc: PageDocument; fields: FieldDefinition[]; onEdit(entry: string): void }) {
   const fieldId = createMemo(() => props.fields.find(field => foldName(field.name) === 'aliases')?.id);
-  const entries = createMemo(() => {
-    const id = fieldId();
-    if (!id) return [];
-    const doc = props.doc;
-    doc.archivedVersion();
-    doc.outline.children(doc.pageId);
-    // As with Gloss, entry identity follows structure, not every prose keystroke.
-    return untrack(() => aliasEntries(doc, id));
-  }, [], { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  const entries = createMemo(
+    () => {
+      const id = fieldId();
+      if (!id) return [];
+      const doc = props.doc;
+      doc.archivedVersion();
+      doc.outline.children(doc.pageId);
+      // As with Gloss, entry identity follows structure, not every prose keystroke.
+      return untrack(() => aliasEntries(doc, id));
+    },
+    [],
+    { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) },
+  );
   const aliases = createMemo(() => aliasNames(props.doc, entries()));
-  return <Show when={aliases().length}>
-    <p class="note-aliases"><button type="button" aria-label="Edit aliases" onClick={() => props.onEdit(entries().find(entry => aliasNames(props.doc, [entry]).length) ?? entries()[0]!)}><span class="note-aliases-label">Also</span>{' '}
-      <For each={aliases()}>{(alias, index) => <>
-        <Show when={index()}><span class="note-aliases-separator" aria-hidden="true"> · </span></Show>
-        <span>{alias}</span>
-      </>}</For>
-    </button></p>
-  </Show>;
+  return (
+    <Show when={aliases().length}>
+      <p class="note-aliases">
+        <button
+          type="button"
+          aria-label="Edit aliases"
+          onClick={() => props.onEdit(entries().find(entry => aliasNames(props.doc, [entry]).length) ?? entries()[0]!)}
+        >
+          <span class="note-aliases-label">Also</span>{' '}
+          <For each={aliases()}>
+            {(alias, index) => (
+              <>
+                <Show when={index()}>
+                  <span class="note-aliases-separator" aria-hidden="true">
+                    {' '}
+                    ·{' '}
+                  </span>
+                </Show>
+                <span>{alias}</span>
+              </>
+            )}
+          </For>
+        </button>
+      </p>
+    </Show>
+  );
 }
 
 /** The note's apparatus line under its title: created day in the notebook's zone, named like every other list (`today`, `Thu`, `Oct 16`), then any trailing controls such as Revisit. */
 export function NoteLine(props: { pageId: string; notebook: NotebookClient; children?: JSX.Element }) {
   const root = createMemo(() => props.notebook.roots().find(block => block.id === props.pageId));
-  return <Show when={root()}>{page => <p class="note-line">
-    <span class="note-created">Created <span class="fig">{relativeDate(civilDate(page().created_at, props.notebook.settings()?.time_zone), props.notebook.todayDate())}</span></span>
-    {props.children}
-  </p>}</Show>;
+  return (
+    <Show when={root()}>
+      {page => (
+        <p class="note-line">
+          <span class="note-created">
+            Created{' '}
+            <span class="fig">
+              {relativeDate(
+                civilDate(page().created_at, props.notebook.settings()?.time_zone),
+                props.notebook.todayDate(),
+              )}
+            </span>
+          </span>
+          {props.children}
+        </p>
+      )}
+    </Show>
+  );
 }

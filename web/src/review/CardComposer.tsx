@@ -66,8 +66,13 @@ export function CardComposerBody(props: CardComposerBodyProps) {
   let frontField!: HTMLTextAreaElement;
   let backField!: HTMLTextAreaElement;
   let disposed = false;
-  onCleanup(() => { disposed = true; });
-  onMount(() => { fit(frontField); fit(backField); });
+  onCleanup(() => {
+    disposed = true;
+  });
+  onMount(() => {
+    fit(frontField);
+    fit(backField);
+  });
   // Typed text, not a prefilled answer, is what an outside click must not discard.
   createEffect(() => props.onDirtyChange?.(!!front().trim() || back().trim() !== (props.initialBack ?? '').trim()));
 
@@ -75,10 +80,20 @@ export function CardComposerBody(props: CardComposerBodyProps) {
   const draft = createMemo((): { text: string } | { problem: string } | null => {
     if (original()) return { text: original()! };
     if (!front().trim() || !back().trim()) return null;
-    try { return { text: forwardCardText(front(), back()) }; } catch (reason) { return { problem: reason instanceof Error ? reason.message : String(reason) }; }
+    try {
+      return { text: forwardCardText(front(), back()) };
+    } catch (reason) {
+      return { problem: reason instanceof Error ? reason.message : String(reason) };
+    }
   });
-  const problem = () => { const value = draft(); return value && 'problem' in value ? value.problem : ''; };
-  createEffect(() => { const value = draft(); props.onReady?.(!busy() && !!value && 'text' in value); });
+  const problem = () => {
+    const value = draft();
+    return value && 'problem' in value ? value.problem : '';
+  };
+  createEffect(() => {
+    const value = draft();
+    props.onReady?.(!busy() && !!value && 'text' in value);
+  });
 
   async function save(again: boolean) {
     const value = draft();
@@ -90,12 +105,16 @@ export function CardComposerBody(props: CardComposerBodyProps) {
     try {
       await props.onSave(value.text, again);
       if (disposed) return;
-      if (!again) { props.onDismiss(); return; }
+      if (!again) {
+        props.onDismiss();
+        return;
+      }
       setAdded(count => count + 1);
       setOriginal(undefined);
       setFront('');
       setBack(props.initialBack ?? '');
-      fit(frontField); fit(backField);
+      fit(frontField);
+      fit(backField);
       next = true;
     } catch (reason) {
       if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
@@ -110,7 +129,8 @@ export function CardComposerBody(props: CardComposerBodyProps) {
   const keydown = (event: KeyboardEvent) => {
     if (event.isComposing || event.key !== 'Enter') return;
     if (event.metaKey || event.ctrlKey) {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
       void save(event.shiftKey);
     } else if (event.target === frontField && !event.shiftKey && !event.altKey) {
       // The front is usually one line; Enter turns to the answer and Shift-Enter breaks the line.
@@ -120,33 +140,102 @@ export function CardComposerBody(props: CardComposerBodyProps) {
     }
   };
 
-  const status = () => busy() ? 'Saving…' : props.status ?? (added() ? `${added()} ${added() === 1 ? 'card' : 'cards'} added` : '');
-  return <form id={props.formId} class="card-composer-form" onSubmit={event => { event.preventDefault(); void save(false); }} onKeyDown={keydown} aria-busy={busy()}>
-      <Show when={props.where !== undefined}><header class="card-composer-head">
-        <span class="card-composer-title">New card</span>
-        <span class="card-composer-where">{props.where}</span>
-      </header></Show>
+  const status = () =>
+    busy() ? 'Saving…' : (props.status ?? (added() ? `${added()} ${added() === 1 ? 'card' : 'cards'} added` : ''));
+  return (
+    <form
+      id={props.formId}
+      class="card-composer-form"
+      onSubmit={event => {
+        event.preventDefault();
+        void save(false);
+      }}
+      onKeyDown={keydown}
+      aria-busy={busy()}
+    >
+      <Show when={props.where !== undefined}>
+        <header class="card-composer-head">
+          <span class="card-composer-title">New card</span>
+          <span class="card-composer-where">{props.where}</span>
+        </header>
+      </Show>
       <div class="card-composer-side card-composer-front">
-        <label class="card-composer-label" for={`${id}-front`}>Front</label>
-        <textarea ref={frontField} id={`${id}-front`} class="card-composer-input" rows={1} enterkeyhint="next" value={front()} disabled={busy()} placeholder="What do you want to remember?"
-          onInput={event => { setFront(event.currentTarget.value); fit(event.currentTarget); changed(); }} />
+        <label class="card-composer-label" for={`${id}-front`}>
+          Front
+        </label>
+        <textarea
+          ref={frontField}
+          id={`${id}-front`}
+          class="card-composer-input"
+          rows={1}
+          enterkeyhint="next"
+          value={front()}
+          disabled={busy()}
+          placeholder="What do you want to remember?"
+          onInput={event => {
+            setFront(event.currentTarget.value);
+            fit(event.currentTarget);
+            changed();
+          }}
+        />
       </div>
       <div class="card-composer-side card-composer-back">
-        <label class="card-composer-label" for={`${id}-back`}>Back</label>
-        <textarea ref={backField} id={`${id}-back`} class="card-composer-input" rows={2} value={back()} disabled={busy()} placeholder="The answer"
-          aria-describedby={problem() ? `${id}-problem` : undefined} onInput={event => { setBack(event.currentTarget.value); fit(event.currentTarget); changed(); }} />
+        <label class="card-composer-label" for={`${id}-back`}>
+          Back
+        </label>
+        <textarea
+          ref={backField}
+          id={`${id}-back`}
+          class="card-composer-input"
+          rows={2}
+          value={back()}
+          disabled={busy()}
+          placeholder="The answer"
+          aria-describedby={problem() ? `${id}-problem` : undefined}
+          onInput={event => {
+            setBack(event.currentTarget.value);
+            fit(event.currentTarget);
+            changed();
+          }}
+        />
       </div>
-      <Show when={error() || problem()}><p id={`${id}-problem`} class="card-composer-problem" role="alert">{error() || problem()}</p></Show>
+      <Show when={error() || problem()}>
+        <p id={`${id}-problem`} class="card-composer-problem" role="alert">
+          {error() || problem()}
+        </p>
+      </Show>
       <footer class="card-composer-foot">
         <span class="card-composer-keys">
-          <Show when={status()} fallback={<Show when={!props.sheet}><span class="card-composer-key-hints"><kbd>⌘↵</kbd> Create <kbd>⇧⌘↵</kbd> Create another <kbd>esc</kbd> Close</span></Show>}>
+          <Show
+            when={status()}
+            fallback={
+              <Show when={!props.sheet}>
+                <span class="card-composer-key-hints">
+                  <kbd>⌘↵</kbd> Create <kbd>⇧⌘↵</kbd> Create another <kbd>esc</kbd> Close
+                </span>
+              </Show>
+            }
+          >
             <span role="status">{status()}</span>
           </Show>
         </span>
-        <Show when={!props.sheet}><Button disabled={busy()} onClick={() => { props.onDiscard?.(); props.onDismiss(); }}>{added() ? 'Done' : 'Cancel'}</Button></Show>
-        <Button type="submit" class="bordered" disabled={busy() || !draft() || !!problem()}>Create card</Button>
+        <Show when={!props.sheet}>
+          <Button
+            disabled={busy()}
+            onClick={() => {
+              props.onDiscard?.();
+              props.onDismiss();
+            }}
+          >
+            {added() ? 'Done' : 'Cancel'}
+          </Button>
+        </Show>
+        <Button type="submit" class="bordered" disabled={busy() || !draft() || !!problem()}>
+          Create card
+        </Button>
       </footer>
-    </form>;
+    </form>
+  );
 }
 
 /** The standalone composer's unsent text, by the answer it was opened with (a highlight's passage, or none). */
@@ -160,9 +249,39 @@ export function CardComposer(props: CardComposerProps) {
   const key = props.initialBack ?? '';
   const restore = composerDrafts.get(key);
   // Escape and an outside click close the composer but keep what was typed for its next opening; Create and Cancel end the draft.
-  const save = async (text: string, again: boolean) => { await props.onSave(text, again); composerDrafts.delete(key); };
-  return <Popup anchor={props.anchor ?? document.body} label="Create a card" placement={sheet ? 'sheet' : props.anchor ? 'anchor' : 'top'} fitContent width={560} class="card-composer" bounds={props.bounds} dirty={dirty} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <CardComposerBody {...props} onSave={save} sheet={sheet} restore={restore} onBusyChange={setBusy} onDirtyChange={setDirty}
-      onEdit={(front, back) => { if (front.trim() || back.trim() !== key.trim()) composerDrafts.set(key, { front, back }); else composerDrafts.delete(key); }} onDiscard={() => { composerDrafts.delete(key); }} />
-  </Popup>;
+  const save = async (text: string, again: boolean) => {
+    await props.onSave(text, again);
+    composerDrafts.delete(key);
+  };
+  return (
+    <Popup
+      anchor={props.anchor ?? document.body}
+      label="Create a card"
+      placement={sheet ? 'sheet' : props.anchor ? 'anchor' : 'top'}
+      fitContent
+      width={560}
+      class="card-composer"
+      bounds={props.bounds}
+      dirty={dirty}
+      onDismiss={() => {
+        if (!busy()) props.onDismiss();
+      }}
+    >
+      <CardComposerBody
+        {...props}
+        onSave={save}
+        sheet={sheet}
+        restore={restore}
+        onBusyChange={setBusy}
+        onDirtyChange={setDirty}
+        onEdit={(front, back) => {
+          if (front.trim() || back.trim() !== key.trim()) composerDrafts.set(key, { front, back });
+          else composerDrafts.delete(key);
+        }}
+        onDiscard={() => {
+          composerDrafts.delete(key);
+        }}
+      />
+    </Popup>
+  );
 }

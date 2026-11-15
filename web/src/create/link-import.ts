@@ -5,7 +5,13 @@ import type { NotebookClient } from '../document/contract';
  * A Link also added to the Library: once its import finishes, the captured line becomes a reference to the new
  * source. Pending links survive a reload, so the line is linked whenever the job finishes.
  */
-export interface PendingLink { job: string; pageId: string; blockId: string; text: string; title: string | null }
+export interface PendingLink {
+  job: string;
+  pageId: string;
+  blockId: string;
+  text: string;
+  title: string | null;
+}
 
 const storageKey = 'tessera.link-imports';
 const watching = new Set<string>();
@@ -14,16 +20,30 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function load(): PendingLink[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
-    return Array.isArray(value) ? value.filter((entry): entry is PendingLink => typeof entry?.job === 'string' && typeof entry.blockId === 'string') : [];
-  } catch { return []; }
+    return Array.isArray(value)
+      ? value.filter(
+          (entry): entry is PendingLink => typeof entry?.job === 'string' && typeof entry.blockId === 'string',
+        )
+      : [];
+  } catch {
+    return [];
+  }
 }
 function store(list: readonly PendingLink[]) {
-  try { if (list.length) localStorage.setItem(storageKey, JSON.stringify(list)); else localStorage.removeItem(storageKey); } catch { /* The link is then made only in this session. */ }
+  try {
+    if (list.length) localStorage.setItem(storageKey, JSON.stringify(list));
+    else localStorage.removeItem(storageKey);
+  } catch {
+    /* The link is then made only in this session. */
+  }
 }
 
 /** The captured line once its source exists: the source by the link's title. */
 export function sourceLineText(sourceId: string, title: string | null): string {
-  const label = title?.replace(/[|[\]\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const label = title
+    ?.replace(/[|[\]\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   return label ? `[[${sourceId}|${label}]]` : `[[${sourceId}]]`;
 }
 
@@ -43,8 +63,9 @@ async function watch(notebook: NotebookClient, pending: PendingLink) {
     // Imports usually finish in seconds; the wait backs off so a slow one costs little, and a reload resumes it.
     for (let delay = 1000; delay < 10 * 60 * 1000; delay = Math.min(delay * 1.5, 30000)) {
       let job;
-      try { job = await notebook.api.ingestJob(pending.job); }
-      catch (reason) {
+      try {
+        job = await notebook.api.ingestJob(pending.job);
+      } catch (reason) {
         if (reason instanceof ApiError && reason.status === 404) break;
         await wait(delay);
         continue;
@@ -59,7 +80,9 @@ async function watch(notebook: NotebookClient, pending: PendingLink) {
     store(load().filter(entry => entry.job !== pending.job));
   } catch {
     // A failed edit leaves the line as captured; the pending entry stays for the next launch.
-  } finally { watching.delete(pending.job); }
+  } finally {
+    watching.delete(pending.job);
+  }
 }
 
 async function linkLine(notebook: NotebookClient, pending: PendingLink, sourceId: string) {
@@ -67,7 +90,11 @@ async function linkLine(notebook: NotebookClient, pending: PendingLink, sourceId
   const block = page.rows.find(row => row.block.id === pending.blockId)?.block;
   // A line edited or removed since its capture keeps what the writer made of it.
   if (!block || block.archived || block.text !== pending.text) return;
-  await notebook.commit([{ op: 'edit_text', id: block.id, base_revision: block.revision, text: sourceLineText(sourceId, pending.title) }], 'Link to library source', [pending.pageId]);
+  await notebook.commit(
+    [{ op: 'edit_text', id: block.id, base_revision: block.revision, text: sourceLineText(sourceId, pending.title) }],
+    'Link to library source',
+    [pending.pageId],
+  );
 }
 
 /** Waits for an import to finish while someone watches and returns its source: null if it runs long, an error if it fails. */

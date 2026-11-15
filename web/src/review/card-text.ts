@@ -1,14 +1,40 @@
 import type { CardKind, CardUnit, ImageRef, Occlusion, OcclusionMask, Rect } from '../api/types';
 
-export interface ParsedCard { key: string; kind: CardKind; front: string; back: string }
-export interface CardProblem { message: string; start: number; end: number }
-export interface CardParse { cards: ParsedCard[]; problems: CardProblem[] }
+export interface ParsedCard {
+  key: string;
+  kind: CardKind;
+  front: string;
+  back: string;
+}
+export interface CardProblem {
+  message: string;
+  start: number;
+  end: number;
+}
+export interface CardParse {
+  cards: ParsedCard[];
+  problems: CardProblem[];
+}
 
-interface Cloze { start: number; end: number; id: string; answerStart: number; answerEnd: number; hintStart: number | null }
+interface Cloze {
+  start: number;
+  end: number;
+  id: string;
+  answerStart: number;
+  answerEnd: number;
+  hintStart: number | null;
+}
 
 export type CardOperator = '>>' | '<<' | '<>' | '>>>' | '>>1.' | ';;';
 /** How an operator reads wherever authored text is shown rather than edited. */
-export const cardOperators: Record<CardOperator, { label: string; text: string }> = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' }, ';;': { label: 'descriptor', text: '›' } };
+export const cardOperators: Record<CardOperator, { label: string; text: string }> = {
+  '>>': { label: 'then', text: '→' },
+  '<<': { label: 'from', text: '←' },
+  '<>': { label: 'both ways', text: '↔' },
+  '>>>': { label: 'child answer', text: '↓' },
+  '>>1.': { label: 'list answer', text: '↓1.' },
+  ';;': { label: 'descriptor', text: '›' },
+};
 export type CardMark =
   | { kind: 'operator'; start: number; end: number; op: CardOperator }
   | ({ kind: 'cloze'; hintEnd: number | null } & Cloze);
@@ -17,13 +43,17 @@ function operator(text: string, at: number): CardOperator | undefined {
   return (['>>1.', '>>>', '>>', '<<', '<>', ';;'] as const).find(token => text.startsWith(token, at));
 }
 
-function problem(message: string, start: number, end: number): CardProblem { return { message, start, end }; }
+function problem(message: string, start: number, end: number): CardProblem {
+  return { message, start, end };
+}
 
 // Consume whole escaped syntax tokens. Even runs of backslashes leave the
 // following syntax active; unknown escapes keep their backslash in shown text.
 function escapeEnd(text: string, at: number): number | null {
   if (text[at] !== '\\') return null;
-  const token = ['>>1.', '>>>', '>>', '<<', '<>', ';;', '{{', '}}', '::', '[[', ']]'].find(token => text.startsWith(token, at + 1));
+  const token = ['>>1.', '>>>', '>>', '<<', '<>', ';;', '{{', '}}', '::', '[[', ']]'].find(token =>
+    text.startsWith(token, at + 1),
+  );
   if (token) return at + 1 + token.length;
   if (text[at + 1] !== undefined && '\\`~[]{}<>:'.includes(text[at + 1]!)) return at + 2;
   return null;
@@ -93,7 +123,9 @@ export function protectedEnd(text: string, at: number): number | null {
 }
 
 // JS trim includes BOM and excludes NEL; Rust uses Unicode White_Space.
-function trim(text: string): string { return text.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, ''); }
+function trim(text: string): string {
+  return text.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+}
 
 function literal(text: string, start: number, end: number): string {
   const pieces: string[] = [];
@@ -130,7 +162,10 @@ function cloze(text: string, start: number): { end: number; cloze?: Cloze; probl
       cursor += 2;
     } else if (text.startsWith('}}', cursor)) {
       depth--;
-      if (depth !== 0) { cursor += 2; continue; }
+      if (depth !== 0) {
+        cursor += 2;
+        continue;
+      }
       const end = cursor + 2;
       const invalid = (message: string) => ({ end, problem: problem(message, start, end) });
       if (nested) return invalid('Clozes cannot be nested.');
@@ -156,11 +191,17 @@ function cloze(text: string, start: number): { end: number; cloze?: Cloze; probl
   return { end: text.length, problem: problem('Close the cloze with }}.', start, text.length) };
 }
 
-interface ClozePiece { id: string; before: string; answer: string; hint: string | null }
+interface ClozePiece {
+  id: string;
+  before: string;
+  answer: string;
+  hint: string | null;
+}
 
 function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix: string; marks: CardMark[] } {
   // Cards need an operator or a cloze opener; most blocks have neither, so skip the character walk.
-  if (!/>>|<<|<>|;;|\{\{/.test(text)) return { parse: { cards: [], problems: [] }, pieces: [], suffix: text, marks: [] };
+  if (!/>>|<<|<>|;;|\{\{/.test(text))
+    return { parse: { cards: [], problems: [] }, pieces: [], suffix: text, marks: [] };
   const result: CardParse = { cards: [], problems: [] };
   const operators: number[] = [];
   const clozes: Cloze[] = [];
@@ -186,8 +227,10 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
   const first = operators[0];
   if (first !== undefined) {
     const last = operators[operators.length - 1]!;
-    if (operators.length > 1) result.problems.push(problem('Use only one card operator per atom.', first, last + operator(text, last)!.length));
-    if (firstCloze !== null) result.problems.push(problem('Do not mix card operators and clozes.', Math.min(first, firstCloze), text.length));
+    if (operators.length > 1)
+      result.problems.push(problem('Use only one card operator per atom.', first, last + operator(text, last)!.length));
+    if (firstCloze !== null)
+      result.problems.push(problem('Do not mix card operators and clozes.', Math.min(first, firstCloze), text.length));
   }
   result.problems.sort((a, b) => a.start - b.start || a.end - b.end);
   if (result.problems.length) return none;
@@ -230,10 +273,18 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
   for (const group of clozes) {
     if (seen.has(group.id)) continue;
     seen.add(group.id);
-    const front = trim(pieces.map(piece => piece.before + (piece.id === group.id ? piece.hint ?? '[…]' : piece.answer)).join('') + suffix);
+    const front = trim(
+      pieces.map(piece => piece.before + (piece.id === group.id ? (piece.hint ?? '[…]') : piece.answer)).join('') +
+        suffix,
+    );
     result.cards.push({ key: `cloze:c${group.id}`, kind: 'cloze', front, back });
   }
-  return { parse: result, pieces, suffix, marks: clozes.map(cloze => ({ ...cloze, kind: 'cloze', hintEnd: cloze.hintStart === null ? null : cloze.end - 2 })) };
+  return {
+    parse: result,
+    pieces,
+    suffix,
+    marks: clozes.map(cloze => ({ ...cloze, kind: 'cloze', hintEnd: cloze.hintStart === null ? null : cloze.end - 2 })),
+  };
 }
 
 /** Offsets are UTF-16 indices for CodeMirror. Invalid explicit syntax produces
@@ -248,7 +299,12 @@ export function forwardCardText(front: string, back: string): string {
   const parsed = parseCardText(text);
   if (parsed.problems.length) throw new Error(parsed.problems[0]!.message);
   const marks = cardMarks(text);
-  if (parsed.cards.length !== 1 || parsed.cards[0]!.kind !== 'forward' || marks.length !== 1 || marks[0]!.start !== front.trim().length + 1) {
+  if (
+    parsed.cards.length !== 1 ||
+    parsed.cards[0]!.kind !== 'forward' ||
+    marks.length !== 1 ||
+    marks[0]!.start !== front.trim().length + 1
+  ) {
     throw new Error('Write one question and answer. Keep card operators inside code or escape them with a backslash.');
   }
   return text;
@@ -267,17 +323,29 @@ export function cardSubject(text: string): string {
   return card.kind === 'reverse' || card.kind === 'cloze' ? card.back : card.front;
 }
 
-const kindLabels: Record<CardKind, string> = { forward: 'Forward', reverse: 'Reverse', cloze: 'Cloze', multiline: 'Multi-line', list: 'List', descriptor: 'Descriptor', occlusion: 'OCCLUSION' };
+const kindLabels: Record<CardKind, string> = {
+  forward: 'Forward',
+  reverse: 'Reverse',
+  cloze: 'Cloze',
+  multiline: 'Multi-line',
+  list: 'List',
+  descriptor: 'Descriptor',
+  occlusion: 'OCCLUSION',
+};
 
 /** A card's kind as review and the outline name it. A cloze carries its number
  * only when its block makes several clozes. */
-export function cardKindLabel(card: { kind: CardKind; key: string; occlusion_index?: number }, siblings: readonly { kind: CardKind; key?: string }[]): string {
+export function cardKindLabel(
+  card: { kind: CardKind; key: string; occlusion_index?: number },
+  siblings: readonly { kind: CardKind; key?: string }[],
+): string {
   if (card.kind === 'occlusion') {
     const groups = siblings.filter(sibling => sibling.kind === 'occlusion');
     const index = card.occlusion_index ?? groups.findIndex(group => group.key === card.key);
     return groups.length > 1 ? `OCCLUSION ${index + 1}` : 'OCCLUSION';
   }
-  if (card.kind !== 'cloze' || siblings.filter(sibling => sibling.kind === 'cloze').length < 2) return kindLabels[card.kind];
+  if (card.kind !== 'cloze' || siblings.filter(sibling => sibling.kind === 'cloze').length < 2)
+    return kindLabels[card.kind];
   return `Cloze ${card.key.slice('cloze:c'.length)}`;
 }
 
@@ -295,7 +363,10 @@ export function clozeSegments(text: string, key: string): ClozeSegment[] | null 
   let plain = '';
   for (const piece of pieces) {
     plain += piece.before;
-    if (piece.id !== id) { plain += piece.answer; continue; }
+    if (piece.id !== id) {
+      plain += piece.answer;
+      continue;
+    }
     if (plain) segments.push({ text: plain });
     plain = '';
     segments.push({ answer: piece.answer, hint: piece.hint });
@@ -311,29 +382,69 @@ export function clozeSegments(text: string, key: string): ClozeSegment[] | null 
 }
 
 export type CardMask = Pick<OcclusionMask, 'shape' | 'x' | 'y' | 'w' | 'h'>;
-export interface OcclusionFront { image: ImageRef; mode: Occlusion['mode']; area?: Rect; tested: CardMask[]; hint?: string; covered: CardMask[] }
-export interface OcclusionSides { front: OcclusionFront; back: { answer?: string } }
+export interface OcclusionFront {
+  image: ImageRef;
+  mode: Occlusion['mode'];
+  area?: Rect;
+  tested: CardMask[];
+  hint?: string;
+  covered: CardMask[];
+}
+export interface OcclusionSides {
+  front: OcclusionFront;
+  back: { answer?: string };
+}
 const validRect = (value: unknown): value is Rect => {
   if (!value || typeof value !== 'object') return false;
   const rect = value as Rect;
-  return [rect.x, rect.y, rect.w, rect.h].every(Number.isFinite) && rect.x >= 0 && rect.y >= 0 && rect.w >= .005 && rect.h >= .005 && rect.x + rect.w <= 1 && rect.y + rect.h <= 1;
+  return (
+    [rect.x, rect.y, rect.w, rect.h].every(Number.isFinite) &&
+    rect.x >= 0 &&
+    rect.y >= 0 &&
+    rect.w >= 0.005 &&
+    rect.h >= 0.005 &&
+    rect.x + rect.w <= 1 &&
+    rect.y + rect.h <= 1
+  );
 };
 /** Stored evidence can outlive client versions; malformed sides never escape into prose or throw. */
 export function occlusionSides(card: { front: string; back: string }): OcclusionSides | null {
   try {
-    const front = JSON.parse(card.front) as OcclusionFront, back = JSON.parse(card.back) as OcclusionSides['back'];
-    const masks = (value: unknown): value is CardMask[] => Array.isArray(value) && value.every(mask => validRect(mask) && 'shape' in mask && (mask.shape === 'rect' || mask.shape === 'ellipse'));
-    if (!front || !back || typeof back !== 'object' || !front.image || !/^[a-f0-9]{64}$/.test(front.image.sha256) || typeof front.image.media_type !== 'string'
-      || !Number.isFinite(front.image.width) || front.image.width <= 0 || !Number.isFinite(front.image.height) || front.image.height <= 0
-      || !['hide_one', 'hide_all'].includes(front.mode) || !masks(front.tested) || !masks(front.covered)
-      || front.area !== undefined && !validRect(front.area) || front.hint !== undefined && typeof front.hint !== 'string'
-      || back.answer !== undefined && typeof back.answer !== 'string') return null;
+    const front = JSON.parse(card.front) as OcclusionFront,
+      back = JSON.parse(card.back) as OcclusionSides['back'];
+    const masks = (value: unknown): value is CardMask[] =>
+      Array.isArray(value) &&
+      value.every(mask => validRect(mask) && 'shape' in mask && (mask.shape === 'rect' || mask.shape === 'ellipse'));
+    if (
+      !front ||
+      !back ||
+      typeof back !== 'object' ||
+      !front.image ||
+      !/^[a-f0-9]{64}$/.test(front.image.sha256) ||
+      typeof front.image.media_type !== 'string' ||
+      !Number.isFinite(front.image.width) ||
+      front.image.width <= 0 ||
+      !Number.isFinite(front.image.height) ||
+      front.image.height <= 0 ||
+      !['hide_one', 'hide_all'].includes(front.mode) ||
+      !masks(front.tested) ||
+      !masks(front.covered) ||
+      (front.area !== undefined && !validRect(front.area)) ||
+      (front.hint !== undefined && typeof front.hint !== 'string') ||
+      (back.answer !== undefined && typeof back.answer !== 'string')
+    )
+      return null;
     return { front, back };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 export function groupLetter(index: number): string {
   let result = '';
-  do { result = String.fromCharCode(65 + index % 26) + result; index = Math.floor(index / 26) - 1; } while (index >= 0);
+  do {
+    result = String.fromCharCode(65 + (index % 26)) + result;
+    index = Math.floor(index / 26) - 1;
+  } while (index >= 0);
   return result;
 }
 export function occlusionSubject(card: Pick<CardUnit, 'front' | 'back' | 'occlusion_index'>): string {
@@ -342,8 +453,17 @@ export function occlusionSubject(card: Pick<CardUnit, 'front' | 'back' | 'occlus
 export function occlusionCards(image: ImageRef | null | undefined, state: Occlusion | null | undefined): ParsedCard[] {
   if (!image || !state) return [];
   const geometry = ({ shape, x, y, w, h }: OcclusionMask): CardMask => ({ shape, x, y, w, h });
-  return state.groups.map(group => ({ key: `occlusion:${group.id}`, kind: 'occlusion', front: JSON.stringify({
-    image, mode: state.mode, ...(group.area ? { area: group.area } : {}), tested: state.masks.filter(mask => mask.group === group.id).map(geometry),
-    ...(group.hint ? { hint: group.hint } : {}), covered: state.mode === 'hide_all' ? state.masks.filter(mask => mask.group !== group.id).map(geometry) : [],
-  }), back: JSON.stringify(group.answer ? { answer: group.answer } : {}) }));
+  return state.groups.map(group => ({
+    key: `occlusion:${group.id}`,
+    kind: 'occlusion',
+    front: JSON.stringify({
+      image,
+      mode: state.mode,
+      ...(group.area ? { area: group.area } : {}),
+      tested: state.masks.filter(mask => mask.group === group.id).map(geometry),
+      ...(group.hint ? { hint: group.hint } : {}),
+      covered: state.mode === 'hide_all' ? state.masks.filter(mask => mask.group !== group.id).map(geometry) : [],
+    }),
+    back: JSON.stringify(group.answer ? { answer: group.answer } : {}),
+  }));
 }

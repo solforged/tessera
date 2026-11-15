@@ -1,7 +1,22 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { cachedExactPage, completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, mapCompletionRange, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
+import {
+  cachedExactPage,
+  completedReference,
+  completionPickKey,
+  completionTakesKey,
+  engagedToken,
+  headingPrefix,
+  isJournalReference,
+  isQuoteCompletion,
+  mapCompletionRange,
+  openReferenceRange,
+  referenceAliasInput,
+  referenceCompletionAt,
+  referenceNewlineAt,
+  taskPrefixInput,
+} from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 import { typeTokenAt } from './type-completion';
@@ -30,7 +45,12 @@ test('date choices and field flips follow canonical tag rewrites without cutting
     const mapped = mapCompletionRange(raw, canonical, token);
     expect(canonical.slice(mapped.from, mapped.to)).toBe(marker);
     expect(mapped.query).toBe(token.query);
-    const plan = planDateToken(canonical, mapped, { label: 'Chosen date', date: '2026-10-23', time: null }, newTask('todo'));
+    const plan = planDateToken(
+      canonical,
+      mapped,
+      { label: 'Chosen date', date: '2026-10-23', time: null },
+      newTask('todo'),
+    );
     expect(plan.text).toBe(canonical.replace(` ${marker}`, ''));
     expect(plan.text).toContain(`#[[${id}|`);
     expect(plan.value.status).toBe('todo');
@@ -41,7 +61,8 @@ test('date choices and field flips follow canonical tag rewrites without cutting
 
 test('reference, slash, field and dismissed-token boundaries follow the same rewrite mapping', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-  const raw = '#task [[Essay]] /Tag', canonical = `#[[${id}|task]] [[Essay]] /Tag`;
+  const raw = '#task [[Essay]] /Tag',
+    canonical = `#[[${id}|task]] [[Essay]] /Tag`;
   const reference = referenceCompletionAt(raw, raw.indexOf(']]'))!;
   const mappedReference = mapCompletionRange(raw, canonical, reference);
   const referenceRange = openReferenceRange(canonical, mappedReference.from, mappedReference.to, false);
@@ -50,17 +71,32 @@ test('reference, slash, field and dismissed-token boundaries follow the same rew
   const slash = slashTokenAt(raw, raw.length)!;
   const mappedSlash = mapCompletionRange(raw, canonical, slash);
   expect(removeToken(canonical, mappedSlash).text).toBe(`#[[${id}|task]] [[Essay]]`);
-  expect(mapCompletionRange(raw, canonical, { from: slash.from, query: slash.query })).toEqual({ from: canonical.indexOf('/Tag'), query: 'Tag' });
-  expect(mapCompletionRange('::Author #task', `::Author #[[${id}|task]]`, { from: 0, to: 8, query: 'Author', fields: true }))
-    .toEqual({ from: 0, to: 8, query: 'Author', fields: true });
+  expect(mapCompletionRange(raw, canonical, { from: slash.from, query: slash.query })).toEqual({
+    from: canonical.indexOf('/Tag'),
+    query: 'Tag',
+  });
+  expect(
+    mapCompletionRange('::Author #task', `::Author #[[${id}|task]]`, { from: 0, to: 8, query: 'Author', fields: true }),
+  ).toEqual({ from: 0, to: 8, query: 'Author', fields: true });
 });
 
 describe('an open reference completion', () => {
   test('captures only a whole-row block query, including paired closers beyond the caret', () => {
-    for (const [text, from, caret] of [['((', 0, 2], ['(())', 0, 2], ['((nested))', 0, 5], [' \t((nested)) ', 2, 6]] as const) {
+    for (const [text, from, caret] of [
+      ['((', 0, 2],
+      ['(())', 0, 2],
+      ['((nested))', 0, 5],
+      [' \t((nested)) ', 2, 6],
+    ] as const) {
       expect(isQuoteCompletion(text, from, caret)).toBe(true);
     }
-    for (const [text, from, caret] of [['see ((nested))', 4, 9], ['((nested)) next', 0, 5], ['((nested) ', 0, 8], ['[[nested]]', 0, 5], ['((nested\nnext))', 0, 8]] as const) {
+    for (const [text, from, caret] of [
+      ['see ((nested))', 4, 9],
+      ['((nested)) next', 0, 5],
+      ['((nested) ', 0, 8],
+      ['[[nested]]', 0, 5],
+      ['((nested\nnext))', 0, 8],
+    ] as const) {
       expect(isQuoteCompletion(text, from, caret)).toBe(false);
     }
   });
@@ -72,7 +108,11 @@ describe('an open reference completion', () => {
 
   test('searches and replaces the whole title when the caret sits mid-query', () => {
     expect(openReferenceRange('[[Stoicism]] and more', 0, 5, false)).toEqual({ from: 0, to: 12, query: 'Stoicism' });
-    expect(openReferenceRange('[[Meditations (book)]] x', 0, 4, false)).toEqual({ from: 0, to: 22, query: 'Meditations (book)' });
+    expect(openReferenceRange('[[Meditations (book)]] x', 0, 4, false)).toEqual({
+      from: 0,
+      to: 22,
+      query: 'Meditations (book)',
+    });
   });
 
   test('stops at the caret when nothing closes the query', () => {
@@ -96,7 +136,12 @@ describe('an open reference completion', () => {
     for (const text of ['[[gener]]', '[[gener']) {
       expect(referenceAliasInput(text, 0, 7)).toEqual({ from: 0, to: text.length, insert: '[[gener|]]', caret: 8 });
     }
-    expect(referenceAliasInput('[[Generation effect]]', 0, 19)).toEqual({ from: 0, to: 21, insert: '[[Generation effect|]]', caret: 20 });
+    expect(referenceAliasInput('[[Generation effect]]', 0, 19)).toEqual({
+      from: 0,
+      to: 21,
+      insert: '[[Generation effect|]]',
+      caret: 20,
+    });
   });
 
   test('adding an alias to an accepted ID does not replace it with a search hit for its mentions', () => {
@@ -107,8 +152,14 @@ describe('an open reference completion', () => {
 
   test('editing a target retains an existing alias and locator, but alias typing never completes', () => {
     const text = '[[Source|label|3.12]]';
-    expect(referenceAliasInput(text, 0, 5, 'target')).toEqual({ from: 0, to: text.length, insert: '[[target|label|3.12]]', caret: 9 });
-    for (let caret = text.indexOf('|') + 1; caret < text.length - 1; caret++) expect(referenceCompletionAt(text, caret)).toBeNull();
+    expect(referenceAliasInput(text, 0, 5, 'target')).toEqual({
+      from: 0,
+      to: text.length,
+      insert: '[[target|label|3.12]]',
+      caret: 9,
+    });
+    for (let caret = text.indexOf('|') + 1; caret < text.length - 1; caret++)
+      expect(referenceCompletionAt(text, caret)).toBeNull();
     expect(referenceCompletionAt(text, 5)?.query).toBe('Source');
   });
 
@@ -127,12 +178,22 @@ describe('an open reference completion', () => {
 
 describe('typed completion triggers', () => {
   test('does not open page or block reference completion inside matched or open code drafts', () => {
-    for (const text of ['`co[[QA Inline]]de`', '``co[[QA Inline]]de``', '`co((QA Inline))de`', '~~~\n[[QA Inline]]\n~~~']) {
+    for (const text of [
+      '`co[[QA Inline]]de`',
+      '``co[[QA Inline]]de``',
+      '`co((QA Inline))de`',
+      '~~~\n[[QA Inline]]\n~~~',
+    ]) {
       const marker = text.includes('[[') ? '[[' : '((';
       expect(referenceCompletionAt(text, text.indexOf(marker) + marker.length + 'QA Inline'.length)).toBeNull();
     }
     const text = '`code` [[QA Inline]]';
-    expect(referenceCompletionAt(text, text.length - 2)).toEqual({ from: 7, to: text.length - 2, query: 'QA Inline', blocks: false });
+    expect(referenceCompletionAt(text, text.length - 2)).toEqual({
+      from: 7,
+      to: text.length - 2,
+      query: 'QA Inline',
+      blocks: false,
+    });
     expect(referenceCompletionAt('[[outer|((inner))]]', 14)).toBeNull();
     const unmatched = 'it`s about [[Polybius]]';
     expect(referenceCompletionAt(unmatched, unmatched.length - 2)).toBeNull();
@@ -142,7 +203,8 @@ describe('typed completion triggers', () => {
     for (const key of ['Enter', 'Tab']) {
       const event = { key, shiftKey: false, metaKey: false, ctrlKey: false, altKey: false };
       expect(completionPickKey(event)).toBe(true);
-      for (const modifier of ['shiftKey', 'metaKey', 'ctrlKey', 'altKey'] as const) expect(completionPickKey({ ...event, [modifier]: true })).toBe(false);
+      for (const modifier of ['shiftKey', 'metaKey', 'ctrlKey', 'altKey'] as const)
+        expect(completionPickKey({ ...event, [modifier]: true })).toBe(false);
     }
   });
 
@@ -154,11 +216,14 @@ describe('typed completion triggers', () => {
     // Clicking in the block and pressing End only moves the caret.
     const placed = engagedToken(null, at, false);
     expect(placed).toBeNull();
-    for (const key of ['Enter', 'Tab', 'ArrowDown', 'ArrowUp']) expect(completionTakesKey({ key }, !!placed)).toBe(false);
+    for (const key of ['Enter', 'Tab', 'ArrowDown', 'ArrowUp'])
+      expect(completionTakesKey({ key }, !!placed)).toBe(false);
     expect(completionTakesKey({ key: 'Escape' }, !!placed)).toBe(true);
     // Typing engages the token, and the caret update that follows each keystroke keeps it engaged.
     const typed = engagedToken(placed, { ...at, query: 'propositions' }, true);
-    expect(completionTakesKey({ key: 'Enter' }, !!engagedToken(typed, { ...at, query: 'propositions' }, false))).toBe(true);
+    expect(completionTakesKey({ key: 'Enter' }, !!engagedToken(typed, { ...at, query: 'propositions' }, false))).toBe(
+      true,
+    );
     // Moving to another token, or another block, offers again.
     expect(engagedToken(typed, { ...at, query: 'proposition' }, false)).toBeNull();
     expect(engagedToken(typed, { ...at, id: 'c', query: 'propositions' }, false)).toBeNull();
@@ -166,8 +231,16 @@ describe('typed completion triggers', () => {
   });
 
   test('removes a heading prefix typed before existing text without removing the text', () => {
-    for (const [prefix, heading] of [['# ', 1], ['## ', 2], ['### ', 3]] as const) {
-      expect(headingPrefix(`${prefix.trim()}Existing sentence`, `${prefix}Existing sentence`, prefix.length)).toEqual({ text: 'Existing sentence', heading, caret: 0 });
+    for (const [prefix, heading] of [
+      ['# ', 1],
+      ['## ', 2],
+      ['### ', 3],
+    ] as const) {
+      expect(headingPrefix(`${prefix.trim()}Existing sentence`, `${prefix}Existing sentence`, prefix.length)).toEqual({
+        text: 'Existing sentence',
+        heading,
+        caret: 0,
+      });
       expect(headingPrefix(prefix.trim(), prefix, prefix.length)).toEqual({ text: '', heading, caret: 0 });
       expect(headingPrefix(`${prefix}xisting sentence`, `${prefix}Existing sentence`, prefix.length + 1)).toBeNull();
     }
@@ -193,7 +266,9 @@ describe('hand-typed reference linking', () => {
     const targets = new Map<string, string>();
     targets.set(foldName('Verify35 Case Canonical'), id);
     const text = `[[verify35 CASE canonical]] and [[VERIFY35 case CANONICAL]] and [[Verify35 Case Canonical|my label]] and [[${id}]] and [[unknown]]`;
-    expect(withLinkedTitles(text, targets)).toBe(`[[${id}|verify35 CASE canonical]] and [[${id}|VERIFY35 case CANONICAL]] and [[${id}|my label]] and [[${id}]] and [[unknown]]`);
+    expect(withLinkedTitles(text, targets)).toBe(
+      `[[${id}|verify35 CASE canonical]] and [[${id}|VERIFY35 case CANONICAL]] and [[${id}|my label]] and [[${id}]] and [[unknown]]`,
+    );
   });
 
   test('leaves hand-typed reference spelling inside code literal even when a title resolves', () => {
@@ -210,7 +285,12 @@ describe('hand-typed reference linking', () => {
   test('never normalizes or trims authored newlines inside a literal reference', () => {
     const targets = new Map<string, string>();
     targets.set(foldName('QA Inline'), '01ARZ3NDEKTSV4RRFFQ69G5FAV');
-    for (const text of ['Meet [[QA Inline\n]]', 'Meet [[QA\nInline]]', 'Meet [[QA Inline|QA\nInline]]', 'Meet [[QA Inline\r\n]]']) {
+    for (const text of [
+      'Meet [[QA Inline\n]]',
+      'Meet [[QA\nInline]]',
+      'Meet [[QA Inline|QA\nInline]]',
+      'Meet [[QA Inline\r\n]]',
+    ]) {
       expect(typedTitles(text)).toEqual([]);
       expect(withLinkedTitles(text, targets)).toBe(text);
     }
@@ -227,7 +307,10 @@ describe('hand-typed reference linking', () => {
     const created: string[] = [];
     const notebook = {
       api: { complete: async () => rows },
-      createPage: async (title: string) => { created.push(title); return 'created'; },
+      createPage: async (title: string) => {
+        created.push(title);
+        return 'created';
+      },
     } as unknown as NotebookClient;
     expect((await titleTargets(notebook, [date])).size).toBe(0);
     rows = [ordinary, journal];
@@ -239,7 +322,13 @@ describe('hand-typed reference linking', () => {
 });
 
 test('exact title completion uses canonical Unicode case folding without dropping accents', () => {
-  for (const [title, query] of [['café', 'cafe\u0301'], ['ΟΣ', 'οσ'], ['ΟΣ', 'ος'], ['Straße', 'STRASSE'], ['İstanbul', 'i\u0307stanbul']]) {
+  for (const [title, query] of [
+    ['café', 'cafe\u0301'],
+    ['ΟΣ', 'οσ'],
+    ['ΟΣ', 'ος'],
+    ['Straße', 'STRASSE'],
+    ['İstanbul', 'i\u0307stanbul'],
+  ]) {
     const page = { id: 'page', kind: 'page', parent_id: null, text: title } as Block;
     const roots = [page];
     const notebook = { roots: () => roots, lookup: () => () => page } as unknown as NotebookClient;

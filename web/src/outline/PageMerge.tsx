@@ -10,13 +10,20 @@ import { titleKey } from '../document/title-key';
 
 type Page = Pick<Block, 'id' | 'text'>;
 
-export function builtInTagReason(title: string, capabilities: Pick<BlockCapabilities, 'built_in_tag'> | undefined, action: 'delete' | 'merge'): string | undefined {
+export function builtInTagReason(
+  title: string,
+  capabilities: Pick<BlockCapabilities, 'built_in_tag'> | undefined,
+  action: 'delete' | 'merge',
+): string | undefined {
   if (!capabilities?.built_in_tag) return undefined;
   const name = title[0]!.toLocaleUpperCase() + title.slice(1).toLocaleLowerCase();
   return `${name} is a built-in tag; ${action === 'delete' ? 'this built-in tag cannot be deleted.' : 'this built-in tag cannot be merged.'}`;
 }
 
-export function pageMergeDisabledReason(root: BlockState | undefined, capabilities?: Pick<BlockCapabilities, 'built_in_tag'>): string | undefined {
+export function pageMergeDisabledReason(
+  root: BlockState | undefined,
+  capabilities?: Pick<BlockCapabilities, 'built_in_tag'>,
+): string | undefined {
   if (!root) return 'Atom is still loading.';
   const system = builtInTagReason(root.text, capabilities, 'merge');
   if (system) return system;
@@ -26,8 +33,8 @@ export function pageMergeDisabledReason(root: BlockState | undefined, capabiliti
   if (root.spread) return "A spread can't be merged.";
   if (root.project) return "A project can't be merged.";
   if (root.task) return "An atom with a task can't be merged.";
-  if (root.question) return "A question cannot be merged.";
-  if (root.position) return "A perspective cannot be merged.";
+  if (root.question) return 'A question cannot be merged.';
+  if (root.position) return 'A perspective cannot be merged.';
   if (root.assessment) return "An atom with an assessment can't be merged.";
   if (root.relation) return "An atom with an argument can't be merged.";
   if (root.quote) return "An atom with a quoted copy can't be merged.";
@@ -39,50 +46,159 @@ export function pageMergeDisabledReason(root: BlockState | undefined, capabiliti
 }
 
 /** Both the title collision and page menu require the same permanent confirmation. */
-export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; into: Page; returnFocus?: () => HTMLElement | null; onDismiss(): void; onMerged(id: string): void }) {
+export function PageMergeConfirmation(props: {
+  anchor: PopupAnchor;
+  notebook: NotebookClient;
+  from: Page;
+  into: Page;
+  returnFocus?: () => HTMLElement | null;
+  onDismiss(): void;
+  onMerged(id: string): void;
+}) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const [capabilities] = createResource(() => props.from.id, id => props.notebook.api.capabilities(id));
-  const disabled = () => capabilities.error ? String(capabilities.error) : !capabilities() ? 'Atom is still loading.' : builtInTagReason(props.from.text, capabilities(), 'merge');
+  const [capabilities] = createResource(
+    () => props.from.id,
+    id => props.notebook.api.capabilities(id),
+  );
+  const disabled = () =>
+    capabilities.error
+      ? String(capabilities.error)
+      : !capabilities()
+        ? 'Atom is still loading.'
+        : builtInTagReason(props.from.text, capabilities(), 'merge');
   const merge = async () => {
     if (busy()) return;
-    if (disabled()) { setError(disabled()!); return; }
-    setBusy(true); setError('');
+    if (disabled()) {
+      setError(disabled()!);
+      return;
+    }
+    setBusy(true);
+    setError('');
     try {
       await props.notebook.mergePage(props.from.id, props.into.id);
       props.onMerged(props.into.id);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
-  return <Popup anchor={props.anchor} returnFocus={props.returnFocus} class="outline-capability-popup page-merge-confirmation" label={`Merge “${props.from.text}” into “${props.into.text}”?`} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <h3 class="popup-title">Merge “{props.from.text}” into “{props.into.text}”?</h3>
-    <p class="muted">References and atoms will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an alias.</p>
-    <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-    <Show when={busy()}><p class="muted" role="status">Waiting for the merge to save.</p></Show>
-    <div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button class="danger bordered" disabled={busy() || !!disabled()} title={disabled()} onClick={() => { void merge(); }}>Merge atoms</Button></div>
-  </Popup>;
+  return (
+    <Popup
+      anchor={props.anchor}
+      returnFocus={props.returnFocus}
+      class="outline-capability-popup page-merge-confirmation"
+      label={`Merge “${props.from.text}” into “${props.into.text}”?`}
+      onDismiss={() => {
+        if (!busy()) props.onDismiss();
+      }}
+    >
+      <h3 class="popup-title">
+        Merge “{props.from.text}” into “{props.into.text}”?
+      </h3>
+      <p class="muted">
+        References and atoms will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an
+        alias.
+      </p>
+      <Show when={error()}>
+        <p class="error" role="alert">
+          {error()}
+        </p>
+      </Show>
+      <Show when={busy()}>
+        <p class="muted" role="status">
+          Waiting for the merge to save.
+        </p>
+      </Show>
+      <div class="popup-actions">
+        <Button disabled={busy()} onClick={props.onDismiss}>
+          Cancel
+        </Button>
+        <Button
+          class="danger bordered"
+          disabled={busy() || !!disabled()}
+          title={disabled()}
+          onClick={() => {
+            void merge();
+          }}
+        >
+          Merge atoms
+        </Button>
+      </div>
+    </Popup>
+  );
 }
 
-export function PageMergePicker(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; returnFocus?: () => HTMLElement | null; onDismiss(): void; onMerged(id: string): void }) {
+export function PageMergePicker(props: {
+  anchor: PopupAnchor;
+  notebook: NotebookClient;
+  from: Page;
+  returnFocus?: () => HTMLElement | null;
+  onDismiss(): void;
+  onMerged(id: string): void;
+}) {
   const [query, setQuery] = createSignal('');
   const [target, setTarget] = createSignal<Block>();
-  const [pages] = createResource(() => {
-    props.notebook.changeSequence();
-    return props.notebook.roots().filter(page => page.kind === 'page' && page.id !== props.from.id && page.text.trim() && titleKey(page.text) !== 'fields');
-  }, async roots => {
-    const library = await props.notebook.api.library({ limit: roots.length });
-    const sources = new Set(library.rows.map(row => row.source.block_id));
-    return roots.filter(page => !sources.has(page.id));
-  });
+  const [pages] = createResource(
+    () => {
+      props.notebook.changeSequence();
+      return props.notebook
+        .roots()
+        .filter(
+          page =>
+            page.kind === 'page' && page.id !== props.from.id && page.text.trim() && titleKey(page.text) !== 'fields',
+        );
+    },
+    async roots => {
+      const library = await props.notebook.api.library({ limit: roots.length });
+      const sources = new Set(library.rows.map(row => row.source.block_id));
+      return roots.filter(page => !sources.has(page.id));
+    },
+  );
   const matches = createMemo(() => {
     const text = titleKey(query().trim());
     return pages.error ? [] : (pages() ?? []).filter(page => titleKey(page.text).includes(text));
   });
-  return <Show keyed when={target()} fallback={<Picker<Block> anchor={props.anchor} returnFocus={props.returnFocus} label="Merge into" onDismiss={props.onDismiss}
-    query={query()} onQuery={setQuery} placeholder="Find an atom" items={matches()} key={page => page.id}
-    onPick={page => setTarget(page)} busy={pages.loading} error={pages.error ? String(pages.error) : undefined} empty="No matching atoms."
-    row={page => <><Icon name="page" /><span class="picker-text">{page.text}</span></>} />}>
-    {into => <PageMergeConfirmation anchor={props.anchor} returnFocus={props.returnFocus} notebook={props.notebook} from={props.from} into={into} onDismiss={props.onDismiss} onMerged={props.onMerged} />}
-  </Show>;
+  return (
+    <Show
+      keyed
+      when={target()}
+      fallback={
+        <Picker<Block>
+          anchor={props.anchor}
+          returnFocus={props.returnFocus}
+          label="Merge into"
+          onDismiss={props.onDismiss}
+          query={query()}
+          onQuery={setQuery}
+          placeholder="Find an atom"
+          items={matches()}
+          key={page => page.id}
+          onPick={page => setTarget(page)}
+          busy={pages.loading}
+          error={pages.error ? String(pages.error) : undefined}
+          empty="No matching atoms."
+          row={page => (
+            <>
+              <Icon name="page" />
+              <span class="picker-text">{page.text}</span>
+            </>
+          )}
+        />
+      }
+    >
+      {into => (
+        <PageMergeConfirmation
+          anchor={props.anchor}
+          returnFocus={props.returnFocus}
+          notebook={props.notebook}
+          from={props.from}
+          into={into}
+          onDismiss={props.onDismiss}
+          onMerged={props.onMerged}
+        />
+      )}
+    </Show>
+  );
 }

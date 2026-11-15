@@ -19,20 +19,73 @@ export function FieldPane(props: {
   createEffect(() => {
     const controller = new AbortController();
     let document: PageDocument | undefined;
-    void props.notebook.api.pageByTitle('Fields', controller.signal).then(page => {
-      if (!controller.signal.aborted) { document = props.notebook.open(page.id); setDoc(document); }
-    }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
-    onCleanup(() => { controller.abort(); document?.release(); });
+    void props.notebook.api
+      .pageByTitle('Fields', controller.signal)
+      .then(page => {
+        if (!controller.signal.aborted) {
+          document = props.notebook.open(page.id);
+          setDoc(document);
+        }
+      })
+      .catch(reason => {
+        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason));
+      });
+    onCleanup(() => {
+      controller.abort();
+      document?.release();
+    });
   });
-  return <div ref={scroll} class="field-page-pane" role="region" tabIndex={0} aria-label="Field definition" onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })} onKeyDown={event => {
-    if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
-      event.preventDefault(); event.stopPropagation();
-      if (event.shiftKey) doc()?.redo(); else doc()?.undo();
-    }
-  }}>
-    {error() && <p class="error" role="alert">{error()}</p>}
-    <FieldDetails fieldId={props.target.fieldId} previewKind={props.target.previewKind} section={props.target.section} notebook={props.notebook} document={doc()} onOpen={props.onOpen}
-      onPreview={previewKind => props.onTargetChange({ kind: 'field', fieldId: props.target.fieldId, ...(previewKind ? { previewKind } : {}) })}
-      onReady={() => { if (!restored) { restored = true; requestAnimationFrame(() => { if (!props.target.section) scroll.scrollTop = props.view.scroll; }); } }} />
-  </div>;
+  return (
+    <div
+      ref={scroll}
+      class="field-page-pane"
+      role="region"
+      tabIndex={0}
+      aria-label="Field definition"
+      onFocusIn={props.onActivate}
+      onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}
+      onKeyDown={event => {
+        if (
+          !(event.target instanceof HTMLInputElement) &&
+          (event.metaKey || event.ctrlKey) &&
+          !event.altKey &&
+          event.key.toLowerCase() === 'z'
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.shiftKey) doc()?.redo();
+          else doc()?.undo();
+        }
+      }}
+    >
+      {error() && (
+        <p class="error" role="alert">
+          {error()}
+        </p>
+      )}
+      <FieldDetails
+        fieldId={props.target.fieldId}
+        previewKind={props.target.previewKind}
+        section={props.target.section}
+        notebook={props.notebook}
+        document={doc()}
+        onOpen={props.onOpen}
+        onPreview={previewKind =>
+          props.onTargetChange({
+            kind: 'field',
+            fieldId: props.target.fieldId,
+            ...(previewKind ? { previewKind } : {}),
+          })
+        }
+        onReady={() => {
+          if (!restored) {
+            restored = true;
+            requestAnimationFrame(() => {
+              if (!props.target.section) scroll.scrollTop = props.view.scroll;
+            });
+          }
+        }}
+      />
+    </div>
+  );
 }

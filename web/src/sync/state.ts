@@ -15,7 +15,8 @@ export const FRESH_MS = 30_000;
 export function syncDue(value: SyncState | null, opening: boolean, now = Date.now()): boolean {
   const replica = value?.role === 'replica' ? value.replica : null;
   if (!replica || replica.syncing || replica.retired) return false;
-  if (replica.last_error && (!opening || ['unpaired', 'wrong_device', 'retired'].includes(replica.last_error.code))) return false;
+  if (replica.last_error && (!opening || ['unpaired', 'wrong_device', 'retired'].includes(replica.last_error.code)))
+    return false;
   return replica.synced_at === null || now - replica.synced_at >= FRESH_MS;
 }
 
@@ -36,35 +37,64 @@ export const sync = createRoot(() => {
   const schedule = () => {
     window.clearTimeout(timer);
     // Only a replica changes underneath the page; a hub or a standalone notebook is read once per refresh.
-    if (state()?.role === 'replica' && visible()) timer = window.setTimeout(() => { void refresh(); }, POLL_MS);
+    if (state()?.role === 'replica' && visible())
+      timer = window.setTimeout(() => {
+        void refresh();
+      }, POLL_MS);
   };
   const run = () => {
     running = true;
-    void api.runSync().then(setState, () => undefined).finally(() => { running = false; schedule(); });
+    void api
+      .runSync()
+      .then(setState, () => undefined)
+      .finally(() => {
+        running = false;
+        schedule();
+      });
   };
   const refresh = (): Promise<SyncState | null> => {
     if (DEMO) return Promise.resolve(null);
-    inflight ??= api.syncState().then(value => {
-      setState(value);
-      setNow(Date.now());
-      if (value.role !== 'replica') void hubDevices.refresh();
-      if (value.role !== 'none') void syncConflicts.refresh();
-      const wasOpening = opening;
-      opening = false;
-      if (!running && visible() && syncDue(value, wasOpening)) run();
-      return value;
-    }, () => state()).finally(() => { inflight = null; schedule(); });
+    inflight ??= api
+      .syncState()
+      .then(
+        value => {
+          setState(value);
+          setNow(Date.now());
+          if (value.role !== 'replica') void hubDevices.refresh();
+          if (value.role !== 'none') void syncConflicts.refresh();
+          const wasOpening = opening;
+          opening = false;
+          if (!running && visible() && syncDue(value, wasOpening)) run();
+          return value;
+        },
+        () => state(),
+      )
+      .finally(() => {
+        inflight = null;
+        schedule();
+      });
     return inflight;
   };
-  if (!DEMO && typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
-    if (visible()) { opening = true; void refresh(); }
-    else window.clearTimeout(timer);
-  });
-  return { state, now, refresh, set: (value: SyncState) => {
-    setState(value); setNow(Date.now()); schedule();
-    if (value.role !== 'replica') void hubDevices.refresh();
-    if (value.role !== 'none') void syncConflicts.refresh();
-  }, tick: () => setNow(Date.now()) };
+  if (!DEMO && typeof document !== 'undefined')
+    document.addEventListener('visibilitychange', () => {
+      if (visible()) {
+        opening = true;
+        void refresh();
+      } else window.clearTimeout(timer);
+    });
+  return {
+    state,
+    now,
+    refresh,
+    set: (value: SyncState) => {
+      setState(value);
+      setNow(Date.now());
+      schedule();
+      if (value.role !== 'replica') void hubDevices.refresh();
+      if (value.role !== 'none') void syncConflicts.refresh();
+    },
+    tick: () => setNow(Date.now()),
+  };
 });
 
 /**
@@ -78,20 +108,43 @@ export const hubDevices = createRoot(() => {
   const schedule = () => {
     window.clearTimeout(timer);
     if (sync.state()?.role === 'hub' && state()?.devices.length && document.visibilityState === 'visible') {
-      timer = window.setTimeout(() => { void refresh(); }, POLL_MS);
+      timer = window.setTimeout(() => {
+        void refresh();
+      }, POLL_MS);
     }
   };
   const refresh = (): Promise<SyncDevices | null> => {
     if (EMBEDDED || !sync.state() || sync.state()!.role === 'replica') return Promise.resolve(null);
-    inflight ??= api.syncDevices().then(value => { setState(value); sync.tick(); void syncConflicts.refresh(); return value; }, () => state())
-      .finally(() => { inflight = null; schedule(); });
+    inflight ??= api
+      .syncDevices()
+      .then(
+        value => {
+          setState(value);
+          sync.tick();
+          void syncConflicts.refresh();
+          return value;
+        },
+        () => state(),
+      )
+      .finally(() => {
+        inflight = null;
+        schedule();
+      });
     return inflight;
   };
-  if (!DEMO && typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void refresh();
-    else window.clearTimeout(timer);
-  });
-  return { state, refresh, set: (value: SyncDevices) => { setState(value); schedule(); } };
+  if (!DEMO && typeof document !== 'undefined')
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void refresh();
+      else window.clearTimeout(timer);
+    });
+  return {
+    state,
+    refresh,
+    set: (value: SyncDevices) => {
+      setState(value);
+      schedule();
+    },
+  };
 });
 
 /** A hub needs its own review counts too. Replica polling and hub-device polling keep these current. */
@@ -100,14 +153,24 @@ export const syncConflicts = createRoot(() => {
   let inflight: Promise<SyncConflicts | null> | null = null;
   const refresh = (): Promise<SyncConflicts | null> => {
     if (DEMO || !sync.state() || sync.state()?.role === 'none') return Promise.resolve(null);
-    inflight ??= api.syncConflicts().then(value => { setState(value); return value; }, () => state()).finally(() => { inflight = null; });
+    inflight ??= api
+      .syncConflicts()
+      .then(
+        value => {
+          setState(value);
+          return value;
+        },
+        () => state(),
+      )
+      .finally(() => {
+        inflight = null;
+      });
     return inflight;
   };
   return { state, refresh };
 });
 
 export const replica = () => sync.state()?.replica ?? null;
-
 
 /** `4 minutes ago`, `just now`, `3 days ago`. */
 export function ago(at: number, now = Date.now()): string {
@@ -126,7 +189,10 @@ export function size(bytes: number): string {
   const units = ['bytes', 'KB', 'MB', 'GB'];
   let value = bytes;
   let unit = 0;
-  while (value >= 1000 && unit < units.length - 1) { value /= 1000; unit += 1; }
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
   return `${unit > 0 && value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 

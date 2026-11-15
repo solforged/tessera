@@ -32,7 +32,9 @@ export function proseDate(value: string, today: string): string | undefined {
   if (index < 0 || index > 11) return undefined;
   if (day === undefined) return `${months[index]} ${year}`;
   const date = `${year}-${month}-${day}`;
-  return Number.isNaN(noon(date).getTime()) || noon(date).getUTCMonth() !== index ? undefined : relativeDate(date, today);
+  return Number.isNaN(noon(date).getTime()) || noon(date).getUTCMonth() !== index
+    ? undefined
+    : relativeDate(date, today);
 }
 
 /** Lowercase, since it usually follows a word in a row: `since yesterday`, `due Sat`, `done Oct 2`. */
@@ -49,7 +51,9 @@ export function relativeDate(date: string, today: string): string {
 export function provenanceDay(date: string, today: string): string {
   const days = daysBetween(today, date);
   if (Math.abs(days) <= 1) return relativeDate(date, today);
-  return Math.abs(days) <= 6 ? `${weekdays[noon(date).getUTCDay()]} ${Number(date.slice(8, 10))}` : calendarDate(date, today);
+  return Math.abs(days) <= 6
+    ? `${weekdays[noon(date).getUTCDay()]} ${Number(date.slice(8, 10))}`
+    : calendarDate(date, today);
 }
 
 /** A journal day named the way a phone's lists name it: Today, Yesterday, Tomorrow, the weekday in full within six days, then `Oct 2`. */
@@ -63,7 +67,9 @@ export function journalLabel(date: string, today: string): string {
 
 /** The civil date of a timestamp in `zone`, or this device's zone while the notebook has none. */
 export function civilDate(value: number, zone?: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(
+    value,
+  );
 }
 
 /** `Week 44 · Oct 26 – Nov 1`: the ISO week of `monday` and its Monday–Sunday span, the year shown once where it differs from today's. */

@@ -2,10 +2,34 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { chooseName, completeNames, displayTitle, foldedHighlights, foldName, plainText, readableText, referenceLabel, referenceValue, resolveName, resolvedReferenceText } from './names';
+import {
+  chooseName,
+  completeNames,
+  displayTitle,
+  foldedHighlights,
+  foldName,
+  plainText,
+  readableText,
+  referenceLabel,
+  referenceValue,
+  resolveName,
+  resolvedReferenceText,
+} from './names';
 import { typedTitles, withLinkedTitles } from './link-titles';
 
-const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
+const page = (id: string, text: string): Block => ({
+  id,
+  text,
+  kind: 'page',
+  parent_id: null,
+  page_id: id,
+  heading: null,
+  archived: false,
+  kept_copy: null,
+  revision: 1,
+  created_at: 0,
+  updated_at: 0,
+});
 
 test('folded Find highlights map back to complete original glyphs and UTF-16 offsets', () => {
   for (const text of ['café', 'cafe\u0301', '日本語 देवनागरी ภาษาไทย 👩🏽‍💻 café']) {
@@ -13,12 +37,23 @@ test('folded Find highlights map back to complete original glyphs and UTF-16 off
     expect(ranges).toEqual([[text.indexOf('caf'), text.length]]);
     expect(ranges.map(([a, b]) => text.slice(a, b))).toEqual([text.slice(text.indexOf('caf'))]);
   }
-  expect(foldedHighlights('Café and déjà vu', 'cafe deja')).toEqual([[0, 4], [9, 13]]);
+  expect(foldedHighlights('Café and déjà vu', 'cafe deja')).toEqual([
+    [0, 4],
+    [9, 13],
+  ]);
   expect(foldedHighlights('Flann O’Brien', 'obrien')).toEqual([[6, 13]]);
   expect(foldedHighlights('no match', '?!')).toEqual([]);
   expect(foldedHighlights('ΟΣ', 'ΟΣ')).toEqual([[0, 2]]);
-  expect(foldedHighlights('This island lists is called', 'is')).toEqual([[5, 11], [18, 20]]);
-  expect(foldedHighlights('Attention is all you need, called Attention', 'attention is all')).toEqual([[0, 9], [10, 12], [13, 16], [34, 43]]);
+  expect(foldedHighlights('This island lists is called', 'is')).toEqual([
+    [5, 11],
+    [18, 20],
+  ]);
+  expect(foldedHighlights('Attention is all you need, called Attention', 'attention is all')).toEqual([
+    [0, 9],
+    [10, 12],
+    [13, 16],
+    [34, 43],
+  ]);
 });
 
 test('tag labels follow the live title, falling back to an alias or missing identity', () => {
@@ -56,7 +91,11 @@ test('plain-text exports and ambiguous-name choices preserve locators', () => {
 
 test('saved view labels remain readable without querying the block cache', () => {
   const text = '[[view:01ARZ3NDEKTSV4RRFFQ69G5FAV|Open questions]]';
-  expect(plainText(text, () => { throw new Error('A view is not a block'); })).toBe('Open questions');
+  expect(
+    plainText(text, () => {
+      throw new Error('A view is not a block');
+    }),
+  ).toBe('Open questions');
   expect(referenceValue(text)).toEqual({ id: null, name: 'Open questions' });
   expect(typedTitles(text)).toEqual([]);
   expect(withLinkedTitles(text, new Map([['01arz3ndektsv4rrffq69g5fav', 'page']]))).toBe(text);
@@ -66,28 +105,42 @@ test('deleted attribution labels stay readable without inventing a live referenc
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const token = textTokens(`[[${id}]]`)[0]!;
   const lookup = () => () => null;
-  expect(referenceLabel(token, null, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe('Renamed holder 二 · Deleted holder');
-  expect(referenceLabel(token, undefined, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe('Renamed holder 二 · Deleted holder');
+  expect(referenceLabel(token, null, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe(
+    'Renamed holder 二 · Deleted holder',
+  );
+  expect(referenceLabel(token, undefined, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe(
+    'Renamed holder 二 · Deleted holder',
+  );
   expect(referenceLabel(token, null, lookup)).toBe(`Unresolved ${id}`);
   expect(plainText(`[[${id}|Remembered name]]`, lookup)).toBe('Remembered name');
   const deleted = { id, text: 'Renamed holder 二' };
   expect(plainText(`[[${id}]]`, lookup, undefined, deleted)).toBe('Renamed holder 二 · Deleted holder');
-  expect(plainText(`[[${id}]] · Preserved gist`, lookup, undefined, deleted)).toBe('Renamed holder 二 · Deleted holder · Preserved gist');
-  expect(plainText('[[01ARZ3NDEKTSV4RRFFQ69G5FAW]]', lookup, undefined, deleted)).toBe('Unresolved 01ARZ3NDEKTSV4RRFFQ69G5FAW');
+  expect(plainText(`[[${id}]] · Preserved gist`, lookup, undefined, deleted)).toBe(
+    'Renamed holder 二 · Deleted holder · Preserved gist',
+  );
+  expect(plainText('[[01ARZ3NDEKTSV4RRFFQ69G5FAW]]', lookup, undefined, deleted)).toBe(
+    'Unresolved 01ARZ3NDEKTSV4RRFFQ69G5FAW',
+  );
 });
 
 test('readable text drops inline markup as block text renders it, keeping references, card arrows and cloze answers', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const lookup = () => () => page(id, 'Entropy');
-  expect(readableText('For N tokens, `PPL = exp(−(1/N) Σ_t log p_θ(x_t))`.', lookup)).toBe('For N tokens, PPL = exp(−(1/N) Σ_t log p_θ(x_t)).');
-  expect(readableText('A **bold** and *quiet* ``a `tick` inside`` near [[01ARZ3NDEKTSV4RRFFQ69G5FAV]]', lookup)).toBe('A bold and quiet a `tick` inside near Entropy');
+  expect(readableText('For N tokens, `PPL = exp(−(1/N) Σ_t log p_θ(x_t))`.', lookup)).toBe(
+    'For N tokens, PPL = exp(−(1/N) Σ_t log p_θ(x_t)).',
+  );
+  expect(readableText('A **bold** and *quiet* ``a `tick` inside`` near [[01ARZ3NDEKTSV4RRFFQ69G5FAV]]', lookup)).toBe(
+    'A bold and quiet a `tick` inside near Entropy',
+  );
   // A code span shows its references literally, as BlockText does.
   expect(readableText(`Write \`[[${id}]]\` to link`, lookup)).toBe(`Write [[${id}]] to link`);
   // Unmatched markers stay, as they stay in block text.
   expect(readableText('2 * 3 and a lone ` tick', lookup)).toBe('2 * 3 and a lone ` tick');
   expect(readableText('Formula >> `W_2 φ(x)`', lookup)).toBe('Formula → W_2 φ(x)');
   expect(readableText('Scale by {{c1::`√d_k`}}', lookup)).toBe('Scale by √d_k');
-  expect(readableText(`[[${id}]] · gist`, () => () => null, { id, text: 'Old holder' })).toBe('Old holder · Deleted holder · gist');
+  expect(readableText(`[[${id}]] · gist`, () => () => null, { id, text: 'Old holder' })).toBe(
+    'Old holder · Deleted holder · gist',
+  );
 });
 
 describe('page names', () => {
@@ -96,7 +149,7 @@ describe('page names', () => {
     expect(foldName('  张三  ')).toBe('张三');
     expect(foldName('J.M. Keynes')).toBe('j m keynes');
     expect(foldName('Merleau-Ponty')).toBe('merleau ponty');
-    expect(foldName('Flann O’Brien')).toBe(foldName("flann obrien"));
+    expect(foldName('Flann O’Brien')).toBe(foldName('flann obrien'));
     expect(foldName('Lab #[[01ARZ3NDEKTSV4RRFFQ69G5FAV|project]]')).toBe('lab');
     expect(foldName('Lab #project')).toBe('lab');
     expect(foldName('Lab #[[project]]')).toBe('lab');
@@ -105,7 +158,15 @@ describe('page names', () => {
   test('shares folded resolutions until the notebook change sequence advances', async () => {
     let sequence = 0;
     const requests: string[] = [];
-    const notebook = { changeSequence: () => sequence, api: { resolveName: async (name: string) => { requests.push(name); return [match]; } } } as unknown as NotebookClient;
+    const notebook = {
+      changeSequence: () => sequence,
+      api: {
+        resolveName: async (name: string) => {
+          requests.push(name);
+          return [match];
+        },
+      },
+    } as unknown as NotebookClient;
     const first = resolveName(notebook, 'Túlly');
     expect(resolveName(notebook, '  TULLY ')).toBe(first);
     expect(await first).toEqual([match]);
@@ -116,26 +177,46 @@ describe('page names', () => {
 
   test('failed lookups can be retried within the same sequence', async () => {
     let calls = 0;
-    const notebook = { changeSequence: () => 0, api: { resolveName: async () => { if (++calls === 1) throw new Error('Offline'); return [match]; } } } as unknown as NotebookClient;
+    const notebook = {
+      changeSequence: () => 0,
+      api: {
+        resolveName: async () => {
+          if (++calls === 1) throw new Error('Offline');
+          return [match];
+        },
+      },
+    } as unknown as NotebookClient;
     await expect(resolveName(notebook, 'Tully')).rejects.toThrow('Offline');
     expect(await resolveName(notebook, 'Tully')).toEqual([match]);
     expect(calls).toBe(2);
   });
 
   test('alias completion keeps allowed identities and never offers duplicate creation for an exact alias', async () => {
-    const person = page('person', 'Ibn Khaldun'), source = page('source', 'ʿAbd al-Raḥmān');
+    const person = page('person', 'Ibn Khaldun'),
+      source = page('source', 'ʿAbd al-Raḥmān');
     const alias = { page: person, alias: 'ʿAbd al-Raḥmān' };
-    const notebook = { changeSequence: () => 0, roots: () => [person, source], api: {
-      resolveName: async () => [alias, { page: source, alias: null }],
-      complete: async () => [{ ...source, alias: null }, { ...person, alias: alias.alias }],
-    } } as unknown as NotebookClient;
+    const notebook = {
+      changeSequence: () => 0,
+      roots: () => [person, source],
+      api: {
+        resolveName: async () => [alias, { page: source, alias: null }],
+        complete: async () => [
+          { ...source, alias: null },
+          { ...person, alias: alias.alias },
+        ],
+      },
+    } as unknown as NotebookClient;
     expect(await completeNames(notebook, 'ʿabd al-rahman', [person])).toEqual({ rows: [alias], canCreate: false });
     expect(await completeNames(notebook, 'ʿabd al-rahman', [])).toEqual({ rows: [], canCreate: true });
   });
 
   test('nested position and quote labels render holder names and bound reference cycles', () => {
-    const personId = '01ARZ3NDEKTSV4RRFFQ69G5FAV', positionId = '01ARZ3NDEKTSV4RRFFQ69G5FAW';
-    const blocks = new Map([[personId, page(personId, 'Plato')], [positionId, page(positionId, `[[${personId}|Plato]]`)]]);
+    const personId = '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      positionId = '01ARZ3NDEKTSV4RRFFQ69G5FAW';
+    const blocks = new Map([
+      [personId, page(personId, 'Plato')],
+      [positionId, page(positionId, `[[${personId}|Plato]]`)],
+    ]);
     const lookup = (id: string) => () => blocks.get(id) ?? null;
     expect(plainText(`See [[${positionId}]]`, lookup)).toBe('See Plato');
     expect(plainText(`((${positionId}))`, lookup)).toBe('“Plato”');
@@ -147,7 +228,10 @@ describe('page names', () => {
   test('bracketed creator names never masquerade as canonical IDs', () => {
     expect(referenceValue('[[Arnold J. Toynbee]]')).toEqual({ id: null, name: 'Arnold J. Toynbee' });
     expect(referenceValue('[[Arnold Toynbee|A. J. Toynbee]]')).toEqual({ id: null, name: 'A. J. Toynbee' });
-    expect(referenceValue('[[01ARZ3NDEKTSV4RRFFQ69G5FAV|Toynbee]]')).toEqual({ id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', name: 'Toynbee' });
+    expect(referenceValue('[[01ARZ3NDEKTSV4RRFFQ69G5FAV|Toynbee]]')).toEqual({
+      id: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      name: 'Toynbee',
+    });
     expect(referenceValue('Plain name')).toEqual({ id: null, name: 'Plain name' });
   });
 
@@ -165,11 +249,30 @@ describe('page names', () => {
     const calls: string[] = [];
     const source = { ...page('source', text), kind: 'block', parent_id: 'owner', page_id: 'owner' } as Block;
     const doc = {
-      status: () => 'ready', block: () => ({ ...source, text }),
-      edit: (edit: { text: string }) => { text = edit.text; calls.push('edit'); return { ok: true, caret: null, created: [] }; },
-      flush: async () => { calls.push('flush'); }, release: () => { calls.push('release'); },
+      status: () => 'ready',
+      block: () => ({ ...source, text }),
+      edit: (edit: { text: string }) => {
+        text = edit.text;
+        calls.push('edit');
+        return { ok: true, caret: null, created: [] };
+      },
+      flush: async () => {
+        calls.push('flush');
+      },
+      release: () => {
+        calls.push('release');
+      },
     } as unknown as PageDocument;
-    const notebook = { lookup: () => () => source, open: () => doc, api: { addAlias: async (id: string, name: string) => { calls.push(`alias:${id}:${name}`); return null; } } } as unknown as NotebookClient;
+    const notebook = {
+      lookup: () => () => source,
+      open: () => doc,
+      api: {
+        addAlias: async (id: string, name: string) => {
+          calls.push(`alias:${id}:${name}`);
+          return null;
+        },
+      },
+    } as unknown as NotebookClient;
     await chooseName(notebook, source.id, textTokens(text).find(token => token.kind === 'reference')!, 'target');
     expect(text).toBe('See [[target|Tully]]');
     expect(calls).toEqual(['edit', 'flush', 'alias:target:Tully', 'release']);
@@ -180,8 +283,20 @@ describe('page names', () => {
     let text = original;
     const calls: string[] = [];
     const source = { ...page('source', text), kind: 'block', parent_id: 'owner', page_id: 'owner' } as Block;
-    const doc = { status: () => 'ready', block: () => ({ ...source, text }), release: () => calls.push('release') } as unknown as PageDocument;
-    const notebook = { lookup: () => () => source, open: () => doc, createPage: async (name: string) => { calls.push(`create:${name}`); text = 'Changed'; return 'new'; } } as unknown as NotebookClient;
+    const doc = {
+      status: () => 'ready',
+      block: () => ({ ...source, text }),
+      release: () => calls.push('release'),
+    } as unknown as PageDocument;
+    const notebook = {
+      lookup: () => () => source,
+      open: () => doc,
+      createPage: async (name: string) => {
+        calls.push(`create:${name}`);
+        text = 'Changed';
+        return 'new';
+      },
+    } as unknown as NotebookClient;
     await chooseName(notebook, source.id, textTokens(original)[0]!);
     expect(text).toBe('Changed');
     expect(calls).toEqual(['create:Pliny', 'release']);

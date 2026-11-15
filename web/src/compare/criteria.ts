@@ -2,9 +2,14 @@ import type { NotebookClient } from '../document/contract';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 
 /** Keep accepting the live draft while resolving names, including names added during the lookup. */
-export async function linkedCriteriaDraft(notebook: NotebookClient, initial: string, latest: () => string): Promise<string> {
+export async function linkedCriteriaDraft(
+  notebook: NotebookClient,
+  initial: string,
+  latest: () => string,
+): Promise<string> {
   let draft = initial;
-  const resolved = new Set<string>(), targets = new Map<string, string>();
+  const resolved = new Set<string>(),
+    targets = new Map<string, string>();
   for (;;) {
     const titles = typedTitles(draft).filter(title => !resolved.has(title));
     if (titles.length) {
@@ -18,8 +23,15 @@ export async function linkedCriteriaDraft(notebook: NotebookClient, initial: str
 }
 
 /** Visible reading order: across the row, then into the next row, in either matrix orientation. */
-export function nextCriterionCell(positions: readonly string[], criteria: readonly string[], current: { position: string; field: string }, direction: -1 | 1, orientation: 'criteria' | 'holders' = 'criteria'): { position: string; field: string } | null {
-  const position = positions.indexOf(current.position), field = criteria.indexOf(current.field);
+export function nextCriterionCell(
+  positions: readonly string[],
+  criteria: readonly string[],
+  current: { position: string; field: string },
+  direction: -1 | 1,
+  orientation: 'criteria' | 'holders' = 'criteria',
+): { position: string; field: string } | null {
+  const position = positions.indexOf(current.position),
+    field = criteria.indexOf(current.field);
   if (position < 0 || field < 0) return null;
   const columns = orientation === 'holders' ? criteria.length : positions.length;
   const index = (orientation === 'holders' ? position * columns + field : field * columns + position) + direction;
@@ -29,10 +41,19 @@ export function nextCriterionCell(positions: readonly string[], criteria: readon
     : { position: positions[index % columns]!, field: criteria[Math.floor(index / columns)]! };
 }
 
-export interface ExactRepeat { number: number; criterion: string; text: string; positions: string[] }
+export interface ExactRepeat {
+  number: number;
+  criterion: string;
+  text: string;
+  positions: string[];
+}
 
 /** Equality is only trimmed authored text, never a claim about agreement. Empty cells do not repeat. */
-export function exactRepeats(criteria: readonly string[], positions: readonly string[], text: (position: string, criterion: string) => string): ExactRepeat[] {
+export function exactRepeats(
+  criteria: readonly string[],
+  positions: readonly string[],
+  text: (position: string, criterion: string) => string,
+): ExactRepeat[] {
   const repeats: ExactRepeat[] = [];
   for (const criterion of criteria) {
     const groups = new Map<string, string[]>();
@@ -43,12 +64,18 @@ export function exactRepeats(criteria: readonly string[], positions: readonly st
       if (group) group.push(position);
       else groups.set(value, [position]);
     }
-    for (const [value, ids] of groups) if (ids.length > 1) repeats.push({ number: repeats.length + 1, criterion, text: value, positions: ids });
+    for (const [value, ids] of groups)
+      if (ids.length > 1) repeats.push({ number: repeats.length + 1, criterion, text: value, positions: ids });
   }
   return repeats;
 }
 
 /** A question names holders, so every reading by each named holder belongs to its lens. */
-export function questionReadingIds(rows: readonly { holder_id: string | null; block: { block: { id: string } } }[], holders: readonly string[]): string[] {
-  return rows.filter(row => !holders.length || row.holder_id !== null && holders.includes(row.holder_id)).map(row => row.block.block.id);
+export function questionReadingIds(
+  rows: readonly { holder_id: string | null; block: { block: { id: string } } }[],
+  holders: readonly string[],
+): string[] {
+  return rows
+    .filter(row => !holders.length || (row.holder_id !== null && holders.includes(row.holder_id)))
+    .map(row => row.block.block.id);
 }

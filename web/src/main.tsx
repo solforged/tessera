@@ -14,7 +14,7 @@ installIosViewport();
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');
 // The desktop's global capture panel loads `?capture`: the sheet alone, without the shell.
-render(() => new URLSearchParams(location.search).has('capture') ? <CaptureWindow /> : <App />, root);
+render(() => (new URLSearchParams(location.search).has('capture') ? <CaptureWindow /> : <App />), root);
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -24,7 +24,10 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(await shell.text())));
       const version = Array.from(hash, byte => byte.toString(16).padStart(2, '0')).join('');
       const entry = encodeURIComponent(new URL(import.meta.url).pathname);
-      await navigator.serviceWorker.register(`/offline-worker.js?version=${version}&entry=${entry}`, { scope: '/', updateViaCache: 'none' });
+      await navigator.serviceWorker.register(`/offline-worker.js?version=${version}&entry=${entry}`, {
+        scope: '/',
+        updateViaCache: 'none',
+      });
     })().catch(error => console.warn('Offline cache update unavailable', error));
   });
 }
