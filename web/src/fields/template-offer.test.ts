@@ -1,23 +1,15 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import { ulid } from 'ulid';
-import { createApi } from '../api/client';
 import { createNotebookClient } from '../document/index';
 import type { Notebook } from '../document/index';
+import { startService } from '../testing/service';
 import { addTemplateField } from './commands';
 import { templateOffer } from './template-offer';
 
 test('a field is offered to a tag on its second use, once, and adding it undoes and redoes', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'tessera-template-offer-'));
-  const root = resolve(import.meta.dir, '../../..');
-  const listener = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const port = listener.port!; listener.stop(true);
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const service = await startService({ name: 'template-offer' });
+  const { baseUrl, api } = service;
   const notebooks: Notebook[] = [];
   const client = async () => {
     const info = await api.notebook();
@@ -27,11 +19,6 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
     return notebook;
   };
   try {
-    const deadline = Date.now() + 5000;
-    while (true) {
-      try { await api.notebook(); break; }
-      catch { if (Date.now() > deadline) throw new Error('Service did not start.'); await Bun.sleep(20); }
-    }
     const notebook = await client();
     const fields = await api.fields();
     const proposition = ulid(); const book = ulid(); const strength = ulid();
@@ -66,8 +53,6 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
     expect(await templateOffer(await client(), owner(b, 'Anomalies accumulate #proposition'), strength)).toBeNull();
   } finally {
     for (const notebook of notebooks) await notebook.dispose();
-    process.kill();
-    await process.exited;
-    await rm(directory, { recursive: true, force: true });
+    await service.stop();
   }
-}, 30000);
+}, 60000);

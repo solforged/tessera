@@ -1,10 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import type { Subprocess } from 'bun';
 import { createApi } from '../api/client';
+import { freePort, startService, type WorkshopService } from '../testing/service';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
@@ -13,12 +10,11 @@ import { editingDepth, inlineFieldValues, selectionIds, selectionRoots, survivin
 import { newTask } from '../tasks/quick-date';
 import { markdownPasteRows } from './clipboard';
 
-const port = Bun.env.TESSERA_MECHANICS_TEST_PORT ?? '43862';
+const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const clients: Notebook[] = [];
-let service: Subprocess<'ignore', 'pipe', 'pipe'>;
-let directory: string;
+let service: WorkshopService | undefined;
 let notebookId: string;
 let serial = 0;
 // Real service startup and document hydration cross process/stream boundaries;
@@ -32,25 +28,12 @@ async function eventually(predicate: () => boolean) {
   while (!predicate()) { if (Date.now() > deadline) throw new Error('Document did not become ready'); await Bun.sleep(10); }
 }
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'tessera-outline-mechanics-'));
-  const root = resolve(import.meta.dir, '../../..');
-  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
-  const expectedPath = await realpath(directory);
-  const deadline = Date.now() + 5000;
-  while (true) {
-    try {
-      const info = await api.notebook();
-      if (await realpath(info.path) !== expectedPath) throw new Error('Test port belongs to another notebook');
-      notebookId = info.id;
-      break;
-    } catch { if (Date.now() > deadline) throw new Error(`Service did not start: ${await new Response(service.stderr).text()}`); await Bun.sleep(20); }
-  }
-});
+  service = await startService({ name: 'outline-mechanics', port });
+  notebookId = service.workshopId;
+}, 60000);
 afterAll(async () => {
   for (const client of clients) await client.dispose();
-  service?.kill();
-  if (service) await service.exited;
-  if (directory) await rm(directory, { recursive: true, force: true });
+  await service?.stop();
 });
 async function fixture(text = 'Alpha') {
   const client = createNotebookClient({ baseUrl, notebookId, sessionId: `mechanics-${++serial}`, databaseName: 'tessera-outline-mechanics-tests' });

@@ -1,31 +1,17 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
 import { ulid } from 'ulid';
-import { createApi } from '../api/client';
 import type { Operation } from '../api/types';
 import { createNotebookClient, type Notebook } from '../document';
+import { startService } from '../testing/service';
 import { blankDraftFields, createPageDraft } from '../create/draft';
 import { convertSyntax, syntaxAtom } from './recipe-conversion';
 
 test('syntax conversion and creation use real atomic changes with exact undo and redo', async () => {
-  const root = resolve(import.meta.dir, '../../..');
-  const directory = await mkdtemp(join(tmpdir(), 'tessera-recipe-test-'));
-  const listener = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const baseUrl = `http://127.0.0.1:${listener.port}`; listener.stop(true);
-  const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', new URL(baseUrl).port, '--sync-port', '0'], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const service = await startService({ name: 'recipe-test' });
+  const { baseUrl, api, workshopId: notebookId } = service;
   let client: Notebook | undefined;
   try {
-    const expected = await realpath(directory), deadline = Date.now() + 10000;
-    // Service startup and streamed document hydration use real process signals, not mocked time.
-    let notebookId: string;
-    for (;;) {
-      try { const info = await api.notebook(); if (await realpath(info.path) !== expected) throw new Error('Test port belongs to another workshop'); notebookId = info.id; break; }
-      catch (error) { if (Date.now() > deadline) throw error; await Bun.sleep(20); }
-    }
     client = createNotebookClient({ baseUrl, sessionId: 'recipe-test', notebookId, databaseName: `recipe-${ulid()}` });
     await client.ready;
     const tag = await client.createPage('Italian word'), page = await client.createPage('Kitchen words');
@@ -44,6 +30,8 @@ test('syntax conversion and creation use real atomic changes with exact undo and
     expect(parsed.find(atom => atom.source.block.id === ids[2])!.text).toContain('#[[');
     expect(parsed.find(atom => atom.source.block.id === ids[2])!.back).toBe('tap');
     const doc = client.open(tag);
+    // Streamed document hydration uses real process signals, not mocked time.
+    const deadline = Date.now() + 10000;
     while (doc.status() === 'loading') { if (Date.now() > deadline) throw new Error('Tag did not load'); await Bun.sleep(10); }
     const pending = convertSyntax(client, await api.type(tag), parsed, [], { name: 'Meaning' });
     const remembered = doc.rememberChange(pending);
@@ -74,7 +62,6 @@ test('syntax conversion and creation use real atomic changes with exact undo and
     expect((await api.subtree(created.caretId!)).rows.some(row => row.block.text === 'the pantry')).toBe(true);
     doc.release();
   } finally {
-    await client?.dispose(); process.kill(); await process.exited;
-    await rm(directory, { recursive: true, force: true });
+    await client?.dispose(); await service.stop();
   }
-}, 20000);
+}, 60000);
