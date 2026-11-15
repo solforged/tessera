@@ -314,6 +314,11 @@ back.
 
 ### Fixed
 
+- Resolved the default Chrome for Testing for `mise run demo:test` and the
+  `web/perf` scripts from the locked `playwright-core` instead of a
+  hard-coded cache path, and pinned the `chromedriver` task tool to the same
+  Chrome 153, so the demo tests run on a fresh checkout without
+  `CHROME_PATH`.
 - Resent queued edits once the service answers again after a save failed while
   the change stream stayed connected. Before, those edits stayed on `Saving…`
   until the next edit or a click on Retry.

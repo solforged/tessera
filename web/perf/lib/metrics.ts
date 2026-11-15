@@ -1,7 +1,7 @@
-import { join } from 'node:path';
 import { chromium, errors, webkit } from 'playwright-core';
 import type { Browser, BrowserContext, CDPSession, Page } from 'playwright-core';
 import type { Block, ChangeEvent, Committed, PageView } from '../../src/api/types';
+import { chromePath } from './chrome';
 import { api, sleep } from './service';
 
 export type Runtime = 'chromium' | 'webkit';
@@ -95,13 +95,11 @@ export function tracker(): Tracker {
 }
 export async function launch(runtime: Runtime): Promise<Browser> {
   if (runtime === 'webkit') return webkit.launch({ headless: true });
-  const chrome =
-    process.env.CHROME_PATH ??
-    join(
-      process.env.HOME!,
-      'Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
-    );
-  return chromium.launch({ executablePath: chrome, headless: true, args: ['--enable-precise-memory-info'] });
+  return chromium.launch({
+    executablePath: chromePath(),
+    headless: true,
+    args: ['--enable-precise-memory-info'],
+  });
 }
 
 /** Capture successful receipts outside the page, so reloads and tab crashes cannot erase evidence. */

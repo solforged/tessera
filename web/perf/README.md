@@ -22,8 +22,9 @@ bun web/perf/concurrency.ts --minutes 3
 bun web/perf/soak.ts --hours 8
 ```
 
-`CHROME_PATH` overrides the Chromium executable. Its default matches `run.ts`:
-`~/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`.
+`CHROME_PATH` overrides the Chromium executable. Its default is the Chrome for
+Testing build that the locked `playwright-core` installs
+(`chromium.executablePath()`, shared through `lib/chrome.ts`).
 `BROWSER=chromium|webkit` selects one concurrency leg; the default runs both
 sequentially against independent copies of the same corpus. An unavailable
 runtime is reported as **not run**, not silently substituted. The soak requires

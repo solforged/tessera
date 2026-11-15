@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #MISE description="Run the browser demo's wasm tests in headless Chrome for Testing"
-#MISE tools={chromedriver="151.0.7922.34"}
+#MISE tools={chromedriver="153.0.8010.12"}
 # The tests need OPFS in a real browser worker. CHROME_PATH overrides the
-# Playwright Chrome for Testing that web/perf also uses, and CHROMEDRIVER
-# overrides the pinned driver; the driver must match Chrome's major version.
+# Chrome for Testing that the locked playwright-core installs, which web/perf
+# also drives, and CHROMEDRIVER overrides the pinned driver; the driver must
+# match Chrome's major version. Only the default needs the web dependencies.
 set -euo pipefail
 
-chrome=${CHROME_PATH:-$HOME/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing}
+chrome=${CHROME_PATH:-$(cd "$(dirname "$0")/../../web" && bun perf/lib/chrome.ts)}
 config=$(mktemp)
 trap 'rm -f "$config"' EXIT
 printf '{"goog:chromeOptions":{"binary":"%s","args":["--headless=new"]}}' "$chrome" >"$config"

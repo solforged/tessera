@@ -1,17 +1,12 @@
 import { chromium } from 'playwright-core';
-import { join } from 'node:path';
+import { chromePath } from './lib/chrome';
 import { correctness } from './correctness';
 
 const service = process.env.TESSERA_SERVICE ?? 'http://127.0.0.1:4340';
 const url = process.env.OUTLINE_URL ?? service;
 const browser = await chromium.launch({
   headless: true,
-  executablePath:
-    process.env.CHROME_PATH ??
-    join(
-      process.env.HOME!,
-      'Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing',
-    ),
+  executablePath: chromePath(),
 });
 try {
   const context = await browser.newContext({
