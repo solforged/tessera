@@ -981,6 +981,180 @@ pub(crate) fn provisional_undo_targets(
     Ok(provisional)
 }
 
+/// Whether an operation has a safe inverse the history log can replay.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UndoSupport {
+    /// A targeted read before apply can build the inverse.
+    Inverse,
+    /// The batch is listed without an undo row.
+    None,
+}
+
+/// Classify every operation, so a new variant cannot be silently non-undoable.
+pub(crate) fn undo_support(operation: &Operation) -> UndoSupport {
+    match operation {
+        Operation::CreatePage { .. }
+        | Operation::CreateJournal { .. }
+        | Operation::Insert { .. }
+        | Operation::EditText { .. }
+        | Operation::SetHeading { .. }
+        | Operation::Move { .. }
+        | Operation::Delete { .. }
+        | Operation::Restore { .. }
+        | Operation::SetTask { .. }
+        | Operation::RestoreTaskState { .. }
+        | Operation::CompleteTask { .. }
+        | Operation::SetRelation { .. }
+        | Operation::Revisit { .. }
+        | Operation::SetCardHeld { .. }
+        | Operation::SaveDeck { .. }
+        | Operation::DeleteDeck { .. }
+        | Operation::Cite { .. }
+        | Operation::Uncite { .. }
+        | Operation::SetCitationTriage { .. }
+        | Operation::SetCitationColor { .. }
+        | Operation::SetCitationRange { .. }
+        | Operation::RestoreRevisit { event_id: None, .. } => UndoSupport::Inverse,
+        // Split and merge have no safe inverse.
+        Operation::Split { .. } | Operation::Merge { .. } | Operation::MergePage { .. } => {
+            UndoSupport::None
+        }
+        // Review grades have no safe inverse.
+        Operation::GradeCard { .. } | Operation::UndoGrade { .. } | Operation::ResetCard { .. } => {
+            UndoSupport::None
+        }
+        // Review sessions have no captured inverse.
+        Operation::StartReviewSession { .. } | Operation::FinishReviewSession { .. } => {
+            UndoSupport::None
+        }
+        // Ingestion has no safe inverse.
+        Operation::SetSource { .. } | Operation::AttachSnapshot { .. } => UndoSupport::None,
+        // Settings have no safe inverse.
+        Operation::SetSetting { .. } => UndoSupport::None,
+        // Views have no safe inverse.
+        Operation::SaveView { .. }
+        | Operation::DeleteView { .. }
+        | Operation::SaveTaskView { .. }
+        | Operation::DeleteTaskView { .. }
+        | Operation::SaveLibraryView { .. }
+        | Operation::DeleteLibraryView { .. } => UndoSupport::None,
+        // Tag membership edits have no captured inverse.
+        Operation::AddType { .. } | Operation::RemoveType { .. } => UndoSupport::None,
+        // Definition edits have no safe inverse.
+        Operation::SetFieldKind { .. }
+        | Operation::SetFieldHide { .. }
+        | Operation::SetFieldRole { .. }
+        | Operation::SetFieldCountsAs { .. }
+        | Operation::SetFieldTargets { .. }
+        | Operation::SetTypeFields { .. }
+        | Operation::SetTypePresentation { .. }
+        | Operation::SetSubjectCriteria { .. }
+        | Operation::CreateCardTemplate { .. }
+        | Operation::UpdateCardTemplate { .. }
+        | Operation::SetCardTemplateApplied { .. }
+        | Operation::DeleteCardTemplate { .. }
+        | Operation::TransferCardKey { .. } => UndoSupport::None,
+        // Sync settlement is a replica decision, not a local inverse.
+        Operation::SettleSyncCopy { .. } | Operation::SettleSyncRejection { .. } => {
+            UndoSupport::None
+        }
+        // Archive and the remaining capability writes have no captured inverse.
+        Operation::SetArchived { .. }
+        | Operation::ReverseTaskCompletion { .. }
+        | Operation::SetProject { .. }
+        | Operation::SetPosition { .. }
+        | Operation::SetSpread { .. }
+        | Operation::SetQuote { .. }
+        | Operation::SetImage { .. }
+        | Operation::SetOcclusion { .. }
+        | Operation::SetQuestion { .. }
+        | Operation::SetAssessment { .. }
+        | Operation::StartWork { .. }
+        | Operation::StopWork { .. }
+        | Operation::EditWorkNote { .. }
+        | Operation::SetWorkSessionState { .. } => UndoSupport::None,
+        // A revisit restore that records an event cannot drop that event.
+        Operation::RestoreRevisit {
+            event_id: Some(_), ..
+        } => UndoSupport::None,
+    }
+}
+
+/// Subtree moves, deletes and restores bump descendants an inverse must advance.
+pub(crate) fn needs_inverse_targets(operation: &Operation) -> bool {
+    match operation {
+        Operation::Move { .. } | Operation::Delete { .. } | Operation::Restore { .. } => true,
+        // Other writes do not move an existing subtree under a captured inverse.
+        Operation::SettleSyncCopy { .. }
+        | Operation::SettleSyncRejection { .. }
+        | Operation::SetSource { .. }
+        | Operation::AttachSnapshot { .. }
+        | Operation::Cite { .. }
+        | Operation::Uncite { .. }
+        | Operation::SetCitationTriage { .. }
+        | Operation::SetCitationColor { .. }
+        | Operation::SetCitationRange { .. }
+        | Operation::CreatePage { .. }
+        | Operation::CreateJournal { .. }
+        | Operation::Insert { .. }
+        | Operation::EditText { .. }
+        | Operation::SetHeading { .. }
+        | Operation::CreateCardTemplate { .. }
+        | Operation::UpdateCardTemplate { .. }
+        | Operation::SetCardTemplateApplied { .. }
+        | Operation::DeleteCardTemplate { .. }
+        | Operation::TransferCardKey { .. }
+        | Operation::Split { .. }
+        | Operation::Merge { .. }
+        | Operation::MergePage { .. }
+        | Operation::SetArchived { .. }
+        | Operation::AddType { .. }
+        | Operation::RemoveType { .. }
+        | Operation::SetFieldKind { .. }
+        | Operation::SetFieldHide { .. }
+        | Operation::SetFieldRole { .. }
+        | Operation::SetFieldCountsAs { .. }
+        | Operation::SetFieldTargets { .. }
+        | Operation::SetTypeFields { .. }
+        | Operation::SetTypePresentation { .. }
+        | Operation::SetSubjectCriteria { .. }
+        | Operation::SaveView { .. }
+        | Operation::DeleteView { .. }
+        | Operation::SetSetting { .. }
+        | Operation::SetTask { .. }
+        | Operation::RestoreTaskState { .. }
+        | Operation::CompleteTask { .. }
+        | Operation::ReverseTaskCompletion { .. }
+        | Operation::SetProject { .. }
+        | Operation::SetPosition { .. }
+        | Operation::SetRelation { .. }
+        | Operation::SetSpread { .. }
+        | Operation::Revisit { .. }
+        | Operation::RestoreRevisit { .. }
+        | Operation::SetQuote { .. }
+        | Operation::SetImage { .. }
+        | Operation::SetOcclusion { .. }
+        | Operation::SetQuestion { .. }
+        | Operation::SetAssessment { .. }
+        | Operation::StartWork { .. }
+        | Operation::StopWork { .. }
+        | Operation::EditWorkNote { .. }
+        | Operation::SetWorkSessionState { .. }
+        | Operation::StartReviewSession { .. }
+        | Operation::FinishReviewSession { .. }
+        | Operation::GradeCard { .. }
+        | Operation::UndoGrade { .. }
+        | Operation::SetCardHeld { .. }
+        | Operation::ResetCard { .. }
+        | Operation::SaveDeck { .. }
+        | Operation::DeleteDeck { .. }
+        | Operation::SaveTaskView { .. }
+        | Operation::DeleteTaskView { .. }
+        | Operation::SaveLibraryView { .. }
+        | Operation::DeleteLibraryView { .. } => false,
+    }
+}
+
 /// Only local, fully reversible batches allocate capture state. Unsupported
 /// batches have no history row; listing falls back to their committed counts.
 #[derive(Default)]
@@ -996,33 +1170,7 @@ impl Capture {
         batch
             .operations
             .iter()
-            .all(|operation| {
-                matches!(
-                    operation,
-                    Operation::CreatePage { .. }
-                        | Operation::CreateJournal { .. }
-                        | Operation::Insert { .. }
-                        | Operation::EditText { .. }
-                        | Operation::SetHeading { .. }
-                        | Operation::Move { .. }
-                        | Operation::Delete { .. }
-                        | Operation::Restore { .. }
-                        | Operation::SetTask { .. }
-                        | Operation::RestoreTaskState { .. }
-                        | Operation::CompleteTask { .. }
-                        | Operation::SetRelation { .. }
-                        | Operation::Revisit { .. }
-                        | Operation::RestoreRevisit { event_id: None, .. }
-                        | Operation::SetCardHeld { .. }
-                        | Operation::SaveDeck { .. }
-                        | Operation::DeleteDeck { .. }
-                        | Operation::Cite { .. }
-                        | Operation::Uncite { .. }
-                        | Operation::SetCitationTriage { .. }
-                        | Operation::SetCitationColor { .. }
-                        | Operation::SetCitationRange { .. }
-                )
-            })
+            .all(|operation| undo_support(operation) == UndoSupport::Inverse)
             .then(Self::default)
     }
 
@@ -1062,7 +1210,8 @@ impl Capture {
                         id: id.clone(),
                         deletion_id: None,
                     },
-                    _ => Step::Delete { id: id.clone() },
+                    Operation::Restore { .. } => Step::Delete { id: id.clone() },
+                    _ => unreachable!("only these edits are captured here"),
                 };
                 (step, row.block.revision)
             }
@@ -1308,16 +1457,24 @@ impl Capture {
                             citation_id,
                             color: row.get(7)?,
                         },
-                        _ => Step::CitationRange {
+                        Operation::SetCitationRange { .. } => Step::CitationRange {
                             id,
                             citation_id,
                             start,
                             end,
                         },
+                        _ => unreachable!("only citation edits are captured here"),
                     };
                     Ok((step, row.get(1)?))
                 })?,
-            _ => unreachable!("only fully reversible batches are captured"),
+            other => {
+                debug_assert_eq!(
+                    undo_support(other),
+                    UndoSupport::None,
+                    "only fully reversible batches are captured"
+                );
+                unreachable!("only fully reversible batches are captured")
+            }
         };
         if self.inserted_ids.contains(step.id())
             && !matches!(

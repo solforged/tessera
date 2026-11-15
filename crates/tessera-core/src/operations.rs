@@ -16,6 +16,179 @@ use crate::{
     Result, ReviewSession, Revision, SettingRevision, TextRewrite, WorkSession,
 };
 
+/// Grades, resets and holds read a card revision earlier edits in the batch may have moved.
+fn checks_shown_card(operation: &Operation) -> bool {
+    match operation {
+        Operation::GradeCard { .. }
+        | Operation::UndoGrade { .. }
+        | Operation::ResetCard { .. }
+        | Operation::SetCardHeld { .. } => true,
+        // Other writes do not check a shown card revision.
+        Operation::SettleSyncCopy { .. }
+        | Operation::SettleSyncRejection { .. }
+        | Operation::SetSource { .. }
+        | Operation::AttachSnapshot { .. }
+        | Operation::Cite { .. }
+        | Operation::Uncite { .. }
+        | Operation::SetCitationTriage { .. }
+        | Operation::SetCitationColor { .. }
+        | Operation::SetCitationRange { .. }
+        | Operation::CreatePage { .. }
+        | Operation::CreateJournal { .. }
+        | Operation::Insert { .. }
+        | Operation::EditText { .. }
+        | Operation::SetHeading { .. }
+        | Operation::CreateCardTemplate { .. }
+        | Operation::UpdateCardTemplate { .. }
+        | Operation::SetCardTemplateApplied { .. }
+        | Operation::DeleteCardTemplate { .. }
+        | Operation::TransferCardKey { .. }
+        | Operation::Split { .. }
+        | Operation::Merge { .. }
+        | Operation::MergePage { .. }
+        | Operation::Move { .. }
+        | Operation::Delete { .. }
+        | Operation::Restore { .. }
+        | Operation::SetArchived { .. }
+        | Operation::AddType { .. }
+        | Operation::RemoveType { .. }
+        | Operation::SetFieldKind { .. }
+        | Operation::SetFieldHide { .. }
+        | Operation::SetFieldRole { .. }
+        | Operation::SetFieldCountsAs { .. }
+        | Operation::SetFieldTargets { .. }
+        | Operation::SetTypeFields { .. }
+        | Operation::SetTypePresentation { .. }
+        | Operation::SetSubjectCriteria { .. }
+        | Operation::SaveView { .. }
+        | Operation::DeleteView { .. }
+        | Operation::SetSetting { .. }
+        | Operation::SetTask { .. }
+        | Operation::RestoreTaskState { .. }
+        | Operation::CompleteTask { .. }
+        | Operation::ReverseTaskCompletion { .. }
+        | Operation::SetProject { .. }
+        | Operation::SetPosition { .. }
+        | Operation::SetRelation { .. }
+        | Operation::SetSpread { .. }
+        | Operation::Revisit { .. }
+        | Operation::RestoreRevisit { .. }
+        | Operation::SetQuote { .. }
+        | Operation::SetImage { .. }
+        | Operation::SetOcclusion { .. }
+        | Operation::SetQuestion { .. }
+        | Operation::SetAssessment { .. }
+        | Operation::StartWork { .. }
+        | Operation::StopWork { .. }
+        | Operation::EditWorkNote { .. }
+        | Operation::SetWorkSessionState { .. }
+        | Operation::StartReviewSession { .. }
+        | Operation::FinishReviewSession { .. }
+        | Operation::SaveDeck { .. }
+        | Operation::DeleteDeck { .. }
+        | Operation::SaveTaskView { .. }
+        | Operation::DeleteTaskView { .. }
+        | Operation::SaveLibraryView { .. }
+        | Operation::DeleteLibraryView { .. } => false,
+    }
+}
+
+/// Blocks whose question or relation indexes this operation can disturb.
+struct AffectedIds<'a> {
+    questions: Option<&'a str>,
+    relations: Option<&'a str>,
+}
+
+fn affected_ids(operation: &Operation) -> AffectedIds<'_> {
+    match operation {
+        Operation::SetQuestion { id, .. }
+        | Operation::SetAssessment { id, .. }
+        | Operation::SetArchived { id, .. }
+        | Operation::Move { id, .. }
+        | Operation::Delete { id, .. }
+        | Operation::Restore { id, .. } => AffectedIds {
+            questions: Some(id),
+            relations: Some(id),
+        },
+        Operation::Merge { source_id, .. } | Operation::MergePage { source_id, .. } => {
+            AffectedIds {
+                questions: Some(source_id),
+                relations: Some(source_id),
+            }
+        }
+        // Text, splits and relation edits disturb relations without a question tree.
+        Operation::SetPosition { id, .. }
+        | Operation::SetRelation { id, .. }
+        | Operation::EditText { id, .. }
+        | Operation::Split { id, .. } => AffectedIds {
+            questions: None,
+            relations: Some(id),
+        },
+        // The rest do not retarget a question or relation index.
+        Operation::SettleSyncCopy { .. }
+        | Operation::SettleSyncRejection { .. }
+        | Operation::SetSource { .. }
+        | Operation::AttachSnapshot { .. }
+        | Operation::Cite { .. }
+        | Operation::Uncite { .. }
+        | Operation::SetCitationTriage { .. }
+        | Operation::SetCitationColor { .. }
+        | Operation::SetCitationRange { .. }
+        | Operation::CreatePage { .. }
+        | Operation::CreateJournal { .. }
+        | Operation::Insert { .. }
+        | Operation::SetHeading { .. }
+        | Operation::CreateCardTemplate { .. }
+        | Operation::UpdateCardTemplate { .. }
+        | Operation::SetCardTemplateApplied { .. }
+        | Operation::DeleteCardTemplate { .. }
+        | Operation::TransferCardKey { .. }
+        | Operation::AddType { .. }
+        | Operation::RemoveType { .. }
+        | Operation::SetFieldKind { .. }
+        | Operation::SetFieldHide { .. }
+        | Operation::SetFieldRole { .. }
+        | Operation::SetFieldCountsAs { .. }
+        | Operation::SetFieldTargets { .. }
+        | Operation::SetTypeFields { .. }
+        | Operation::SetTypePresentation { .. }
+        | Operation::SetSubjectCriteria { .. }
+        | Operation::SaveView { .. }
+        | Operation::DeleteView { .. }
+        | Operation::SetSetting { .. }
+        | Operation::SetTask { .. }
+        | Operation::RestoreTaskState { .. }
+        | Operation::CompleteTask { .. }
+        | Operation::ReverseTaskCompletion { .. }
+        | Operation::SetProject { .. }
+        | Operation::SetSpread { .. }
+        | Operation::Revisit { .. }
+        | Operation::RestoreRevisit { .. }
+        | Operation::SetQuote { .. }
+        | Operation::SetImage { .. }
+        | Operation::SetOcclusion { .. }
+        | Operation::StartWork { .. }
+        | Operation::StopWork { .. }
+        | Operation::EditWorkNote { .. }
+        | Operation::SetWorkSessionState { .. }
+        | Operation::StartReviewSession { .. }
+        | Operation::FinishReviewSession { .. }
+        | Operation::GradeCard { .. }
+        | Operation::UndoGrade { .. }
+        | Operation::SetCardHeld { .. }
+        | Operation::ResetCard { .. }
+        | Operation::SaveDeck { .. }
+        | Operation::DeleteDeck { .. }
+        | Operation::SaveTaskView { .. }
+        | Operation::DeleteTaskView { .. }
+        | Operation::SaveLibraryView { .. }
+        | Operation::DeleteLibraryView { .. } => AffectedIds {
+            questions: None,
+            relations: None,
+        },
+    }
+}
+
 const GAP: i64 = 1024;
 
 impl Notebook {
@@ -95,23 +268,10 @@ impl Notebook {
         )?;
         let seq = tx.last_insert_rowid();
         extras.write(&tx, &stamp, seq)?;
-        let validate_page_counts = batch.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                Operation::CreatePage { .. }
-                    | Operation::CreateJournal { .. }
-                    | Operation::Insert { .. }
-                    | Operation::EditText { .. }
-                    | Operation::Split { .. }
-                    | Operation::Merge { .. }
-                    | Operation::MergePage { .. }
-                    | Operation::Move { .. }
-                    | Operation::Delete { .. }
-                    | Operation::Restore { .. }
-                    | Operation::SetArchived { .. }
-                    | Operation::SetSource { .. }
-            )
-        });
+        let validate_page_counts = batch
+            .operations
+            .iter()
+            .any(crate::fields::validates_source_page_counts);
         let previous_invalid_counts = if validate_page_counts {
             crate::fields::invalid_source_page_counts(&tx, &operations)?
         } else {
@@ -123,12 +283,11 @@ impl Notebook {
             .flatten();
         let inverse_targets = if history.is_some()
             && batch.operations.len() > 1
-            && batch.operations.iter().any(|op| {
-                matches!(
-                    op,
-                    Operation::Move { .. } | Operation::Delete { .. } | Operation::Restore { .. }
-                )
-            }) {
+            && batch
+                .operations
+                .iter()
+                .any(crate::history::needs_inverse_targets)
+        {
             crate::history::inverse_targets(&tx, &operations)?
         } else {
             HashSet::new()
@@ -172,13 +331,7 @@ impl Notebook {
         for (index, operation) in batch.operations.iter().enumerate() {
             engine.op_index = index;
             field_changes.before(&tx, operation)?;
-            if matches!(
-                operation,
-                Operation::GradeCard { .. }
-                    | Operation::UndoGrade { .. }
-                    | Operation::ResetCard { .. }
-                    | Operation::SetCardHeld { .. }
-            ) {
+            if checks_shown_card(operation) {
                 engine.derive_tags()?;
                 for revision in &engine.revisions {
                     if engine.positions[&revision.id].fields {
@@ -1933,25 +2086,10 @@ impl Engine<'_, '_> {
     }
 
     fn operation(&mut self, operation: &Operation, index: usize) -> Result<()> {
-        let affected = match operation {
-            Operation::SetQuestion { id, .. }
-            | Operation::SetAssessment { id, .. }
-            | Operation::SetArchived { id, .. }
-            | Operation::Move { id, .. }
-            | Operation::Delete { id, .. }
-            | Operation::Restore { id, .. } => Some(id),
-            Operation::Merge { source_id, .. } | Operation::MergePage { source_id, .. } => {
-                Some(source_id)
-            }
-            _ => None,
-        };
-        let relation_affected = match operation {
-            Operation::SetPosition { id, .. }
-            | Operation::SetRelation { id, .. }
-            | Operation::EditText { id, .. }
-            | Operation::Split { id, .. } => Some(id),
-            _ => affected,
-        };
+        let AffectedIds {
+            questions: affected,
+            relations: relation_affected,
+        } = affected_ids(operation);
         if let Some(id) = affected {
             crate::question_store::affected(self.tx, id, &mut self.capability_sources, false)?;
         }
@@ -2837,13 +2975,7 @@ impl Engine<'_, '_> {
             | Operation::DeleteDeck { .. } => {
                 // A preceding text edit must invalidate stale shown definitions
                 // before a grade, reset or hold checks the card's own revision.
-                if matches!(
-                    operation,
-                    Operation::GradeCard { .. }
-                        | Operation::UndoGrade { .. }
-                        | Operation::ResetCard { .. }
-                        | Operation::SetCardHeld { .. }
-                ) {
+                if checks_shown_card(operation) {
                     self.derive_cards()?;
                 }
                 let changes =
