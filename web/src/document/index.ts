@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
-import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } from '../api/client';
+import { ApiError, bindNotebook, createApi } from '../api/client';
 import type {
   Batch,
   Block,
@@ -14,7 +14,7 @@ import type {
   TaskState,
   WorkSession,
 } from '../api/types';
-import type { ApiClient, ChangeSocket } from '../api/client';
+import type { ApiClient } from '../api/client';
 import { resolveRelationPick } from '../fields/instances';
 import { defaultTodayTemplate, parseTodayTemplate, todayTemplateKey } from '../tasks/today-template';
 import type { TodayTemplate } from '../tasks/today-template';
@@ -34,6 +34,8 @@ import type {
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
+import { WorkshopChangeStream } from './change-stream';
+import type { WorkshopChangeHost } from './change-stream';
 import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
 import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { SubtreeCache } from './subtrees';
@@ -59,8 +61,6 @@ type SourceCommandPart = { pageId: string; actions: Action[]; expected?: string;
 
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
 const WARM_DOCUMENTS = 3;
-/** Beyond one history page, fresh snapshots cost less than replaying full-block events. */
-const MAX_CATCH_UP = 500;
 /** One single-flight operation queue for every document in this window. */
 export class Notebook implements NotebookClient, DocumentHost {
   readonly ready: Promise<void>;
@@ -100,16 +100,11 @@ export class Notebook implements NotebookClient, DocumentHost {
   private sending = false;
   private activeCommand?: string;
   private timer?: ReturnType<typeof setTimeout>;
-  private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private socket?: ChangeSocket;
-  private connecting?: Promise<void>;
+  private changes: WorkshopChangeStream;
   private closed = false;
   private initialized = false;
   private seq = 0;
   private cursorSeeded = false;
-  private reloadRequired = false;
-  private reconnectDelay = 500;
-  private streamWork = Promise.resolve();
   private firstQueuedAt = 0;
   /** The trailing text save held while its block's caret is inside an unfinished `#tag`. */
   private draftTag: { commandId: string; blockId: string } | null = null;
@@ -191,6 +186,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       this.initialized = true;
       this.touch();
     });
+    this.changes = new WorkshopChangeStream(this.changeHost());
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.online);
       window.addEventListener('beforeunload', this.beforeUnload);
@@ -2574,157 +2570,69 @@ export class Notebook implements NotebookClient, DocumentHost {
     for (const root of roots) this.publish(root);
     void this.outbox?.roots(roots).catch(() => undefined);
   }
-  private serviceReached() {
-    if (this.closed) return;
-    if (this.socket?.readyState === CHANGE_OPEN) {
-      const recovered = this.connection() !== 'live';
-      this.connectionSignal[1]('live');
-      this.reconnectDelay = 500;
-      if (this.reconnectTimer) {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = undefined;
-      }
-      if (recovered) this.retryLookups();
-    } else void this.connect();
+  private changeHost(): WorkshopChangeHost {
+    return {
+      api: this.api,
+      ready: this.ready,
+      closed: () => this.closed,
+      cursor: () => this.seq,
+      setCursor: value => {
+        this.seq = value;
+      },
+      seeded: () => this.cursorSeeded,
+      setSeeded: value => {
+        this.cursorSeeded = value;
+      },
+      recoveryPages: () => this.recoveryPages,
+      reloadOpenDocuments: (head, resetJournal) => this.reloadOpenDocuments(head, resetJournal),
+      refreshRoots: () => this.refreshRoots(),
+      refreshSettings: () => this.refreshSettings(),
+      refreshWork: sequence => this.refreshWork(sequence),
+      reloadPage: pageId => this.docs.get(pageId)?.reload(true),
+      onChange: event => this.change(event),
+      onCatchUp: events => this.catchUp(events),
+      connection: () => this.connection(),
+      setConnection: state => {
+        this.connectionSignal[1](state);
+      },
+      retryLookups: () => this.retryLookups(),
+      reloadReanchored: () => this.reloadReanchored(),
+      scheduleCommands: () => this.schedule(0),
+      setFailure: message => {
+        this.failure = message;
+      },
+      touch: () => this.touch(),
+      setObservedSequence: value => {
+        this.observedSequence[1](value);
+      },
+    };
   }
-  private async seedCursor() {
-    const head = await this.api.changeHead();
-    if (this.cursorSeeded) return;
+  private seedCursor() {
+    return this.changes.seedCursor();
+  }
+  private connect() {
+    return this.changes.connect();
+  }
+  private scheduleReconnect() {
+    return this.changes.scheduleReconnect();
+  }
+  private serviceReached() {
+    return this.changes.serviceReached();
+  }
+  private async reloadOpenDocuments(head: number, resetJournal: boolean) {
+    if (resetJournal) await this.outbox?.resetJournal();
     this.seq = head;
     this.cursorSeeded = true;
     this.observedSequence[1](head);
-  }
-  private async prepareReplay() {
-    const head = await this.api.changeHead();
-    let after = this.cursorSeeded ? this.seq : head;
-    let reset = after > head;
-    let reload = this.reloadRequired || (!this.cursorSeeded && !this.recoveryPages.size) || reset;
-    for (const cursor of this.recoveryPages.values()) {
-      if (cursor === undefined) reload = true;
-      else if (cursor > head) {
-        reload = true;
-        reset = true;
-      } else after = Math.min(after, cursor);
+    this.capabilitySequence.clear();
+    this.workSequence = 0;
+    await this.refreshRoots();
+    await this.refreshSettings();
+    await this.refreshWork(head);
+    for (const doc of this.docs.values()) {
+      this.recoveryPages.set(doc.pageId, undefined);
+      await doc.reload(true);
     }
-    reload ||= head - after > MAX_CATCH_UP;
-    if (reload || after !== this.seq) {
-      // Detach before closing so the old socket cannot append events behind the new floor.
-      const socket = this.socket;
-      this.socket = undefined;
-      socket?.close();
-    }
-    const recovering = !this.cursorSeeded || this.recoveryPages.size > 0;
-    if (reload) {
-      this.reloadRequired = true;
-      if (reset) await this.outbox?.resetJournal();
-      this.seq = head;
-      this.cursorSeeded = true;
-      this.observedSequence[1](head);
-      this.capabilitySequence.clear();
-      this.workSequence = 0;
-      await this.refreshRoots();
-      await this.refreshSettings();
-      await this.refreshWork(head);
-      for (const doc of this.docs.values()) {
-        this.recoveryPages.set(doc.pageId, undefined);
-        await doc.reload(true);
-      }
-    } else {
-      this.seq = after;
-      this.cursorSeeded = true;
-      if (recovering) {
-        await this.refreshRoots();
-        await this.refreshSettings();
-        await this.refreshWork(head);
-      }
-      // A cache can be opened after this window already consumed its missed events.
-      // Refresh it before resuming, including structural changes and sync rebases.
-      for (const id of this.recoveryPages.keys()) await this.docs.get(id)?.reload(true);
-    }
-    if (this.recoveryPages.size) throw new Error('Cached atoms still need a server snapshot.');
-    this.reloadRequired = false;
-  }
-  private async connect() {
-    await this.ready;
-    if (this.closed) return;
-    if (this.connecting) return this.connecting;
-    const work = this.reconcileConnection();
-    this.connecting = work;
-    try {
-      await work;
-    } finally {
-      if (this.connecting === work) this.connecting = undefined;
-    }
-  }
-  private async reconcileConnection() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = undefined;
-    }
-    this.connectionSignal[1]('connecting');
-    try {
-      const work = this.streamWork.then(async () => {
-        await this.prepareReplay();
-        while (!this.closed) {
-          const events = await this.api.changes(this.seq);
-          await this.catchUp(events);
-          if (events.length < MAX_CATCH_UP) break;
-        }
-      });
-      this.streamWork = work.catch(() => undefined);
-      await work;
-      if (this.closed) return;
-      this.retryLookups();
-      await this.reloadReanchored();
-      if (this.closed) return;
-      if (this.socket?.readyState === CHANGE_OPEN) {
-        this.serviceReached();
-        return;
-      }
-      if (this.socket?.readyState === CHANGE_CONNECTING) return;
-      const socket = this.api.stream(this.seq);
-      this.socket = socket;
-      socket.onopen = () => {
-        if (this.closed || this.socket !== socket) return;
-        this.serviceReached();
-        this.schedule(0);
-      };
-      socket.onmessage = message => {
-        if (this.closed || this.socket !== socket) return;
-        this.streamWork = this.streamWork
-          .then(async () => {
-            if (!this.closed && this.socket === socket)
-              await this.change(JSON.parse(String(message.data)) as ChangeEvent);
-          })
-          .catch(error => {
-            this.failure = `Could not read workshop changes: ${error instanceof Error ? error.message : String(error)}`;
-            this.touch();
-          });
-      };
-      socket.onerror = () => {
-        if (this.socket === socket) socket.close();
-      };
-      socket.onclose = () => {
-        if (this.closed || this.socket !== socket) return;
-        this.socket = undefined;
-        this.connectionSignal[1]('offline');
-        this.scheduleReconnect();
-      };
-      this.schedule(0);
-    } catch {
-      if (!this.closed) {
-        this.connectionSignal[1]('offline');
-        this.scheduleReconnect();
-      }
-    }
-  }
-  private scheduleReconnect() {
-    if (this.closed || this.reconnectTimer) return;
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined;
-      void this.connect();
-    }, this.reconnectDelay);
-    this.reconnectDelay = Math.min(10000, this.reconnectDelay * 2);
   }
   private async reconcile(
     blocks: readonly Block[],
@@ -3085,8 +2993,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.captureWaiters.clear();
     this.subtreeCache.dispose();
     clearTimeout(this.timer);
-    clearTimeout(this.reconnectTimer);
-    this.socket?.close();
+    this.changes.stop();
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this.online);
       window.removeEventListener('beforeunload', this.beforeUnload);
