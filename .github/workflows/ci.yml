@@ -183,8 +183,15 @@ jobs:
         shell: bash
         run: nix profile add nixpkgs#devenv
 
+      - name: Format and lint
+        run: ts-web-lint
+
       - name: Typecheck and build
         run: ts-web-build
+
+      # Builds the debug service first: the document tests save through it.
+      - name: Test
+        run: ts-web-test
 
   # The rules' own tests, the prose in docs, skills and UI copy, and the
   # messages of the pull request's commits, with the devenv shell's Vale.
