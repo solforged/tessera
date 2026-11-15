@@ -1,9 +1,9 @@
-import type { FieldDefinition } from '../api/types';
+import type { CountsAs, FieldDefinition } from '../api/types';
 import { fieldLabel } from './kinds';
 
 /** What a field's values count as, so bylines, sigla and `@creator` find creators by meaning rather than name. */
-export const countsAsValues = ['creator', 'contributor', 'originator'] as const;
-export type CountsAs = typeof countsAsValues[number];
+export const countsAsValues = ['creator', 'contributor', 'originator'] as const satisfies readonly CountsAs[];
+export type { CountsAs };
 export const countsLabels: Record<CountsAs | 'nothing', string> = { nothing: 'Nothing', creator: 'Creator', contributor: 'Contributor', originator: 'Originator' };
 export const countsDescriptions: Record<CountsAs | 'nothing', string> = {
   nothing: 'Its values are only its own.',

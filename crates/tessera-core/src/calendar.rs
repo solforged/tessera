@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::storage::{validate_date, validation};
 use crate::{Error, Result};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum RepeatUnit {
     Day,
@@ -15,7 +15,7 @@ pub enum RepeatUnit {
     Year,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum RepeatMode {
     Fixed,
@@ -24,7 +24,7 @@ pub enum RepeatMode {
 }
 
 /// A positive interval whose next occurrence must fit the civil date range.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Repeater {
     pub every: u32,
     pub unit: RepeatUnit,

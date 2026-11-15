@@ -106,6 +106,7 @@ open.
 | `mise run docs:test`                                         | The Vale rules' own test cases, with every rule required to fire in at least one.          |
 | `mise run commit:lint`                                       | Commit messages from `origin/main` to `HEAD` against the commit convention.                 |
 | `mise run fmt`                                               | Formats Rust code.                                                                          |
+| `mise run wire`                                              | Rewrites `web/src/api/wire.ts` from the Rust wire types.                                    |
 | `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                         |
 
 [CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
@@ -121,6 +122,18 @@ checks.
 
 `mise run fonts:keys` redraws the key glyphs in
 [`web/src/ui/fonts/keys.woff2`](../web/src/ui/fonts/keys.woff2).
+
+### Wire types
+
+The editor's JSON types in `web/src/api/wire.ts` are written from the Rust types
+that serialize them. A type that crosses the wire derives `ts_rs::TS`, and the
+`wire_types` test lists the ones the editor names. Change the Rust type, run
+`mise run wire`, and commit the file with it; `mise run test` fails while the
+file is stale.
+
+A field the editor may leave out carries `#[ts(optional)]`, or
+`#[ts(optional = nullable)]` when it may also be `null`. A string with a fixed
+vocabulary states it with `#[ts(type = "...")]`.
 
 ### Browser demo
 

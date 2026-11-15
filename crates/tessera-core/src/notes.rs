@@ -97,7 +97,7 @@ const UNFILED: &str = "unfiled";
 
 /// One kind a note can be filed under. `key` is `person`, `group`, `concept`, `thesis`, `question`,
 /// `source`, `project`, `type:<id>` for a type you made, or `unfiled`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteKind {
     pub key: String,
     pub name: String,
@@ -108,7 +108,7 @@ pub struct NoteKind {
 }
 
 /// The finding-aid group a kind is listed under in the sidebar.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Shelf {
     /// People, groups, concepts, theses and questions.
@@ -123,7 +123,7 @@ pub enum Shelf {
     Loose,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct IndexKind {
     #[serde(flatten)]
     pub kind: NoteKind,
@@ -141,7 +141,7 @@ pub struct IndexKind {
 
 /// The sidebar index: every built-in kind, then other kinds with notes or tagged blocks, in index
 /// order, and the distinct note total.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteIndex {
     pub kinds: Vec<IndexKind>,
     pub notes: usize,
@@ -150,7 +150,7 @@ pub struct NoteIndex {
     pub spreads: Vec<SeeTarget>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteEntry {
     pub id: String,
     pub page_id: String,
@@ -159,19 +159,19 @@ pub struct NoteEntry {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SeeTarget {
     pub id: String,
     pub title: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CrossReference {
     pub alias: String,
     pub targets: Vec<SeeTarget>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct KindIndex {
     pub notes: Vec<NoteEntry>,
     pub see: Vec<CrossReference>,

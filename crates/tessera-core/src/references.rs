@@ -5,37 +5,37 @@ use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, tag_tokens, validate_id, validation};
 use crate::{Block, BlockKind, Notebook, Result};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PageReferences {
     pub total: usize,
     pub groups: Vec<ReferenceGroup>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReferenceGroup {
     pub page: Block,
     pub sources: Vec<ReferenceSource>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReferenceSource {
     pub source: Block,
     pub targets: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReferenceCount {
     pub block_id: String,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct UnlinkedMentions {
     pub total: usize,
     pub rows: Vec<Mention>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Mention {
     pub block: Block,
     pub page: Block,

@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// One committed change, newest first in history listings.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct HistoryEntry {
     pub seq: i64,
     pub change_id: Option<String>,

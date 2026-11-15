@@ -91,7 +91,7 @@ macro_rules! alias_values {
 
 /// A recoverable root deletion and its exact restore ticket. Merge tombstones
 /// are intentionally absent: a permanent merge cannot be undone by restoration.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ts_rs::TS)]
 pub struct DeletedPage {
     pub block: Block,
     pub deletion_id: String,

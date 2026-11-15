@@ -5,7 +5,7 @@ use crate::card_text::CardKind;
 use crate::scheduler::{Grade, SchedulingState};
 use crate::{BlockInPage, Query};
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
     #[default]
@@ -16,7 +16,7 @@ pub enum TaskStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskPriority {
     High,
@@ -24,7 +24,7 @@ pub enum TaskPriority {
     Low,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskState {
     #[serde(default)]
     pub status: Option<TaskStatus>,
@@ -38,13 +38,13 @@ pub struct TaskState {
     pub completed_on: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskRecord {
     pub block_id: String,
     pub state: TaskState,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskOccurrence {
     pub id: String,
     pub block_id: String,
@@ -55,7 +55,7 @@ pub struct TaskOccurrence {
     pub change_seq: i64,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ProjectStatus {
     #[default]
@@ -64,20 +64,20 @@ pub enum ProjectStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ProjectState {
     pub outcome: String,
     pub deadline: Option<String>,
     pub status: ProjectStatus,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ProjectRecord {
     pub block_id: String,
     pub state: ProjectState,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum QuestionStatus {
     #[default]
@@ -87,7 +87,7 @@ pub enum QuestionStatus {
     Unsettled,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuestionState {
     pub unsettled: bool,
     pub parked: bool,
@@ -96,16 +96,17 @@ pub struct QuestionState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub reading_history: Vec<ReadingDecision>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AssessmentState {
     pub assessed_on: String,
     pub aporia: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadingStatus {
     Current,
@@ -113,7 +114,7 @@ pub enum ReadingStatus {
     Withdrawn,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReadingDecision {
     pub assessment_id: String,
     pub status: ReadingStatus,
@@ -148,7 +149,7 @@ impl QuestionState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum QuestionFilter {
     Active,
@@ -158,14 +159,14 @@ pub enum QuestionFilter {
     Parked,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CurrentReading {
     pub id: String,
     pub assessed_on: String,
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuestionInfo {
     pub state: QuestionState,
     pub status: QuestionStatus,
@@ -175,24 +176,30 @@ pub struct QuestionInfo {
     pub parent_explicit: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AssessmentInfo {
     pub state: AssessmentState,
     pub question_id: Option<String>,
     pub accepted: bool,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuestionQuery {
+    #[ts(optional)]
     pub status: Option<QuestionStatus>,
+    #[ts(optional)]
     pub review_by: Option<String>,
+    #[ts(optional)]
     pub parent: Option<String>,
+    #[ts(optional)]
     pub state: Option<QuestionFilter>,
+    #[ts(optional)]
     pub include_inline: Option<bool>,
+    #[ts(optional)]
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuestionRow {
     pub block: BlockInPage,
     pub info: QuestionInfo,
@@ -202,7 +209,7 @@ pub struct QuestionRow {
     pub review_on: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionInfo {
     pub holder_id: Option<String>,
     pub subject_id: String,
@@ -214,7 +221,7 @@ pub struct PositionInfo {
     pub problem: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum RelationKind {
     Supports,
@@ -234,7 +241,7 @@ impl RelationKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct RelationInfo {
     pub kind: RelationKind,
     pub source_id: String,
@@ -242,27 +249,34 @@ pub struct RelationInfo {
     pub problem: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct RelationQuery {
+    #[ts(optional)]
     pub kind: Option<RelationKind>,
+    #[ts(optional)]
     pub source: Option<String>,
+    #[ts(optional)]
     pub target: Option<String>,
+    #[ts(optional)]
     pub source_holder: Option<String>,
+    #[ts(optional)]
     pub target_holder: Option<String>,
     /// Relations between two perspectives filed under this page or a block on it, as a concept page's
     /// constellation draws them.
     #[serde(default)]
+    #[ts(optional)]
     pub subject: Option<String>,
+    #[ts(optional)]
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct RelationEndpoint {
     pub block: BlockInPage,
     pub holder_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct RelationRow {
     pub block: BlockInPage,
     pub kind: RelationKind,
@@ -278,7 +292,7 @@ pub struct PositionQuery {
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionRow {
     pub block: BlockInPage,
     pub holder_id: Option<String>,
@@ -288,20 +302,20 @@ pub struct PositionRow {
     pub fields: Vec<PositionField>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionField {
     pub field_id: String,
     pub entry_id: String,
     pub values: Vec<crate::FieldOption>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SubjectCriteria {
     pub explicit: bool,
     pub fields: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionQuestion {
     pub block: BlockInPage,
     pub info: QuestionInfo,
@@ -309,14 +323,14 @@ pub struct PositionQuestion {
     pub holders: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionQueryResult {
     pub rows: Vec<PositionRow>,
     pub criteria: SubjectCriteria,
     pub questions: Vec<PositionQuestion>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ImageRef {
     pub sha256: String,
     pub media_type: String,
@@ -324,7 +338,7 @@ pub struct ImageRef {
     pub height: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct BlockCapabilities {
     pub block_id: String,
     #[serde(default)]
@@ -332,12 +346,15 @@ pub struct BlockCapabilities {
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub note: Option<crate::NoteState>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub note_changed: bool,
     #[serde(default)]
     pub position: Option<PositionInfo>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub spread: bool,
     #[serde(default)]
     pub question: Option<QuestionInfo>,
@@ -346,14 +363,17 @@ pub struct BlockCapabilities {
     #[serde(default)]
     pub relation: Option<RelationInfo>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub quote: Option<crate::QuoteState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<ImageRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub occlusion: Option<crate::occlusion::Occlusion>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub source: Option<crate::library::SourceRecord>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub citations: Vec<crate::library::Citation>,
     /// Non-reversed task occurrences or work sessions exist for this source.
     #[serde(default)]
@@ -365,10 +385,11 @@ pub struct BlockCapabilities {
     pub merge_protected: bool,
     pub reviewed_cards: bool,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub template_cards: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct WorkSession {
     pub id: String,
     pub block_id: String,
@@ -379,7 +400,7 @@ pub struct WorkSession {
     pub revision: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardAnswerBlock {
     pub id: String,
     pub text: String,
@@ -388,7 +409,7 @@ pub struct CardAnswerBlock {
     pub children: Vec<CardAnswerBlock>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardUnit {
     pub id: String,
     pub source_block_id: String,
@@ -405,10 +426,11 @@ pub struct CardUnit {
     #[serde(default)]
     pub template: Option<crate::CardTemplateProvenance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub occlusion_index: Option<usize>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewSessionState {
     Open,
@@ -416,7 +438,7 @@ pub enum ReviewSessionState {
     Abandoned,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReviewSession {
     pub id: String,
     pub deck_id: Option<String>,
@@ -426,7 +448,7 @@ pub struct ReviewSession {
     pub revision: i64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewEventKind {
     Grade,
@@ -434,7 +456,7 @@ pub enum ReviewEventKind {
 }
 
 /// Retained evidence is not rewritten when changing scheduling algorithms.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(untagged)]
 pub enum ReviewSchedulingState {
     Legacy {
@@ -448,7 +470,7 @@ pub enum ReviewSchedulingState {
     Fsrs(SchedulingState),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ReviewEvent {
     pub id: String,
     pub card_id: String,
@@ -468,13 +490,13 @@ pub struct ReviewEvent {
     pub undone_by: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct DateRange {
     pub from: Option<String>,
     pub through: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskSelection {
     All,
@@ -483,7 +505,7 @@ pub enum TaskSelection {
     UnfinishedOrRecent,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskSort {
     #[default]
@@ -491,7 +513,7 @@ pub enum TaskSort {
     Outline,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskProjectVia {
     #[default]
@@ -499,7 +521,7 @@ pub enum TaskProjectVia {
     Field,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(default)]
 pub struct TaskFilter {
     pub selection: TaskSelection,
@@ -509,7 +531,9 @@ pub struct TaskFilter {
     pub deadline: Option<DateRange>,
     pub priority: Option<TaskPriority>,
     pub project_id: Option<String>,
+    #[ts(optional = nullable)]
     pub sort: TaskSort,
+    #[ts(optional = nullable)]
     pub project_via: TaskProjectVia,
 }
 
@@ -529,7 +553,7 @@ impl Default for TaskFilter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskQuery {
     pub source: Option<Query>,
     #[serde(default)]
@@ -538,7 +562,7 @@ pub struct TaskQuery {
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskRow {
     pub source: BlockInPage,
     pub task: TaskState,
@@ -547,16 +571,17 @@ pub struct TaskRow {
     pub section_text: Option<String>,
     /// Total of this task's stopped, unreversed work sessions, in milliseconds.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub logged_work_ms: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskQueryResult {
     pub rows: Vec<TaskRow>,
     pub total: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum AgendaReason {
     Scheduled,
@@ -568,7 +593,7 @@ pub enum AgendaReason {
     RecentlyCompleted,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct AgendaItem {
     pub source: BlockInPage,
     pub task: TaskState,
@@ -577,16 +602,17 @@ pub struct AgendaItem {
     pub project_id: Option<String>,
     /// Total of this task's stopped, unreversed work sessions, in milliseconds.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub logged_work_ms: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Agenda {
     pub date: String,
     pub items: Vec<AgendaItem>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum CardSelection {
     #[default]
@@ -595,7 +621,7 @@ pub enum CardSelection {
     All,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(default)]
 pub struct CardQuery {
     pub source: Option<Query>,
@@ -603,20 +629,20 @@ pub struct CardQuery {
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardRow {
     pub card: CardUnit,
     pub source: BlockInPage,
     pub last_review: Option<ReviewEvent>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardQueryResult {
     pub rows: Vec<CardRow>,
     pub total: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Deck {
     pub id: String,
     pub name: String,
@@ -626,14 +652,14 @@ pub struct Deck {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TagDeck {
     pub id: String,
     pub name: String,
     pub query: CardQuery,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TaskView {
     pub id: String,
     pub name: String,
@@ -643,13 +669,13 @@ pub struct TaskView {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct GradePreview {
     pub grade: Grade,
     pub interval_days: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardPreviews {
     pub current: Vec<GradePreview>,
     pub reset: Vec<GradePreview>,

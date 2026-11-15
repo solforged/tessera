@@ -8,13 +8,13 @@ use crate::library_ingest::Planner;
 use crate::storage::validation;
 use crate::{Actor, Batch, Block, BlockKind, Committed, FieldKind, Notebook, Operation, Result};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NameMatch {
     pub page: Block,
     pub alias: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Completion {
     #[serde(flatten)]
     pub block: Block,

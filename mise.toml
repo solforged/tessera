@@ -38,6 +38,11 @@ run = [
   "bun run --cwd web test",
 ]
 
+[tasks.wire]
+description = "Rewrite web/src/api/wire.ts from the Rust wire types"
+env = { TESSERA_WRITE_WIRE = "1" }
+run = "cargo test --locked -p tessera-core --test wire_types"
+
 [tasks."docs:lint"]
 description = "Check the prose in the docs, changelog, agent skills and UI copy with Vale"
 run = "vale --no-global README.md CHANGELOG.md docs .agents/skills web/src"
