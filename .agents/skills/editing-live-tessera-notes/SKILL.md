@@ -91,9 +91,9 @@ use the block `id` as a `block` target or for edits.
 ## Edit existing blocks
 
 Other `kind` values are defined by the `AgentEdit` enum in
-`crates/tessera-core/src/agent.rs`: `edit_block` (`id`, `revision`, `text`,
-`heading`), `move_block`, `delete_block`, `set_task`, `set_relation`, `revisit`,
-`set_card_held`, `cite`, `save_deck`, `delete_deck`.
+`crates/tessera-core/src/agent/request.rs`: `edit_block` (`id`, `revision`,
+`text`, `heading`), `move_block`, `delete_block`, `set_task`, `set_relation`,
+`revisit`, `set_card_held`, `cite`, `save_deck`, `delete_deck`.
 
 - Read the page first, so you have the current block ids and their `revision`.
   Pass that `revision` with every edit, so you never overwrite a change made

@@ -8,10 +8,11 @@ description: "Smoke-tests Tessera's MCP standard-I/O server (18 tools incl. task
 The server lives in `crates/tessera-cli/src/mcp/` (mod.rs protocol + `Api`
 helper, tools.rs schemas and SYNTAX,
 notes/tasks/cards/query/library/sync/relations/revisits.rs handlers, outline.rs
-parser). Writes go through `AgentEdit` in `crates/tessera-core/src/agent.rs`;
-every new write kind needs a `Step` and an inverse there so undo works
-(non-block resources such as cards and decks track revisions from
-`changes.committed` `$.cards`/`$.decks`).
+parser). Writes go through `AgentEdit` in
+`crates/tessera-core/src/agent/request.rs`; every new write kind needs a `Step`
+and an inverse in `crates/tessera-core/src/history.rs`, planned from
+`agent/plan.rs`, so undo works (non-block resources such as cards and decks
+track revisions from `changes.committed` `$.cards`/`$.decks`).
 
 ## Shared lifecycle
 

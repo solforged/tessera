@@ -23,16 +23,18 @@ Code: `crates/tessera-cli/src/main.rs`, `install.rs`;
 `crates/tessera-service/src/assets.rs`.
 
 The service acquires `service.lock`, opens the workshop and binds to loopback.
-`AppState` holds one `Notebook` in `Arc<Mutex<Notebook>>`, sharing one SQLite
-connection for reads and writes. The `Notebook` type owns a workshop. Code:
+`AppState` holds one `Notebook` in `Arc<Mutex<Notebook>>`, the writer, and three
+query-only reader connections for reads that write nothing. The `Notebook` type
+owns a workshop. Code:
 `crates/tessera-core/src/ownership.rs` (`NotebookOwnership::acquire`);
-`crates/tessera-service/src/lib.rs` (`serve`, `run`).
+`crates/tessera-service/src/serve.rs` (`serve`),
+`crates/tessera-service/src/state.rs` (`AppState`, `run`).
 
 `Notebook::open` opens `notebook.db` in the workshop directory, enables WAL,
 `synchronous=FULL` and foreign keys, then runs migrations. The singleton
 `notebook` row's ID namespaces browser recovery data. Code:
-`crates/tessera-core/src/notebook.rs:10` (`Notebook::open`, `Notebook::info`);
-`crates/tessera-core/migrations/001_notebook.sql`.
+`crates/tessera-core/src/notebook.rs:34` (`Notebook::open`), `106`
+(`Notebook::info`); `crates/tessera-core/migrations/001_notebook.sql`.
 
 Every CLI command initializes `tracing` on stderr with `RUST_LOG`, defaulting to
 `info`. Service events report URL, workshop path, migration versions, ingestion
@@ -98,17 +100,19 @@ flowchart TD
 ```
 
 The input half lives in `web/src/outline/editor.ts` (`PaneEditor`),
-`web/src/outline/OutlinePane.tsx:1070` and `web/src/document/page-document.ts`
+`web/src/outline/OutlinePane.tsx:2626` and `web/src/document/page-document.ts`
 (`Document.edit`, `apply`). The durable half lives in
 `web/src/document/index.ts` (`enqueue`, `compile`, `drain`),
-`web/src/document/outbox.ts` and `crates/tessera-core/src/operations.rs`
+`web/src/document/outbox.ts` and `crates/tessera-core/src/operations/mod.rs`
 (`Notebook::apply`).
 
 A successful batch commits authored rows, derived indexes and its receipt
 together. The service broadcasts the sequence number under the workshop lock.
 POST returns the receipt, and WebSocket consumers fetch committed changes after
-their cursor. Code: `crates/tessera-core/src/operations.rs:22`,
-`crates/tessera-service/src/lib.rs:447` (`catch_up`, `stream_changes`).
+their cursor. Code: `crates/tessera-core/src/operations/mod.rs:227`
+(`commit`), `crates/tessera-api/src/changes.rs:83` (`follow_changes`), `123`
+(`catch_up`) and `crates/tessera-service/src/stream.rs:13`
+(`change_stream`).
 
 Receipts list touched blocks removed by the batch, including provisional type
 pages pruned by derivation. Acknowledgment hydration removes those IDs from
@@ -116,8 +120,9 @@ local caches without requesting their block endpoints.
 
 Same-page panes in one window share a `Document`. Another window has its own
 `Notebook` client and learns changes through HTTP catch-up and WebSocket
-streaming. Code: `web/src/document/index.ts:162` (`reconcileConnection`,
-`change`); `web/src/shell/App.tsx:504`.
+streaming. Code: `web/src/document/change-stream.ts:143`
+(`reconcileConnection`), `web/src/document/index.ts:2707` (`change`), `301`
+(`open`); `web/src/shell/Pane.tsx:220`.
 
 ## Blocks and the outline
 
@@ -125,7 +130,7 @@ The [block model](domain-model.md#blocks) maps pages, journal days and outline
 rows to `blocks`, with no separate page-content table. Root `text` stores the
 page title or journal date. Code:
 `crates/tessera-core/migrations/002_outline.sql:18`;
-`crates/tessera-core/src/model.rs:13`.
+`crates/tessera-core/src/model.rs:19` (`BlockKind`).
 
 | Column                     | Stored meaning                                                                                                                                                                                                               |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -147,18 +152,18 @@ The schema constrains roots and ordinary blocks, indexes siblings by
 [live-root uniqueness](domain-model.md#blocks) through `title_key` or journal
 date text. The public `Block` response omits `ordinal`, `title_key` and
 `deletion_id`. Code: `crates/tessera-core/migrations/002_outline.sql:32`;
-`crates/tessera-core/src/model.rs:26`.
+`crates/tessera-core/src/model.rs:28` (`Block`).
 
 Sparse integer ordinals choose the midpoint between neighbors, or add/subtract
 1024 at an end. If no gap remains, the engine renumbers siblings, including
 tombstones, without bumping authored revisions. Code:
-`crates/tessera-core/src/operations.rs:797` (`Engine::ordinal`).
+`crates/tessera-core/src/operations/mod.rs:1562` (`Engine::ordinal`).
 
 Insert takes `parent_id` and `after`, not a browser-supplied ordinal, and copies
 the parent's `page_id`. Move changes parent, page and ordinal. Cross-page moves
 update `page_id` and revisions throughout the subtree. Cycles and root moves are
 rejected. Code: `crates/tessera-core/src/model.rs` (`Operation::Move`),
-`crates/tessera-core/src/operations.rs` (`Operation::Insert` handling).
+`crates/tessera-core/src/operations/outline.rs` (`Operation::Insert` handling).
 
 Another writer may have moved or deleted `after` since the sender last saw the
 list. Core then places the block itself instead of refusing:
@@ -172,47 +177,50 @@ list. Core then places the block itself instead of refusing:
 
 The receipt lists the page in `reanchored_pages`. A block carries no sibling
 position, so the editor reloads those pages once the command has left its queue.
-Code: `crates/tessera-core/src/operations.rs` (`anchor`, `reanchor`),
+Code: `crates/tessera-core/src/operations/mod.rs` (`anchor`, `reanchor`),
 `web/src/document/index.ts` (`reloadReanchored`).
 
 `Notebook::page` fetches live rows once, groups by parent and walks preorder. It
 returns a root, rows with computed depth (not a database column), manual
 memberships, external reference targets and capability sidecars. Code:
-`crates/tessera-core/src/reads.rs:72` (`Notebook::page`).
+`crates/tessera-core/src/reads.rs:178` (`Notebook::page`).
 
 Each resource has its own revision. Blocks start at 1. Text, heading, archive,
 location or capability changes can bump revisions, while equal-text edits do
 not. Multiple operations can bump one block repeatedly, and receipts record its
 final revision once. Workshop-wide `changes.seq` is a separate commit cursor.
-Code: `crates/tessera-core/src/operations.rs:241` (`create`, `edit`, `bump`,
-`operation`), `crates/tessera-core/migrations/002_outline.sql:1`.
+Code: `crates/tessera-core/src/operations/mod.rs:1352` (`create`), `1384`
+(`edit`), `1704` (`bump`), `1717` (`operation`),
+`crates/tessera-core/migrations/002_outline.sql:1`.
 
 `base_revision` must match an existing block's revision at that operation's
 batch position. `Engine::checked` reports operation index, ID, expected and
 found revision. Missing/deleted rows have no live revision. Failure rolls back
 the transaction and maps to HTTP 409. Code:
-`crates/tessera-core/src/operations.rs:572` (`Notebook::apply`),
-`crates/tessera-service/src/error.rs:49`.
+`crates/tessera-core/src/operations/mod.rs:204` (`Notebook::apply`),
+`crates/tessera-api/src/error.rs:61`.
 
 `Operation` covers text, split, merge, move, delete/restore, fields, types,
 tasks, work and review writes. Merge checks source and destination revisions;
 restore names the deletion event and deleted block revision, following the
 [block rules](domain-model.md#blocks). Code:
-`crates/tessera-core/src/model.rs:55` (`Operation`).
+`crates/tessera-core/src/model.rs:70` (`Operation`).
 
 Deletion tombstones the live subtree under one event. Restore revives only its
 rows, not independently deleted descendants. Archive leaves rows live. Discovery
 computes hidden descendants from archived ancestors, while direct block/page
-reads include archived rows. Code: `crates/tessera-core/src/operations.rs:707`
-(`restore`), `crates/tessera-core/src/reads.rs:49` (`block`, `page`).
+reads include archived rows. Code:
+`crates/tessera-core/src/operations/outline.rs:319` (`restore`),
+`crates/tessera-core/src/reads.rs:128` (`block`), `178` (`page`).
 
 ## Text is the source of truth for some things
 
 Text writes rebuild affected reference/membership indexes and reconcile affected
 fields/cards, not the whole workshop. Links derive during create/edit. Tag, card
 and field work finishes inside the batch transaction. Code:
-`crates/tessera-core/src/operations.rs:89` (`create`, `edit`, `derive_tags`,
-`derive_cards`), `crates/tessera-core/src/fields.rs` (`FieldChanges`).
+`crates/tessera-core/src/operations/mod.rs:1352` (`create`), `1384` (`edit`),
+`982` (`derive_tags`), `903` (`derive_cards`),
+`crates/tessera-core/src/fields.rs` (`FieldChanges`).
 
 What a text write derives, and what it leaves alone. Task, project, question and
 source state is never parsed back out of wording; card units keep their
@@ -262,19 +270,19 @@ flowchart TD
 | `front >> back`, `front << back`, `front <> back`, numbered clozes | Core `card_text.rs::parse_card_text`; browser `core/card-text.ts::parseCardText` | Retained `card_units` definitions                                    |
 | Searchable text                                                    | SQLite FTS triggers                                                                | `blocks_fts`, with live candidates in `search_blocks`                |
 
-The table's implementations are in `crates/tessera-core/src/storage.rs:143`,
-`295`, `crates/tessera-core/src/fields.rs:94`, `185`,
-`web/src/document/text-tokens.ts:2`, `web/src/table/query.ts:47`,
-`crates/tessera-core/src/card_text.rs:292` and
+The table's implementations are in `crates/tessera-core/src/storage.rs:150`,
+`383`, `568`, `crates/tessera-core/src/fields.rs:113`, `390`,
+`web/src/document/text-tokens.ts:26`, `web/src/table/query.ts:314`,
+`crates/tessera-core/src/card_text.rs:300` and
 `crates/tessera-core/migrations/002_outline.sql:62`.
 
 `derive_links` indexes each [ID reference](domain-model.md#references-and-links)
 occurrence and optional alias. Targets have no foreign key, preserving
 unresolved references in source text. Bracketed tag titles are excluded.
 Backlinks return distinct visible source blocks, not occurrences. Code:
-`crates/tessera-core/src/storage.rs:143`,
+`crates/tessera-core/src/storage.rs:150`,
 `crates/tessera-core/migrations/002_outline.sql:52`,
-`crates/tessera-core/src/reads.rs:213`.
+`crates/tessera-core/src/reads.rs:378`.
 
 A whole-row `((ID))` also indexes one link, so a [quote](domain-model.md#quotes)
 appears among its target's backlinks. `((ID))` inside other text is plain.
@@ -296,8 +304,8 @@ tokens. Code: `crates/tessera-core/src/references.rs`.
 
 `Notebook.lookup` supplies reference labels: the alias or current target text,
 or an unresolved label for a missing target. Rendering leaves the authored ID
-token unchanged. Code: `web/src/outline/BlockText.tsx:22` (`referenceLabel`,
-`BlockText`).
+token unchanged. Code: `web/src/outline/names.ts:125` (`referenceLabel`),
+`web/src/outline/BlockText.tsx:71` (`BlockText`).
 
 Opening a non-journal page selects a visible non-field row without editing it.
 In an active row, CodeMirror shows single-line references as atomic labels until
@@ -340,27 +348,27 @@ by ID. A rename changes only the page title. Pills read that live title, while
 the authored alias refreshes when its atom is next edited. Receipt
 `text_rewrites` updates accepted editor text and undo history without losing the
 caret. Code: `crates/tessera-core/src/storage.rs` (`resolve_type`, `tag_text`),
-`crates/tessera-core/src/operations.rs` (`derive_tags`),
+`crates/tessera-core/src/operations/mod.rs` (`derive_tags`),
 `web/src/document/page-document.ts` (`acknowledged`, `recordRewrites`).
 
 **`Name:: value` converts in the browser, not in a core shorthand parser on
 every write.** Enter, blur and navigation paths call `commitFieldEntry`, which
 finds/creates the definition, rewrites the entry to `[[field-id]]` and inserts
 its child value. Raw API `Name:: value` writes stay raw until client conversion.
-Code: `web/src/outline/OutlinePane.tsx:60`, `214`, `541`, `1072`; core
+Code: `web/src/outline/OutlinePane.tsx:598`, `1555`, `1582`, `1909`; core
 `fields.rs::derive_owner` recognizes only a whole reference.
 
 The shorthand matcher permits names up to 60 characters, excluding
 reference/tag/code delimiters. It checks names with the card parser so cloze
 drafts/cards cannot become field names, preserving card syntax in values. Code:
-`web/src/table/query.ts:47`; `web/src/table/query.test.ts` (`matches names`,
+`web/src/table/query.ts:314`; `web/src/table/query.test.ts` (`matches names`,
 `keeps cards`, `retains card and code syntax`).
 
 The parsers implement [card syntax](domain-model.md#cards): `>>`, `<<`, `<>` and
 numbered clozes such as `{{c1::answer::hint}}`. Invalid explicit syntax returns
 problems and no units. Code, references and escapes shield literal syntax. Code:
-`crates/tessera-core/src/card_text.rs:55` (`protected_end`, `cloze`,
-`parse_card_text`), `web/src/core/card-text.ts:149`.
+`crates/tessera-core/src/card_text.rs:112` (`protected_end`), `220` (`cloze`),
+`300` (`parse_card_text`), `web/src/core/card-text.ts:292`.
 
 | Derived rows | Replacement                                                              |
 | ------------ | ------------------------------------------------------------------------ |
@@ -377,8 +385,8 @@ Code in `crates/tessera-core/src/`: `storage.rs::derive_links`,
 
 The [field model](domain-model.md#types-and-fields) defines definitions, entries
 and value children. The index stores their identities, not a copy of value text.
-Code: `crates/tessera-core/src/fields.rs:62` (`reference`, `derive_owner`);
-`crates/tessera-core/migrations/006_fields_views.sql:23`.
+Code: `crates/tessera-core/src/fields.rs:113` (`reference`), `390`
+(`derive_owner`); `crates/tessera-core/migrations/006_fields_views.sql:23`.
 
 For example, the authored outline can contain:
 
@@ -398,7 +406,7 @@ Example labels stand for real IDs. The index stores
 children can contribute to one field. Empty entries have no value rows but
 remain recognizable by their whole reference. Code:
 `crates/tessera-core/migrations/006_fields_views.sql:23`,
-`crates/tessera-core/src/fields.rs:185`, `crates/tessera-core/src/query.rs:368`.
+`crates/tessera-core/src/fields.rs:390`, `crates/tessera-core/src/query.rs:605`.
 
 Definitions use block text as their name and an optional `fields` row, with
 `kind` defaulting to `text` and the `hide` column defaulting to `never`.
@@ -432,7 +440,8 @@ invalid source text with a problem reading.
 - `fields::identifier` normalizes identifiers: ISBN-10 converts to ISBN-13 after
   both checksums, DOIs lowercase, and arXiv keeps its version.
 
-Code: `crates/tessera-core/src/fields.rs:351`.
+Code: `crates/tessera-core/src/fields.rs:1213` (`reading`), `1333`
+(`identifier`).
 
 `GET /api/fields/{id}?kind=number&limit=12` joins a definition's visible entries
 with values and reference targets. The optional kind previews a reading without
@@ -455,8 +464,8 @@ authored spelling and source flag. Text and manual sources have separate rows,
 following the [membership rules](domain-model.md#types-and-fields). Removing a
 manual row leaves the text tag. Code:
 `crates/tessera-core/migrations/007_manual_memberships.sql`,
-`crates/tessera-core/src/operations.rs` (`Operation::AddType`, `RemoveType`),
-`web/src/document/page-document.ts:818`.
+`crates/tessera-core/src/operations/outline.rs:146` (`Operation::AddType`),
+`178` (`RemoveType`), `web/src/document/edits/tags.ts:25` (`editManualType`).
 
 `type_fields` stores ordered field IDs on a type page. `SetTypeFields` validates
 definitions, replaces the list and bumps the page revision. It implements the
@@ -465,9 +474,9 @@ unwritten field-area slots. Fill missing fields commits one batch of ordinary
 `insert` operations for empty entries.
 
 Code: `crates/tessera-core/migrations/006_fields_views.sql:6`,
-`crates/tessera-core/src/operations.rs:1158`,
-`crates/tessera-core/src/query.rs:92`, `312`, `web/src/outline/field-sheet.tsx`,
-`web/src/fields/TemplateEditor.tsx`.
+`crates/tessera-core/src/operations/fields.rs:178` (`apply_set_type_fields`),
+`crates/tessera-core/src/query.rs:180` (`template`),
+`web/src/outline/field-sheet.tsx`, `web/src/fields/TemplateEditor.tsx`.
 
 `subject_criteria` stores ordered field IDs on any subject block.
 `set_subject_criteria {subject_id, base_revision, fields}` validates definitions
@@ -488,19 +497,19 @@ previous explicit list or derivation and preserves value identities.
 `Notebook::query_sources` gathers type-membership, FTS and field-ownership
 candidates. A joined read fetches source blocks, roots, value text and reference
 targets. Rust filters/sorts readings, counts matches, then limits results. Code:
-`crates/tessera-core/src/query.rs:162`, `203`, `272`;
-`crates/tessera-core/src/reads.rs:186` for simpler member reads.
+`crates/tessera-core/src/query.rs:516`, `605`, `700`;
+`crates/tessera-core/src/reads.rs:351` (`members`) for simpler member reads.
 
 The [query rules](domain-model.md#queries-and-views) define `present`, `set`,
 `empty` and invalid-value handling. Comparisons require valid readings; field
 sorts use the first value's reading, with missing/problem keys last. Code:
-`crates/tessera-core/src/query.rs:250` (`PreparedFilter::matches`, `compare`,
-`sort_value`), sorting at `286`.
+`crates/tessera-core/src/query.rs:912` (`PreparedFilter::matches`), `977`
+(`compare`), `1055` (`sort_value`), sorting at `726`.
 
 Table edits change outline blocks: edit the first existing value, or find/create
 the reference entry and reuse/insert a value child. Saved views store name, JSON
-`Query` and revision in `views`. Code: `web/src/table/TablePane.tsx:219`,
-`crates/tessera-core/migrations/006_fields_views.sql:14`,
+`Query` and revision in `views`. Code: `web/src/table/TablePane.tsx:1428`
+(`writeCell`), `crates/tessera-core/migrations/006_fields_views.sql:14`,
 `crates/tessera-core/src/query.rs` (`stored_view`, `views`, `view`).
 
 ## Tasks, projects and work sessions
@@ -508,8 +517,8 @@ the reference entry and reuse/insert a value child. Saved views store name, JSON
 Task/project metadata is keyed by block ID, separate from text and field
 children. Roots and ordinary rows can own it. Writes check the owning block's
 revision. Code: `crates/tessera-core/migrations/009_action_learning.sql:1`,
-`crates/tessera-core/src/operations.rs:1264`,
-`crates/tessera-core/src/task_store.rs:301`.
+`crates/tessera-core/src/operations/tasks.rs:7` (`apply_task`),
+`crates/tessera-core/src/task_store.rs:310` (`apply`).
 
 | Table              | Columns outside JSON                                                                      | JSON payload                                                                                           |
 | ------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -520,26 +529,27 @@ revision. Code: `crates/tessera-core/migrations/009_action_learning.sql:1`,
 
 The schema is `crates/tessera-core/migrations/009_action_learning.sql:1`.
 Payload definitions are `TaskState`, `ProjectState`, `TaskOccurrence` and
-`WorkSession` in `crates/tessera-core/src/capabilities.rs:28`.
+`WorkSession` in `crates/tessera-core/src/capabilities.rs:28`, `68`, `48` and
+`393`.
 
 `active` marks capability presence, not task/project status. Removal stores
 `active=0` while retaining the row and state. Setting it again reactivates it. A
 done task can have `active=1`. Semantic no-op writes do not bump the block.
-Code: `crates/tessera-core/src/task_store.rs:79` (`set_project`,
-`complete_task`), `crates/tessera-core/src/operations.rs:1279`.
+Code: `crates/tessera-core/src/task_store.rs:165` (`set_project`), `193`
+(`complete_task`), `crates/tessera-core/src/operations/tasks.rs:7`.
 
 [Task rules](domain-model.md#tasks) define `todo`, `doing`, `waiting`, `done`
 and `cancelled`. Only `CompleteTask` can create a new done state. It records the
 prior state in an occurrence, then stores the result. Without a repeater, it
 sets done and the completion date. Already-done nonrepeating completion is a
 no-op. Code: `crates/tessera-core/src/capabilities.rs:10`,
-`crates/tessera-core/src/task_store.rs:109`, `190`.
+`crates/tessera-core/src/task_store.rs:81`, `193`.
 
 **Parent completion touches only the selected task row and its occurrence.** It
 neither checks nor completes children, blocks completion on them, nor rolls up
 their progress. `TaskState` and the schema have no task-parent or dependency
 field. Outline nesting imposes no completion rule. Code:
-`crates/tessera-core/src/task_store.rs:190`,
+`crates/tessera-core/src/task_store.rs:193`,
 `crates/tessera-core/src/capabilities.rs:28`,
 `crates/tessera-core/migrations/009_action_learning.sql:1`.
 
@@ -547,26 +557,26 @@ field. Outline nesting imposes no completion rule. Code:
 project capability, following the [project model](domain-model.md#projects).
 Project filtering queries descendants through ancestry and checks the
 capability's `active` flag, not project status or a completion roll-up. Code:
-`crates/tessera-core/src/task_query.rs:76` (`visible_tasks`);
-`crates/tessera-core/src/task_store.rs:162`.
+`crates/tessera-core/src/task_query.rs:115` (`visible_tasks`);
+`crates/tessera-core/src/task_store.rs:165`.
 
 `Repeater` stores a positive interval, day/week/month/year unit and mode.
 `advance_window` implements the [date-advancement rules](domain-model.md#tasks),
 retaining clock labels. Completion returns the task to todo, clears
 `completed_on` and records an occurrence. Code:
-`crates/tessera-core/src/calendar.rs:11` (`Repeater`, `advance_window`);
-`crates/tessera-core/src/task_store.rs:214`.
+`crates/tessera-core/src/calendar.rs:28` (`Repeater`), `79` (`advance_window`);
+`crates/tessera-core/src/task_store.rs:193`.
 
 Fixed, catch-up and after-completion calculations run on civil dates in core,
 not browser predictions. The optimistic client leaves recurring state unchanged
 until the authoritative receipt. Code:
 `crates/tessera-core/src/calendar.rs:144`;
-`web/src/document/page-document.ts:179`.
+`web/src/document/page-document.ts:833`.
 
 Reversal marks the latest unreversed occurrence reversed and restores its
 snapshot only if current state equals `after_state`. This implements
 [completion undo](domain-model.md#tasks) without overwriting later edits. Code:
-`crates/tessera-core/src/task_store.rs:248`.
+`crates/tessera-core/src/task_store.rs:254`.
 
 ### Task lists and agenda
 
@@ -575,13 +585,13 @@ limit, then filter active, visible sources by status, selection, date ranges,
 priority and project ancestry. The [selection rules](domain-model.md#tasks)
 admit unfinished tasks (todo, doing, waiting) or recent unreversed occurrences
 by default. Canceled tasks require an explicit status filter. Code:
-`crates/tessera-core/src/task_query.rs:111`, `284`, with defaults in
-`crates/tessera-core/src/capabilities.rs:182`.
+`crates/tessera-core/src/task_query.rs:395`, `431`, with defaults in
+`crates/tessera-core/src/capabilities.rs:540`.
 
 Task rows sort by planning date/time, priority and block ID. Planning prefers
 scheduled date over deadline, with missing dates/times last. Totals precede the
 outer limit. `task_views` stores saved JSON queries. Code:
-`crates/tessera-core/src/task_query.rs:139`, `156`, `216`, `339`, migration
+`crates/tessera-core/src/task_query.rs:210`, `227`, `465`, `528`, migration
 `009_action_learning.sql:67`.
 
 Tasks mode uses a synchronous query-line parser:
@@ -601,29 +611,30 @@ Code: `web/src/tasks/task-query-line.ts`, `TaskQueryLine.tsx`, `AgendaPane.tsx`.
 displayed civil date. Unfinished rows combine scheduled, deadline, warning,
 overdue or unplanned reasons. Same-day completions use the latest unreversed
 occurrence's planning and a done projection, even after a repeater advances;
-canceled tasks are excluded. Code: `crates/tessera-core/src/task_query.rs:165`,
-`348` (`Notebook::agenda`).
+canceled tasks are excluded. Code: `crates/tessera-core/src/task_query.rs:257`,
+`473` (`Notebook::agenda`).
 
 ### Work sessions
 
 Starting work requires an active, visible, unfinished task. A partial unique
 index enforces the [single running session rule](domain-model.md#tasks). Audit
 timestamps come from the start/stop operation, not commit time after delayed
-delivery. Code: `crates/tessera-core/src/work_store.rs:67`, `83`, `129`;
+delivery. Code: `crates/tessera-core/src/work_store.rs:68`, `84`, `130`;
 `crates/tessera-core/migrations/009_action_learning.sql:27`.
 
 Stopping sets `ended_at` and note. Note edits and reversal/reopening update
 session revision. Operations also check/bump the block. Reopening requires an
 unfinished task and free clock. History includes reversed sessions and
-hidden/deleted sources. Code: `crates/tessera-core/src/work_store.rs:107`
-(`apply`, `work_sessions`), `crates/tessera-core/src/operations.rs:1298`.
+hidden/deleted sources. Code: `crates/tessera-core/src/work_store.rs:130`
+(`apply`), `267` (`work_sessions`),
+`crates/tessera-core/src/operations/tasks.rs:47`.
 
 Core guards refuse completion, removal, cancellation or hiding of a running
 task, including subtree hiding or moving beneath a hidden source. The browser
 can queue `StopWork` immediately before `CompleteTask` when given the current
-session. Code: `crates/tessera-core/src/task_store.rs:59`, `149`, `213`,
-`crates/tessera-core/src/work_store.rs:243`,
-`web/src/document/page-document.ts:782`.
+session. Code: `crates/tessera-core/src/task_store.rs:61`, `106`, `152`, `219`,
+`crates/tessera-core/src/work_store.rs:244`,
+`web/src/document/edits/tasks.ts:52`.
 
 ### Why a row cannot merge away
 
@@ -660,17 +671,20 @@ childless protected row, or first removes a non-empty row's task, project,
 relation, position, spread, question or assessment, in that order, one per
 keystroke. Forward Delete can reach it when the next row is protected.
 
-Code: `web/src/document/page-document.ts` (`merge`, `replace`),
+Code: `web/src/document/page-document.ts` (`guardMerge`),
+`web/src/document/edits/text.ts` (`editMerge`),
+`web/src/document/edits/session.ts` (`replace`),
 `web/src/document/outline-mechanics.ts` (`boundaryDeletion`),
-`web/src/outline/OutlinePane.tsx` (`backspace`).
+`web/src/outline/keyboard.ts` (`backspace`).
 
 `Engine::merge` calls task/project and reviewed-card guards before changes,
 enforcing [source-identity protection](domain-model.md#cards) for API clients
 too. The destination keeps its identity. Text edits, moves, archive and
 tombstone deletion have separate checks, including the running-work guard. Code:
-`crates/tessera-core/src/operations.rs:909` (`delete`,
-`Operation::SetArchived`), `crates/tessera-core/src/task_store.rs:401`,
-`crates/tessera-core/src/card_store.rs:212`.
+`crates/tessera-core/src/operations/mod.rs:1466` (`delete`),
+`crates/tessera-core/src/operations/outline.rs:124` (`Operation::SetArchived`),
+`crates/tessera-core/src/task_store.rs:520`,
+`crates/tessera-core/src/card_store.rs:311`.
 
 ## Cards and review
 
@@ -683,7 +697,7 @@ derive syntax cards. Code: `crates/tessera-core/src/card_text.rs`,
 `derive_sources` compares parsed and retained units by key. Wording changes
 update front/back, `definition_revision` and card revision, not ID or schedule.
 Removed/reintroduced syntax deactivates/reuses units; new keys receive new IDs
-and initially due schedules. Code: `crates/tessera-core/src/card_store.rs:117`
+and initially due schedules. Code: `crates/tessera-core/src/card_store.rs:156`
 (`derive_sources`).
 
 For [child-answer cards](domain-model.md#cards), `>>>` and `>>1.` require a
@@ -704,11 +718,11 @@ lists, search and MCP need no outline walk. `card_subject`, mirrored by
 text beside each source; an empty subject skips the card and deactivates a
 retained unit.
 
-`Engine::edit` in `operations.rs`, shared by page renames, splits, merges and
-link rewrites, adds direct children containing `;;` to the batch's card sources.
-Parent/page renames therefore rederive descriptors without resetting schedules.
-Moves query no children: the moved descriptor is a source, so moving from a
-10,000-row page requires no per-row work.
+`Engine::edit` in `operations/mod.rs`, shared by page renames, splits, merges
+and link rewrites, adds direct children containing `;;` to the batch's card
+sources. Parent/page renames therefore rederive descriptors without resetting
+schedules. Moves query no children: the moved descriptor is a source, so moving
+from a 10,000-row page requires no per-row work.
 
 The outline repeats the empty-parent check for diagnostics; review omits the
 parent from the source breadcrumb. Migration `034_descriptor_cards.sql` widens
@@ -768,8 +782,8 @@ arithmetically, not an FSRS prediction.
 Card split guards enforce the
 [end, interior and start split rules](domain-model.md#cards), separately from
 task/project merge protection. Code:
-`crates/tessera-core/src/card_store.rs:221`;
-`web/src/document/page-document.ts:643`.
+`crates/tessera-core/src/card_store.rs:320`;
+`web/src/document/edits/session.ts:122`.
 
 `card_units.schedule` stores JSON: nullable stability/difficulty, interval days,
 repetitions, lapses, due timestamp and last-review timestamp.
@@ -798,8 +812,8 @@ The migration and replay run in one transaction.
 card revision, definition revision and exact shown front/back, not source-block
 revision. It requires active syntax, a visible source and an open session if
 supplied, and schedules from explicit operation review time. Code:
-`crates/tessera-core/src/model.rs:235`;
-`crates/tessera-core/src/review_store.rs:134`, `172`, `402`.
+`crates/tessera-core/src/model.rs:444`;
+`crates/tessera-core/src/review_store.rs:268`, `287`, `602`.
 
 Grade/reset events store shown text, definition revision, scheduler version,
 before/after schedules, event time and change sequence. The transaction also
@@ -807,21 +821,21 @@ updates schedule and card revision. Reset-plus-grade retains separate evidence.
 Finish/abandon changes session state without deleting grades, following the
 [review-history rules](domain-model.md#cards). Code:
 `crates/tessera-core/migrations/009_action_learning.sql:76`,
-`crates/tessera-core/src/review_store.rs:206`, `239`, `355`.
+`crates/tessera-core/src/review_store.rs:379`, `423`, `547`.
 
 Deck rows implement the [saved-deck rules](domain-model.md#cards), storing
 names, JSON card queries and independent revisions. An optional source query
 selects by type/text/fields. Card selection applies due/new/all to active
 visible units, counts before limiting, and sorts reviewed before new, then by
 due time and ID. Deletion removes only the query row. Code:
-`crates/tessera-core/src/card_query.rs:43` (`stored_deck`),
-`crates/tessera-core/src/review_store.rs:457`.
+`crates/tessera-core/src/card_query.rs:48` (`stored_deck`),
+`crates/tessera-core/src/review_store.rs:809`.
 
 The review pane holds shown text until acknowledgment. Refresh detects changed
 cards/sessions and refuses stale grades. The current session excludes units
 already graded there. Grade/session/deck commands share page edits' ordered
-durable outbox. Code: `web/src/review/ReviewPane.tsx:127`, `240`,
-`web/src/document/index.ts:271` (`sendNotebook`).
+durable outbox. Code: `web/src/review/ReviewPane.tsx:569` (`refresh`), `875`
+(`grade`), `web/src/document/index.ts:1917` (`sendNotebook`).
 
 `GET /api/review/stats?deck=<id>&date=YYYY-MM-DD` projects active visible
 schedules and immutable grade events without writes. Context dates use the
@@ -885,7 +899,7 @@ and change events.
 Merge transfers citations to the destination, while split retains them on the
 original ID. Tombstones retain evidence, while discovery excludes hidden/deleted
 citing blocks. Code: `crates/tessera-core/src/library.rs:1`,
-`library_store.rs:1` (`apply`), `task_store.rs` (`capabilities_for`,
+`library_store.rs:351` (`apply`), `task_store.rs` (`capabilities_for`,
 `page_capabilities`).
 
 The object store hashes original/resource bytes with SHA-256.
@@ -1105,7 +1119,8 @@ One worker resumes running jobs as queued and extracts off the async runtime:
 | Resource responses | Image media types only; immutable private caching and `nosniff`             |
 | Retries            | Three for transient downloads; extraction and 4xx failures stop immediately |
 
-Code: `crates/tessera-service/src/library.rs:1`;
+Code: `crates/tessera-api/src/library/mod.rs:26` (`routes`),
+`crates/tessera-api/src/library/worker.rs:49` (`Worker`),
 `crates/tessera-core/src/library_jobs.rs:1`.
 
 - `tessera add <path-or-url>...` queues through the running service; `--wait`
@@ -1113,7 +1128,8 @@ Code: `crates/tessera-service/src/library.rs:1`;
 - `tessera export --format bibtex|csl|markdown [SOURCE_ID...]` prints selected
   sources, or all active visible sources if no IDs are given.
 
-Code: `crates/tessera-cli/src/main.rs:18`.
+Code: `crates/tessera-cli/src/main.rs:36` (`Command::Add`), `43`
+(`Command::Export`).
 
 `tessera export --view "Reading list" --format csl` resolves a saved library
 view by name and exports its query through the POST endpoint. A view name and
@@ -1125,8 +1141,8 @@ choosing one silently.
 The client separates intent, optimistic actions, acknowledged state and
 delivery. One `Notebook` owns the window's queue, documents, roots and reference
 cache. Each `Document` owns a page's local cells, acknowledged blocks, outline
-indexes and undo/redo history. Code: `web/src/document/index.ts:27`;
-`web/src/document/page-document.ts:35`.
+indexes and undo/redo history. Code: `web/src/document/index.ts:65`
+(`Notebook`); `web/src/document/page-document.ts:149` (`Document`).
 
 | File                                | Responsibility                                                                                    |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -1134,6 +1150,8 @@ indexes and undo/redo history. Code: `web/src/document/index.ts:27`;
 | `web/src/document/types.ts`         | Actions, snapshots, inverses, page/workshop command records and history entries                   |
 | `web/src/document/page-document.ts` | Plan/apply page edits, retain base state, reconcile remote state, undo/redo and resolve conflicts |
 | `web/src/document/index.ts`         | Share documents, coalesce/persist/compile/send commands, catch up changes and maintain caches     |
+| `web/src/document/change-stream.ts` | Reconnect, catch up and stream workshop changes into the notebook client                          |
+| `web/src/document/edits/`           | Per-kind edit planners that `Document.edit` dispatches to                                         |
 | `web/src/document/outbox.ts`        | IndexedDB command storage and acknowledged offline page recovery                                  |
 
 ### From an edit to a receipt
@@ -1203,56 +1221,57 @@ after reload and stay in the outbox.
    calls `doc.edit({kind:'text', id, text}, caret)` or routes structural keys to
    intent edits. Programmatic synchronization suppresses the hook, preventing
    received updates from becoming new input. Code:
-   `web/src/outline/editor.ts:49` (`sync`);
-   `web/src/outline/OutlinePane.tsx:1070`.
+   `web/src/outline/editor.ts:782` (`sync`);
+   `web/src/outline/OutlinePane.tsx:2626`.
 2. `Document.edit` validates and plans actions. `apply` updates touched
    cells/subtrees immediately and returns inverses. The edit collects them in
    reverse application order, enqueues one command and records history, without
-   awaiting the network. Code: `web/src/document/page-document.ts:603`, `904`;
-   `web/src/document/index.ts:250`.
+   awaiting the network. Code: `web/src/document/page-document.ts:1973`, `651`;
+   `web/src/document/index.ts:526`.
 3. Local cells can lead `baseBlocks`, with `pending` true and acknowledged
    revisions, or 0 for uncommitted blocks. Per-block Solid stores hold text.
    `OutlineIndex` separately stores IDs, parents and depths in an implicit
-   treap; text edits never mutate it. Code: `web/src/document/contract.ts:32`;
-   `page-document.ts:108`, `223`; `outline-index.ts:65`.
+   treap; text edits never mutate it. Code: `web/src/document/contract.ts:55`;
+   `page-document.ts:152`, `156`; `outline-index.ts:80`.
 4. `Notebook.enqueue` schedules command-snapshot persistence in a microtask.
    `Outbox` serializes IndexedDB writes off the input path. The queue can
    replace its latest unfrozen single-block text action, retaining the original
-   inverse. Code: `web/src/document/index.ts:250`;
-   `web/src/document/outbox.ts:43`.
+   inverse. Code: `web/src/document/index.ts:526`;
+   `web/src/document/outbox.ts:87`.
 5. `compile` builds API operations from acknowledged snapshots, tracking working
    revisions within the batch. Capability actions compare original revision and
    metadata too, preventing silent adoption of newer task/project/work state.
-   The command ID is the idempotency key. Code: `web/src/document/index.ts:328`.
+   The command ID is the idempotency key. Code:
+   `web/src/document/index.ts:1264`.
 6. `drain` sends one request at a time in window-wide order. It freezes compiled
    JSON and persists the frozen command before POSTing. `submitFrozen` sends
-   that stored string unchanged. Code: `web/src/document/index.ts:563`;
-   `web/src/api/client.ts:55`, `169`.
+   that stored string unchanged. Code: `web/src/document/index.ts:2144`;
+   `web/src/api/client.ts:615`, `196`.
 7. Core checks operations, derives indexes and commits. `Document.acknowledged`
    advances base state/revisions, applies returned capability/work state and
    recalculates pending flags. One IndexedDB transaction stores acknowledged
    block/structural recovery data and deletes the command. Code:
-   `crates/tessera-core/src/operations.rs:22`;
-   `web/src/document/page-document.ts:437`; `web/src/document/outbox.ts:92`.
+   `crates/tessera-core/src/operations/mod.rs:227`;
+   `web/src/document/page-document.ts:1392`; `web/src/document/outbox.ts:195`.
 
 ### Coalescing and undo
 
 Text delivery waits 200 ms by default, configurable within 150 to 300 ms. Typing
 resets the timer, but the first queued edit caps delay at one second. Structural
 edits schedule immediate delivery; frozen requests cannot coalesce. Code:
-`web/src/document/index.ts:250` (`schedule`).
+`web/src/document/index.ts:1256` (`schedule`).
 
 Undo grouping is independent of HTTP coalescing. Consecutive plain-text edits to
 one block within one second can share a step across commands. History retains
 forward actions, original inverse and caret/selection state. A new edit clears
-redo. Code: `web/src/document/page-document.ts:906`,
-`web/src/document/types.ts:66`.
+redo. Code: `web/src/document/page-document.ts:2192`,
+`web/src/document/types.ts:272`.
 
 Undo/redo applies local actions and enqueues new revision-checked work, not a
 SQLite rewind. Redo restores a committed insertion's identity instead of
 creating its used ID again. Completion undo reverses its occurrence. Both panes
-share document history. Code: `web/src/document/page-document.ts:935`, `apply`
-at `179`; `web/src/document/index.ts:162`.
+share document history. Code: `web/src/document/page-document.ts:2308`, `apply`
+at `651`; `web/src/document/index.ts:301`.
 
 ### Pending, offline and conflicts
 
@@ -1260,7 +1279,7 @@ Save state distinguishes unpersisted/queued work, active requests, offline
 delivery, text conflicts and retained failures. `saved` means no pending work in
 the applicable queue, not blur or IndexedDB persistence. Workshop status also
 counts rejected commands and conflicts on retained documents. Code:
-`web/src/document/contract.ts:156`; `web/src/document/index.ts:712`
+`web/src/document/contract.ts:370`; `web/src/document/index.ts:1199`
 (`commandState`).
 
 The states are `saved`, `saving`, `queued`, `offline`, `conflict` and `error`.
@@ -1306,8 +1325,9 @@ stateDiagram-v2
 Network failure or HTTP 5xx means uncertain delivery. The client retains and
 retries the same frozen bytes/key. Core returns the original receipt for that
 key and operation hash, rejecting reuse with different operations. This covers
-lost commit responses. Code: `web/src/api/client.ts:45`,
-`web/src/document/index.ts:660`, `crates/tessera-core/src/operations.rs:34`.
+lost commit responses. Code: `web/src/api/client.ts:144`,
+`web/src/document/index.ts:2342`,
+`crates/tessera-core/src/operations/mod.rs:581`.
 
 IndexedDB stores commands, root/page snapshots, acknowledged block patches,
 deletion tickets and capability sidecars:
@@ -1316,14 +1336,15 @@ deletion tickets and capability sidecars:
 - Page/block recovery is scoped by workshop.
 - `sessionStorage` remembers the window-session ID for queue recovery on reload.
 
-Code: `web/src/document/outbox.ts:7` (`load`); `web/src/document/index.ts:93`.
+Code: `web/src/document/outbox.ts:290` (`load`);
+`web/src/document/index.ts:238`.
 
 Initialization restores ordered commands, opens recovered documents and replays
 actions over a service or cached offline page. Recovery combines the base page
 snapshot, structural patches, newer acknowledged blocks and capability sidecars.
 Frozen commands stay frozen. An offline first visit needs remembered workshop
-identity and cached data. Code: `web/src/document/index.ts:129` (`loadPage`),
-`web/src/document/outbox.ts:122`, `web/src/shell/App.tsx:263`.
+identity and cached data. Code: `web/src/document/index.ts:389` (`loadPage`),
+`web/src/document/outbox.ts:320`, `web/src/shell/App.tsx:199`.
 
 The production service worker caches the complete shell asset graph for warm
 offline reloads with either embedded assets or `--assets`. Vite's `assets/`
@@ -1334,105 +1355,107 @@ Remote text meeting unsent local text retains the local version and records
 `remoteText`/`remoteRevision`. Clean blocks update directly. Structural changes
 can reload the page and replay pending actions. "Keep mine"/"take theirs"
 selects the next revision-checked write, deferred while frozen delivery remains
-uncertain. Code: `web/src/document/page-document.ts:314`, `409`, `969`,
-`web/src/document/index.ts:618` (`reconcile`).
+uncertain. Code: `web/src/document/page-document.ts:1236`, `1108`, `2426`,
+`web/src/document/index.ts:2637` (`reconcile`).
 
 A definite 409 wrote nothing, so the frozen request can retire. Text-only
 conflicts keep both versions. Stale structural/capability commands are rejected
 and retained for recovery, not blindly reapplied. Rejected
 text/actions/operations stay in the outbox until explicit dismissal. Code:
-`web/src/document/index.ts:497`, `666` (`dismissRejected`).
+`web/src/document/index.ts:1886`, `2509` (`dismissRejected`).
 
 ### Changes and caches
 
 The client fetches `/api/changes?after=...`, then opens a WebSocket at the
 current cursor. Reconnect catches up first. The service subscribes before
 reading history, removing overlap through cursor checks. Lagged receivers reread
-durable history. Code: `web/src/document/index.ts:810`,
-`crates/tessera-service/src/lib.rs:382` (`stream_changes`).
+durable history. Code: `web/src/document/change-stream.ts:131` (`connect`),
+`crates/tessera-api/src/changes.rs:83` (`follow_changes`),
+`crates/tessera-service/src/stream.rs:13` (`change_stream`).
 
 Events carry current blocks, removed IDs, affected structural pages and changed
 capability/resource IDs, not historical snapshots. `changes_since` joins changed
 identities to current rows and refreshes sidecars. The originating client
 recognizes its actor name and reconciles from its receipt. Code:
-`crates/tessera-core/src/reads.rs:338`; `web/src/document/index.ts:866`
-(`change`).
+`crates/tessera-core/src/reads.rs:620` (`changes_since`);
+`web/src/document/index.ts:2707` (`change`).
 
 `roots` caches navigation roots, with optimistic create/rename/delete updates
 and committed refreshes. Reactive `lookup(id)` returns undefined while loading,
 null when absent, otherwise the cached block. Page targets, local edits and
 remote events publish there, letting reference labels follow targets outside the
-current page. Code: `web/src/document/index.ts:201`, `226` (`refreshRoots`);
-`web/src/document/page-document.ts:395`.
+current page. Code: `web/src/document/index.ts:182`, `2539` (`refreshRoots`);
+`web/src/document/page-document.ts:1216`.
 
 `open(pageId)` adds a document hold, and `release()` removes one. `closeUnused`
 closes only with no holds, queued commands, conflicts or pending page-deletion
 recovery. Pane closure therefore retains recoverable work. Code:
-`web/src/document/index.ts:162` (`closeUnused`), `web/src/shell/App.tsx:504`.
+`web/src/document/index.ts:363` (`closeUnused`), `web/src/shell/Pane.tsx:222`.
 
 ## The shell
 
 The shell owns location/view state, and the document owns content. Pane IDs are
 `main` and `side`. `OpenTarget` names page/block, table, agenda, review, fields
 or settings destinations. Code: `web/src/core/contract.ts:94` (`OpenTarget`),
-`web/src/shell/App.tsx:25`.
+`web/src/shell/App.tsx:392` (`open`).
 
 Each pane session holds history entries, current index and generation. Entries
 pair targets with view snapshots. Pages retain zoom, caret, top-row scroll
 anchor, folds and archived visibility. Other surfaces retain query, date,
 deck/session or scroll state. Copying prevents fold/caret objects from aliasing
-old entries. Code: `web/src/core/contract.ts:68`, `web/src/shell/App.tsx:25`
-(`copyView`, `snapshotView`).
+old entries. Code: `web/src/core/contract.ts:68`,
+`web/src/shell/pane-state.ts:8` (`copyView`), `56` (`snapshotView`).
 
 Opening chooses the active/opposite pane, truncates forward history and appends
 an entry. Back/forward changes the index. Zoom creates page-view entries;
 ordinary view updates replace the current entry. Generation tells mounted
-content to restore the selected view. Code: `web/src/shell/App.tsx:128`
-(`changeView`, `travel`).
+content to restore the selected view. Code: `web/src/shell/App.tsx:603`
+(`changeView`), `630` (`travel`).
 
 `localStorage` key `tessera.navigation.<workshop-id>` persists pins, pinned
-table views, recent pages, Vim preference hint, active pane and **only each
-pane's current entry**. Reload starts each pane with one entry, not the full
-back/forward stack. Navigation storage is separate from the IndexedDB outbox.
-Code: `web/src/shell/App.tsx:28`, `273`, `298`, `307`.
+table views, recent pages, Vim preference hint, active pane and each pane's
+current entry with up to ten Back and ten Forward entries around it
+(`SAVED_HISTORY`). Navigation storage is separate from the IndexedDB outbox.
+Code: `web/src/shell/App.tsx:133`, `1320`, `1498`, `1540`.
 
 Mounted shell/pane code registers commands through `createCommandRegistry`, each
 with a symbol-owned group and cleanup. Commands supply title, section, displayed
 shortcuts, optional disabled reason, execution callback and optional capture
 callback. Owning components handle shortcuts. The registry binds no keys. Code:
 `web/src/shell/commands.ts:5`, `web/src/core/contract.ts:43`, with shell key
-routing in `web/src/shell/App.tsx:246`.
+routing in `web/src/shell/App.tsx:1207`.
 
 The palette captures commands on opening so focus cannot retarget
 selection-sensitive commands. Leading `>` selects command search. Otherwise
 block/page search uses a 100 ms debounce. Outline commands stay scoped to the
 opening pane, and Tab drills into children. Blocks open by page ID plus block
 ID. `NotebookClient.createPage` creates pages. Code:
-`web/src/shell/Palette.tsx:14` (`commands`, `drill`, `open`, `create`).
+`web/src/shell/Palette.tsx:293` (`commands`), `394` (`drill`), `403` (`open`),
+`432` (`create`).
 
 ## Where to look when something breaks
 
 Start with the layer that owns the symptom.
 
-| Symptom                                                                            | Owning layer                            | Where to start                                                                                                                                             |
-| ---------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Typing does not reach the document, or received text feeds back as another edit    | Outline input                           | `web/src/outline/editor.ts` · `PaneEditor` update listener, `sync`; `web/src/outline/OutlinePane.tsx:1070`                                                 |
-| Enter, Backspace or range deletion changes the wrong rows                          | Document mechanics                      | `web/src/document/page-document.ts` · `edit`, `split`, `replace`; `web/src/document/outline-mechanics.ts` · `boundaryDeletion`                             |
-| "Cannot merge away an active task…" or "This task has completion or work history…" | Document and core identity guards       | `web/src/document/page-document.ts` · `merge`; `crates/tessera-core/src/task_store.rs` · `capability_rows`, `guard_merge`; `card_store.rs` · `guard_merge` |
-| Unexpected sibling order or wrong owning page                                      | Core ordering and client index          | `crates/tessera-core/src/operations.rs` · `ordinal`, `move_block`; `web/src/document/outline-index.ts` · `move`                                            |
-| A batch returns 409                                                                | Core revision checks and delivery       | `crates/tessera-core/src/operations.rs` · `checked`; `crates/tessera-service/src/error.rs` · conflict envelope; `web/src/document/index.ts` · `drain`      |
-| A draft stays queued, disappears on reload or cannot replay offline                | Client delivery and recovery            | `web/src/document/index.ts` · `persist`, `initialize`, `loadPage`; `web/src/document/outbox.ts` · `load`, `cachedPage`                                     |
-| "Saved" seems wrong, or rejected work cannot be found                              | Client save state and shell banner      | `web/src/document/index.ts` · `state`, `message`, `reject`, `rejectedText`; `web/src/shell/App.tsx` · `GlobalBanner`                                       |
-| Another window or reference label is stale                                         | Client caches and service stream        | `web/src/document/index.ts` · `reconcileConnection`, `change`, `lookup`; `crates/tessera-service/src/lib.rs` · `stream_changes`                            |
-| Reference/backlink or tag membership is missing                                    | Core derivation and reads               | `crates/tessera-core/src/storage.rs` · `derive_links`, `derive_memberships`; `reads.rs` · `backlinks`, `members`                                           |
-| `Name:: value` does not turn into a field                                          | Browser field conversion                | `web/src/table/query.ts` · `matchFieldEntry`; `web/src/outline/OutlinePane.tsx` · `commitFieldEntry`, `ensureField`                                        |
-| A table value/filter/column is wrong                                               | Core field readings and queries         | `crates/tessera-core/src/fields.rs` · `derive_owner`, `reading`; `query.rs` · `query_sources`, `PreparedFilter`, `sort_value`                              |
-| Task completion, recurrence or agenda planning is wrong                            | Core task state and civil dates         | `crates/tessera-core/src/task_store.rs` · `complete_task`; `calendar.rs` · `advance_window`; `task_query.rs` · `agenda`                                    |
-| A task cannot be hidden/completed, or another clock cannot start                   | Core work guards                        | `crates/tessera-core/src/work_store.rs` · `require_free_clock`, `guard_hide_subtree`; `task_store.rs` · `guard_running_work`                               |
-| Card syntax creates no unit or progress seems to change on edit                    | Core card derivation and browser parser | `crates/tessera-core/src/card_text.rs` · `parse_card_text`; `card_store.rs` · `derive_sources`; `web/src/core/card-text.ts` · `parseCardText`            |
-| A shown card cannot be graded or advances before saving                            | Core review checks and review pane      | `crates/tessera-core/src/review_store.rs` · `GradeCard` handling; `web/src/review/ReviewPane.tsx` · `refresh`, `grade`                                     |
-| Pane back/forward, restored folds or command targeting is wrong                    | Shell navigation and palette            | `web/src/shell/App.tsx` · `open`, `changeView`, `travel`, navigation restore; `web/src/shell/Palette.tsx` · command capture                                |
-| Service startup fails with existing ownership                                      | Core ownership and service startup      | `crates/tessera-core/src/ownership.rs` · `NotebookOwnership::acquire`; `crates/tessera-service/src/lib.rs` · `serve`                                       |
+| Symptom                                                                            | Owning layer                            | Where to start                                                                                                                                                          |
+| ---------------------------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typing does not reach the document, or received text feeds back as another edit    | Outline input                           | `web/src/outline/editor.ts` · `PaneEditor` update listener, `sync`; `web/src/outline/OutlinePane.tsx:2626`                                                              |
+| Enter, Backspace or range deletion changes the wrong rows                          | Document mechanics                      | `web/src/document/page-document.ts` · `edit`; `web/src/document/edits/session.ts` · `split`, `replace`; `web/src/document/outline-mechanics.ts` · `boundaryDeletion`    |
+| "Cannot merge away an active task…" or "This task has completion or work history…" | Document and core identity guards       | `web/src/document/page-document.ts` · `guardMerge`; `crates/tessera-core/src/task_store.rs` · `capability_rows`, `guard_merge`; `card_store.rs` · `guard_merge`         |
+| Unexpected sibling order or wrong owning page                                      | Core ordering and client index          | `crates/tessera-core/src/operations/mod.rs` · `ordinal`, `move_block`; `web/src/document/outline-index.ts` · `move`                                                     |
+| A batch returns 409                                                                | Core revision checks and delivery       | `crates/tessera-core/src/operations/mod.rs` · `checked`; `crates/tessera-api/src/error.rs` · conflict envelope; `web/src/document/index.ts` · `drain`                   |
+| A draft stays queued, disappears on reload or cannot replay offline                | Client delivery and recovery            | `web/src/document/index.ts` · `persist`, `initialize`, `loadPage`; `web/src/document/outbox.ts` · `load`, `cachedPage`                                                  |
+| "Saved" seems wrong, or rejected work cannot be found                              | Client save state and shell banner      | `web/src/document/index.ts` · `state`, `message`, `reject`, `rejectedText`; `web/src/shell/GlobalBanner.tsx` · `GlobalBanner`                                           |
+| Another window or reference label is stale                                         | Client caches and service stream        | `web/src/document/change-stream.ts` · `reconcileConnection`; `web/src/document/index.ts` · `change`, `lookup`; `crates/tessera-service/src/stream.rs` · `change_stream` |
+| Reference/backlink or tag membership is missing                                    | Core derivation and reads               | `crates/tessera-core/src/storage.rs` · `derive_links`, `derive_memberships`; `reads.rs` · `backlinks`, `members`                                                        |
+| `Name:: value` does not turn into a field                                          | Browser field conversion                | `web/src/table/query.ts` · `matchFieldEntry`; `web/src/outline/OutlinePane.tsx` · `commitFieldEntry`; `web/src/outline/source-fields.ts` · `ensureField`                |
+| A table value/filter/column is wrong                                               | Core field readings and queries         | `crates/tessera-core/src/fields.rs` · `derive_owner`, `reading`; `query.rs` · `query_sources`, `PreparedFilter`, `sort_value`                                           |
+| Task completion, recurrence or agenda planning is wrong                            | Core task state and civil dates         | `crates/tessera-core/src/task_store.rs` · `complete_task`; `calendar.rs` · `advance_window`; `task_query.rs` · `agenda`                                                 |
+| A task cannot be hidden/completed, or another clock cannot start                   | Core work guards                        | `crates/tessera-core/src/work_store.rs` · `require_free_clock`, `guard_hide_subtree`; `task_store.rs` · `guard_running_work`                                            |
+| Card syntax creates no unit or progress seems to change on edit                    | Core card derivation and browser parser | `crates/tessera-core/src/card_text.rs` · `parse_card_text`; `card_store.rs` · `derive_sources`; `web/src/core/card-text.ts` · `parseCardText`                           |
+| A shown card cannot be graded or advances before saving                            | Core review checks and review pane      | `crates/tessera-core/src/review_store.rs` · `GradeCard` handling; `web/src/review/ReviewPane.tsx` · `refresh`, `grade`                                                  |
+| Pane back/forward, restored folds or command targeting is wrong                    | Shell navigation and palette            | `web/src/shell/App.tsx` · `open`, `changeView`, `travel`, navigation restore; `web/src/shell/Palette.tsx` · command capture                                             |
+| Service startup fails with existing ownership                                      | Core ownership and service startup      | `crates/tessera-core/src/ownership.rs` · `NotebookOwnership::acquire`; `crates/tessera-service/src/serve.rs` · `serve`                                                  |
 
 ## Open questions
 
