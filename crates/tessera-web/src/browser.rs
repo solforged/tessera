@@ -9,9 +9,8 @@ use futures_util::future::{AbortHandle, Abortable};
 use js_sys::{Function, JsString, Uint8Array};
 use rusqlite::{Connection, OpenFlags};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHError, OpfsSAHPoolCfg, OpfsSAHPoolUtil};
+use tessera_api::EmbeddedHandles;
 use tessera_core::{Notebook, SCHEMA_VERSION};
-use tessera_service::EmbeddedHandles;
-use tokio::sync::broadcast;
 use tower::ServiceExt;
 use wasm_bindgen::prelude::*;
 
@@ -280,7 +279,7 @@ fn save_upgrade_copy() -> Result<(), JsValue> {
 fn reopen() -> Result<String, JsValue> {
     let notebook = Notebook::open("/demo").map_err(internal)?;
     let info = serde_json::to_string(&notebook.info().map_err(internal)?).map_err(internal)?;
-    let (router, handles) = tessera_service::embedded_router(notebook).map_err(internal)?;
+    let (router, handles) = tessera_api::embedded_router(notebook).map_err(internal)?;
     RUNTIME.with(|runtime| runtime.borrow_mut().app = Some(App { router, handles }));
     Ok(info)
 }
@@ -503,50 +502,28 @@ fn cancel_subscription(id: u64) {
     });
 }
 
-fn catch_up(id: u64, after: &mut i64, on_change: &Function) -> Result<(), JsValue> {
-    loop {
-        if !RUNTIME.with(|runtime| runtime.borrow().subscriptions.contains_key(&id)) {
-            return Ok(());
-        }
-        let changes = with_app(|app| {
-            app.handles
-                .notebook
-                .lock()
-                .changes_since(*after, 100)
-                .map_err(internal)
-        })?;
-        if changes.is_empty() {
-            return Ok(());
-        }
-        for change in changes {
-            // The callback may synchronously close its subscription or reset the notebook.
-            if !RUNTIME.with(|runtime| runtime.borrow().subscriptions.contains_key(&id)) {
-                return Ok(());
-            }
-            if change.seq > *after {
-                let json = serde_json::to_string(&change).map_err(internal)?;
-                on_change.call1(&JsValue::UNDEFINED, &JsValue::from_str(&json))?;
-                *after = change.seq;
-            }
-        }
-    }
+fn subscription_open(id: u64) -> bool {
+    RUNTIME.with(|runtime| runtime.borrow().subscriptions.contains_key(&id))
 }
 
-async fn stream_changes(
+struct JsSink {
     id: u64,
-    mut receiver: broadcast::Receiver<i64>,
-    mut after: i64,
     on_change: Function,
-) -> Result<(), JsValue> {
-    catch_up(id, &mut after, &on_change)?;
-    loop {
-        match receiver.recv().await {
-            Ok(seq) if seq <= after => continue,
-            Err(broadcast::error::RecvError::Closed) => return Ok(()),
-            // Notifications may overflow, but committed notebook history never does.
-            Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
+}
+
+impl tessera_api::ChangeSink for JsSink {
+    type Error = JsValue;
+    async fn emit(&mut self, event: String) -> Result<tessera_api::StreamStop, JsValue> {
+        // The callback may synchronously close its subscription or reset the notebook.
+        if !subscription_open(self.id) {
+            return Ok(tessera_api::StreamStop::Stop);
         }
-        catch_up(id, &mut after, &on_change)?;
+        self.on_change
+            .call1(&JsValue::UNDEFINED, &JsValue::from_str(&event))?;
+        if !subscription_open(self.id) {
+            return Ok(tessera_api::StreamStop::Stop);
+        }
+        Ok(tessera_api::StreamStop::Continue)
     }
 }
 
@@ -556,7 +533,8 @@ pub fn subscribe(
     after: f64,
     #[wasm_bindgen(unchecked_param_type = "(eventJson: string) => void")] on_change: Function,
 ) -> Result<Subscription, JsValue> {
-    let receiver = with_app(|app| Ok(app.handles.changes.subscribe()))?;
+    let changes = with_app(|app| Ok(app.handles.changes.clone()))?;
+    let notebook = with_app(|app| Ok(app.handles.notebook.clone()))?;
     let (abort, registration) = AbortHandle::new_pair();
     let id = RUNTIME.with(|runtime| {
         let mut runtime = runtime.borrow_mut();
@@ -566,8 +544,25 @@ pub fn subscribe(
         id
     });
     wasm_bindgen_futures::spawn_local(async move {
+        let mut sink = JsSink { id, on_change };
         let result = Abortable::new(
-            stream_changes(id, receiver, after as i64, on_change),
+            async move {
+                tessera_api::follow_changes(
+                    &changes,
+                    notebook,
+                    after as i64,
+                    100,
+                    || subscription_open(id),
+                    &mut sink,
+                    std::future::pending(),
+                )
+                .await
+                .map_err(|error| match error {
+                    tessera_api::FollowError::Workshop(error) => internal(error),
+                    tessera_api::FollowError::Encode(error) => internal(error),
+                    tessera_api::FollowError::Sink(error) => error,
+                })
+            },
             registration,
         )
         .await;

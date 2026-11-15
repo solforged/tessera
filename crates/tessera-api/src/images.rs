@@ -8,9 +8,15 @@ use axum::{
 };
 use tessera_core::{ImageRef, image_type};
 
-use crate::{AppState, error::ApiError, run};
+use crate::error::ApiError;
+use crate::run::run;
+use crate::state::WorkshopState;
 
-pub(crate) fn routes() -> Router<AppState> {
+pub fn routes<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+    WorkshopState: axum::extract::FromRef<S>,
+{
     Router::new()
         .route("/api/images", post(upload))
         .route("/api/images/{sha}", get(image))
@@ -18,15 +24,15 @@ pub(crate) fn routes() -> Router<AppState> {
 }
 
 async fn upload(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     body: Bytes,
 ) -> Result<(StatusCode, Json<ImageRef>), ApiError> {
-    let image = run(&state, move |n| n.put_image(&body)).await?;
+    let image = run(&state.notebook, move |n| n.put_image(&body)).await?;
     Ok((StatusCode::CREATED, Json(image)))
 }
 
 async fn image(
-    State(state): State<AppState>,
+    State(state): State<WorkshopState>,
     Path(sha): Path<String>,
 ) -> Result<Response, ApiError> {
     if sha.len() != 64
@@ -52,7 +58,7 @@ async fn image(
         .into_response())
 }
 
-#[cfg(all(test, not(all(target_arch = "wasm32", target_os = "unknown"))))]
+#[cfg(all(test, native))]
 mod tests {
     use super::*;
     use axum::{

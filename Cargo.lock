@@ -5373,6 +5373,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "tessera-api"
+version = "0.5.1"
+dependencies = [
+ "axum",
+ "cfg_aliases",
+ "futures-util",
+ "parking_lot",
+ "percent-encoding",
+ "reqwest",
+ "roxmltree",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tessera-core",
+ "tessera-ingest",
+ "tokio",
+ "tower",
+ "tracing",
+ "ulid",
+]
+
+[[package]]
 name = "tessera-bench"
 version = "0.5.1"
 dependencies = [
@@ -5490,6 +5513,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-barcode-scanner",
+ "tessera-api",
  "tessera-core",
  "tessera-service",
  "tokio",
@@ -5512,14 +5536,13 @@ dependencies = [
  "percent-encoding",
  "qrcodegen",
  "reqwest",
- "roxmltree",
  "rusqlite",
  "rustls",
  "serde",
  "serde_json",
  "tempfile",
+ "tessera-api",
  "tessera-core",
- "tessera-ingest",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",
@@ -5542,8 +5565,8 @@ dependencies = [
  "serde_json",
  "sqlite-wasm-rs",
  "sqlite-wasm-vfs",
+ "tessera-api",
  "tessera-core",
- "tessera-service",
  "tokio",
  "tower",
  "wasm-bindgen",

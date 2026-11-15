@@ -131,7 +131,7 @@ run = "bun run --cwd web build:demo"
 description = "Run Clippy on the crates the browser demo compiles to wasm"
 run = """
 export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/llvm-ar"
-cargo clippy -p tessera-web -p tessera-service -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy -p tessera-web -p tessera-api -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
 """
 
 [tasks."mobile:pages"]

@@ -15,7 +15,7 @@ use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager};
 use tessera_core::{Notebook, NotebookOwnership, library::IngestJob};
 use tessera_service::EmbeddedHandles;
-use tokio::sync::{OnceCell, broadcast};
+use tokio::sync::OnceCell;
 use tokio::task::AbortHandle;
 use tower::ServiceExt;
 
@@ -221,10 +221,7 @@ async fn stream_changes(
     channel: Channel<String>,
 ) -> Result<(), String> {
     let host = host(&app).await?;
-    // Subscribe before catching up. A commit in either phase is observed by
-    // history, the receiver, or both; the cursor removes the overlap.
-    let receiver = host.handles.changes.subscribe();
-    let task = tokio::spawn(deliver(host, receiver, after, channel));
+    let task = tokio::spawn(deliver(host, after, channel));
     let abort = task.abort_handle();
     let task_id = abort.id();
     if let Some(previous) = host.streams.lock().insert(id, abort) {
@@ -253,48 +250,34 @@ fn close_changes(id: u32) {
     }
 }
 
-async fn deliver(
-    host: &'static Host,
-    mut receiver: broadcast::Receiver<i64>,
-    mut after: i64,
-    channel: Channel<String>,
-) -> Result<(), String> {
-    catch_up(host, &mut after, &channel).await?;
-    loop {
-        match receiver.recv().await {
-            Ok(seq) if seq <= after => continue,
-            Err(broadcast::error::RecvError::Closed) => return Ok(()),
-            // Notifications may overflow, but committed notebook history never does.
-            Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
-        }
-        catch_up(host, &mut after, &channel).await?;
+struct ChannelSink<'a>(&'a Channel<String>);
+
+impl tessera_api::ChangeSink for ChannelSink<'_> {
+    type Error = String;
+    async fn emit(&mut self, event: String) -> Result<tessera_api::StreamStop, String> {
+        self.0.send(event).map_err(|error| error.to_string())?;
+        Ok(tessera_api::StreamStop::Continue)
     }
 }
 
-async fn catch_up(
-    host: &'static Host,
-    after: &mut i64,
-    channel: &Channel<String>,
-) -> Result<(), String> {
-    loop {
-        let cursor = *after;
-        let notebook = host.handles.notebook.clone();
-        let changes =
-            tokio::task::spawn_blocking(move || notebook.lock().changes_since(cursor, 100))
-                .await
-                .map_err(|error| error.to_string())?
-                .map_err(|error| error.to_string())?;
-        if changes.is_empty() {
-            return Ok(());
-        }
-        for change in changes {
-            if change.seq > *after {
-                let json = serde_json::to_string(&change).map_err(|error| error.to_string())?;
-                channel.send(json).map_err(|error| error.to_string())?;
-                *after = change.seq;
-            }
-        }
-    }
+async fn deliver(host: &'static Host, after: i64, channel: Channel<String>) -> Result<(), String> {
+    let mut sink = ChannelSink(&channel);
+    // Aborting this task is how the page closes the stream.
+    tessera_api::follow_changes(
+        &host.handles.changes,
+        host.handles.notebook.clone(),
+        after,
+        100,
+        || true,
+        &mut sink,
+        std::future::pending(),
+    )
+    .await
+    .map_err(|error| match error {
+        tessera_api::FollowError::Workshop(error) => error.to_string(),
+        tessera_api::FollowError::Encode(error) => error.to_string(),
+        tessera_api::FollowError::Sink(error) => error,
+    })
 }
 
 pub fn run() {

@@ -473,9 +473,11 @@ async fn retire(
 
 /// A stored file. A replica that does not have it yet fetches it from its
 /// hub and keeps it, so opening a book brings its images.
-pub(crate) async fn object_or_fetch(state: &AppState, sha: String) -> Result<Vec<u8>, ApiError> {
+pub(crate) async fn object_or_fetch(
+    notebook: std::sync::Arc<parking_lot::Mutex<tessera_core::Notebook>>,
+    sha: String,
+) -> Result<Vec<u8>, ApiError> {
     use tessera_core::sync::Hub;
-    let notebook = state.notebook.clone();
     tokio::task::spawn_blocking(move || {
         let (url, credentials) = {
             let n = notebook.lock();

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/tessera-core", "crates/tessera-ingest", "crates/tessera-service", "crates/tessera-web", "crates/tessera-cli", "crates/tessera-desktop", "crates/tessera-mobile", "crates/tessera-bench"]
+members = ["crates/tessera-core", "crates/tessera-ingest", "crates/tessera-api", "crates/tessera-service", "crates/tessera-web", "crates/tessera-cli", "crates/tessera-desktop", "crates/tessera-mobile", "crates/tessera-bench"]
 exclude = ["vendor/sqlite-wasm-vfs"]
 
 [workspace.package]
@@ -12,9 +12,14 @@ repository = "https://github.com/solforged/tessera"
 [workspace.dependencies]
 tessera-core = { path = "crates/tessera-core" }
 tessera-ingest = { path = "crates/tessera-ingest" }
+tessera-api = { path = "crates/tessera-api" }
 tessera-service = { path = "crates/tessera-service" }
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
+cfg_aliases = "0.2"
+parking_lot = "0.12"
+percent-encoding = "2"
+roxmltree = "0.21"
 clap = { version = "4", features = ["derive", "env"] }
 dirs = "7"
 futures-util = { version = "0.3", features = ["sink"] }
