@@ -11,6 +11,7 @@
 mod agent;
 pub mod agent_outline;
 pub mod agent_render;
+pub mod agent_tools;
 mod assets;
 mod backups;
 mod daily_backup;

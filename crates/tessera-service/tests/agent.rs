@@ -544,7 +544,7 @@ async fn fake_provider(
             events.extend(call_events(
                 fake.protocol,
                 "add_note",
-                &json!({"target":{"page":"Inbox"},"text":"First note\n  Child note\nSecond note"})
+                &json!({"page":"Inbox","markdown":"First note\n  Child note\nSecond note"})
                     .to_string(),
             ));
         }

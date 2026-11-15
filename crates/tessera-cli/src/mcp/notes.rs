@@ -5,17 +5,18 @@ use std::collections::HashSet;
 use anyhow::Context;
 use serde_json::Value;
 use tessera_core::{
-    Actor, AgentEdit, Block, BlockInPage, BlockKind, CardUnit, FieldsView, HistoryEntry,
-    NoteTarget, PageView, SettingsView, UndoReceipt,
+    Actor, AgentEdit, Block, BlockInPage, BlockKind, CardUnit, FieldsView, HistoryEntry, PageView,
+    SettingsView, UndoReceipt,
 };
+use tessera_service::agent_outline::{note_problems, outline, text_problems};
+use tessera_service::agent_tools::edits;
 
 use super::cards::found;
 use super::render::{
     Clock, Fields, PageContext, age, card_answer, card_front, card_label, kind_label, location,
     one_line, quoted, render, snippet,
 };
-use super::{Api, Session, Titles, boolean, integer, limit, offset, required, segment, string};
-use tessera_service::agent_outline::{block_text, note_problems, outline, text_problems};
+use super::{Api, Session, Titles, boolean, integer, limit, offset, segment, string};
 
 /// The most hits tessera_search returns.
 const SEARCH_LIMIT: usize = 200;
@@ -136,20 +137,7 @@ impl Session<'_> {
         let markdown = string(arguments, "markdown")?.context("markdown is required")?;
         let blocks = outline(markdown)?;
         anyhow::ensure!(!blocks.is_empty(), "Nothing to add: the text is empty.");
-        let target = match (
-            string(arguments, "page")?,
-            string(arguments, "journal")?,
-            string(arguments, "parent_id")?,
-        ) {
-            (Some(title), None, None) => NoteTarget::Page {
-                title: title.to_owned(),
-            },
-            (None, journal, None) => NoteTarget::Journal {
-                date: journal.filter(|date| *date != "today").map(str::to_owned),
-            },
-            (None, None, Some(id)) => NoteTarget::Block { id: id.to_owned() },
-            _ => anyhow::bail!("Give at most one of page, journal or parent_id."),
-        };
+        let target = edits::note_target(arguments)?;
         let problems = note_problems(&blocks);
         let receipt = self
             .send(arguments, AgentEdit::AddNote { target, blocks })
@@ -176,33 +164,16 @@ impl Session<'_> {
     }
 
     pub(super) async fn edit_block(&self, arguments: &Value) -> anyhow::Result<String> {
-        let text = string(arguments, "text")?.map(block_text);
-        let heading = integer(arguments, "heading")?
-            .map(|level| {
-                u8::try_from(level)
-                    .ok()
-                    .filter(|level| *level <= 3)
-                    .context("heading must be from 0 to 3")
-            })
-            .transpose()?;
-        anyhow::ensure!(
-            text.is_some() || heading.is_some(),
-            "Give text, heading or both."
+        let edit = edits::edit_block(arguments)?;
+        let AgentEdit::EditBlock { id, text, .. } = &edit else {
+            unreachable!("edit_block reads an EditBlock")
+        };
+        let (id, problems) = (
+            id.clone(),
+            text.as_deref().map(text_problems).unwrap_or_default(),
         );
-        let id = required(arguments, "id")?;
-        let problems = text.as_deref().map(text_problems).unwrap_or_default();
         let edited = text.is_some();
-        let receipt = self
-            .send(
-                arguments,
-                AgentEdit::EditBlock {
-                    id: id.clone(),
-                    revision: integer(arguments, "revision")?,
-                    text,
-                    heading,
-                },
-            )
-            .await?;
+        let receipt = self.send(arguments, edit).await?;
         let mut report = self.describe(&receipt).await;
         if edited {
             let cards = async {
@@ -222,29 +193,12 @@ impl Session<'_> {
     }
 
     pub(super) async fn move_block(&self, arguments: &Value) -> anyhow::Result<String> {
-        let first = boolean(arguments, "first")?.unwrap_or(false);
-        self.submit(
-            arguments,
-            AgentEdit::MoveBlock {
-                id: required(arguments, "id")?,
-                revision: integer(arguments, "revision")?,
-                parent_id: string(arguments, "parent_id")?.map(str::to_owned),
-                after: string(arguments, "after")?.map(str::to_owned),
-                first,
-            },
-        )
-        .await
+        self.submit(arguments, edits::move_block(arguments)?).await
     }
 
     pub(super) async fn delete_block(&self, arguments: &Value) -> anyhow::Result<String> {
-        self.submit(
-            arguments,
-            AgentEdit::DeleteBlock {
-                id: required(arguments, "id")?,
-                revision: integer(arguments, "revision")?,
-            },
-        )
-        .await
+        self.submit(arguments, edits::delete_block(arguments)?)
+            .await
     }
 
     pub(super) async fn recent_changes(&self, arguments: &Value) -> anyhow::Result<String> {
