@@ -120,6 +120,83 @@ pub(crate) fn reference(text: &str) -> Option<&str> {
     Some(id)
 }
 
+/// Whether this operation can change a source's Pages value, so commit rechecks it.
+pub(crate) fn validates_source_page_counts(operation: &Operation) -> bool {
+    match operation {
+        Operation::CreatePage { .. }
+        | Operation::CreateJournal { .. }
+        | Operation::Insert { .. }
+        | Operation::EditText { .. }
+        | Operation::Split { .. }
+        | Operation::Merge { .. }
+        | Operation::MergePage { .. }
+        | Operation::Move { .. }
+        | Operation::Delete { .. }
+        | Operation::Restore { .. }
+        | Operation::SetArchived { .. }
+        | Operation::SetSource { .. } => true,
+        // These writes do not change a source's Pages value.
+        Operation::SettleSyncCopy { .. }
+        | Operation::SettleSyncRejection { .. }
+        | Operation::AttachSnapshot { .. }
+        | Operation::Cite { .. }
+        | Operation::Uncite { .. }
+        | Operation::SetCitationTriage { .. }
+        | Operation::SetCitationColor { .. }
+        | Operation::SetCitationRange { .. }
+        | Operation::SetHeading { .. }
+        | Operation::CreateCardTemplate { .. }
+        | Operation::UpdateCardTemplate { .. }
+        | Operation::SetCardTemplateApplied { .. }
+        | Operation::DeleteCardTemplate { .. }
+        | Operation::TransferCardKey { .. }
+        | Operation::AddType { .. }
+        | Operation::RemoveType { .. }
+        | Operation::SetFieldKind { .. }
+        | Operation::SetFieldHide { .. }
+        | Operation::SetFieldRole { .. }
+        | Operation::SetFieldCountsAs { .. }
+        | Operation::SetFieldTargets { .. }
+        | Operation::SetTypeFields { .. }
+        | Operation::SetTypePresentation { .. }
+        | Operation::SetSubjectCriteria { .. }
+        | Operation::SaveView { .. }
+        | Operation::DeleteView { .. }
+        | Operation::SetSetting { .. }
+        | Operation::SetTask { .. }
+        | Operation::RestoreTaskState { .. }
+        | Operation::CompleteTask { .. }
+        | Operation::ReverseTaskCompletion { .. }
+        | Operation::SetProject { .. }
+        | Operation::SetPosition { .. }
+        | Operation::SetRelation { .. }
+        | Operation::SetSpread { .. }
+        | Operation::Revisit { .. }
+        | Operation::RestoreRevisit { .. }
+        | Operation::SetQuote { .. }
+        | Operation::SetImage { .. }
+        | Operation::SetOcclusion { .. }
+        | Operation::SetQuestion { .. }
+        | Operation::SetAssessment { .. }
+        | Operation::StartWork { .. }
+        | Operation::StopWork { .. }
+        | Operation::EditWorkNote { .. }
+        | Operation::SetWorkSessionState { .. }
+        | Operation::StartReviewSession { .. }
+        | Operation::FinishReviewSession { .. }
+        | Operation::GradeCard { .. }
+        | Operation::UndoGrade { .. }
+        | Operation::SetCardHeld { .. }
+        | Operation::ResetCard { .. }
+        | Operation::SaveDeck { .. }
+        | Operation::DeleteDeck { .. }
+        | Operation::SaveTaskView { .. }
+        | Operation::DeleteTaskView { .. }
+        | Operation::SaveLibraryView { .. }
+        | Operation::DeleteLibraryView { .. } => false,
+    }
+}
+
 /// Invalid bibliographic counts touched by a command. Retaining the original
 /// tuples lets unrelated edits preserve legacy data while rejecting new errors.
 pub(crate) fn invalid_source_page_counts(
