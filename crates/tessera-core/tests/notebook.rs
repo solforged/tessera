@@ -354,3 +354,63 @@ fn unset_time_zone_uses_service_host_local_zone() {
     assert_eq!(view.time_zone, host_zone.iana_name().unwrap_or("UTC"));
     assert_eq!(view.today, instant.to_zoned(host_zone).date().to_string());
 }
+
+fn page(id: &str, title: &str) -> Batch {
+    Batch {
+        actor: Actor::Person,
+        reason: None,
+        idempotency_key: None,
+        operations: vec![Operation::CreatePage {
+            id: id.into(),
+            title: title.into(),
+        }],
+    }
+}
+
+#[test]
+fn a_reader_sees_commits_and_holds_one_snapshot_per_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let reader = notebook.reader().unwrap();
+    let before = reader.read(|notebook| notebook.roots()).unwrap().len();
+
+    notebook
+        .apply(&page("01JREADER0000000000000000A", "First"))
+        .unwrap();
+    assert_eq!(
+        reader.read(|notebook| notebook.roots()).unwrap().len(),
+        before + 1
+    );
+
+    // A commit that lands inside a read is not seen until the next one.
+    let (first, second) = reader
+        .read(|snapshot| {
+            let first = snapshot.roots()?.len();
+            notebook.apply(&page("01JREADER0000000000000000B", "Second"))?;
+            Ok((first, snapshot.roots()?.len()))
+        })
+        .unwrap();
+    assert_eq!((first, second), (before + 1, before + 1));
+    assert_eq!(
+        reader.read(|notebook| notebook.roots()).unwrap().len(),
+        before + 2
+    );
+}
+
+#[test]
+fn a_reader_refuses_to_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let notebook = Notebook::open(dir.path()).unwrap();
+    let reader = notebook.reader().unwrap();
+    // Resuming ingest jobs is a write that takes `&self`.
+    let error = reader
+        .read(|notebook| notebook.resume_ingest())
+        .expect_err("a write through the reader must fail");
+    let Error::Sqlite(error) = error else {
+        panic!("unexpected error: {error}");
+    };
+    assert_eq!(
+        error.sqlite_error_code(),
+        Some(rusqlite::ErrorCode::ReadOnly)
+    );
+}

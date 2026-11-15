@@ -108,7 +108,7 @@ pub use model::{
     QuotedRow, Reading, ReadingValue, RequiredField, Revision, Row, Setting, SettingRevision,
     SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View, YearSpan,
 };
-pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
+pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, Reader, now_ms};
 pub use notes::{
     CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget, Shelf,
 };

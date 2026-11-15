@@ -11,7 +11,7 @@ use tokio::sync::broadcast;
 
 use crate::error::ApiError;
 use crate::limits::default_limit;
-use crate::run::run;
+use crate::run::{read, run};
 use crate::state::WorkshopState;
 use tessera_core::{Actor, Batch, Committed};
 use tessera_core::{AgentReceipt, AgentRequest, HistoryEntry, UndoReceipt};
@@ -87,11 +87,9 @@ pub(crate) async fn history(
     query: Result<Query<HistoryQuery>, QueryRejection>,
 ) -> Result<Json<HistoryResponse>, ApiError> {
     let Query(HistoryQuery { limit, before }) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.history(limit, before)
-    })
-    .await
-    .map(|entries| Json(HistoryResponse { entries }))
+    read(&state, move |notebook| notebook.history(limit, before))
+        .await
+        .map(|entries| Json(HistoryResponse { entries }))
 }
 #[derive(Deserialize)]
 pub(crate) struct UndoRequest {

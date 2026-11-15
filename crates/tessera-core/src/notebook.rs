@@ -79,6 +79,21 @@ impl Notebook {
         Ok(notebook)
     }
 
+    /// A second, read-only connection to this workshop. A write through it is
+    /// refused, so a read that secretly writes fails instead of racing the
+    /// writer. WAL lets it read while the writer commits.
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    pub fn reader(&self) -> Result<Reader> {
+        let conn = Connection::open(self.dir.join(DATABASE_FILE))?;
+        conn.pragma_update(None, "foreign_keys", true)?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        conn.pragma_update(None, "query_only", true)?;
+        Ok(Reader(Self {
+            dir: self.dir.clone(),
+            conn,
+        }))
+    }
+
     /// This device's ID, recorded as the origin of the changes it makes.
     pub fn device_id(&self) -> Result<String> {
         Ok(self.conn.query_row(
@@ -101,6 +116,22 @@ impl Notebook {
             schema_version: SCHEMA_VERSION,
             sqlite_version: rusqlite::version().to_string(),
         })
+    }
+}
+
+/// A read-only connection beside a workshop's writer, from
+/// [`Notebook::reader`].
+pub struct Reader(Notebook);
+
+impl Reader {
+    /// Run `operation` against one snapshot of the workshop: a commit that
+    /// lands while it runs is not seen halfway through.
+    pub fn read<T>(&self, operation: impl FnOnce(&Notebook) -> Result<T>) -> Result<T> {
+        let snapshot = self.0.conn.unchecked_transaction()?;
+        let result = operation(&self.0);
+        // Nothing was written, so ending the snapshot cannot lose anything.
+        drop(snapshot);
+        result
     }
 }
 

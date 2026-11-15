@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::error::ApiError;
 use crate::history::editor_receipt;
 use crate::limits::{Limit, default_limit};
-use crate::run::run;
+use crate::run::{read, run};
 use crate::state::WorkshopState;
 use tessera_core::{
     Actor, Backlink, BlockInPage, Committed, Completion, FieldDetail, FieldKind, FieldsView,
@@ -28,7 +28,7 @@ pub(crate) async fn review_stats(
     query: Result<Query<ReviewStatsQuery>, QueryRejection>,
 ) -> Result<Json<tessera_core::ReviewStats>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
+    read(&state, move |notebook| {
         let date = query
             .date
             .map(Ok)
@@ -62,22 +62,18 @@ pub(crate) async fn backlinks(
 ) -> Result<Json<Vec<Backlink>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.backlinks(&id, query.limit)
-    })
-    .await
-    .map(Json)
+    read(&state, move |notebook| notebook.backlinks(&id, query.limit))
+        .await
+        .map(Json)
 }
 pub(crate) async fn incoming_fields(
     State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<IncomingFieldValue>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.incoming_field_values(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |notebook| notebook.incoming_field_values(&id))
+        .await
+        .map(Json)
 }
 pub(crate) async fn page_references(
     State(state): State<WorkshopState>,
@@ -86,7 +82,7 @@ pub(crate) async fn page_references(
 ) -> Result<Json<PageReferences>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
+    read(&state, move |notebook| {
         notebook.page_references(&id, query.limit)
     })
     .await
@@ -97,11 +93,9 @@ pub(crate) async fn reference_counts(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<ReferenceCount>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.reference_counts(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |notebook| notebook.reference_counts(&id))
+        .await
+        .map(Json)
 }
 pub(crate) async fn unlinked_mentions(
     State(state): State<WorkshopState>,
@@ -110,7 +104,7 @@ pub(crate) async fn unlinked_mentions(
 ) -> Result<Json<UnlinkedMentions>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
+    read(&state, move |notebook| {
         notebook.unlinked_mentions(&id, query.limit)
     })
     .await
@@ -123,18 +117,14 @@ pub(crate) async fn members(
 ) -> Result<Json<Vec<BlockInPage>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.members(&id, query.limit)
-    })
-    .await
-    .map(Json)
+    read(&state, move |notebook| notebook.members(&id, query.limit))
+        .await
+        .map(Json)
 }
 pub(crate) async fn fields(
     State(state): State<WorkshopState>,
 ) -> Result<Json<FieldsView>, ApiError> {
-    run(&state.notebook, |notebook| notebook.fields())
-        .await
-        .map(Json)
+    read(&state, |notebook| notebook.fields()).await.map(Json)
 }
 #[derive(Deserialize)]
 pub(crate) struct FieldDetailQuery {
@@ -148,7 +138,7 @@ pub(crate) async fn field_detail(
 ) -> Result<Json<FieldDetail>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
+    read(&state, move |notebook| {
         notebook.field_detail(&id, query.kind, query.limit)
     })
     .await
@@ -158,23 +148,19 @@ pub(crate) async fn field_detail(
 pub(crate) async fn entities(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<String>>, ApiError> {
-    run(&state.notebook, |notebook| notebook.entities())
-        .await
-        .map(Json)
+    read(&state, |notebook| notebook.entities()).await.map(Json)
 }
 pub(crate) async fn types(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Vec<TypeInfo>>, ApiError> {
-    run(&state.notebook, |notebook| notebook.types())
-        .await
-        .map(Json)
+    read(&state, |notebook| notebook.types()).await.map(Json)
 }
 pub(crate) async fn type_info(
     State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<TypeInfo>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| notebook.type_info(&id))
+    read(&state, move |notebook| notebook.type_info(&id))
         .await
         .map(Json)
 }
@@ -183,11 +169,9 @@ pub(crate) async fn card_templates(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::CardTemplateInfo>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.card_templates(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |notebook| notebook.card_templates(&id))
+        .await
+        .map(Json)
 }
 #[derive(Deserialize)]
 pub(crate) struct TemplateForecastQuery {
@@ -209,7 +193,7 @@ pub(crate) async fn card_template_forecast(
 pub(crate) async fn note_index(
     State(state): State<WorkshopState>,
 ) -> Result<Json<NoteIndex>, ApiError> {
-    run(&state.notebook, |notebook| notebook.note_index())
+    read(&state, |notebook| notebook.note_index())
         .await
         .map(Json)
 }
@@ -218,7 +202,7 @@ pub(crate) async fn kind_notes(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<KindIndex>, ApiError> {
     let Path(key) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| notebook.kind_notes(&key))
+    read(&state, move |notebook| notebook.kind_notes(&key))
         .await
         .map(Json)
 }
@@ -236,7 +220,7 @@ pub(crate) async fn saved_spread(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<tessera_core::Spread>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| notebook.saved_spread(&id))
+    read(&state, move |notebook| notebook.saved_spread(&id))
         .await
         .map(Json)
 }
@@ -250,14 +234,12 @@ pub(crate) async fn query(
         .map(Json)
 }
 pub(crate) async fn views(State(state): State<WorkshopState>) -> Result<Json<Vec<View>>, ApiError> {
-    run(&state.notebook, |notebook| notebook.views())
-        .await
-        .map(Json)
+    read(&state, |notebook| notebook.views()).await.map(Json)
 }
 pub(crate) async fn settings(
     State(state): State<WorkshopState>,
 ) -> Result<Json<SettingsView>, ApiError> {
-    run(&state.notebook, |notebook| {
+    read(&state, |notebook| {
         notebook.settings_view(tessera_core::now_ms())
     })
     .await
@@ -268,7 +250,7 @@ pub(crate) async fn view(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<View>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| notebook.view(&id))
+    read(&state, move |notebook| notebook.view(&id))
         .await
         .map(Json)
 }
@@ -277,7 +259,7 @@ pub(crate) async fn complete(
     query: Result<Query<TextQuery>, QueryRejection>,
 ) -> Result<Json<Vec<Completion>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
+    read(&state, move |notebook| {
         notebook.complete(&query.q, query.limit)
     })
     .await
@@ -288,11 +270,9 @@ pub(crate) async fn resolve_name(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<NameMatch>>, ApiError> {
     let Path(name) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
-        notebook.resolve_name(&name)
-    })
-    .await
-    .map(Json)
+    read(&state, move |notebook| notebook.resolve_name(&name))
+        .await
+        .map(Json)
 }
 pub(crate) async fn starting_template(
     State(state): State<WorkshopState>,
@@ -315,7 +295,7 @@ pub(crate) async fn search(
     query: Result<Query<TextQuery>, QueryRejection>,
 ) -> Result<Json<Vec<BlockInPage>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |notebook| {
+    read(&state, move |notebook| {
         notebook.search(&query.q, query.limit)
     })
     .await

@@ -40,7 +40,7 @@ pub use router::router;
 pub use serve::{Config, Restart, serve};
 
 pub(crate) use backups::{BackupFailure, BackupLock};
-pub(crate) use state::{AppState, run};
+pub(crate) use state::{AppState, read, run};
 
 use std::path::PathBuf;
 
