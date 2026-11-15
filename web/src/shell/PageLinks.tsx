@@ -4,8 +4,8 @@ import type { NotebookClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { createPageIcon } from '../outline/source';
 import { Button } from '../ui/Button';
-import { opensBeside } from './beside';
-import type { OpenTarget } from './contract';
+import { opensBeside } from '../core/beside';
+import type { OpenTarget } from '../core/contract';
 
 export function PageLinks(props: {
   roots: Block[];

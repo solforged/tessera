@@ -1,4 +1,4 @@
-import { besideHint, opensBeside } from '../shell/beside';
+import { besideHint, opensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block, Mention, ReferenceGroup } from '../api/types';
 import { api } from '../api/client';

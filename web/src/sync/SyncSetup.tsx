@@ -1,6 +1,6 @@
 import { Match, Show, Switch, createSignal } from 'solid-js';
 import { api, ApiError } from '../api/client';
-import { MOBILE } from '../demo/mode';
+import { MOBILE } from '../core/mode';
 import { Button } from '../ui/Button';
 import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';

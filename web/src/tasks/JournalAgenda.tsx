@@ -4,8 +4,8 @@ import type { AgendaItem, TaskRow, TaskState, TaskStatus, WorkSession } from '..
 import type { Edit, NotebookClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle, plainText } from '../outline/names';
-import type { OpenTarget } from '../shell/contract';
-import { besideHint, opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { besideHint, opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';

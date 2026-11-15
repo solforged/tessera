@@ -1,8 +1,8 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { QuoteStatus } from '../api/types';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { quoteTarget } from '../document/text-tokens';
 import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';

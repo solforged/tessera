@@ -1,7 +1,7 @@
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { completeNames, foldName } from './names';
-import { cardMarks, parseCardText } from '../review/card-text';
+import { cardMarks, parseCardText } from '../core/card-text';
 import { matchFieldEntry } from '../table/query';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 

@@ -1,8 +1,8 @@
 import { Show, createSignal } from 'solid-js';
 import { api } from '../api/client';
-import { DEMO, EMBEDDED, MOBILE } from '../demo/mode';
+import { DEMO, EMBEDDED, MOBILE } from '../core/mode';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { hubDevices, plural, replica, sync } from '../sync/state';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';

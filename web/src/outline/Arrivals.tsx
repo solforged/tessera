@@ -1,8 +1,8 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack } from 'solid-js';
 import type { StreamArrival } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
 import { BlockText } from './BlockText';

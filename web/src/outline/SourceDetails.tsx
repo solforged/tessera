@@ -1,7 +1,7 @@
 import { Show, createSignal, onCleanup, onMount } from 'solid-js';
 import { glide } from '../ui/pane-motion';
 import type { NotebookClient } from '../document/contract';
-import type { OutlinePaneProps } from '../shell/contract';
+import type { OutlinePaneProps } from '../core/contract';
 import { MetadataInspector } from '../library/MetadataInspector';
 import { Popup } from '../ui/Popup';
 import './source-details.css';

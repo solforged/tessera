@@ -35,7 +35,7 @@ import type { BarTitle, PaneChrome } from '../ui/NavBar';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { createPaneMotion, paneMotionIdentity, paneTargetIdentity } from '../ui/pane-motion';
-import { opensBeside } from './beside';
+import { opensBeside } from '../core/beside';
 import type {
   AgendaViewState,
   CommandRegistry,
@@ -58,8 +58,8 @@ import type {
   SettingsViewState,
   TableViewState,
   ViewState,
-} from './contract';
-import { depthLabels, depthStops } from './contract';
+} from '../core/contract';
+import { depthLabels, depthStops } from '../core/contract';
 import { DirectoryPane } from './DirectoryPane';
 import { paneModules } from './pane-modules';
 import { copyView, pageIdOf, paneLabel, snapshotView } from './pane-state';

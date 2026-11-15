@@ -1,7 +1,7 @@
 import { createMemo, createSignal, Match, Show, Switch } from 'solid-js';
 import type { FieldDefinition } from '../api/types';
 import type { Edit, EditResult, NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import { DatePicker } from '../tasks/DatePicker';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';

@@ -1,8 +1,8 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createUniqueId } from 'solid-js';
 import type { RelationKind } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 
 const WIDTH = 240;
 const HEIGHT = 220;

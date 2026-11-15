@@ -3,7 +3,7 @@ import type { EditorView } from '@codemirror/view';
 import type { Block, Completion as NameCompletion, FieldDefinition, RelationKind, TaskStatus } from '../api/types';
 import { api } from '../api/client';
 import type { BlockState, Caret } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import { textTokens } from '../document/text-tokens';
 import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';

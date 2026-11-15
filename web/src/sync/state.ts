@@ -1,7 +1,7 @@
 import { createRoot, createSignal } from 'solid-js';
 import { api } from '../api/client';
 import type { SyncConflicts, SyncDevices, SyncState } from '../api/types';
-import { DEMO, EMBEDDED } from '../demo/mode';
+import { DEMO, EMBEDDED } from '../core/mode';
 
 /** How often an open replica asks for its sync state; the runner itself syncs on its own schedule. */
 const POLL_MS = 5000;

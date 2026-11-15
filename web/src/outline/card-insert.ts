@@ -1,4 +1,4 @@
-import { cardMarks, parseCardText } from '../review/card-text';
+import { cardMarks, parseCardText } from '../core/card-text';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 import { nextClozeNumber } from './slash';
 

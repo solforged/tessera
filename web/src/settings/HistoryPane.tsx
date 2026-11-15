@@ -1,8 +1,8 @@
 import { For, Show, createResource, createSignal, onMount } from 'solid-js';
 import type { HistoryEntry } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
-import { besideHint, opensBeside } from '../shell/beside';
+import type { OpenTarget, PaneId, SettingsViewState } from '../core/contract';
+import { besideHint, opensBeside } from '../core/beside';
 import { hubDevices, sync } from '../sync/state';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';

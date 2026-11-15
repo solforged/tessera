@@ -12,7 +12,7 @@ import type { TitleTargets } from '../outline/link-titles';
 import { completeTypes, typeSpelling, typeTokenAt } from '../outline/type-completion';
 import { createPageIcon } from '../outline/source';
 import { noteKindIcon } from '../notes/kinds';
-import { parseCardText } from '../review/card-text';
+import { parseCardText } from '../core/card-text';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
 import { relativeDate } from '../tasks/relative-date';
 import type { SectionTarget } from '../tasks/today-template';

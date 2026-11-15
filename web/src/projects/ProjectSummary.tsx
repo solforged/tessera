@@ -1,8 +1,8 @@
 import { Show, createResource } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
-import type { OpenTarget } from '../shell/contract';
-import { opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { opensBeside } from '../core/beside';
 import { TaskSourceRows } from '../tasks/JournalAgenda';
 import { createTaskQuery } from '../tasks/query';
 import { relativeDate } from '../tasks/relative-date';

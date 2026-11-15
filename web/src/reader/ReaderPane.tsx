@@ -1,4 +1,4 @@
-import { opensBeside, besideKey } from '../shell/beside';
+import { opensBeside, besideKey } from '../core/beside';
 import {
   For,
   Show,
@@ -18,9 +18,9 @@ import type { VirtualItem } from '@tanstack/solid-virtual';
 import { ulid } from 'ulid';
 import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
+import type { OpenTarget, PaneId, ReaderViewState } from '../core/contract';
 import { setSystemBarsHidden } from '../shell/system-bars';
-import { createRetained } from '../shell/retained';
+import { createRetained } from '../core/retained';
 import { crossfade } from '../ui/pane-motion';
 import { sourceMetadata } from '../library/details';
 import { formatProgress, highlightLocation } from '../library/query';

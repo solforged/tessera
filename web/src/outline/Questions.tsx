@@ -1,8 +1,8 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { QuestionInfo, QuestionRow, QuestionStatus } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';

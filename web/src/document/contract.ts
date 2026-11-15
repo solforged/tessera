@@ -33,7 +33,7 @@ import type {
   WorkSession,
 } from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
-import type { FieldHide } from '../fields/hide';
+import type { FieldHide } from '../core/hide';
 import type { CountsAs } from '../fields/counts';
 import type { FieldRole } from '../fields/roles';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';

@@ -1,6 +1,6 @@
 import type { KeptCopy } from '../api/types';
 import type { Edit } from '../document/contract';
-import { MOBILE } from '../demo/mode';
+import { MOBILE } from '../core/mode';
 import { Button } from '../ui/Button';
 import './kept-copy.css';
 

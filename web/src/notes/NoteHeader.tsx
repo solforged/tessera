@@ -1,4 +1,4 @@
-import { opensBeside, besideHint } from '../shell/beside';
+import { opensBeside, besideHint } from '../core/beside';
 import { createMemo, For, Show, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { FieldDefinition, NoteKind } from '../api/types';
@@ -7,7 +7,7 @@ import { noteKindIcon } from './kinds';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { foldName } from '../outline/names';
 import { aliasEntries, aliasNames } from './aliases';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { civilDate, relativeDate } from '../tasks/relative-date';
 import './note-header.css';
 

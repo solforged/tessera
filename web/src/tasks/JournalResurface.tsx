@@ -5,7 +5,7 @@ import { highlightSections } from '../library/highlights';
 import type { HighlightSection } from '../library/highlights';
 import { highlightLocation } from '../library/query';
 import { shortSourceTitle } from '../outline/source';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { SectionHead } from '../ui/SectionHead';

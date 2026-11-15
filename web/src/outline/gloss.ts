@@ -1,6 +1,6 @@
 import { untrack } from 'solid-js';
 import type { PageDocument } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 
 /** The built-in field whose value is a page's one- or two-sentence hover form. */
 export const GLOSS_FIELD = 'gloss';

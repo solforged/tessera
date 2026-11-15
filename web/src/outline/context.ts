@@ -3,7 +3,7 @@ import type { Virtualizer } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { FieldDefinition, Fields, RelationKind, TaskStatus } from '../api/types';
 import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
-import type { Command, Depth, OutlinePaneProps } from '../shell/contract';
+import type { Command, Depth, OutlinePaneProps } from '../core/contract';
 import type { MenuItem } from '../ui/Menu';
 import type { PaneEditor } from './editor';
 import type { CapabilityKind, CapabilityPopup } from './capabilities';

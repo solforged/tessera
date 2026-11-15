@@ -1,4 +1,4 @@
-import { parseCardText } from '../review/card-text';
+import { parseCardText } from '../core/card-text';
 
 /**
  * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and

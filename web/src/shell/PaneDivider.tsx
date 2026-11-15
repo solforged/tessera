@@ -1,6 +1,6 @@
 import { Show, createSignal } from 'solid-js';
 import { Icon } from '../ui/Icon';
-import type { PaneId } from './contract';
+import type { PaneId } from '../core/contract';
 import { dividerRatio } from './pane-row';
 
 /**

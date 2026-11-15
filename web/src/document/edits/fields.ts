@@ -1,4 +1,4 @@
-import { fieldHide } from '../../fields/hide';
+import { fieldHide } from '../../core/hide';
 import { countsReason, fieldCounts } from '../../fields/counts';
 import { fieldRole } from '../../fields/roles';
 import { titleKey } from '../title-key';

@@ -1,5 +1,5 @@
 import type { FieldDefinition, Filter, PageView, Query, QueryRow } from '../api/types';
-import type { OpenTarget, TableViewState } from '../shell/contract';
+import type { OpenTarget, TableViewState } from '../core/contract';
 import type { NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { plainText, targetLabel } from '../outline/names';

@@ -3,7 +3,7 @@ import type { Citation, LibraryRow, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { isFrontMatter, sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';

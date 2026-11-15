@@ -1,4 +1,4 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
@@ -6,7 +6,7 @@ import { api, exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
 import type { Citation, FieldDefinition, HighlightResult, ReadingState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { OutlinePaneProps } from '../shell/contract';
+import type { OutlinePaneProps } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';

@@ -1,8 +1,8 @@
 import type { Caret, PageDocument, TextRange } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
-import type { Depth } from '../shell/contract';
-import { fieldEntryId } from '../table/query';
-import type { FieldHide } from '../fields/hide';
+import type { Depth } from '../core/contract';
+import { fieldEntryId } from '../core/field-entry';
+import type { FieldHide } from '../core/hide';
 
 export interface HiddenFieldEntry {
   id: string;

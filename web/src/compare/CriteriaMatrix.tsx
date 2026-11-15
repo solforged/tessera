@@ -1,10 +1,10 @@
 import { For, Match, Show, Switch, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { FieldDefinition, PositionQuestion, PositionRow, QuoteState } from '../api/types';
 import type { NotebookClient, PageDocument, PendingTextCommit, RelationPickIntent } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
-import { besideHint, opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { besideHint, opensBeside } from '../core/beside';
 import { BlockText } from '../outline/BlockText';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import { Button } from '../ui/Button';
 import { exactRepeats, linkedCriteriaDraft, nextCriterionCell } from './criteria';
 import { CriteriaCellEditor } from './CriteriaCellEditor';

@@ -1,12 +1,13 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { Accessor, Component } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { FieldDefinition } from '../api/types';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { highlightProse } from '../library/query';
-import { cardSubject, occlusionCards, parseCardText } from '../review/card-text';
+import { cardSubject, occlusionCards, parseCardText } from '../core/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { createTaskProjects } from '../projects/task-project';
 import { RunningClock, workDuration } from '../tasks/WorkSessions';

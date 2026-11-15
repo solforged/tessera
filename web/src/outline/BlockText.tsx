@@ -1,9 +1,9 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Icon } from '../ui/Icon';
 import { isPhone } from '../ui/phone';
 import { TypePill } from './references';
@@ -21,8 +21,8 @@ import {
 } from './names';
 import { blockTrail } from './block-trail';
 import type { NameMatch } from '../api/types';
-import { cardMarks, cardOperators } from '../review/card-text';
-import type { CardMark } from '../review/card-text';
+import { cardMarks, cardOperators } from '../core/card-text';
+import type { CardMark } from '../core/card-text';
 
 import { inlineTokens, isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { InlineToken } from '../document/text-tokens';

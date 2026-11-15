@@ -12,7 +12,7 @@ import { longPress, openContextMenu } from '../ui/context-menu';
 import { Icon } from '../ui/Icon';
 import { ListGroup, ListRow } from '../ui/List';
 import type { MenuItem } from '../ui/Menu';
-import type { OpenTarget } from './contract';
+import type { OpenTarget } from '../core/contract';
 
 /** Pages open as rows; roots arrive as fresh objects whenever any root changes, so rows are keyed by id. */
 function PageRows(props: { roots: Block[]; notebook: NotebookClient; onOpen(target: OpenTarget): void }) {

@@ -1,7 +1,7 @@
 import { createMemo, For, Show } from 'solid-js';
-import type { Command, CommandRegistry } from './contract';
+import type { Command, CommandRegistry } from '../core/contract';
 import { Popup } from '../ui/Popup';
-import { cardOperators } from '../review/card-text';
+import { cardOperators } from '../core/card-text';
 import './shortcuts.css';
 
 /** What can be written into a block. Operators come from the card parser so the sheet cannot drift from it. */

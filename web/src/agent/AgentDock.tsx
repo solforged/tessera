@@ -3,7 +3,7 @@ import type { ContextRef, ProviderView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { displayTitle, resolveName } from '../outline/names';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';

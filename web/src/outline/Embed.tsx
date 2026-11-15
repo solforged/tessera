@@ -1,8 +1,8 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import { BlockTree } from './BlockTree';
