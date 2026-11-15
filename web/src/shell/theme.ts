@@ -14,7 +14,9 @@ const stored = (): ThemePreference => {
   try {
     const value = localStorage.getItem(storageKey);
     return value === 'light' || value === 'dark' ? value : 'system';
-  } catch { return 'system'; }
+  } catch {
+    return 'system';
+  }
 };
 
 const [preference, setPreference] = createSignal<ThemePreference>(stored());
@@ -50,7 +52,9 @@ export function setThemePreference(value: ThemePreference) {
   try {
     if (value === 'system') localStorage.removeItem(storageKey);
     else localStorage.setItem(storageKey, value);
-  } catch { /* Storage can be unavailable; the choice still holds for this window. */ }
+  } catch {
+    /* Storage can be unavailable; the choice still holds for this window. */
+  }
   setPreference(value);
   apply();
 }

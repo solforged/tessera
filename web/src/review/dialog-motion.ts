@@ -13,10 +13,18 @@ export function retireDialog(root: HTMLElement, classes: string) {
   for (const child of root.childNodes) ghost.append(child.cloneNode(true));
   for (const element of ghost.querySelectorAll('[id]')) element.removeAttribute('id');
   document.body.append(ghost);
-  const remove = () => { window.clearTimeout(timer); ghost.remove(); };
-  const animation = ghost.getAnimations().find(value => value instanceof CSSAnimation && value.animationName === 'dialog-out');
+  const remove = () => {
+    window.clearTimeout(timer);
+    ghost.remove();
+  };
+  const animation = ghost
+    .getAnimations()
+    .find(value => value instanceof CSSAnimation && value.animationName === 'dialog-out');
   const end = animation?.effect?.getComputedTiming().endTime;
-  if (!animation || typeof end !== 'number' || !Number.isFinite(end) || end <= 0) { ghost.remove(); return; }
+  if (!animation || typeof end !== 'number' || !Number.isFinite(end) || end <= 0) {
+    ghost.remove();
+    return;
+  }
   // Completion is authoritative; the timer bounds a paused or stalled effect.
   const timer = window.setTimeout(remove, Math.ceil(end * 2));
   void animation.finished.then(remove, remove);

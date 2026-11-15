@@ -9,7 +9,10 @@ import { shiftCalendarDate } from './week-calendar';
 
 export type DueField = 'scheduled' | 'deadline';
 export type DuePreset = 'before' | 'today' | 'tomorrow' | 'week';
-export const dueFields: { value: DueField; label: string }[] = [{ value: 'scheduled', label: 'Scheduled' }, { value: 'deadline', label: 'Deadline' }];
+export const dueFields: { value: DueField; label: string }[] = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'deadline', label: 'Deadline' },
+];
 export const duePresets: { value: DuePreset; label: string }[] = [
   { value: 'before', label: 'Before today' },
   { value: 'today', label: 'Today' },
@@ -17,19 +20,31 @@ export const duePresets: { value: DuePreset; label: string }[] = [
   { value: 'week', label: 'Next 7 days' },
 ];
 export const taskStatuses: { value: TaskStatus; label: string }[] = [
-  { value: 'todo', label: 'Todo' }, { value: 'doing', label: 'Doing' }, { value: 'waiting', label: 'Waiting' }, { value: 'done', label: 'Done' }, { value: 'cancelled', label: 'Canceled' },
+  { value: 'todo', label: 'Todo' },
+  { value: 'doing', label: 'Doing' },
+  { value: 'waiting', label: 'Waiting' },
+  { value: 'done', label: 'Done' },
+  { value: 'cancelled', label: 'Canceled' },
 ];
-export const taskPriorities: { value: TaskPriority; label: string }[] = [{ value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }];
+export const taskPriorities: { value: TaskPriority; label: string }[] = [
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+];
 
 const day = (today: string, offset: number) => shiftCalendarDate(today, offset) ?? today;
 
 /** Absolute dates, so a saved view reads the same whenever it is reopened. */
 export function dueRange(preset: DuePreset, today: string): DateRange {
   switch (preset) {
-    case 'before': return { from: null, through: day(today, -1) };
-    case 'today': return { from: today, through: today };
-    case 'tomorrow': return { from: day(today, 1), through: day(today, 1) };
-    case 'week': return { from: today, through: day(today, 6) };
+    case 'before':
+      return { from: null, through: day(today, -1) };
+    case 'today':
+      return { from: today, through: today };
+    case 'tomorrow':
+      return { from: day(today, 1), through: day(today, 1) };
+    case 'week':
+      return { from: today, through: day(today, 6) };
   }
 }
 
@@ -43,30 +58,56 @@ export function withDue(query: TaskQuery, field: DueField | null, preset: DuePre
 /** Adds or removes one status; null clears them all. */
 export function withStatus(query: TaskQuery, status: TaskStatus | null): TaskQuery {
   const current = query.filter.statuses;
-  const statuses = status === null ? [] : current.includes(status) ? current.filter(value => value !== status) : [...current, status];
+  const statuses =
+    status === null ? [] : current.includes(status) ? current.filter(value => value !== status) : [...current, status];
   return { ...query, filter: { ...query.filter, statuses } };
 }
 
-export const withPriority = (query: TaskQuery, priority: TaskPriority | null): TaskQuery => ({ ...query, filter: { ...query.filter, priority } });
-export const withProject = (query: TaskQuery, projectId: string | null): TaskQuery => ({ ...query, filter: { ...query.filter, project_id: projectId } });
+export const withPriority = (query: TaskQuery, priority: TaskPriority | null): TaskQuery => ({
+  ...query,
+  filter: { ...query.filter, priority },
+});
+export const withProject = (query: TaskQuery, projectId: string | null): TaskQuery => ({
+  ...query,
+  filter: { ...query.filter, project_id: projectId },
+});
 
 /** The search well's text is the source's text, the same words the query line keeps after its predicates. */
 export function withSearchText(query: TaskQuery, text: string): TaskQuery {
   const source = { ...(query.source ?? typeQuery(null)), text: text || null };
-  return { ...query, source: source.type || source.text?.trim() || source.filters.length || source.sort.length || source.limit !== null ? source : null };
+  return {
+    ...query,
+    source:
+      source.type || source.text?.trim() || source.filters.length || source.sort.length || source.limit !== null
+        ? source
+        : null,
+  };
 }
 
-const sameRange = (left: DateRange | null, right: DateRange) => !!left && left.from === right.from && left.through === right.through;
+const sameRange = (left: DateRange | null, right: DateRange) =>
+  !!left && left.from === right.from && left.through === right.through;
 
 /** Whether the query holds exactly this preset on this field and no range on the other. */
 export function dueMatches(query: TaskQuery, field: DueField, preset: DuePreset, today: string): boolean {
-  return !query.filter[field === 'scheduled' ? 'deadline' : 'scheduled'] && sameRange(query.filter[field], dueRange(preset, today));
+  return (
+    !query.filter[field === 'scheduled' ? 'deadline' : 'scheduled'] &&
+    sameRange(query.filter[field], dueRange(preset, today))
+  );
 }
 
-export interface ChipLabels { status: string | null; due: string | null; project: string | null; priority: string | null }
+export interface ChipLabels {
+  status: string | null;
+  due: string | null;
+  project: string | null;
+  priority: string | null;
+}
 
 /** What each chip says once it holds a value; null while it is at its default and the chip shows only its name. */
-export function chipLabels(query: TaskQuery, today: string, projectTitle: (id: string) => string | undefined): ChipLabels {
+export function chipLabels(
+  query: TaskQuery,
+  today: string,
+  projectTitle: (id: string) => string | undefined,
+): ChipLabels {
   const { statuses, scheduled, deadline, priority, project_id } = query.filter;
   const statusName = (value: TaskStatus) => taskStatuses.find(item => item.value === value)!.label;
   let due: string | null = null;
@@ -77,9 +118,10 @@ export function chipLabels(query: TaskQuery, today: string, projectTitle: (id: s
     due = `${field.label} ${preset ? preset.label.toLocaleLowerCase() : 'dates'}`;
   }
   return {
-    status: statuses.length === 0 ? null : statuses.length === 1 ? statusName(statuses[0]!) : `${statuses.length} statuses`,
+    status:
+      statuses.length === 0 ? null : statuses.length === 1 ? statusName(statuses[0]!) : `${statuses.length} statuses`,
     due,
-    project: project_id ? projectTitle(project_id) ?? 'Project' : null,
+    project: project_id ? (projectTitle(project_id) ?? 'Project') : null,
     priority: priority ? taskPriorities.find(item => item.value === priority)!.label : null,
   };
 }

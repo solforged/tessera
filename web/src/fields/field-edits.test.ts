@@ -11,10 +11,17 @@ test('template rows rename, relink and change a young field in place, each with 
   const { baseUrl, api } = service;
   let notebook: Notebook | undefined;
   try {
-    notebook = createNotebookClient({ baseUrl, notebookId: service.workshopId, sessionId: ulid(), databaseName: `field-edits-${ulid()}` });
+    notebook = createNotebookClient({
+      baseUrl,
+      notebookId: service.workshopId,
+      sessionId: ulid(),
+      databaseName: `field-edits-${ulid()}`,
+    });
     await notebook.ready;
     const fields = await api.fields();
-    const strength = ulid(); const mood = ulid(); const person = ulid();
+    const strength = ulid();
+    const mood = ulid();
+    const person = ulid();
     await notebook.commit([
       { op: 'create_page', id: person, title: 'Person' },
       { op: 'insert', id: strength, parent_id: fields.page_id, after: null, text: 'strength', heading: null },
@@ -28,7 +35,9 @@ test('template rows rename, relink and change a young field in place, each with 
     expect((await definition(strength)).name).toBe('strength');
     await renamed.redo();
     expect((await definition(strength)).name).toBe('force');
-    await expect(renameField(notebook, await definition(strength), 'MOOD')).rejects.toThrow('A field named MOOD already exists.');
+    await expect(renameField(notebook, await definition(strength), 'MOOD')).rejects.toThrow(
+      'A field named MOOD already exists.',
+    );
 
     // A field with no values reads under any kind, so the change applies without review.
     const detail = await api.fieldDetail(strength, 'instance');

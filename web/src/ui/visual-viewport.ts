@@ -3,8 +3,10 @@ import { createSignal, onCleanup } from 'solid-js';
 /** Bounds in layout-viewport coordinates, including browser keyboards and panning. */
 export function visualViewportBounds() {
   const viewport = window.visualViewport;
-  const top = viewport?.offsetTop ?? 0, left = viewport?.offsetLeft ?? 0;
-  const height = viewport?.height ?? window.innerHeight, width = viewport?.width ?? window.innerWidth;
+  const top = viewport?.offsetTop ?? 0,
+    left = viewport?.offsetLeft ?? 0;
+  const height = viewport?.height ?? window.innerHeight,
+    width = viewport?.width ?? window.innerWidth;
   return { top, left, height, width, bottom: top + height, right: left + width };
 }
 

@@ -23,7 +23,10 @@ export class SubtreeCache {
   private pending = new Set<string>();
   private scheduled = false;
   private closed = false;
-  constructor(private api: ApiClient, private seed: (block: Block) => void) {}
+  constructor(
+    private api: ApiClient,
+    private seed: (block: Block) => void,
+  ) {}
   watch(id: string): LiveSubtree {
     let entry = this.entries.get(id);
     if (!entry) {
@@ -34,11 +37,19 @@ export class SubtreeCache {
     }
     entry.holds++;
     let released = false;
-    return { value: entry.value[0], error: entry.error[0], release: () => {
-      if (released) return;
-      released = true;
-      if (--entry.holds === 0) { this.index(id, entry, []); this.entries.delete(id); this.pending.delete(id); }
-    } };
+    return {
+      value: entry.value[0],
+      error: entry.error[0],
+      release: () => {
+        if (released) return;
+        released = true;
+        if (--entry.holds === 0) {
+          this.index(id, entry, []);
+          this.entries.delete(id);
+          this.pending.delete(id);
+        }
+      },
+    };
   }
   changed(block: Block | null, id: string) {
     for (const target of this.dependents.get(id) ?? []) this.request(target);
@@ -53,7 +64,7 @@ export class SubtreeCache {
     entry.dependencies = dependencies;
     for (const key of dependencies) {
       let targets = this.dependents.get(key);
-      if (!targets) this.dependents.set(key, targets = new Set());
+      if (!targets) this.dependents.set(key, (targets = new Set()));
       targets.add(id);
     }
   }
@@ -62,7 +73,9 @@ export class SubtreeCache {
     this.pending.add(id);
     if (this.scheduled) return;
     this.scheduled = true;
-    queueMicrotask(() => { void this.load(); });
+    queueMicrotask(() => {
+      void this.load();
+    });
   }
   private async load() {
     const ids = [...this.pending].slice(0, 256);
@@ -76,16 +89,28 @@ export class SubtreeCache {
         if (!entry || entry !== entries.get(tree.id)) continue;
         if (tree.page) this.seed(tree.page);
         for (const row of tree.rows) this.seed(row.block);
-        this.index(tree.id, entry, [tree.id, ...(tree.page ? [tree.page.id] : []), ...tree.rows.map(row => row.block.id)]);
+        this.index(tree.id, entry, [
+          tree.id,
+          ...(tree.page ? [tree.page.id] : []),
+          ...tree.rows.map(row => row.block.id),
+        ]);
         entry.value[1](tree);
         entry.error[1]('');
       }
     } catch (reason) {
-      if (!this.closed) for (const [id, entry] of entries) if (entry && this.entries.get(id) === entry) entry.error[1](reason instanceof Error ? reason.message : String(reason));
+      if (!this.closed)
+        for (const [id, entry] of entries)
+          if (entry && this.entries.get(id) === entry)
+            entry.error[1](reason instanceof Error ? reason.message : String(reason));
     } finally {
       this.scheduled = false;
       if (this.pending.size) this.request(this.pending.values().next().value!);
     }
   }
-  dispose() { this.closed = true; this.entries.clear(); this.dependents.clear(); this.pending.clear(); }
+  dispose() {
+    this.closed = true;
+    this.entries.clear();
+    this.dependents.clear();
+    this.pending.clear();
+  }
 }

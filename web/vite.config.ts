@@ -9,15 +9,19 @@ import solid from 'vite-plugin-solid';
 export default defineConfig(({ mode }) => ({
   plugins: [solid(), themeBoot(), ...(mode === 'demo' ? [demoOffline()] : [])],
   define: { __TESSERA_DEMO__: mode === 'demo', __TESSERA_MOBILE__: mode === 'mobile' },
-  ...(mode === 'demo' ? {
-    build: { outDir: 'dist-demo', rollupOptions: { input: 'demo.html' } },
-    // The installable app's manifest and icons; not the native entry's offline worker.
-    publicDir: 'public-demo',
-    worker: { format: 'es' as const },
-  } : mode === 'mobile' ? {
-    build: { outDir: 'dist-mobile', rollupOptions: { input: 'mobile.html' } },
-    publicDir: false,
-  } : {}),
+  ...(mode === 'demo'
+    ? {
+        build: { outDir: 'dist-demo', rollupOptions: { input: 'demo.html' } },
+        // The installable app's manifest and icons; not the native entry's offline worker.
+        publicDir: 'public-demo',
+        worker: { format: 'es' as const },
+      }
+    : mode === 'mobile'
+      ? {
+          build: { outDir: 'dist-mobile', rollupOptions: { input: 'mobile.html' } },
+          publicDir: false,
+        }
+      : {}),
   server: {
     host: '127.0.0.1',
     port: 5173,
@@ -44,7 +48,9 @@ function themeBoot(): Plugin {
         response.end(source);
       });
     },
-    generateBundle() { this.emitFile({ type: 'asset', fileName: 'theme-boot.js', source }); },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'theme-boot.js', source });
+    },
     transformIndexHtml: () => [{ tag: 'script', attrs: { src: '/theme-boot.js' }, injectTo: 'head-prepend' }],
   };
 }
@@ -109,7 +115,9 @@ function demoOffline(): Plugin {
     name: 'tessera-demo-offline',
     apply: 'build',
     enforce: 'post',
-    configResolved(resolved) { config = resolved; },
+    configResolved(resolved) {
+      config = resolved;
+    },
     generateBundle: {
       order: 'post',
       async handler(_options, bundle) {
@@ -134,7 +142,11 @@ function demoOffline(): Plugin {
           const length = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength;
           hash.update(`${path}\0${length}\0`).update(content);
         }
-        this.emitFile({ type: 'asset', fileName: 'sw.js', source: workerSource(paths, hash.digest('hex').slice(0, 20)) });
+        this.emitFile({
+          type: 'asset',
+          fileName: 'sw.js',
+          source: workerSource(paths, hash.digest('hex').slice(0, 20)),
+        });
       },
     },
   };

@@ -24,26 +24,78 @@ function SourceContext(props: SourceProps) {
     onCleanup(() => value.release());
     return value;
   });
-  const rows = createMemo(() => doc().status() === 'ready' ? blockContextRows(doc(), props.block.id, 6) : []);
-  return <Show when={doc().status() === 'ready'} fallback={<p role="status">{doc().status() === 'loading' ? 'Loading context…' : doc().statusMessage()}</p>}>
-    <BlockTree rows={rows()} block={id => doc().block(id)} notebook={props.notebook} onOpen={props.onOpen} />
-  </Show>;
+  const rows = createMemo(() => (doc().status() === 'ready' ? blockContextRows(doc(), props.block.id, 6) : []));
+  return (
+    <Show
+      when={doc().status() === 'ready'}
+      fallback={<p role="status">{doc().status() === 'loading' ? 'Loading context…' : doc().statusMessage()}</p>}
+    >
+      <BlockTree rows={rows()} block={id => doc().block(id)} notebook={props.notebook} onOpen={props.onOpen} />
+    </Show>
+  );
 }
 
 export function BacklinkSource(props: SourceProps & { context?: boolean; breadcrumb?: boolean }) {
   const [expanded, setExpanded] = createSignal(false);
   const live = createMemo(() => props.notebook.lookup(props.block.id)());
   const target = (): OpenTarget => ({ kind: 'page', pageId: props.page.id, blockId: props.block.id });
-  return <div class="backlink-source">
-    <Show when={props.breadcrumb}><div class="related-breadcrumb"><BlockBreadcrumb block={live() ?? props.block} notebook={props.notebook} omitParent={props.context} /></div></Show>
-    <div class="backlink-source-line" data-open-page={props.page.id} data-open-block={props.block.id} data-open-label={displayTitle(props.page.text, id => props.notebook.lookup(id))}>
-      <Show when={!props.context}><Button class="backlink-disclosure" icon={expanded() ? 'down' : 'right'} label={expanded() ? 'Hide context' : 'Show context'} aria-expanded={expanded()} onClick={() => setExpanded(value => !value)} /></Show>
-      <div class="backlink-source-body" role="link" tabIndex={0} title={`Open · ${besideHint}`} onClick={event => props.onOpen(target(), opensBeside(event))} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) props.onOpen(target(), opensBeside(event)); }}>
-        <Show when={props.context || expanded()} fallback={<BlockText text={live()?.text ?? props.block.text} blockId={props.block.id} notebook={props.notebook} onOpen={props.onOpen} />}><SourceContext {...props} /></Show>
+  return (
+    <div class="backlink-source">
+      <Show when={props.breadcrumb}>
+        <div class="related-breadcrumb">
+          <BlockBreadcrumb block={live() ?? props.block} notebook={props.notebook} omitParent={props.context} />
+        </div>
+      </Show>
+      <div
+        class="backlink-source-line"
+        data-open-page={props.page.id}
+        data-open-block={props.block.id}
+        data-open-label={displayTitle(props.page.text, id => props.notebook.lookup(id))}
+      >
+        <Show when={!props.context}>
+          <Button
+            class="backlink-disclosure"
+            icon={expanded() ? 'down' : 'right'}
+            label={expanded() ? 'Hide context' : 'Show context'}
+            aria-expanded={expanded()}
+            onClick={() => setExpanded(value => !value)}
+          />
+        </Show>
+        <div
+          class="backlink-source-body"
+          role="link"
+          tabIndex={0}
+          title={`Open · ${besideHint}`}
+          onClick={event => props.onOpen(target(), opensBeside(event))}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && event.target === event.currentTarget)
+              props.onOpen(target(), opensBeside(event));
+          }}
+        >
+          <Show
+            when={props.context || expanded()}
+            fallback={
+              <BlockText
+                text={live()?.text ?? props.block.text}
+                blockId={props.block.id}
+                notebook={props.notebook}
+                onOpen={props.onOpen}
+              />
+            }
+          >
+            <SourceContext {...props} />
+          </Show>
+        </div>
+        <Button
+          class="backlink-beside"
+          icon="panes"
+          label="Open beside"
+          title={`Open beside · ${besideHint}`}
+          onClick={() => props.onOpen(target(), true)}
+        />
       </div>
-      <Button class="backlink-beside" icon="panes" label="Open beside" title={`Open beside · ${besideHint}`} onClick={() => props.onOpen(target(), true)} />
     </div>
-  </div>;
+  );
 }
 
 export function BlockReferenceCount(props: {
@@ -57,21 +109,68 @@ export function BlockReferenceCount(props: {
   function Sources() {
     let request: AbortController | undefined;
     onCleanup(() => request?.abort());
-    const [rows] = createResource(() => [props.id, props.version] as const, async ([id]) => {
-      request?.abort();
-      request = new AbortController();
-      return props.notebook.api.backlinks(id, 100, request.signal);
-    });
-    const values = createMemo(() => new Map((rows.error ? [] : rows() ?? []).map(row => [row.source.id, row])));
+    const [rows] = createResource(
+      () => [props.id, props.version] as const,
+      async ([id]) => {
+        request?.abort();
+        request = new AbortController();
+        return props.notebook.api.backlinks(id, 100, request.signal);
+      },
+    );
+    const values = createMemo(() => new Map((rows.error ? [] : (rows() ?? [])).map(row => [row.source.id, row])));
     const ids = createMemo(() => [...values().keys()]);
-    return <>
-      <Show when={rows.loading && !rows()}><p role="status">Loading backlinks…</p></Show>
-      <Show when={rows.error}><p role="alert">Couldn’t load backlinks.</p></Show>
-      <For each={ids()}>{id => <BacklinkSource block={values().get(id)!.source} page={values().get(id)!.page} notebook={props.notebook} onOpen={(target, beside) => { setAnchor(undefined); props.onOpen(target, beside); }} context breadcrumb />}</For>
-      <Show when={!rows.loading && !rows.error && !ids().length}><p>No backlinks.</p></Show>
-    </>;
+    return (
+      <>
+        <Show when={rows.loading && !rows()}>
+          <p role="status">Loading backlinks…</p>
+        </Show>
+        <Show when={rows.error}>
+          <p role="alert">Couldn’t load backlinks.</p>
+        </Show>
+        <For each={ids()}>
+          {id => (
+            <BacklinkSource
+              block={values().get(id)!.source}
+              page={values().get(id)!.page}
+              notebook={props.notebook}
+              onOpen={(target, beside) => {
+                setAnchor(undefined);
+                props.onOpen(target, beside);
+              }}
+              context
+              breadcrumb
+            />
+          )}
+        </For>
+        <Show when={!rows.loading && !rows.error && !ids().length}>
+          <p>No backlinks.</p>
+        </Show>
+      </>
+    );
   }
-  return <><Button class="block-reference-count" label={`${props.count} ${props.count === 1 ? 'backlink' : 'backlinks'}`} aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => setAnchor(previous => previous ? undefined : event.currentTarget)}>{props.count}</Button>
-    <Show when={anchor()}>{element => <Popup anchor={element()} label="Atom backlinks" class="block-backlinks-popup" onDismiss={() => setAnchor(undefined)}><Sources /></Popup>}</Show>
-  </>;
+  return (
+    <>
+      <Button
+        class="block-reference-count"
+        label={`${props.count} ${props.count === 1 ? 'backlink' : 'backlinks'}`}
+        aria-haspopup="dialog"
+        aria-expanded={!!anchor()}
+        onClick={event => setAnchor(previous => (previous ? undefined : event.currentTarget))}
+      >
+        {props.count}
+      </Button>
+      <Show when={anchor()}>
+        {element => (
+          <Popup
+            anchor={element()}
+            label="Atom backlinks"
+            class="block-backlinks-popup"
+            onDismiss={() => setAnchor(undefined)}
+          >
+            <Sources />
+          </Popup>
+        )}
+      </Show>
+    </>
+  );
 }

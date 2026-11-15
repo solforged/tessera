@@ -13,7 +13,12 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
   const notebooks: Notebook[] = [];
   const client = async () => {
     const info = await api.notebook();
-    const notebook = createNotebookClient({ baseUrl, notebookId: info.id, sessionId: ulid(), databaseName: `template-offer-${ulid()}` });
+    const notebook = createNotebookClient({
+      baseUrl,
+      notebookId: info.id,
+      sessionId: ulid(),
+      databaseName: `template-offer-${ulid()}`,
+    });
     notebooks.push(notebook);
     await notebook.ready;
     return notebook;
@@ -21,19 +26,31 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
   try {
     const notebook = await client();
     const fields = await api.fields();
-    const proposition = ulid(); const book = ulid(); const strength = ulid();
+    const proposition = ulid();
+    const book = ulid();
+    const strength = ulid();
     const [a, b, entryA, entryB, valueA, valueB] = [ulid(), ulid(), ulid(), ulid(), ulid(), ulid()];
     const owner = (id: string, text: string) => ({ id, text, manual_types: [] });
     await notebook.commit([
-      { op: 'create_page', id: proposition, title: 'Proposition' }, { op: 'create_page', id: book, title: 'Structure' },
+      { op: 'create_page', id: proposition, title: 'Proposition' },
+      { op: 'create_page', id: book, title: 'Structure' },
       { op: 'insert', id: strength, parent_id: fields.page_id, after: null, text: 'strength', heading: null },
-      { op: 'insert', id: a, parent_id: book, after: null, text: 'Normal science is puzzle-solving #proposition', heading: null },
+      {
+        op: 'insert',
+        id: a,
+        parent_id: book,
+        after: null,
+        text: 'Normal science is puzzle-solving #proposition',
+        heading: null,
+      },
       { op: 'insert', id: b, parent_id: book, after: a, text: 'Anomalies accumulate #proposition', heading: null },
       { op: 'insert', id: entryA, parent_id: a, after: null, text: `[[${strength}]]`, heading: null },
       { op: 'insert', id: valueA, parent_id: entryA, after: null, text: 'high', heading: null },
     ]);
     // One use may be a one-off.
-    expect(await templateOffer(notebook, owner(a, 'Normal science is puzzle-solving #proposition'), strength)).toBeNull();
+    expect(
+      await templateOffer(notebook, owner(a, 'Normal science is puzzle-solving #proposition'), strength),
+    ).toBeNull();
     await notebook.commit([
       { op: 'insert', id: entryB, parent_id: b, after: null, text: `[[${strength}]]`, heading: null },
       { op: 'insert', id: valueB, parent_id: entryB, after: null, text: 'low', heading: null },
@@ -41,7 +58,9 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
     const offer = await templateOffer(notebook, owner(b, 'Anomalies accumulate #proposition'), strength);
     expect(offer?.type.page.id).toBe(proposition);
     // Asked once per window, whatever the answer.
-    expect(await templateOffer(notebook, owner(a, 'Normal science is puzzle-solving #proposition'), strength)).toBeNull();
+    expect(
+      await templateOffer(notebook, owner(a, 'Normal science is puzzle-solving #proposition'), strength),
+    ).toBeNull();
 
     const change = await addTemplateField(notebook, offer!.type, strength);
     expect((await api.type(proposition)).fields).toEqual([strength]);

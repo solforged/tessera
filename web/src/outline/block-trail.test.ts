@@ -3,7 +3,19 @@ import type { Block } from '../api/types';
 import { blockTrail } from './block-trail';
 
 const concept = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
-const block = (id: string, text: string, over: Partial<Block> = {}): Block => ({ id, text, kind: 'block', parent_id: null, page_id: 'alibi', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0, ...over });
+const block = (id: string, text: string, over: Partial<Block> = {}): Block => ({
+  id,
+  text,
+  kind: 'block',
+  parent_id: null,
+  page_id: 'alibi',
+  heading: null,
+  archived: false,
+  revision: 1,
+  created_at: 0,
+  updated_at: 0,
+  ...over,
+});
 const blocks = new Map([
   ['alibi', block('alibi', `ALiBi #[[${concept}|concept]]`, { kind: 'page' })],
   [concept, block(concept, 'Concept', { kind: 'page', page_id: concept })],

@@ -1,101 +1,487 @@
 /* The source, reading and grading strip share one sheet on the text measure. */
-.review-card { position: relative; display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; padding: var(--space-12) 0 var(--space-24); border-top: var(--rule-width) solid var(--line); transition: border-color var(--motion-fast) var(--motion-ease); }
-.review-card:focus-visible { outline: none; }
+.review-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+  padding: var(--space-12) 0 var(--space-24);
+  border-top: var(--rule-width) solid var(--line);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+.review-card:focus-visible {
+  outline: none;
+}
 /* Only a fine-pointer keyboard focus adds gilt; touch keeps the progress strip as its one rule. */
-@media (pointer: fine) { .review-card:focus-visible { border-color: var(--accent); } }
-@media (pointer: coarse) { .review-card { border-top-color: transparent; } }
+@media (pointer: fine) {
+  .review-card:focus-visible {
+    border-color: var(--accent);
+  }
+}
+@media (pointer: coarse) {
+  .review-card {
+    border-top-color: transparent;
+  }
+}
 /* Source, kind and card actions share one apparatus line; the source shortens first. */
-.review-card-meta { display: flex; align-items: center; gap: var(--space-4) var(--space-12); min-height: var(--target-size); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.review-card-source.button { min-width: 0; max-width: 100%; padding-inline: 0; color: inherit; font: inherit; }
-.review-card-source > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review-card-kind { flex: none; margin-left: auto; color: var(--faint); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
-.review-card-meta > .button:last-child { flex: none; color: var(--muted); }
-.review-card-change-notice { margin: 0; color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
-.review-card-side { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--weight-body) var(--text-title)/calc(var(--line-title) + var(--space-8)) var(--font-display); }
-.review-card-side.review-card-terse { line-height: var(--line-title); }
-.review-card-answer { padding-top: var(--space-16); border-top: 1px solid var(--line); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+.review-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4) var(--space-12);
+  min-height: var(--target-size);
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.review-card-source.button {
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: 0;
+  color: inherit;
+  font: inherit;
+}
+.review-card-source > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-card-kind {
+  flex: none;
+  margin-left: auto;
+  color: var(--faint);
+  font: var(--caps);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.review-card-meta > .button:last-child {
+  flex: none;
+  color: var(--muted);
+}
+.review-card-change-notice {
+  margin: 0;
+  color: var(--warning);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.review-card-side {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: var(--weight-body) var(--text-title) / calc(var(--line-title) + var(--space-8)) var(--font-display);
+}
+.review-card-side.review-card-terse {
+  line-height: var(--line-title);
+}
+.review-card-answer {
+  padding-top: var(--space-16);
+  border-top: 1px solid var(--line);
+  animation: fade-in var(--motion-ui) var(--motion-ease) both;
+}
 /* The grade strip, the comparison and the following passage arrive with the answer, not ahead of it. */
-.review-card-grades, .review-card-comparison, .review-card-following { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
-.review-list-progress { margin: 0; color: var(--faint); font: var(--figures); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
-.review-card h2 { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
-.review-card-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-body); line-height: var(--line-body); }
-.review-card-comparison { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-12); background: var(--surface); border-radius: var(--radius-control); }
-.review-card-comparison-versions { display: flex; flex-wrap: wrap; gap: var(--space-16); }
-.review-card-comparison-version { flex: 1 1 calc(var(--measure) / 3); min-width: 0; }
-.review-card-comparison dl { display: flex; flex-direction: column; gap: var(--space-4); margin: var(--space-12) 0 0; }
-.review-card-comparison dt { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
-.review-card-comparison dd { margin: 0 0 var(--space-8); }
-.review-card-progress, .review-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
-.review-card-grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); overflow: hidden; }
-.review-card-grade { min-width: 0; min-height: calc(var(--space-48) + var(--space-12)); flex-direction: column; align-items: stretch; justify-content: center; gap: var(--space-4); padding: var(--space-8) var(--space-12); border-radius: 0; }
-.review-card-grade + .review-card-grade { border-left-color: var(--line); }
-.review-card-grade:focus-visible { outline-offset: calc(-1 * var(--space-2)); }
-.review-card-grade-label { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
-.review-card-interval { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-.review-card-error { margin: 0; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
-.review-card-reset { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
+.review-card-grades,
+.review-card-comparison,
+.review-card-following {
+  animation: fade-in var(--motion-ui) var(--motion-ease) both;
+}
+.review-list-progress {
+  margin: 0;
+  color: var(--faint);
+  font: var(--figures);
+  letter-spacing: var(--tracking-apparatus);
+  font-variant-numeric: tabular-nums;
+}
+.review-card h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+  font-weight: var(--weight-control);
+}
+.review-card-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+}
+.review-card-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-12);
+  background: var(--surface);
+  border-radius: var(--radius-control);
+}
+.review-card-comparison-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+}
+.review-card-comparison-version {
+  flex: 1 1 calc(var(--measure) / 3);
+  min-width: 0;
+}
+.review-card-comparison dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: var(--space-12) 0 0;
+}
+.review-card-comparison dt {
+  color: var(--faint);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+}
+.review-card-comparison dd {
+  margin: 0 0 var(--space-8);
+}
+.review-card-progress,
+.review-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+.review-card-grades {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-popup);
+  overflow: hidden;
+}
+.review-card-grade {
+  min-width: 0;
+  min-height: calc(var(--space-48) + var(--space-12));
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-12);
+  border-radius: 0;
+}
+.review-card-grade + .review-card-grade {
+  border-left-color: var(--line);
+}
+.review-card-grade:focus-visible {
+  outline-offset: calc(-1 * var(--space-2));
+}
+.review-card-grade-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+.review-card-interval {
+  color: var(--muted);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+  white-space: nowrap;
+}
+.review-card-error {
+  margin: 0;
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  overflow-wrap: anywhere;
+}
+.review-card-reset {
+  width: var(--search-width);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
 /* Evidence follows the revealed quotation. */
-.review-card-following { margin: 0; padding: var(--space-12) var(--space-16); border-left: 2px solid var(--line); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.review-card-following {
+  margin: 0;
+  padding: var(--space-12) var(--space-16);
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+  font: var(--weight-body) var(--text-quote) / var(--line-quote) var(--font-display);
+}
 /* Good is the Space and Enter default, so its cell is ringed in gilt. */
-.review-card-grade-default.button { background: var(--raised); box-shadow: inset 0 0 0 var(--rule-width) var(--accent); }
-.review-card-grade-again .review-card-grade-label { color: var(--danger); }
+.review-card-grade-default.button {
+  background: var(--raised);
+  box-shadow: inset 0 0 0 var(--rule-width) var(--accent);
+}
+.review-card-grade-again .review-card-grade-label {
+  color: var(--danger);
+}
 /* What is asked and answered sits in one leaf. Off a phone the wrapper adds no box: its children lay out as the card's own. */
-.review-card-leaf { display: contents; }
+.review-card-leaf {
+  display: contents;
+}
 /* The phone's card: a leaf that fills the screen with the prompt centred a little above its middle, the source as one quiet line at
    its top, and the reveal or the four grades on the page below it, under the thumb. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .review-card { gap: var(--space-24); padding: 0 0 calc(var(--bottom-inset) + var(--space-8)); border-top: 0; -webkit-tap-highlight-color: transparent; }
-  .review-card-leaf { position: relative; display: flex; flex: 1; flex-direction: column; align-items: center; min-height: 0; margin-inline: var(--space-12); padding: 56px 28px 80px; overflow: auto; overscroll-behavior: contain; background: var(--leaf); border-radius: var(--leaf-radius); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); text-align: center; touch-action: pan-y; transition: transform var(--motion-ui) var(--motion-ease), opacity var(--motion-ui) var(--motion-ease); }
-  .review-answering .review-card-leaf { padding-bottom: 112px; }
-  .review-card-leaf::before, .review-card-leaf::after { content: ''; flex: 1 1 0; }
-  .review-card-leaf[data-dragging] { transition: none; }
-  .review-card-leaf > .review-card-meta:first-child { position: absolute; top: 22px; left: 0; right: 0; justify-content: center; gap: 0; min-height: 0; padding-inline: var(--space-24); color: var(--muted); font: 400 13px/18px var(--font-body); letter-spacing: normal; }
-  .review-card-source.button { flex: 0 1 auto; min-height: 44px; margin-block: -13px; }
-  .review-card-kind { flex: none; margin-left: 0; color: inherit; font: inherit; letter-spacing: normal; text-transform: none; }
-  .review-card-kind::before { content: '·'; margin: 0 5px; color: var(--faint); }
-  .review-card-side { align-self: stretch; font-weight: var(--weight-title); line-height: var(--line-title); text-align: center; }
+  .review-card {
+    gap: var(--space-24);
+    padding: 0 0 calc(var(--bottom-inset) + var(--space-8));
+    border-top: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .review-card-leaf {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    min-height: 0;
+    margin-inline: var(--space-12);
+    padding: 56px 28px 80px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    background: var(--leaf);
+    border-radius: var(--leaf-radius);
+    box-shadow:
+      inset 0 1px 0 var(--lit-edge),
+      0 1px 2px var(--contact-shadow),
+      0 0 0 0.5px color-mix(in srgb, var(--line) 70%, transparent);
+    text-align: center;
+    touch-action: pan-y;
+    transition:
+      transform var(--motion-ui) var(--motion-ease),
+      opacity var(--motion-ui) var(--motion-ease);
+  }
+  .review-answering .review-card-leaf {
+    padding-bottom: 112px;
+  }
+  .review-card-leaf::before,
+  .review-card-leaf::after {
+    content: "";
+    flex: 1 1 0;
+  }
+  .review-card-leaf[data-dragging] {
+    transition: none;
+  }
+  .review-card-leaf > .review-card-meta:first-child {
+    position: absolute;
+    top: 22px;
+    left: 0;
+    right: 0;
+    justify-content: center;
+    gap: 0;
+    min-height: 0;
+    padding-inline: var(--space-24);
+    color: var(--muted);
+    font: 400 13px / 18px var(--font-body);
+    letter-spacing: normal;
+  }
+  .review-card-source.button {
+    flex: 0 1 auto;
+    min-height: 44px;
+    margin-block: -13px;
+  }
+  .review-card-kind {
+    flex: none;
+    margin-left: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .review-card-kind::before {
+    content: "·";
+    margin: 0 5px;
+    color: var(--faint);
+  }
+  .review-card-side {
+    align-self: stretch;
+    font-weight: var(--weight-title);
+    line-height: var(--line-title);
+    text-align: center;
+  }
   /* Once answered, the question steps back above a short rule and the answer takes the title size. */
-  .review-answering .review-card-side:not(.review-card-answer) { color: var(--muted); font-size: 22px; line-height: 28px; }
-  .review-card-answer { padding-top: 0; border-top: 0; }
-  .review-card-answer::before { content: ''; display: block; width: 56px; height: 1px; margin: 22px auto; background: var(--line); }
-  .review-card-following { text-align: left; }
+  .review-answering .review-card-side:not(.review-card-answer) {
+    color: var(--muted);
+    font-size: 22px;
+    line-height: 28px;
+  }
+  .review-card-answer {
+    padding-top: 0;
+    border-top: 0;
+  }
+  .review-card-answer::before {
+    content: "";
+    display: block;
+    width: 56px;
+    height: 1px;
+    margin: 22px auto;
+    background: var(--line);
+  }
+  .review-card-following {
+    text-align: left;
+  }
   /* Swiping is hinted quietly at the foot of the leaf until it has been used; a drag lights the side it is heading for. */
-  .review-card-swipe { position: absolute; left: 20px; right: 20px; bottom: 18px; display: flex; justify-content: space-between; color: var(--faint); font: 400 12.5px/16px var(--font-body); transition: opacity var(--motion-ui) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
-  .review-card-swipe > span { display: inline-flex; align-items: center; gap: var(--space-4); transition: color var(--motion-fast) var(--motion-ease); }
-  .review-card-swipe .icon { width: 14px; height: 14px; }
-  .review-card-swipe.used { opacity: 0; }
-  .review-card-leaf[data-dragging] .review-card-swipe.used { opacity: 1; }
-  .review-card-leaf[data-swipe="again"] .review-card-swipe > span:first-child, .review-card-leaf[data-swipe="good"] .review-card-swipe > span:last-child { color: var(--text); }
-  .review-card-actions, .review-card-comparison, .review-card-error { margin-inline: var(--pane-inset); }
+  .review-card-swipe {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--faint);
+    font: 400 12.5px / 16px var(--font-body);
+    transition:
+      opacity var(--motion-ui) var(--motion-ease),
+      color var(--motion-fast) var(--motion-ease);
+  }
+  .review-card-swipe > span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-4);
+    transition: color var(--motion-fast) var(--motion-ease);
+  }
+  .review-card-swipe .icon {
+    width: 14px;
+    height: 14px;
+  }
+  .review-card-swipe.used {
+    opacity: 0;
+  }
+  .review-card-leaf[data-dragging] .review-card-swipe.used {
+    opacity: 1;
+  }
+  .review-card-leaf[data-swipe="again"] .review-card-swipe > span:first-child,
+  .review-card-leaf[data-swipe="good"] .review-card-swipe > span:last-child {
+    color: var(--text);
+  }
+  .review-card-actions,
+  .review-card-comparison,
+  .review-card-error {
+    margin-inline: var(--pane-inset);
+  }
   /* Four equal capsules in one row, each its label over the interval; the answer is the screen's content, so none is a stamp. */
-  .review-card-grades { display: flex; gap: var(--space-8); margin-inline: var(--pane-inset); border: 0; border-radius: 0; overflow: visible; }
-  .review-card .review-card-grade.button { flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; height: 64px; min-height: 64px; padding: 0; border-radius: 32px; }
-  .review-card-grade-label { display: block; font: 500 15px/20px var(--font-body); }
-  .review-card-interval { color: var(--muted); font: 400 12.5px/16px var(--font-body); letter-spacing: normal; }
-  .review-card-interval .review-fig { color: var(--text); font-size: 13px; }
+  .review-card-grades {
+    display: flex;
+    gap: var(--space-8);
+    margin-inline: var(--pane-inset);
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .review-card .review-card-grade.button {
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    min-width: 0;
+    height: 64px;
+    min-height: 64px;
+    padding: 0;
+    border-radius: 32px;
+  }
+  .review-card-grade-label {
+    display: block;
+    font: 500 15px / 20px var(--font-body);
+  }
+  .review-card-interval {
+    color: var(--muted);
+    font: 400 12.5px / 16px var(--font-body);
+    letter-spacing: normal;
+  }
+  .review-card-interval .review-fig {
+    color: var(--text);
+    font-size: 13px;
+  }
   /* No grade is pre-focused: Good keeps its place as the Space and Enter default without a ring at rest. */
-  .review-card .review-card-grade-default.button { background: var(--ink-wash); box-shadow: none; }
+  .review-card .review-card-grade-default.button {
+    background: var(--ink-wash);
+    box-shadow: none;
+  }
 }
 
-.recipe-provenance { padding-bottom: var(--space-12); border-bottom: var(--rule-width) solid var(--line); color: var(--faint); }
-.recipe-front { display: grid; grid-template-columns: var(--space-48) minmax(0, 1fr); gap: var(--space-16); margin-top: var(--space-8); }
-.recipe-index { padding-top: var(--space-8); color: var(--danger); font: var(--figures); }
-.recipe-label { margin-bottom: var(--space-8); color: var(--faint); font: var(--apparatus); }
-.recipe-hint { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-16); margin-left: calc(var(--space-48) + var(--space-16)); color: var(--faint); font: var(--apparatus); }
-.recipe-hint .button { font: inherit; color: var(--muted); padding-inline: 0; }
-.recipe-answer { margin-left: calc(var(--space-48) + var(--space-16)); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
-.recipe-apparatus { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: var(--space-8) var(--space-16); margin: var(--space-24) 0 0; color: var(--muted); font: var(--apparatus); }
-.recipe-apparatus dt { color: var(--faint); }
-.recipe-apparatus dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.recipe-apparatus .recipe-prose { font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
-.review-recipe .review-card-actions { margin-top: auto; padding-top: var(--space-48); border-top: var(--rule-width) solid var(--line); justify-content: flex-end; }
-.review-recipe .review-card-actions .button { color: var(--accent); border-color: var(--accent); }
-.review-recipe .review-card-grades { margin-top: auto; }
+.recipe-provenance {
+  padding-bottom: var(--space-12);
+  border-bottom: var(--rule-width) solid var(--line);
+  color: var(--faint);
+}
+.recipe-front {
+  display: grid;
+  grid-template-columns: var(--space-48) minmax(0, 1fr);
+  gap: var(--space-16);
+  margin-top: var(--space-8);
+}
+.recipe-index {
+  padding-top: var(--space-8);
+  color: var(--danger);
+  font: var(--figures);
+}
+.recipe-label {
+  margin-bottom: var(--space-8);
+  color: var(--faint);
+  font: var(--apparatus);
+}
+.recipe-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-16);
+  margin-left: calc(var(--space-48) + var(--space-16));
+  color: var(--faint);
+  font: var(--apparatus);
+}
+.recipe-hint .button {
+  font: inherit;
+  color: var(--muted);
+  padding-inline: 0;
+}
+.recipe-answer {
+  margin-left: calc(var(--space-48) + var(--space-16));
+  padding-top: var(--space-16);
+  border-top: var(--rule-width) solid var(--line);
+}
+.recipe-apparatus {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  gap: var(--space-8) var(--space-16);
+  margin: var(--space-24) 0 0;
+  color: var(--muted);
+  font: var(--apparatus);
+}
+.recipe-apparatus dt {
+  color: var(--faint);
+}
+.recipe-apparatus dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.recipe-apparatus .recipe-prose {
+  font: var(--weight-body) var(--text-control) / var(--line-control) var(--font-body);
+}
+.review-recipe .review-card-actions {
+  margin-top: auto;
+  padding-top: var(--space-48);
+  border-top: var(--rule-width) solid var(--line);
+  justify-content: flex-end;
+}
+.review-recipe .review-card-actions .button {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.review-recipe .review-card-grades {
+  margin-top: auto;
+}
 /* A tag recipe keeps its own reading order (index, label, text) inside the leaf, left-aligned and from the top. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .review-recipe .review-card-leaf { align-items: stretch; padding: 56px var(--space-24) var(--space-24); text-align: left; }
-  .review-recipe .review-card-leaf::before, .review-recipe .review-card-leaf::after { display: none; }
-  .review-recipe .review-card-actions { margin-top: 0; padding-top: 0; border-top: 0; }
-  .review-recipe .review-card-grades { margin-top: 0; }
-  .review-recipe .review-card-side { text-align: left; }
+  .review-recipe .review-card-leaf {
+    align-items: stretch;
+    padding: 56px var(--space-24) var(--space-24);
+    text-align: left;
+  }
+  .review-recipe .review-card-leaf::before,
+  .review-recipe .review-card-leaf::after {
+    display: none;
+  }
+  .review-recipe .review-card-actions {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .review-recipe .review-card-grades {
+    margin-top: 0;
+  }
+  .review-recipe .review-card-side {
+    text-align: left;
+  }
 }

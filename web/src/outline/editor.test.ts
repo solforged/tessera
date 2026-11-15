@@ -1,6 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { PendingEditorRange, emphasisChange, fieldDraftDecorations, fieldEntryExtension, graphemeBoundary, graphemeSelection, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
+import {
+  PendingEditorRange,
+  emphasisChange,
+  fieldDraftDecorations,
+  fieldEntryExtension,
+  graphemeBoundary,
+  graphemeSelection,
+  pairInput,
+  pairSelection,
+  referenceDecorations,
+  vimUndoKey,
+} from './editor';
 import type { NameMatch } from '../api/types';
 import { typeChoiceSpelling } from './type-completion';
 
@@ -40,7 +51,9 @@ test('an Enter-accepted tag keeps zero-delay continuation outside delayed matche
     const matches = Promise.withResolvers<{ title: string; id?: string }>();
     // Enter has already reserved the token and its space before the request can resolve.
     const accepted = matches.promise.then(choice => {
-      state = state.update({ changes: { ...pending.range!, insert: typeChoiceSpelling(query, choice.title, choice.id) } }).state;
+      state = state.update({
+        changes: { ...pending.range!, insert: typeChoiceSpelling(query, choice.title, choice.id) },
+      }).state;
     });
     for (const insert of 'AFTER ') {
       const update = state.update(state.replaceSelection(insert));
@@ -59,14 +72,19 @@ test('pending reference ranges follow outside edits but reject edits to the acce
   const pending = new PendingEditorRange({ from: 4, to: 16 });
   pending.map(state.update({ changes: { from: 0, insert: 'Please ' } }).changes);
   expect(pending.range).toEqual({ from: 11, to: 23 });
-  const changed = EditorState.create({ doc: 'Please See [[Accepted]] ' }).update({ changes: { from: 15, to: 16, insert: 'X' } });
+  const changed = EditorState.create({ doc: 'Please See [[Accepted]] ' }).update({
+    changes: { from: 15, to: 16, insert: 'X' },
+  });
   pending.map(changed.changes);
   expect(pending.range).toBeNull();
 });
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
   for (const text of ['[[area]]', '  [[area|Alias]]  ']) {
-    const state = EditorState.create({ doc: text, extensions: fieldEntryExtension(id => id === 'area' ? 'Area' : undefined) });
+    const state = EditorState.create({
+      doc: text,
+      extensions: fieldEntryExtension(id => (id === 'area' ? 'Area' : undefined)),
+    });
     const left = state.update({ selection: { anchor: 1 } }).state;
     const right = state.update({ selection: { anchor: text.length - 1 } }).state;
     expect(left.selection.main.head).toBe(0);
@@ -79,7 +97,10 @@ test('known whole-field references keep raw copy text and reject interior carets
 
 test('unknown references and references within prose remain ordinary editable text', () => {
   for (const text of ['[[unknown]]', 'About [[area]]', '[[area]] and more']) {
-    const state = EditorState.create({ doc: text, extensions: fieldEntryExtension(id => id === 'area' ? 'Area' : undefined) });
+    const state = EditorState.create({
+      doc: text,
+      extensions: fieldEntryExtension(id => (id === 'area' ? 'Area' : undefined)),
+    });
     expect(state.update({ selection: { anchor: 3 } }).state.selection.main.head).toBe(3);
   }
 });
@@ -88,10 +109,16 @@ test('resolver reconfiguration updates atomic eligibility without rewriting the 
   const resolver = new Compartment();
   const text = '[[area]]';
   const state = EditorState.create({ doc: text, extensions: resolver.of(fieldEntryExtension(() => 'Area')) });
-  const renamed = state.update({ effects: resolver.reconfigure(fieldEntryExtension(() => 'Subject area')), selection: { anchor: 2 } }).state;
+  const renamed = state.update({
+    effects: resolver.reconfigure(fieldEntryExtension(() => 'Subject area')),
+    selection: { anchor: 2 },
+  }).state;
   expect(renamed.selection.main.head).toBe(0);
   expect(renamed.doc.toString()).toBe(text);
-  const removed = renamed.update({ effects: resolver.reconfigure(fieldEntryExtension(() => undefined)), selection: { anchor: 2 } }).state;
+  const removed = renamed.update({
+    effects: resolver.reconfigure(fieldEntryExtension(() => undefined)),
+    selection: { anchor: 2 },
+  }).state;
   expect(removed.selection.main.head).toBe(2);
   expect(removed.doc.toString()).toBe(text);
 });
@@ -99,7 +126,8 @@ test('resolver reconfiguration updates atomic eligibility without rewriting the 
 describe('extended grapheme selection boundaries', () => {
   for (const cluster of ['क्षि', '👍🏽', 'e\u0301', '👨‍👩‍👧‍👦', '🇮🇳']) {
     test(`navigation and selections keep ${cluster} intact`, () => {
-      const text = `A${cluster}B`, end = 1 + cluster.length;
+      const text = `A${cluster}B`,
+        end = 1 + cluster.length;
       const state = EditorState.create({ doc: text, selection: { anchor: 1 }, extensions: graphemeSelection });
       expect(state.update({ selection: { anchor: 2 } }).state.selection.main.head).toBe(end);
       const right = EditorState.create({ doc: text, selection: { anchor: end }, extensions: graphemeSelection });
@@ -133,20 +161,40 @@ describe('editor reference decorations', () => {
   test('tags keep their glyph and registry name until their source is edited', () => {
     const text = 'Call Ana #person #task';
     const widgets: { label: string; icon: string }[] = [];
-    referenceDecorations(text, 0, () => undefined, () => false, undefined, undefined, undefined, undefined,
-      title => ({ name: title === 'person' ? 'Person' : 'Task', icon: title === 'person' ? 'person' : 'task' }))
-      .between(0, text.length, (_from, _to, decoration) => { widgets.push({ label: decoration.spec.widget.label, icon: decoration.spec.widget.icon }); });
-    expect(widgets).toEqual([{ label: '#Person', icon: 'person' }, { label: '#Task', icon: 'task' }]);
+    referenceDecorations(
+      text,
+      0,
+      () => undefined,
+      () => false,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      title => ({ name: title === 'person' ? 'Person' : 'Task', icon: title === 'person' ? 'person' : 'task' }),
+    ).between(0, text.length, (_from, _to, decoration) => {
+      widgets.push({ label: decoration.spec.widget.label, icon: decoration.spec.widget.icon });
+    });
+    expect(widgets).toEqual([
+      { label: '#Person', icon: 'person' },
+      { label: '#Task', icon: 'task' },
+    ]);
     expect(decorations(text, text.indexOf('person') + 2)).toEqual([{ from: 17, to: 22, label: '#task' }]);
   });
   test('citation widgets retain locators and distinguish source citations from plain links', () => {
     const text = '[[source|span|3.12]] [[source]] [[ordinary|span|4]] [[source||5]]';
     const widgets: { label: string; locator?: string; citation: boolean }[] = [];
-    referenceDecorations(text, text.length, id => id === 'source' ? 'Source title' : 'Ordinary', () => false, undefined, undefined, id => id === 'source')
-      .between(0, text.length, (_from, _to, decoration) => {
-        const widget = decoration.spec.widget;
-        widgets.push({ label: widget.label, locator: widget.token.locator, citation: widget.citation });
-      });
+    referenceDecorations(
+      text,
+      text.length,
+      id => (id === 'source' ? 'Source title' : 'Ordinary'),
+      () => false,
+      undefined,
+      undefined,
+      id => id === 'source',
+    ).between(0, text.length, (_from, _to, decoration) => {
+      const widget = decoration.spec.widget;
+      widgets.push({ label: widget.label, locator: widget.token.locator, citation: widget.citation });
+    });
     expect(widgets).toEqual([
       { label: 'span', locator: '3.12', citation: true },
       { label: 'Source title', locator: undefined, citation: false },
@@ -167,14 +215,22 @@ describe('editor reference decorations', () => {
     expect(decorations('[[one]] [[two]]', 11)).toEqual([{ from: 0, to: 7, label: 'one' }]);
   });
   test('keeps token endpoints atomic in prose', () => {
-    for (const head of [4, 14]) expect(decorations('See [[author]]', head, { author: 'Author' })).toEqual([{ from: 4, to: 14, label: 'Author' }]);
+    for (const head of [4, 14])
+      expect(decorations('See [[author]]', head, { author: 'Author' })).toEqual([{ from: 4, to: 14, label: 'Author' }]);
   });
   test('leaves whole field entries to the field widget', () => {
     expect(decorations('[[author]]', 0, { author: 'Author' })).toEqual([]);
   });
   test('labels a whole-text reference that is not a field, such as a chosen option', () => {
     const ranges: string[] = [];
-    referenceDecorations('[[option]]', 10, id => id === 'option' ? 'Architecture' : undefined, () => false).between(0, 10, (_from, _to, decoration) => { ranges.push(decoration.spec.widget.label); });
+    referenceDecorations(
+      '[[option]]',
+      10,
+      id => (id === 'option' ? 'Architecture' : undefined),
+      () => false,
+    ).between(0, 10, (_from, _to, decoration) => {
+      ranges.push(decoration.spec.widget.label);
+    });
     expect(ranges).toEqual(['Architecture']);
   });
   test('renders tags as pills while leaving URLs as authored text', () => {
@@ -186,12 +242,34 @@ describe('editor reference decorations', () => {
   });
   test('marks shared title references but not stable references and exposes raw source under the caret', () => {
     const text = '[[Pliny]] [[01ARZ3NDEKTSV4RRFFQ69G5FAV]]';
-    const matches = [{ page: { id: 'elder' }, alias: 'Pliny' }, { page: { id: 'younger' }, alias: 'Pliny' }] as NameMatch[];
+    const matches = [
+      { page: { id: 'elder' }, alias: 'Pliny' },
+      { page: { id: 'younger' }, alias: 'Pliny' },
+    ] as NameMatch[];
     const widgets: { label: string; ambiguous: boolean }[] = [];
-    referenceDecorations(text, text.length, () => undefined, () => false, () => matches).between(0, text.length, (_from, _to, decoration) => { widgets.push({ label: decoration.spec.widget.label, ambiguous: decoration.spec.widget.ambiguous }); });
-    expect(widgets).toEqual([{ label: 'Pliny', ambiguous: true }, { label: '01ARZ3NDEKTSV4RRFFQ69G5FAV', ambiguous: false }]);
+    referenceDecorations(
+      text,
+      text.length,
+      () => undefined,
+      () => false,
+      () => matches,
+    ).between(0, text.length, (_from, _to, decoration) => {
+      widgets.push({ label: decoration.spec.widget.label, ambiguous: decoration.spec.widget.ambiguous });
+    });
+    expect(widgets).toEqual([
+      { label: 'Pliny', ambiguous: true },
+      { label: '01ARZ3NDEKTSV4RRFFQ69G5FAV', ambiguous: false },
+    ]);
     const exposed: string[] = [];
-    referenceDecorations('[[Pliny]]', 3, () => undefined, () => false, () => matches).between(0, 9, (_from, _to, decoration) => { exposed.push(decoration.spec.widget.label); });
+    referenceDecorations(
+      '[[Pliny]]',
+      3,
+      () => undefined,
+      () => false,
+      () => matches,
+    ).between(0, 9, (_from, _to, decoration) => {
+      exposed.push(decoration.spec.widget.label);
+    });
     expect(exposed).toEqual([]);
   });
 });
@@ -208,9 +286,11 @@ function typed(keys: string, doc = '', caret = doc.length) {
 }
 /** Types `keys` over a selection, as the input handler would, and marks a caret with `|`. */
 function typedOver(keys: string, doc: string, from: number, to: number) {
-  let anchor = from, head = to;
+  let anchor = from,
+    head = to;
   for (const key of keys) {
-    const start = Math.min(anchor, head), end = Math.max(anchor, head);
+    const start = Math.min(anchor, head),
+      end = Math.max(anchor, head);
     const selected = start === end ? null : pairSelection(doc, start, end, key);
     const paired = start === end ? pairInput(doc, start, key) : null;
     if (selected) {
@@ -276,8 +356,15 @@ describe('bracket pairing', () => {
 test('notebook undo leaves visual lowercase, control motions and pending Vim commands alone', () => {
   const event = { key: 'u', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false };
   const state = {
-    insertMode: false, visualMode: false,
-    inputState: { keyBuffer: [] as string[], prefixRepeat: [] as string[], motionRepeat: [] as string[], operator: null, motion: null },
+    insertMode: false,
+    visualMode: false,
+    inputState: {
+      keyBuffer: [] as string[],
+      prefixRepeat: [] as string[],
+      motionRepeat: [] as string[],
+      operator: null,
+      motion: null,
+    },
   };
   expect(vimUndoKey(event, state)).toBe(true);
   expect(vimUndoKey(event, { ...state, visualMode: true })).toBe(false);
@@ -286,16 +373,25 @@ test('notebook undo leaves visual lowercase, control motions and pending Vim com
     expect(vimUndoKey({ ...event, [modifier]: true }, state)).toBe(false);
   }
   for (const pending of [
-    { keyBuffer: ['g'] }, { keyBuffer: ['r'] }, { prefixRepeat: ['2'] },
-    { motionRepeat: ['2'] }, { operator: 'delete' }, { motion: 'find' }, { registerName: 'a' },
-  ]) expect(vimUndoKey(event, { ...state, inputState: { ...state.inputState, ...pending } })).toBe(false);
+    { keyBuffer: ['g'] },
+    { keyBuffer: ['r'] },
+    { prefixRepeat: ['2'] },
+    { motionRepeat: ['2'] },
+    { operator: 'delete' },
+    { motion: 'find' },
+    { registerName: 'a' },
+  ])
+    expect(vimUndoKey(event, { ...state, inputState: { ...state.inputState, ...pending } })).toBe(false);
   expect(vimUndoKey(event, { ...state, exMode: true })).toBe(false);
   expect(vimUndoKey(event, { ...state, expectLiteralNext: true })).toBe(false);
   expect(vimUndoKey(event, undefined)).toBe(false);
 });
 
 /** The draft mark's range and the hint text, if any. */
-function draft(text: string, kinds: Record<string, 'text' | 'date'> = {}): { name: [number, number] | null; hint: string | null } {
+function draft(
+  text: string,
+  kinds: Record<string, 'text' | 'date'> = {},
+): { name: [number, number] | null; hint: string | null } {
   let name: [number, number] | null = null;
   let hint: string | null = null;
   fieldDraftDecorations(text, value => kinds[value.toLowerCase()]).between(0, text.length, (from, to, decoration) => {
@@ -317,6 +413,7 @@ describe('field shorthand drafts', () => {
     expect(draft('Published:: 2026', { published: 'date' })).toEqual({ name: [0, 11], hint: null });
   });
   test('leave prose, card syntax and converted entries alone', () => {
-    for (const text of ['Plain prose', 'Front >> Back::x', '{{c1::answer}}', '[[field]]', '::query']) expect(draft(text)).toEqual({ name: null, hint: null });
+    for (const text of ['Plain prose', 'Front >> Back::x', '{{c1::answer}}', '[[field]]', '::query'])
+      expect(draft(text)).toEqual({ name: null, hint: null });
   });
 });

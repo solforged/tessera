@@ -5,18 +5,31 @@ import { copyTaskQuery, refreshedTaskQuery, taskQueriesEqual, taskRange } from '
 const projectQuery: TaskQuery = {
   context_date: '2026-09-30',
   source: {
-    type: 'research', text: 'language',
+    type: 'research',
+    text: 'language',
     filters: [{ field: 'author', op: 'is', value: 'Bloomfield' }],
-    sort: [{ by: 'updated', field: null, direction: 'desc' }], limit: 800,
+    sort: [{ by: 'updated', field: null, direction: 'desc' }],
+    limit: 800,
   },
   filter: {
-    selection: 'unfinished_or_recent', statuses: ['todo', 'doing'], recent_days: 14,
+    selection: 'unfinished_or_recent',
+    statuses: ['todo', 'doing'],
+    recent_days: 14,
     scheduled: { from: '2026-09-01', through: '2026-09-30' },
-    deadline: { from: null, through: '2026-10-15' }, priority: 'high', project_id: 'language-project',
+    deadline: { from: null, through: '2026-10-15' },
+    priority: 'high',
+    project_id: 'language-project',
   },
   limit: 100,
 };
-const savedView: TaskView = { id: 'view', name: 'Language project', query: projectQuery, revision: 1, created_at: 1, updated_at: 1 };
+const savedView: TaskView = {
+  id: 'view',
+  name: 'Language project',
+  query: projectQuery,
+  revision: 1,
+  created_at: 1,
+  updated_at: 1,
+};
 
 describe('task query drafts', () => {
   test('editing a copied project query cannot mutate its saved source or planning ranges', () => {
@@ -49,7 +62,11 @@ describe('task query drafts', () => {
   });
 
   test('a clean saved query follows its new server context date without sharing mutable state', () => {
-    const next: TaskView = { ...savedView, revision: 2, query: { ...copyTaskQuery(projectQuery), context_date: '2026-10-04' } };
+    const next: TaskView = {
+      ...savedView,
+      revision: 2,
+      query: { ...copyTaskQuery(projectQuery), context_date: '2026-10-04' },
+    };
     next.query.filter.project_id = 'another-project';
     const refreshed = refreshedTaskQuery(copyTaskQuery(projectQuery), savedView, next);
     expect(refreshed.context_date).toBe('2026-10-04');
@@ -59,7 +76,11 @@ describe('task query drafts', () => {
   });
 
   test('remote saves preserve dirty filters and an explicitly displayed context date', () => {
-    const next: TaskView = { ...savedView, revision: 2, query: { ...copyTaskQuery(projectQuery), context_date: '2026-10-04' } };
+    const next: TaskView = {
+      ...savedView,
+      revision: 2,
+      query: { ...copyTaskQuery(projectQuery), context_date: '2026-10-04' },
+    };
     const edits: TaskQuery[] = [
       { ...copyTaskQuery(projectQuery), context_date: '2026-10-01' },
       { ...copyTaskQuery(projectQuery), limit: 200 },
@@ -81,14 +102,20 @@ describe('task query drafts', () => {
   });
 
   test('status order does not dirty a view, but independent range and source edits do', () => {
-    expect(taskQueriesEqual(projectQuery, { ...projectQuery, filter: { ...projectQuery.filter, statuses: ['doing', 'todo'] } })).toBe(true);
+    expect(
+      taskQueriesEqual(projectQuery, {
+        ...projectQuery,
+        filter: { ...projectQuery.filter, statuses: ['doing', 'todo'] },
+      }),
+    ).toBe(true);
     for (const filter of [
       { ...projectQuery.filter, selection: 'all' as const },
       { ...projectQuery.filter, statuses: ['todo' as const] },
       { ...projectQuery.filter, priority: null },
       { ...projectQuery.filter, deadline: null },
       { ...projectQuery.filter, scheduled: null },
-    ]) expect(taskQueriesEqual(projectQuery, { ...projectQuery, filter })).toBe(false);
+    ])
+      expect(taskQueriesEqual(projectQuery, { ...projectQuery, filter })).toBe(false);
     const source = { ...projectQuery.source!, filters: [{ field: 'author', op: 'is' as const, value: 'Sapir' }] };
     expect(taskQueriesEqual(projectQuery, { ...projectQuery, source })).toBe(false);
   });

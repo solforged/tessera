@@ -5,7 +5,7 @@ import type { AgentSession, DockMessage } from './session';
 
 // Dynamic imports are intentional here: mock Solid's SSR boundary before loading its consumers.
 const browserEntry = 'solid-js/dist/solid.js';
-const solid = await import(browserEntry) as typeof Solid;
+const solid = (await import(browserEntry)) as typeof Solid;
 mock.module('solid-js', () => solid);
 const { createRoot, createSignal, useContext } = await import('solid-js');
 const { createAgentSession } = await import('./session');
@@ -17,12 +17,18 @@ const disposers: (() => void)[] = [];
 beforeEach(() => {
   const values = new Map<string, string>();
   const storage: Storage = {
-    get length() { return values.size; },
+    get length() {
+      return values.size;
+    },
     clear: () => values.clear(),
     getItem: key => values.get(key) ?? null,
     key: index => [...values.keys()][index] ?? null,
-    removeItem: key => { values.delete(key); },
-    setItem: (key, value) => { values.set(key, String(value)); },
+    removeItem: key => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, String(value));
+    },
   };
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
 });
@@ -59,7 +65,12 @@ function service() {
   const cancelled: string[] = [];
   const undos: number[] = [];
   const undoActors: Actor[] = [];
-  const polls: { after: number; signal?: AbortSignal | null; reply(value: AgentTurnEvents): void; fail(error: Error): void }[] = [];
+  const polls: {
+    after: number;
+    signal?: AbortSignal | null;
+    reply(value: AgentTurnEvents): void;
+    fail(error: Error): void;
+  }[] = [];
   let refusal: string | undefined;
   let creation: Promise<Response> | undefined;
   setTransport(async (url, init) => {
@@ -76,9 +87,17 @@ function service() {
       return new Promise<Response>((resolve, reject) => {
         const abort = () => reject(init.signal?.reason);
         init.signal?.addEventListener('abort', abort, { once: true });
-        polls.push({ after: Number(parsed.searchParams.get('after')), signal: init.signal,
-          reply(value) { init.signal?.removeEventListener('abort', abort); resolve(Response.json(value)); },
-          fail(error) { init.signal?.removeEventListener('abort', abort); reject(error); },
+        polls.push({
+          after: Number(parsed.searchParams.get('after')),
+          signal: init.signal,
+          reply(value) {
+            init.signal?.removeEventListener('abort', abort);
+            resolve(Response.json(value));
+          },
+          fail(error) {
+            init.signal?.removeEventListener('abort', abort);
+            reject(error);
+          },
         });
       });
     }
@@ -87,17 +106,28 @@ function service() {
       const body: { actor: Actor } = JSON.parse(String(init.body));
       undoActors.push(body.actor);
       undos.push(Number(parsed.pathname.split('/').at(-2)));
-      return refusal ? Response.json({ error: { code: 'conflict', message: refusal } }, { status: 409 }) : Response.json({ undone: undos.at(-1), kept_pages: [], committed: {} });
+      return refusal
+        ? Response.json({ error: { code: 'conflict', message: refusal } }, { status: 409 })
+        : Response.json({ undone: undos.at(-1), kept_pages: [], committed: {} });
     }
     throw new Error(`Unexpected request ${init.method} ${url}`);
   });
-  return { starts, cancelled, undos, undoActors, polls,
-    refuse(message: string) { refusal = message; },
-    deferStart(promise: Promise<Response>) { creation = promise; },
+  return {
+    starts,
+    cancelled,
+    undos,
+    undoActors,
+    polls,
+    refuse(message: string) {
+      refusal = message;
+    },
+    deferStart(promise: Promise<Response>) {
+      creation = promise;
+    },
     async reply(dock: AgentSession, events: TurnEvent[], done = false) {
       await until(() => polls.length > 0);
       polls.shift()!.reply({ events, done });
-      await until(() => done ? !dock.running() : polls.length > 0);
+      await until(() => (done ? !dock.running() : polls.length > 0));
     },
   };
 }
@@ -117,11 +147,15 @@ test('streamed parts preserve text → tool → text → edit order and advance 
   expect(server.polls[0]!.after).toBe(5);
   expect(dock.running()).toBe(true);
   await server.reply(dock, [{ n: 6, kind: 'done', stop: 'end' }], true);
-  expect(assistant(dock)).toMatchObject({ status: 'done', parts: [
-    { kind: 'text', text: 'Reading now.' }, { kind: 'tool', summary: 'Read page' },
-    { kind: 'text', text: 'I found a theme.' },
-    { kind: 'edit', seq: 7, summary: 'Added note', page: 'page', blocks: ['block'], undone: false },
-  ] });
+  expect(assistant(dock)).toMatchObject({
+    status: 'done',
+    parts: [
+      { kind: 'text', text: 'Reading now.' },
+      { kind: 'tool', summary: 'Read page' },
+      { kind: 'text', text: 'I found a theme.' },
+      { kind: 'edit', seq: 7, summary: 'Added note', page: 'page', blocks: ['block'], undone: false },
+    ],
+  });
   expect(dock.running()).toBe(false);
   expect(server.polls).toHaveLength(0);
 });
@@ -158,7 +192,12 @@ test('stopping before turn creation replies still cancels the newly created serv
 
 test('persistence reload cancels running messages and retains only the last 40', async () => {
   const server = service();
-  const previous: DockMessage[] = Array.from({ length: 42 }, (_, i) => ({ id: String(i), role: 'user', text: `Earlier ${i}`, context: [] }));
+  const previous: DockMessage[] = Array.from({ length: 42 }, (_, i) => ({
+    id: String(i),
+    role: 'user',
+    text: `Earlier ${i}`,
+    context: [],
+  }));
   localStorage.setItem('tessera.agent.notebook', JSON.stringify(previous));
   const { dock } = session();
   expect(dock.messages()).toHaveLength(40);
@@ -177,11 +216,15 @@ test('marks show the newest un-undone change and undo failures retain their mark
   const server = service();
   const { dock } = session();
   dock.send('Edit', 'provider', []);
-  await server.reply(dock, [
-    { n: 1, kind: 'edit', seq: 10, summary: 'First', page: null, blocks: ['a', 'b'] },
-    { n: 2, kind: 'edit', seq: 11, summary: 'Second', page: null, blocks: ['a'] },
-    { n: 3, kind: 'done', stop: 'end' },
-  ], true);
+  await server.reply(
+    dock,
+    [
+      { n: 1, kind: 'edit', seq: 10, summary: 'First', page: null, blocks: ['a', 'b'] },
+      { n: 2, kind: 'edit', seq: 11, summary: 'Second', page: null, blocks: ['a'] },
+      { n: 3, kind: 'done', stop: 'end' },
+    ],
+    true,
+  );
   expect(dock.marks().get('a')).toEqual({ seq: 11, summary: 'Second' });
   expect(await dock.undo(11)).toBeNull();
   expect(dock.marks().get('a')).toEqual({ seq: 10, summary: 'First' });
@@ -190,25 +233,38 @@ test('marks show the newest un-undone change and undo failures retain their mark
   expect(await dock.undo(10)).toBe('This atom changed after the agent edit.');
   expect(dock.marks().get('b')).toEqual({ seq: 10, summary: 'First' });
   expect(server.undos).toEqual([11, 10]);
-  expect(server.undoActors).toEqual([{ kind: 'client', name: 'tessera-web:notebook' }, { kind: 'client', name: 'tessera-web:notebook' }]);
+  expect(server.undoActors).toEqual([
+    { kind: 'client', name: 'tessera-web:notebook' },
+    { kind: 'client', name: 'tessera-web:notebook' },
+  ]);
 });
 
 test('turn history excludes the current prompt and keeps earlier assistant text parts as separate paragraphs', async () => {
   const server = service();
   const { dock } = session();
   dock.send('First', 'provider', [{ page_id: 'one' }]);
-  await server.reply(dock, [
-    { n: 1, kind: 'text', delta: 'Before.' },
-    { n: 2, kind: 'tool', name: 'search', summary: 'Do not include this' },
-    { n: 3, kind: 'text', delta: 'After.' },
-    { n: 4, kind: 'edit', seq: 1, summary: 'Nor this', page: null, blocks: [] },
-    { n: 5, kind: 'done', stop: 'end' },
-  ], true);
+  await server.reply(
+    dock,
+    [
+      { n: 1, kind: 'text', delta: 'Before.' },
+      { n: 2, kind: 'tool', name: 'search', summary: 'Do not include this' },
+      { n: 3, kind: 'text', delta: 'After.' },
+      { n: 4, kind: 'edit', seq: 1, summary: 'Nor this', page: null, blocks: [] },
+      { n: 5, kind: 'done', stop: 'end' },
+    ],
+    true,
+  );
   dock.send('Second', 'other-provider', [{ page_id: 'two', block_id: 'b' }]);
   expect(server.starts[0]!.messages).toEqual([]);
-  expect(server.starts[1]).toEqual({ provider: 'other-provider', prompt: 'Second', messages: [
-    { role: 'user', text: 'First' }, { role: 'assistant', text: 'Before.\n\nAfter.' },
-  ], context: [{ page_id: 'two', block_id: 'b' }] });
+  expect(server.starts[1]).toEqual({
+    provider: 'other-provider',
+    prompt: 'Second',
+    messages: [
+      { role: 'user', text: 'First' },
+      { role: 'assistant', text: 'Before.\n\nAfter.' },
+    ],
+    context: [{ page_id: 'two', block_id: 'b' }],
+  });
 });
 
 test('notebook switching and cleanup cancel polling without mixing notebook threads', async () => {
@@ -232,7 +288,14 @@ test('service error details and done stop reasons reach the assistant message', 
   const server = service();
   const { dock } = session();
   dock.send('Work', 'provider', []);
-  await server.reply(dock, [{ n: 1, kind: 'error', message: 'Provider rejected the key.' }, { n: 2, kind: 'done', stop: 'error' }], true);
+  await server.reply(
+    dock,
+    [
+      { n: 1, kind: 'error', message: 'Provider rejected the key.' },
+      { n: 2, kind: 'done', stop: 'error' },
+    ],
+    true,
+  );
   expect(assistant(dock)).toMatchObject({ status: 'error', error: 'Provider rejected the key.' });
   dock.send('Again', 'provider', []);
   await server.reply(dock, [{ n: 1, kind: 'done', stop: 'limit' }], true);
@@ -256,12 +319,16 @@ test('provider requests share transport, base URL, signals, and service errors',
   const calls: { url: string; init: RequestInit }[] = [];
   setTransport(async (url, init) => {
     calls.push({ url, init });
-    if (url.endsWith('/test')) return Response.json({ error: { code: 'provider', message: 'Invalid key.' } }, { status: 401 });
+    if (url.endsWith('/test'))
+      return Response.json({ error: { code: 'provider', message: 'Invalid key.' } }, { status: 401 });
     return Response.json({ providers: [], default: null });
   });
   const client = createApi('http://test.local');
   const signal = new AbortController().signal;
-  const body = { providers: [{ name: 'Local', protocol: 'openai' as const, model: 'model', base_url: 'http://localhost:8080/v1' }], default: null };
+  const body = {
+    providers: [{ name: 'Local', protocol: 'openai' as const, model: 'model', base_url: 'http://localhost:8080/v1' }],
+    default: null,
+  };
   await client.agentProviders(signal);
   await client.saveAgentProviders(body, signal);
   expect(calls.map(call => [call.url, call.init.method, call.init.signal])).toEqual([

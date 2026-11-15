@@ -7,16 +7,22 @@ import { foldName } from '../outline/names';
 import { findSectionHeading, readingRowSource, sectionInsertAfter } from '../tasks/today-template';
 
 /** Resolves a durable capture into one batch, including any new journal or reference targets. */
-export async function captureOperations(notebook: NotebookClient, capture: CaptureIntent): Promise<{ operations: Operation[]; pageId: string }> {
+export async function captureOperations(
+  notebook: NotebookClient,
+  capture: CaptureIntent,
+): Promise<{ operations: Operation[]; pageId: string }> {
   const operations: Operation[] = [];
   const picked = new Map(capture.picked);
   const titles = typedTitles(capture.text).filter(title => !picked.has(foldName(title)));
-  const targets = new Map([...picked, ...await titleTargets(notebook, titles, async title => {
-    const id = ulid();
-    operations.push({ op: 'create_page', id, title });
-    operations.push({ op: 'insert', id: ulid(), parent_id: id, after: null, text: '', heading: null });
-    return id;
-  })]);
+  const targets = new Map([
+    ...picked,
+    ...(await titleTargets(notebook, titles, async title => {
+      const id = ulid();
+      operations.push({ op: 'create_page', id, title });
+      operations.push({ op: 'insert', id: ulid(), parent_id: id, after: null, text: '', heading: null });
+      return id;
+    })),
+  ]);
   const text = targets.size ? withLinkedTitles(capture.text, targets) : capture.text;
   let pageId: string;
   let page: PageView | undefined;
@@ -36,33 +42,63 @@ export async function captureOperations(notebook: NotebookClient, capture: Captu
   // A Today section files the line as the heading's last child, writing a missing heading at its template place.
   let parentId = pageId;
   if (capture.section && !capture.targetPageId) {
-    const roots = page?.rows.filter(row => row.block.parent_id === pageId && !row.block.archived).map(row => row.block) ?? [];
+    const roots =
+      page?.rows.filter(row => row.block.parent_id === pageId && !row.block.archived).map(row => row.block) ?? [];
     const heading = findSectionHeading(roots, capture.section.name);
     if (heading) parentId = heading.id;
     else {
       parentId = ulid();
-      operations.push({ op: 'insert', id: parentId, parent_id: pageId, after: sectionInsertAfter(roots, capture.section), text: capture.section.name, heading: 2 });
+      operations.push({
+        op: 'insert',
+        id: parentId,
+        parent_id: pageId,
+        after: sectionInsertAfter(roots, capture.section),
+        text: capture.section.name,
+        heading: 2,
+      });
     }
   }
   // Reading files a note under its source's row, writing the row after the section's last entry the first time.
   const under = capture.targetPageId ? undefined : capture.section?.under;
   if (under) {
-    const entries = page?.rows.filter(row => row.block.parent_id === parentId && !row.block.archived).map(row => row.block) ?? [];
+    const entries =
+      page?.rows.filter(row => row.block.parent_id === parentId && !row.block.archived).map(row => row.block) ?? [];
     const row = entries.find(block => readingRowSource(block.text) === under.id);
     if (row) parentId = row.id;
     else {
       const id = ulid();
-      operations.push({ op: 'insert', id, parent_id: parentId, after: entries.at(-1)?.id ?? null, text: under.text, heading: null });
+      operations.push({
+        op: 'insert',
+        id,
+        parent_id: parentId,
+        after: entries.at(-1)?.id ?? null,
+        text: under.text,
+        heading: null,
+      });
       parentId = id;
     }
   }
   const last = page?.rows.filter(row => row.block.parent_id === parentId).at(-1)?.block;
-  const reuse = last && !last.text && !page?.capabilities?.some(value => value.block_id === last.id && (value.task || value.question || value.project || value.source))
-    && !page?.rows.some(row => row.block.parent_id === last.id) ? last : null;
+  const reuse =
+    last &&
+    !last.text &&
+    !page?.capabilities?.some(
+      value => value.block_id === last.id && (value.task || value.question || value.project || value.source),
+    ) &&
+    !page?.rows.some(row => row.block.parent_id === last.id)
+      ? last
+      : null;
   const id = reuse?.id ?? ulid();
   if (reuse) operations.push({ op: 'edit_text', id, base_revision: reuse.revision, text });
   else operations.push({ op: 'insert', id, parent_id: parentId, after: last?.id ?? null, text, heading: null });
-  if (capture.task) operations.push({ op: 'set_task', id, base_revision: reuse ? reuse.revision + 1 : 1, task: capture.task });
-  if (capture.question) operations.push({ op: 'set_question', id, base_revision: (reuse ? reuse.revision + 1 : 1) + Number(!!capture.task), question: { unsettled: false, parked: false, accepted: null, review_on: null } });
+  if (capture.task)
+    operations.push({ op: 'set_task', id, base_revision: reuse ? reuse.revision + 1 : 1, task: capture.task });
+  if (capture.question)
+    operations.push({
+      op: 'set_question',
+      id,
+      base_revision: (reuse ? reuse.revision + 1 : 1) + Number(!!capture.task),
+      question: { unsettled: false, parked: false, accepted: null, review_on: null },
+    });
   return { operations, pageId };
 }

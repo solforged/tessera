@@ -23,7 +23,9 @@ export function installTabRule() {
       const state = strips.get(strip);
       if (!state) return;
       // A strip may hide overflowed tabs, pressed ones included, behind a pressed More; the pen follows the one on show.
-      const selected = Array.from(strip.querySelectorAll<HTMLElement>(selectedTab)).find(element => element.getClientRects().length > 0);
+      const selected = Array.from(strip.querySelectorAll<HTMLElement>(selectedTab)).find(
+        element => element.getClientRects().length > 0,
+      );
       const bounds = selected?.getBoundingClientRect();
       if (!selected || !bounds?.width || !bounds.height) {
         state.rule.style.setProperty('--tab-rule-visible', '0');
@@ -37,7 +39,8 @@ export function installTabRule() {
       const width = bounds.width;
       if (selected !== state.selected || x !== state.x || width !== state.width) {
         // Restored defaults can arrive after mount; only an explicit tab activation moves the pen.
-        const glide = state.selected !== null && state.selected !== selected && state.activated === selected && !reduced.matches;
+        const glide =
+          state.selected !== null && state.selected !== selected && state.activated === selected && !reduced.matches;
         state.rule.style.setProperty('--tab-rule-duration', glide ? 'var(--motion-page)' : '0ms');
         state.rule.style.setProperty('--tab-rule-x', `${x}px`);
         state.rule.style.setProperty('--tab-rule-w', `${width}`);
@@ -66,10 +69,11 @@ export function installTabRule() {
     const watchButtons = (strip: HTMLElement, state: StripRule) => {
       const buttons = new Set(strip.querySelectorAll<HTMLElement>(':scope > .button'));
       for (const button of state.buttons) if (!buttons.has(button)) resize.unobserve(button);
-      for (const button of buttons) if (!state.buttons.has(button)) {
-        owners.set(button, strip);
-        resize.observe(button);
-      }
+      for (const button of buttons)
+        if (!state.buttons.has(button)) {
+          owners.set(button, strip);
+          resize.observe(button);
+        }
       state.buttons = buttons;
     };
     const discover = (element: Element) => {
@@ -102,13 +106,15 @@ export function installTabRule() {
         removed ||= record.removedNodes.length > 0;
         for (const node of record.addedNodes) if (node instanceof Element) discover(node);
       }
-      if (removed) for (const [strip, state] of strips) if (!strip.isConnected) {
-        resize.unobserve(strip);
-        for (const button of state.buttons) resize.unobserve(button);
-        state.rule.remove();
-        strips.delete(strip);
-        dirty.delete(strip);
-      }
+      if (removed)
+        for (const [strip, state] of strips)
+          if (!strip.isConnected) {
+            resize.unobserve(strip);
+            for (const button of state.buttons) resize.unobserve(button);
+            state.rule.remove();
+            strips.delete(strip);
+            dirty.delete(strip);
+          }
     });
     const activate = (event: MouseEvent) => {
       const button = event.target instanceof Element ? event.target.closest<HTMLElement>('.mode-tabs > .button') : null;
@@ -117,7 +123,12 @@ export function installTabRule() {
     };
     document.addEventListener('click', activate, true);
     discover(document.documentElement);
-    mutations.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-selected'] });
+    mutations.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-pressed', 'aria-selected'],
+    });
     onCleanup(() => {
       mutations.disconnect();
       document.removeEventListener('click', activate, true);

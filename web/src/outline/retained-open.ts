@@ -13,7 +13,10 @@ export function createRetainedOpen(open: Accessor<boolean>): Accessor<boolean> {
   let timer = 0;
   createEffect(() => {
     window.clearTimeout(timer);
-    if (open()) { setMounted(true); return; }
+    if (open()) {
+      setMounted(true);
+      return;
+    }
     const duration = CSS.supports('interpolate-size', 'allow-keywords') ? motionMilliseconds() : 0;
     if (duration <= 0) setMounted(false);
     else timer = window.setTimeout(() => setMounted(false), duration + 40);

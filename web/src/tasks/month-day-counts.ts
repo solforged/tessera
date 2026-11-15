@@ -9,7 +9,10 @@ import { fetchWeekTaskRange, mondayWeekStart, shiftCalendarDate } from './week-c
  * What the day picker prints under a day: the open tasks planned on it, or, for a day already past, the ones that were
  * never finished (overdue). Exactly one of the two is non-zero.
  */
-export interface DayCount { open: number; overdue: number }
+export interface DayCount {
+  open: number;
+  overdue: number;
+}
 export type DayCounts = Readonly<Record<string, DayCount>>;
 
 /** The 42 civil days a month grid shows, Monday first, from the Monday on or before the month's first day. */
@@ -19,7 +22,11 @@ export function monthGridRange(month: string): { from: string; through: string }
 }
 
 /** Each open task counts once on every day it is planned for, as Agenda's week strip counts it. */
-export function dayCounts(rows: readonly TaskRow[], range: { from: string; through: string }, today: string): DayCounts {
+export function dayCounts(
+  rows: readonly TaskRow[],
+  range: { from: string; through: string },
+  today: string,
+): DayCounts {
   const counts: Record<string, DayCount> = {};
   for (const [date, count] of plannedTaskCounts(rows)) {
     if (date < range.from || date > range.through) continue;
@@ -31,7 +38,12 @@ export function dayCounts(rows: readonly TaskRow[], range: { from: string; throu
 const cache = new WeakMap<NotebookClient, Map<string, { sequence: number; today: string; counts: DayCounts }>>();
 
 /** The visible month's counts: scheduled and deadline rows over the grid's range, shared by notebook revision. */
-async function loadMonthDayCounts(notebook: NotebookClient, month: string, today: string, signal: AbortSignal): Promise<DayCounts> {
+async function loadMonthDayCounts(
+  notebook: NotebookClient,
+  month: string,
+  today: string,
+  signal: AbortSignal,
+): Promise<DayCounts> {
   const range = monthGridRange(month);
   const sequence = notebook.changeSequence();
   const months = cache.get(notebook) ?? new Map();
@@ -55,19 +67,25 @@ export function createMonthDayCounts(notebook: Accessor<NotebookClient>, initial
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal('');
   createEffect(() => {
-    const current = notebook(), visible = month(), now = today();
+    const current = notebook(),
+      visible = month(),
+      now = today();
     current.changeSequence();
     const controller = new AbortController();
-    setLoading(true); setError('');
-    loadMonthDayCounts(current, visible, now, controller.signal).then(result => {
-      if (controller.signal.aborted) return;
-      setCounts(result);
-      setLoading(false);
-    }, reason => {
-      if (controller.signal.aborted) return;
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setLoading(false);
-    });
+    setLoading(true);
+    setError('');
+    loadMonthDayCounts(current, visible, now, controller.signal).then(
+      result => {
+        if (controller.signal.aborted) return;
+        setCounts(result);
+        setLoading(false);
+      },
+      reason => {
+        if (controller.signal.aborted) return;
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setLoading(false);
+      },
+    );
     onCleanup(() => controller.abort());
   });
   return { counts, loading, error, setMonth };

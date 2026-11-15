@@ -3,8 +3,22 @@ import type { Passage } from '../api/types';
 import { extendSelection, followOn, sentenceAt, sentenceRanges, shrinkSelection } from './sentences';
 import type { SentenceSelection } from './sentences';
 
-const passages: Passage[] = ['One sentence. Two sentences! Three sentences?', '  ', '', 'Next 😀 sentence. Last sentence.'].map((text, ordinal) => ({
-  id: `p${ordinal}`, ordinal, text, kind: 'paragraph', level: null, locator: `chapter#${ordinal}`, anchor: null, resource: null, marks: [], start: 0,
+const passages: Passage[] = [
+  'One sentence. Two sentences! Three sentences?',
+  '  ',
+  '',
+  'Next 😀 sentence. Last sentence.',
+].map((text, ordinal) => ({
+  id: `p${ordinal}`,
+  ordinal,
+  text,
+  kind: 'paragraph',
+  level: null,
+  locator: `chapter#${ordinal}`,
+  anchor: null,
+  resource: null,
+  marks: [],
+  start: 0,
 }));
 const first: SentenceSelection = { start: { passage_id: 'p0', offset: 0 }, end: { passage_id: 'p0', offset: 13 } };
 
@@ -13,17 +27,25 @@ describe('reader sentences', () => {
     const text = 'We use e.g. this example. Another sentence follows.';
     const segments = [...new Intl.Segmenter(undefined, { granularity: 'sentence' }).segment(text)];
     expect(segments[0]!.segment).toContain('e.g. this example.');
-    expect(sentenceRanges(text).map(range => text.slice(range.start, range.end))).toEqual(segments.map(segment => segment.segment.trim()));
+    expect(sentenceRanges(text).map(range => text.slice(range.start, range.end))).toEqual(
+      segments.map(segment => segment.segment.trim()),
+    );
   });
   test('excludes surrounding and trailing whitespace', () => {
     const text = '  First sentence. \n Second sentence!\t ';
-    expect(sentenceRanges(text)).toEqual([{ start: 2, end: 17 }, { start: 20, end: 36 }]);
+    expect(sentenceRanges(text)).toEqual([
+      { start: 2, end: 17 },
+      { start: 20, end: 36 },
+    ]);
     expect(sentenceRanges(' \n\t ')).toEqual([]);
   });
   test('keeps a leading paragraph numeral with the opening prose sentence', () => {
     const text = '  XXIV. Remember what is in thy power. Leave the rest.';
     const ranges = sentenceRanges(text);
-    expect(ranges.map(range => text.slice(range.start, range.end))).toEqual(['XXIV. Remember what is in thy power.', 'Leave the rest.']);
+    expect(ranges.map(range => text.slice(range.start, range.end))).toEqual([
+      'XXIV. Remember what is in thy power.',
+      'Leave the rest.',
+    ]);
     expect(sentenceAt(text, 2)).toEqual(ranges[0]!);
     const numbered = [{ ...passages[0]!, text }];
     const selection = { start: { passage_id: 'p0', offset: 2 }, end: { passage_id: 'p0', offset: ranges[0]!.end } };
@@ -46,8 +68,16 @@ describe('reader sentences', () => {
     Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true });
     try {
       const text = '  One.two! Three? Four… Five. Last  ';
-      expect(sentenceRanges(text).map(range => text.slice(range.start, range.end))).toEqual(['One.two!', 'Three?', 'Four…', 'Five.', 'Last']);
-    } finally { Object.defineProperty(Intl, 'Segmenter', descriptor); }
+      expect(sentenceRanges(text).map(range => text.slice(range.start, range.end))).toEqual([
+        'One.two!',
+        'Three?',
+        'Four…',
+        'Five.',
+        'Last',
+      ]);
+    } finally {
+      Object.defineProperty(Intl, 'Segmenter', descriptor);
+    }
   });
   test('following context skips punctuation-only sentence tails', () => {
     expect(followOn('.')).toBe('');
@@ -69,7 +99,10 @@ describe('reader sentence selection', () => {
   });
   test('shrinks across passage boundaries and skips empty passages', () => {
     const selection = { ...first, end: { passage_id: 'p3', offset: 17 } };
-    expect(shrinkSelection(selection, passages)).toEqual({ start: first.start, end: { passage_id: 'p0', offset: passages[0]!.text.length } });
+    expect(shrinkSelection(selection, passages)).toEqual({
+      start: first.start,
+      end: { passage_id: 'p0', offset: passages[0]!.text.length },
+    });
     expect(shrinkSelection(extendSelection(first, passages), passages)).toEqual(first);
   });
   test('does not shrink below one sentence', () => {
@@ -96,8 +129,14 @@ describe('reader sentence selection', () => {
     expect(extendSelection(selection, passages, 'passage')).toBe(selection);
   });
   test('keeps the sentence containing a mid-passage start when shrinking a passage', () => {
-    const selection = { start: { passage_id: 'p0', offset: 14 }, end: { passage_id: 'p0', offset: passages[0]!.text.length } };
-    expect(shrinkSelection(selection, passages, 'passage')).toEqual({ start: selection.start, end: { passage_id: 'p0', offset: 28 } });
+    const selection = {
+      start: { passage_id: 'p0', offset: 14 },
+      end: { passage_id: 'p0', offset: passages[0]!.text.length },
+    };
+    expect(shrinkSelection(selection, passages, 'passage')).toEqual({
+      start: selection.start,
+      end: { passage_id: 'p0', offset: 28 },
+    });
   });
   test('leaves missing passage endpoints unchanged', () => {
     const missing = { ...first, end: { passage_id: 'missing', offset: 10 } };

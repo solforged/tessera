@@ -6,7 +6,11 @@ import { shiftCalendarDate } from './week-calendar';
 
 /** Unfinished tasks whose date or explicitly supplied time would change; omitted time preserves each task's time. */
 export function movableTo<T extends TaskRow | AgendaItem>(rows: readonly T[], date: string, time?: string | null): T[] {
-  return rows.filter(row => !isFinished(row.task) && (row.task.scheduled !== date || time !== undefined && row.task.scheduled_time !== time));
+  return rows.filter(
+    row =>
+      !isFinished(row.task) &&
+      (row.task.scheduled !== date || (time !== undefined && row.task.scheduled_time !== time)),
+  );
 }
 
 export interface Rescheduled {
@@ -20,20 +24,44 @@ export interface Rescheduled {
  * time; null explicitly makes it all-day. Deadlines and repeats stay. A missed deadline without a schedule gains
  * one, so the task shows on that day. Null when neither date nor time changes.
  */
-export async function rescheduleTasks(notebook: NotebookClient, rows: readonly (TaskRow | AgendaItem)[], date: string, label: string, time?: string | null): Promise<Rescheduled | null> {
+export async function rescheduleTasks(
+  notebook: NotebookClient,
+  rows: readonly (TaskRow | AgendaItem)[],
+  date: string,
+  label: string,
+  time?: string | null,
+): Promise<Rescheduled | null> {
   const moving = movableTo(rows, date, time);
   if (!moving.length) return null;
-  const operations: Operation[] = moving.map(row => ({ op: 'set_task', id: row.source.block.id, base_revision: row.source.block.revision, task: { ...row.task, scheduled: date, scheduled_time: time === undefined ? row.task.scheduled_time : time } }));
+  const operations: Operation[] = moving.map(row => ({
+    op: 'set_task',
+    id: row.source.block.id,
+    base_revision: row.source.block.revision,
+    task: { ...row.task, scheduled: date, scheduled_time: time === undefined ? row.task.scheduled_time : time },
+  }));
   const committed = await notebook.commit(operations, label);
   const revisions = new Map(committed.revisions.map(value => [value.id, value.revision]));
   return {
     count: moving.length,
-    undo: () => notebook.commit(moving.map(row => ({ op: 'set_task', id: row.source.block.id, base_revision: revisions.get(row.source.block.id) ?? row.source.block.revision, task: row.task })), `Undo: ${label}`),
+    undo: () =>
+      notebook.commit(
+        moving.map(row => ({
+          op: 'set_task',
+          id: row.source.block.id,
+          base_revision: revisions.get(row.source.block.id) ?? row.source.block.revision,
+          task: row.task,
+        })),
+        `Undo: ${label}`,
+      ),
   };
 }
 
 export type MoveChoiceId = 'today' | 'tomorrow' | 'weekend' | 'next-week';
-export interface MoveChoice { id: MoveChoiceId; label: string; date: string }
+export interface MoveChoice {
+  id: MoveChoiceId;
+  label: string;
+  date: string;
+}
 
 /**
  * The quick days the Move to sheet offers, each one once: Today, Tomorrow, this weekend's Saturday while it is further

@@ -12,22 +12,34 @@ function* codeSpans(text: string): Generator<[number, number]> {
       let depth = 1;
       cursor += 2;
       while (cursor < text.length && depth) {
-        if (text.startsWith('[[', cursor)) { depth++; cursor += 2; }
-        else if (text.startsWith(']]', cursor)) { depth--; cursor += 2; }
-        else cursor++;
+        if (text.startsWith('[[', cursor)) {
+          depth++;
+          cursor += 2;
+        } else if (text.startsWith(']]', cursor)) {
+          depth--;
+          cursor += 2;
+        } else cursor++;
       }
       continue;
     }
     const rest = text.slice(cursor);
     const labelEnd = rest.indexOf('](');
-    if (rest.startsWith('[') && !rest.startsWith('[[') && labelEnd > 1
-      && !/[\[\]\r\n]/.test(rest.slice(1, labelEnd)) && urlStart.test(rest.slice(labelEnd + 2))) {
+    if (
+      rest.startsWith('[') &&
+      !rest.startsWith('[[') &&
+      labelEnd > 1 &&
+      !/[\[\]\r\n]/.test(rest.slice(1, labelEnd)) &&
+      urlStart.test(rest.slice(labelEnd + 2))
+    ) {
       cursor += labelEnd + 2;
       let depth = 0;
       while (cursor < text.length && !/[\p{White_Space}<>"']/u.test(text[cursor]!)) {
         const character = text[cursor++]!;
         if (character === '(') depth++;
-        else if (character === ')') { if (!depth) break; depth--; }
+        else if (character === ')') {
+          if (!depth) break;
+          depth--;
+        }
       }
       continue;
     }
@@ -44,7 +56,11 @@ function* codeSpans(text: string): Generator<[number, number]> {
       while ((close = text.indexOf('`', close)) >= 0) {
         const from = close;
         while (text[close] === '`') close++;
-        if (close - from === width) { cursor = close; yield [start, close]; break; }
+        if (close - from === width) {
+          cursor = close;
+          yield [start, close];
+          break;
+        }
       }
       continue;
     }
@@ -63,7 +79,11 @@ function* tagSpans(text: string): Generator<[number, number]> {
     while (!shield.done && shield.value[0] <= start) {
       const end = shield.value[1];
       shield = code.next();
-      if (start < end) { cursor = end; protectedTag = true; break; }
+      if (start < end) {
+        cursor = end;
+        protectedTag = true;
+        break;
+      }
     }
     if (protectedTag || /[\p{Alphabetic}\p{N}\p{M}_/-]$/u.test(text.slice(0, start))) continue;
     if (text.startsWith('[[', cursor)) {
@@ -72,8 +92,8 @@ function* tagSpans(text: string): Generator<[number, number]> {
       const value = text.slice(cursor + 2, end);
       cursor = end + 2;
       const canonical = /^([0-7][0-9A-HJKMNP-TV-Z]{25})\|([\s\S]*)$/.exec(value);
-      if (canonical ? !/[\[\]|\r\n]/.test(canonical[2]!)
-        : !!value.replace(trimWhitespace, '') && !/[\[\]]/.test(value)) yield [start, cursor];
+      if (canonical ? !/[\[\]|\r\n]/.test(canonical[2]!) : !!value.replace(trimWhitespace, '') && !/[\[\]]/.test(value))
+        yield [start, cursor];
       continue;
     }
     for (const character of text.slice(cursor)) {

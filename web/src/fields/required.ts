@@ -2,7 +2,8 @@ import type { Filter, Type } from '../api/types';
 import { autoPlural } from './presentation';
 
 /** Fields the type requires; older services send none. */
-export const requiredIds = (type: Type | null | undefined): ReadonlySet<string> => new Set(type?.required?.map(field => field.field_id) ?? []);
+export const requiredIds = (type: Type | null | undefined): ReadonlySet<string> =>
+  new Set(type?.required?.map(field => field.field_id) ?? []);
 
 /** Why a required field stays in its type's template, such as “Books require author.” */
 export function requiredReason(type: Type, name: string): string {

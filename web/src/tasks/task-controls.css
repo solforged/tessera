@@ -1,63 +1,279 @@
-.task-status-control { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); min-width: 0; }
-.task-status-button[data-status] { flex: none; width: var(--target-size); min-height: var(--target-size); padding: var(--space-2); }
-.task-status-button[data-status="todo"] { color: var(--status-todo); }
-.task-status-button[data-status="doing"] { color: var(--status-doing); }
-.task-status-button[data-status="waiting"] { color: var(--status-waiting); }
-.task-status-button[data-status="done"] { color: var(--status-done); }
-.task-status-button[data-status="cancelled"] { color: var(--status-cancelled); }
+.task-status-control {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.task-status-button[data-status] {
+  flex: none;
+  width: var(--target-size);
+  min-height: var(--target-size);
+  padding: var(--space-2);
+}
+.task-status-button[data-status="todo"] {
+  color: var(--status-todo);
+}
+.task-status-button[data-status="doing"] {
+  color: var(--status-doing);
+}
+.task-status-button[data-status="waiting"] {
+  color: var(--status-waiting);
+}
+.task-status-button[data-status="done"] {
+  color: var(--status-done);
+}
+.task-status-button[data-status="cancelled"] {
+  color: var(--status-cancelled);
+}
 /* Hovering an open task previews the check its click will make. */
-.task-status-button:is([data-status="todo"], [data-status="doing"], [data-status="waiting"]):hover:not(:disabled) { color: var(--status-done); }
-.task-planning-header { padding-bottom: var(--space-8); margin-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
-.task-planning-header .task-planning-kicker { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.task-planning-header .task-planning-title { margin: var(--space-4) 0 0; overflow-wrap: anywhere; }
-.task-control-error { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); flex-basis: 100%; color: var(--danger); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
-.task-control-popup { width: var(--search-width); }
-.task-control-form { display: flex; flex-direction: column; gap: var(--space-8); }
-.task-control-popup .task-control-field { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); min-width: 0; margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.task-control-field .button { justify-content: space-between; }
-.task-control-field .button, .task-control-field .input { color: var(--text); }
-.task-repeat-interval { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-8); }
-.task-control-form .popup-actions { gap: var(--space-8); margin-top: var(--space-4); }
-.task-control-form .error { margin: 0; font-size: var(--text-control); line-height: var(--line-control); }
-.task-control-note { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
-.task-control-date { font: var(--figures); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.task-status-button:is([data-status="todo"], [data-status="doing"], [data-status="waiting"]):hover:not(:disabled) {
+  color: var(--status-done);
+}
+.task-planning-header {
+  padding-bottom: var(--space-8);
+  margin-bottom: var(--space-4);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+.task-planning-header .task-planning-kicker {
+  margin: 0;
+  color: var(--faint);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.task-planning-header .task-planning-title {
+  margin: var(--space-4) 0 0;
+  overflow-wrap: anywhere;
+}
+.task-control-error {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+  overflow-wrap: anywhere;
+}
+.task-control-popup {
+  width: var(--search-width);
+}
+.task-control-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+.task-control-popup .task-control-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.task-control-field .button {
+  justify-content: space-between;
+}
+.task-control-field .button,
+.task-control-field .input {
+  color: var(--text);
+}
+.task-repeat-interval {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-8);
+}
+.task-control-form .popup-actions {
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+}
+.task-control-form .error {
+  margin: 0;
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.task-control-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+}
+.task-control-date {
+  font: var(--figures);
+  letter-spacing: var(--tracking-apparatus);
+  white-space: nowrap;
+}
 
-.task-field-bed { min-width: 0; border-left: var(--rule-width) solid var(--line); padding-left: var(--space-16); margin-block: var(--space-4) var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
-.task-field-row { display: grid; grid-template-columns: calc(var(--target-size) + var(--space-48) * 3) minmax(0, 1fr); align-items: baseline; min-height: var(--row-height); border-bottom: var(--rule-width) dotted var(--line); }
-.task-field-label { color: var(--muted); padding-block: var(--space-4); }
-.task-field-values { min-width: 0; }
-.task-field-value.button { min-height: var(--row-height); padding: 0; justify-content: flex-start; gap: var(--space-4); font-weight: var(--weight-body); text-align: left; white-space: normal; }
-.task-field-value .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
-.task-field-empty.button { color: var(--faint); }
-.task-field-machine.button, .task-field-inherited { font: var(--figures); letter-spacing: var(--tracking-apparatus); }
-.task-field-inherited { color: var(--faint); margin-left: var(--space-8); }
-.task-field-input .input { width: 100%; }
-.task-field-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); color: var(--faint); font-size: var(--text-meta); }
-.task-field-footer .field-area-add { font: var(--apparatus); }
-.task-field-make { margin-block: var(--space-8); }
-.task-field-heading { border-bottom: var(--rule-width) solid var(--line); padding-bottom: var(--space-12); margin-bottom: var(--space-4); }
-.task-field-heading p { color: var(--faint); font: var(--apparatus); }
-.task-field-heading h2 { margin: var(--space-4) 0 0; font: var(--page-title-font); }
-.task-field-sheet.popup { padding-inline: var(--space-16); }
-.task-field-sheet .task-field-bed { border: 0; margin: 0; padding: 0; }
-.task-field-sheet .task-field-row { grid-template-columns: minmax(0, 1fr); padding-block: var(--space-4); }
-.task-field-sheet .task-field-label { color: var(--faint); font: var(--apparatus); padding: 0; }
-.task-field-sheet :is(.task-field-value.button, .field-area-add, .menu-item, .input) { min-height: var(--touch-target); }
-.task-field-sheet .popup-inline { position: static; width: 100%; max-height: none; box-shadow: none; border: 0; }
-.task-field-sheet .task-field-footer { min-height: var(--touch-target); margin-top: var(--space-8); }
+.task-field-bed {
+  min-width: 0;
+  border-left: var(--rule-width) solid var(--line);
+  padding-left: var(--space-16);
+  margin-block: var(--space-4) var(--space-8);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.task-field-row {
+  display: grid;
+  grid-template-columns: calc(var(--target-size) + var(--space-48) * 3) minmax(0, 1fr);
+  align-items: baseline;
+  min-height: var(--row-height);
+  border-bottom: var(--rule-width) dotted var(--line);
+}
+.task-field-label {
+  color: var(--muted);
+  padding-block: var(--space-4);
+}
+.task-field-values {
+  min-width: 0;
+}
+.task-field-value.button {
+  min-height: var(--row-height);
+  padding: 0;
+  justify-content: flex-start;
+  gap: var(--space-4);
+  font-weight: var(--weight-body);
+  text-align: left;
+  white-space: normal;
+}
+.task-field-value .icon {
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+}
+.task-field-empty.button {
+  color: var(--faint);
+}
+.task-field-machine.button,
+.task-field-inherited {
+  font: var(--figures);
+  letter-spacing: var(--tracking-apparatus);
+}
+.task-field-inherited {
+  color: var(--faint);
+  margin-left: var(--space-8);
+}
+.task-field-input .input {
+  width: 100%;
+}
+.task-field-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  color: var(--faint);
+  font-size: var(--text-meta);
+}
+.task-field-footer .field-area-add {
+  font: var(--apparatus);
+}
+.task-field-make {
+  margin-block: var(--space-8);
+}
+.task-field-heading {
+  border-bottom: var(--rule-width) solid var(--line);
+  padding-bottom: var(--space-12);
+  margin-bottom: var(--space-4);
+}
+.task-field-heading p {
+  color: var(--faint);
+  font: var(--apparatus);
+}
+.task-field-heading h2 {
+  margin: var(--space-4) 0 0;
+  font: var(--page-title-font);
+}
+.task-field-sheet.popup {
+  padding-inline: var(--space-16);
+}
+.task-field-sheet .task-field-bed {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.task-field-sheet .task-field-row {
+  grid-template-columns: minmax(0, 1fr);
+  padding-block: var(--space-4);
+}
+.task-field-sheet .task-field-label {
+  color: var(--faint);
+  font: var(--apparatus);
+  padding: 0;
+}
+.task-field-sheet :is(.task-field-value.button, .field-area-add, .menu-item, .input) {
+  min-height: var(--touch-target);
+}
+.task-field-sheet .popup-inline {
+  position: static;
+  width: 100%;
+  max-height: none;
+  box-shadow: none;
+  border: 0;
+}
+.task-field-sheet .task-field-footer {
+  min-height: var(--touch-target);
+  margin-top: var(--space-8);
+}
 
 /* On the phone the task glyph is the rounded check: a 22 pt square drawn inside its 44 pt target. Todo is an outline, in progress is
    half filled, done is gilt with a tick; waiting and cancelled keep their glyph inside a quiet outline. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .task-status-button[data-status] { position: relative; width: 44px; min-height: 44px; margin-block: calc((var(--line-body) - 44px) / 2); padding: 0; }
-  .task-status-button[data-status]::before { content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px currentColor; transition: background-color var(--motion-ui) var(--motion-ease); }
-  .task-status-button[data-status] > .icon { position: relative; width: 14px; height: 14px; stroke-width: 2; }
-  .task-status-button:is([data-status="todo"], [data-status="doing"]) > .icon { visibility: hidden; }
-  .task-status-button:is([data-status="waiting"], [data-status="cancelled"]) > .icon { width: 12px; height: 12px; stroke-width: 1.6; }
-  .task-status-button[data-status="todo"], .task-status-button[data-status="todo"]:hover:not(:disabled), .task-status-button[data-status="waiting"], .task-status-button[data-status="waiting"]:hover:not(:disabled) { color: var(--muted); }
-  .task-status-button[data-status="doing"], .task-status-button[data-status="doing"]:hover:not(:disabled) { color: var(--text); }
-  .task-status-button[data-status="doing"]::before { background: linear-gradient(135deg, transparent 50%, currentColor 50%); }
-  .task-status-button[data-status="done"] { color: var(--canvas); }
-  .task-status-button[data-status="done"]::before { background: var(--accent); box-shadow: none; }
-  .task-status-button[data-status="cancelled"] { color: var(--faint); }
+  .task-status-button[data-status] {
+    position: relative;
+    width: 44px;
+    min-height: 44px;
+    margin-block: calc((var(--line-body) - 44px) / 2);
+    padding: 0;
+  }
+  .task-status-button[data-status]::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1.5px currentColor;
+    transition: background-color var(--motion-ui) var(--motion-ease);
+  }
+  .task-status-button[data-status] > .icon {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+  }
+  .task-status-button:is([data-status="todo"], [data-status="doing"]) > .icon {
+    visibility: hidden;
+  }
+  .task-status-button:is([data-status="waiting"], [data-status="cancelled"]) > .icon {
+    width: 12px;
+    height: 12px;
+    stroke-width: 1.6;
+  }
+  .task-status-button[data-status="todo"],
+  .task-status-button[data-status="todo"]:hover:not(:disabled),
+  .task-status-button[data-status="waiting"],
+  .task-status-button[data-status="waiting"]:hover:not(:disabled) {
+    color: var(--muted);
+  }
+  .task-status-button[data-status="doing"],
+  .task-status-button[data-status="doing"]:hover:not(:disabled) {
+    color: var(--text);
+  }
+  .task-status-button[data-status="doing"]::before {
+    background: linear-gradient(135deg, transparent 50%, currentColor 50%);
+  }
+  .task-status-button[data-status="done"] {
+    color: var(--canvas);
+  }
+  .task-status-button[data-status="done"]::before {
+    background: var(--accent);
+    box-shadow: none;
+  }
+  .task-status-button[data-status="cancelled"] {
+    color: var(--faint);
+  }
 }

@@ -12,7 +12,17 @@ import { Group } from '../settings/Group';
 import './agent.css';
 
 type Protocol = ProviderView['protocol'];
-interface Draft { id?: string; name: string; protocol: Protocol; base_url: string; model: string; api_key: string; has_key: boolean; key_url: string; clearKey: boolean }
+interface Draft {
+  id?: string;
+  name: string;
+  protocol: Protocol;
+  base_url: string;
+  model: string;
+  api_key: string;
+  has_key: boolean;
+  key_url: string;
+  clearKey: boolean;
+}
 
 /** Where common providers listen; each fills the form and leaves the model to the user. */
 const presets: { label: string; protocol: Protocol; base_url: string; key: boolean }[] = [
@@ -23,11 +33,15 @@ const presets: { label: string; protocol: Protocol; base_url: string; key: boole
   { label: 'llama-server', protocol: 'openai', base_url: 'http://127.0.0.1:8080/v1', key: false },
 ];
 const protocolLabels: Record<Protocol, string> = { anthropic: 'Anthropic', openai: 'OpenAI-compatible' };
-const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
+const message = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason));
 /** A saved key stays with the server it was entered for; the service forgets it once the address names another. */
 const keyStays = (value: Draft) => {
   if (!value.has_key) return false;
-  try { return new URL(value.base_url.trim()).origin === new URL(value.key_url).origin; } catch { return false; }
+  try {
+    return new URL(value.base_url.trim()).origin === new URL(value.key_url).origin;
+  } catch {
+    return false;
+  }
 };
 
 /** Settings › Models: the models the agent dock can use, with keys kept on this machine. */
@@ -51,25 +65,36 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     else {
       try {
         const url = new URL(value.base_url.trim());
-        if (url.protocol !== 'http:' && url.protocol !== 'https:') errors.base_url = 'Use an http:// or https:// address.';
-      } catch { errors.base_url = 'Use an http:// or https:// address.'; }
+        if (url.protocol !== 'http:' && url.protocol !== 'https:')
+          errors.base_url = 'Use an http:// or https:// address.';
+      } catch {
+        errors.base_url = 'Use an http:// or https:// address.';
+      }
     }
     if (!value.model.trim()) errors.model = 'Enter a model name.';
     return errors;
   });
-  const inputs = (except?: string): ProviderInput[] => (saved()?.providers ?? []).filter(item => item.id !== except)
-    .map(({ id, name, protocol, base_url, model }) => ({ id, name, protocol, base_url, model }));
+  const inputs = (except?: string): ProviderInput[] =>
+    (saved()?.providers ?? [])
+      .filter(item => item.id !== except)
+      .map(({ id, name, protocol, base_url, model }) => ({ id, name, protocol, base_url, model }));
   const save = async (providers: ProviderInput[], fallback: string | null) => {
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       const next = await api.saveAgentProviders({ providers, default: fallback });
       mutate(next);
       return true;
-    } catch (reason) { setError(message(reason)); return false; }
-    finally { setBusy(false); }
+    } catch (reason) {
+      setError(message(reason));
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
   const submit = async () => {
-    const value = draft(); if (!value) return;
+    const value = draft();
+    if (!value) return;
     if (busy()) return;
     setValidated(true);
     if (Object.keys(fieldErrors()).length) {
@@ -77,14 +102,22 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
       return;
     }
     const key = value.clearKey && keyStays(value) ? '' : value.api_key.trim() || null;
-    const entry: ProviderInput = { ...(value.id ? { id: value.id } : {}), name: value.name.trim(), protocol: value.protocol, base_url: value.base_url.trim(), model: value.model.trim(), api_key: key };
+    const entry: ProviderInput = {
+      ...(value.id ? { id: value.id } : {}),
+      name: value.name.trim(),
+      protocol: value.protocol,
+      base_url: value.base_url.trim(),
+      model: value.model.trim(),
+      api_key: key,
+    };
     const list = saved()?.providers ?? [];
-    const providers = value.id ? inputs().map(item => item.id === value.id ? entry : item) : [...inputs(), entry];
+    const providers = value.id ? inputs().map(item => (item.id === value.id ? entry : item)) : [...inputs(), entry];
     if (await save(providers, saved()?.default ?? (list.length ? list[0]!.id : null))) closeForm();
   };
   const remove = async (provider: ProviderView) => {
     const rest = inputs(provider.id);
-    if (await save(rest, saved()?.default === provider.id ? rest[0]?.id ?? null : saved()?.default ?? null)) setRemoving(null);
+    if (await save(rest, saved()?.default === provider.id ? (rest[0]?.id ?? null) : (saved()?.default ?? null)))
+      setRemoving(null);
   };
   // The dock uses the default, else the first model; with one model there is nothing to choose.
   const several = () => (saved()?.providers.length ?? 0) > 1;
@@ -92,90 +125,360 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   const test = async (provider: ProviderView) => {
     if (tested()[provider.id] === 'Testing…') return;
     setTested(values => ({ ...values, [provider.id]: 'Testing…' }));
-    try { await api.testAgentProvider(provider.id); setTested(values => ({ ...values, [provider.id]: 'Answered' })); }
-    catch (reason) { setTested(values => ({ ...values, [provider.id]: message(reason) })); }
+    try {
+      await api.testAgentProvider(provider.id);
+      setTested(values => ({ ...values, [provider.id]: 'Answered' }));
+    } catch (reason) {
+      setTested(values => ({ ...values, [provider.id]: message(reason) }));
+    }
   };
   const edit = (provider?: ProviderView) => {
-    setValidated(false); setProtocolAnchor(null); setError(''); setRemoving(null);
+    setValidated(false);
+    setProtocolAnchor(null);
+    setError('');
+    setRemoving(null);
     // A result from before the edit no longer describes the model.
     if (provider) setTested(({ [provider.id]: _, ...rest }) => rest);
-    setDraft(provider
-      ? { id: provider.id, name: provider.name, protocol: provider.protocol, base_url: provider.base_url, model: provider.model, api_key: '', has_key: provider.has_key, key_url: provider.base_url, clearKey: false }
-      : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, key_url: '', clearKey: false });
+    setDraft(
+      provider
+        ? {
+            id: provider.id,
+            name: provider.name,
+            protocol: provider.protocol,
+            base_url: provider.base_url,
+            model: provider.model,
+            api_key: '',
+            has_key: provider.has_key,
+            key_url: provider.base_url,
+            clearKey: false,
+          }
+        : {
+            name: 'Anthropic',
+            protocol: 'anthropic',
+            base_url: presets[0]!.base_url,
+            model: '',
+            api_key: '',
+            has_key: false,
+            key_url: '',
+            clearKey: false,
+          },
+    );
   };
   const update = (patch: Partial<Draft>) => setDraft(value => value && { ...value, ...patch });
   /** Closing the form returns the caret to the button that opened it. */
   const closeForm = () => {
     const id = draft()?.id;
-    setProtocolAnchor(null); setDraft(null);
-    queueMicrotask(() => section.querySelector<HTMLElement>(id ? `[data-edit="${CSS.escape(id)}"]` : '.agent-add-model')?.focus({ preventScroll: true }));
+    setProtocolAnchor(null);
+    setDraft(null);
+    queueMicrotask(() =>
+      section
+        .querySelector<HTMLElement>(id ? `[data-edit="${CSS.escape(id)}"]` : '.agent-add-model')
+        ?.focus({ preventScroll: true }),
+    );
   };
   const phone = () => isPhone();
 
   const Form = (form: { value: Draft }) => {
     // A form that opens takes the caret in its first field and comes into view, its Save row included.
-    onMount(() => { formElement.querySelector<HTMLElement>('input')?.focus({ preventScroll: true }); formElement.scrollIntoView({ block: 'nearest' }); });
-    return <form ref={formElement} class="agent-provider-form" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}
-      onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing) { event.preventDefault(); event.stopPropagation(); closeForm(); } }}>
-    <Show when={!form.value.id}><div class="agent-presets mode-tabs" role="group" aria-label="Fill in a provider">
-      <For each={presets}>{preset => <Button aria-pressed={form.value.base_url === preset.base_url} onClick={() => update({ name: preset.label, protocol: preset.protocol, base_url: preset.base_url })}>{preset.label}</Button>}</For>
-    </div></Show>
-    <label><span>Name</span><span class="agent-input-field"><input class="input" value={form.value.name} onInput={event => update({ name: event.currentTarget.value })} required aria-invalid={!!fieldErrors().name} aria-describedby={fieldErrors().name ? `${props.id}-name-error` : undefined} />
-      <Show when={fieldErrors().name}>{error => <span class="error agent-field-error" id={`${props.id}-name-error`} role="alert">{error()}</span>}</Show>
-    </span></label>
-    <label><span id={`${props.id}-protocol-label`}>API</span><span class="agent-input-field">
-      <Button class="bordered agent-protocol" aria-labelledby={`${props.id}-protocol-label`} aria-haspopup="menu" aria-expanded={protocolAnchor() !== null} onClick={event => setProtocolAnchor(event.currentTarget)}><span>{protocolLabels[form.value.protocol]}</span><Icon name="down" /></Button>
-      <Show when={protocolAnchor()}>{anchor => <Menu anchor={anchor()} label="Protocol" onDismiss={() => setProtocolAnchor(null)} items={(Object.keys(protocolLabels) as Protocol[]).map(protocol => ({
-        label: protocolLabels[protocol], checked: form.value.protocol === protocol, action: () => update({ protocol }),
-      }))} />}</Show>
-    </span></label>
-    <label><span>Address</span><span class="agent-input-field"><input class="input settings-mono" type="url" value={form.value.base_url} onInput={event => update({ base_url: event.currentTarget.value })} required aria-invalid={!!fieldErrors().base_url} aria-describedby={fieldErrors().base_url ? `${props.id}-address-error` : undefined} />
-      <Show when={fieldErrors().base_url}>{error => <span class="error agent-field-error" id={`${props.id}-address-error`} role="alert">{error()}</span>}</Show>
-    </span></label>
-    <label><span>Model</span><span class="agent-input-field"><input class="input settings-mono" value={form.value.model} placeholder="As the provider names it" onInput={event => update({ model: event.currentTarget.value })} required aria-invalid={!!fieldErrors().model} aria-describedby={fieldErrors().model ? `${props.id}-model-error` : undefined} />
-      <Show when={fieldErrors().model}>{error => <span class="error agent-field-error" id={`${props.id}-model-error`} role="alert">{error()}</span>}</Show>
-    </span></label>
-    <label><span>Key</span><input class="input settings-mono" type="password" autocomplete="off" value={form.value.api_key} disabled={form.value.clearKey && keyStays(form.value)}
-      placeholder={keyStays(form.value) && !form.value.clearKey ? 'Saved; type to replace it' : form.value.protocol === 'openai' ? 'Not needed for a local server' : 'Your API key'}
-      onInput={event => update({ api_key: event.currentTarget.value })} /></label>
-    <Show when={form.value.has_key && !keyStays(form.value) && !form.value.api_key.trim()}><span class="agent-clear-key" role="status">The saved key belongs to the old address. Saving forgets it.</span></Show>
-    <Show when={keyStays(form.value)}><label class="agent-clear-key"><input type="checkbox" checked={form.value.clearKey} onChange={event => update({ clearKey: event.currentTarget.checked, api_key: '' })} /><span>Forget the saved key</span></label></Show>
-    <div class="agent-form-actions">
-      <Button class="text-button" onClick={closeForm}>Cancel</Button>
-      <Button class="bordered" type="submit" disabled={busy()}>Save model</Button>
-    </div>
-    </form>;
+    onMount(() => {
+      formElement.querySelector<HTMLElement>('input')?.focus({ preventScroll: true });
+      formElement.scrollIntoView({ block: 'nearest' });
+    });
+    return (
+      <form
+        ref={formElement}
+        class="agent-provider-form"
+        noValidate
+        onSubmit={event => {
+          event.preventDefault();
+          void submit();
+        }}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing) {
+            event.preventDefault();
+            event.stopPropagation();
+            closeForm();
+          }
+        }}
+      >
+        <Show when={!form.value.id}>
+          <div class="agent-presets mode-tabs" role="group" aria-label="Fill in a provider">
+            <For each={presets}>
+              {preset => (
+                <Button
+                  aria-pressed={form.value.base_url === preset.base_url}
+                  onClick={() => update({ name: preset.label, protocol: preset.protocol, base_url: preset.base_url })}
+                >
+                  {preset.label}
+                </Button>
+              )}
+            </For>
+          </div>
+        </Show>
+        <label>
+          <span>Name</span>
+          <span class="agent-input-field">
+            <input
+              class="input"
+              value={form.value.name}
+              onInput={event => update({ name: event.currentTarget.value })}
+              required
+              aria-invalid={!!fieldErrors().name}
+              aria-describedby={fieldErrors().name ? `${props.id}-name-error` : undefined}
+            />
+            <Show when={fieldErrors().name}>
+              {error => (
+                <span class="error agent-field-error" id={`${props.id}-name-error`} role="alert">
+                  {error()}
+                </span>
+              )}
+            </Show>
+          </span>
+        </label>
+        <label>
+          <span id={`${props.id}-protocol-label`}>API</span>
+          <span class="agent-input-field">
+            <Button
+              class="bordered agent-protocol"
+              aria-labelledby={`${props.id}-protocol-label`}
+              aria-haspopup="menu"
+              aria-expanded={protocolAnchor() !== null}
+              onClick={event => setProtocolAnchor(event.currentTarget)}
+            >
+              <span>{protocolLabels[form.value.protocol]}</span>
+              <Icon name="down" />
+            </Button>
+            <Show when={protocolAnchor()}>
+              {anchor => (
+                <Menu
+                  anchor={anchor()}
+                  label="Protocol"
+                  onDismiss={() => setProtocolAnchor(null)}
+                  items={(Object.keys(protocolLabels) as Protocol[]).map(protocol => ({
+                    label: protocolLabels[protocol],
+                    checked: form.value.protocol === protocol,
+                    action: () => update({ protocol }),
+                  }))}
+                />
+              )}
+            </Show>
+          </span>
+        </label>
+        <label>
+          <span>Address</span>
+          <span class="agent-input-field">
+            <input
+              class="input settings-mono"
+              type="url"
+              value={form.value.base_url}
+              onInput={event => update({ base_url: event.currentTarget.value })}
+              required
+              aria-invalid={!!fieldErrors().base_url}
+              aria-describedby={fieldErrors().base_url ? `${props.id}-address-error` : undefined}
+            />
+            <Show when={fieldErrors().base_url}>
+              {error => (
+                <span class="error agent-field-error" id={`${props.id}-address-error`} role="alert">
+                  {error()}
+                </span>
+              )}
+            </Show>
+          </span>
+        </label>
+        <label>
+          <span>Model</span>
+          <span class="agent-input-field">
+            <input
+              class="input settings-mono"
+              value={form.value.model}
+              placeholder="As the provider names it"
+              onInput={event => update({ model: event.currentTarget.value })}
+              required
+              aria-invalid={!!fieldErrors().model}
+              aria-describedby={fieldErrors().model ? `${props.id}-model-error` : undefined}
+            />
+            <Show when={fieldErrors().model}>
+              {error => (
+                <span class="error agent-field-error" id={`${props.id}-model-error`} role="alert">
+                  {error()}
+                </span>
+              )}
+            </Show>
+          </span>
+        </label>
+        <label>
+          <span>Key</span>
+          <input
+            class="input settings-mono"
+            type="password"
+            autocomplete="off"
+            value={form.value.api_key}
+            disabled={form.value.clearKey && keyStays(form.value)}
+            placeholder={
+              keyStays(form.value) && !form.value.clearKey
+                ? 'Saved; type to replace it'
+                : form.value.protocol === 'openai'
+                  ? 'Not needed for a local server'
+                  : 'Your API key'
+            }
+            onInput={event => update({ api_key: event.currentTarget.value })}
+          />
+        </label>
+        <Show when={form.value.has_key && !keyStays(form.value) && !form.value.api_key.trim()}>
+          <span class="agent-clear-key" role="status">
+            The saved key belongs to the old address. Saving forgets it.
+          </span>
+        </Show>
+        <Show when={keyStays(form.value)}>
+          <label class="agent-clear-key">
+            <input
+              type="checkbox"
+              checked={form.value.clearKey}
+              onChange={event => update({ clearKey: event.currentTarget.checked, api_key: '' })}
+            />
+            <span>Forget the saved key</span>
+          </label>
+        </Show>
+        <div class="agent-form-actions">
+          <Button class="text-button" onClick={closeForm}>
+            Cancel
+          </Button>
+          <Button class="bordered" type="submit" disabled={busy()}>
+            Save model
+          </Button>
+        </div>
+      </form>
+    );
   };
 
-  return <section ref={section} id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
-    <Group heading={props.heading} note="The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the workshop and its backups.">
-    <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-    <Show when={saved.error}><p class="error" role="alert">{message(saved.error)}</p></Show>
-    <For each={saved()?.providers}>{provider => <Show when={draft()?.id !== provider.id} fallback={<Form value={draft()!} />}>
-      <div class="settings-row agent-provider-row">
-        <div class="settings-label">
-          <span class="settings-name">{provider.name}<Show when={several() && isDefault(provider.id)}><span class="settings-scope">Default</span></Show></span>
-          <p class="settings-mono">{protocolLabels[provider.protocol]} · {provider.model} · {provider.has_key ? 'key saved' : 'no key'}</p>
-          <p class="settings-mono agent-provider-address">{provider.base_url}</p>
-          <Show when={tested()[provider.id]}>{result => <p role="status" classList={{ error: result() !== 'Answered' && result() !== 'Testing…' }}>{result()}</p>}</Show>
-        </div>
-        <div class="agent-provider-actions" onKeyDown={event => { if (removing() === provider.id) escapeConfirm(event, 'remove', () => setRemoving(null)); }}><Show when={removing() === provider.id} fallback={<>
-          <Show when={several() && !isDefault(provider.id)}><Button class="text-button" disabled={busy()} onClick={() => { void save(inputs(), provider.id); }}>Make default</Button></Show>
-          <Button class="text-button" disabled={tested()[provider.id] === 'Testing…'} onClick={() => { void test(provider); }}>Test</Button>
-          <Button class="text-button" data-edit={provider.id} onClick={() => edit(provider)}>Edit</Button>
-          <Button class="text-button danger" data-confirm="remove" disabled={busy()} onClick={() => setRemoving(provider.id)}>Remove</Button>
-        </>}>
-          <span class="settings-backup-question">Remove{provider.has_key ? ' it and its key' : ''}?</span>
-          <Button ref={focusCancel} disabled={busy()} onClick={event => cancelConfirm(event.currentTarget, 'remove', () => setRemoving(null))}>Cancel</Button>
-          <Button class="bordered danger" disabled={busy()} onClick={() => { void remove(provider); }}>Confirm</Button>
-        </Show></div>
-      </div>
-    </Show>}</For>
-    <Show when={draft() && !draft()!.id} fallback={<Show when={!draft()}><Show when={phone()} fallback={<Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>Add model</Button>}>
-      <ListRow icon="plus" class="agent-add-model" onClick={() => edit()}>Add model</ListRow>
-    </Show></Show>}>
-      <Form value={draft()!} />
-    </Show>
-    </Group>
-  </section>;
+  return (
+    <section ref={section} id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
+      <Group
+        heading={props.heading}
+        note="The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the workshop and its backups."
+      >
+        <Show when={error()}>
+          <p class="error" role="alert">
+            {error()}
+          </p>
+        </Show>
+        <Show when={saved.error}>
+          <p class="error" role="alert">
+            {message(saved.error)}
+          </p>
+        </Show>
+        <For each={saved()?.providers}>
+          {provider => (
+            <Show when={draft()?.id !== provider.id} fallback={<Form value={draft()!} />}>
+              <div class="settings-row agent-provider-row">
+                <div class="settings-label">
+                  <span class="settings-name">
+                    {provider.name}
+                    <Show when={several() && isDefault(provider.id)}>
+                      <span class="settings-scope">Default</span>
+                    </Show>
+                  </span>
+                  <p class="settings-mono">
+                    {protocolLabels[provider.protocol]} · {provider.model} · {provider.has_key ? 'key saved' : 'no key'}
+                  </p>
+                  <p class="settings-mono agent-provider-address">{provider.base_url}</p>
+                  <Show when={tested()[provider.id]}>
+                    {result => (
+                      <p role="status" classList={{ error: result() !== 'Answered' && result() !== 'Testing…' }}>
+                        {result()}
+                      </p>
+                    )}
+                  </Show>
+                </div>
+                <div
+                  class="agent-provider-actions"
+                  onKeyDown={event => {
+                    if (removing() === provider.id) escapeConfirm(event, 'remove', () => setRemoving(null));
+                  }}
+                >
+                  <Show
+                    when={removing() === provider.id}
+                    fallback={
+                      <>
+                        <Show when={several() && !isDefault(provider.id)}>
+                          <Button
+                            class="text-button"
+                            disabled={busy()}
+                            onClick={() => {
+                              void save(inputs(), provider.id);
+                            }}
+                          >
+                            Make default
+                          </Button>
+                        </Show>
+                        <Button
+                          class="text-button"
+                          disabled={tested()[provider.id] === 'Testing…'}
+                          onClick={() => {
+                            void test(provider);
+                          }}
+                        >
+                          Test
+                        </Button>
+                        <Button class="text-button" data-edit={provider.id} onClick={() => edit(provider)}>
+                          Edit
+                        </Button>
+                        <Button
+                          class="text-button danger"
+                          data-confirm="remove"
+                          disabled={busy()}
+                          onClick={() => setRemoving(provider.id)}
+                        >
+                          Remove
+                        </Button>
+                      </>
+                    }
+                  >
+                    <span class="settings-backup-question">Remove{provider.has_key ? ' it and its key' : ''}?</span>
+                    <Button
+                      ref={focusCancel}
+                      disabled={busy()}
+                      onClick={event => cancelConfirm(event.currentTarget, 'remove', () => setRemoving(null))}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      class="bordered danger"
+                      disabled={busy()}
+                      onClick={() => {
+                        void remove(provider);
+                      }}
+                    >
+                      Confirm
+                    </Button>
+                  </Show>
+                </div>
+              </div>
+            </Show>
+          )}
+        </For>
+        <Show
+          when={draft() && !draft()!.id}
+          fallback={
+            <Show when={!draft()}>
+              <Show
+                when={phone()}
+                fallback={
+                  <Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>
+                    Add model
+                  </Button>
+                }
+              >
+                <ListRow icon="plus" class="agent-add-model" onClick={() => edit()}>
+                  Add model
+                </ListRow>
+              </Show>
+            </Show>
+          }
+        >
+          <Form value={draft()!} />
+        </Show>
+      </Group>
+    </section>
+  );
 }

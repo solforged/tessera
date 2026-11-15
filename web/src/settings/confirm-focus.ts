@@ -11,8 +11,13 @@ export function cancelConfirm(from: Element, trigger: string, close: () => void)
 }
 
 /** Escape inside an inline confirmation cancels it, like its Cancel button. */
-export function escapeConfirm(event: KeyboardEvent & { currentTarget: Element }, trigger: string, close: () => void): void {
+export function escapeConfirm(
+  event: KeyboardEvent & { currentTarget: Element },
+  trigger: string,
+  close: () => void,
+): void {
   if (event.key !== 'Escape') return;
-  event.preventDefault(); event.stopPropagation();
+  event.preventDefault();
+  event.stopPropagation();
   cancelConfirm(event.currentTarget, trigger, close);
 }

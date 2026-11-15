@@ -18,25 +18,42 @@ export function formatSourceValue(name: string, value: string): string {
   if (name.toLowerCase() === 'language') {
     try {
       const label = languageNames.of(value);
-      return !label || label.toLowerCase() === value.toLowerCase() ? isoLanguageNames[value.toLowerCase()] ?? value : label;
-    } catch { return value; }
+      return !label || label.toLowerCase() === value.toLowerCase()
+        ? (isoLanguageNames[value.toLowerCase()] ?? value)
+        : label;
+    } catch {
+      return value;
+    }
   }
-  if (name.toLowerCase() === 'identifier') return value.replace(/^(isbn|doi):(.+)$/i, (_, kind: string, identifier: string) => `${kind.toUpperCase()} ${identifier}`);
+  if (name.toLowerCase() === 'identifier')
+    return value.replace(
+      /^(isbn|doi):(.+)$/i,
+      (_, kind: string, identifier: string) => `${kind.toUpperCase()} ${identifier}`,
+    );
   return value;
 }
 
 export function valueLabel(text: string, lookup: NotebookClient['lookup']): string {
-  return textTokens(text).map(token => {
-    if (token.kind !== 'reference') return token.value;
-    const reference = referenceValue(token.value);
-    return reference.id ? plainText(token.value, lookup) : reference.name;
-  }).join('');
+  return textTokens(text)
+    .map(token => {
+      if (token.kind !== 'reference') return token.value;
+      const reference = referenceValue(token.value);
+      return reference.id ? plainText(token.value, lookup) : reference.name;
+    })
+    .join('');
 }
 
 /** Reset extracted positions without discarding authored extra values. */
-export function extractedResets(values: readonly Pick<BlockState, 'id' | 'text'>[], extracted: readonly string[] | undefined): { set: { id: string; text: string }[]; insert: string[] } {
+export function extractedResets(
+  values: readonly Pick<BlockState, 'id' | 'text'>[],
+  extracted: readonly string[] | undefined,
+): { set: { id: string; text: string }[]; insert: string[] } {
   return {
-    set: values.flatMap((value, index) => extracted?.[index] === undefined || value.text === extracted[index] ? [] : [{ id: value.id, text: extracted[index]! }]),
+    set: values.flatMap((value, index) =>
+      extracted?.[index] === undefined || value.text === extracted[index]
+        ? []
+        : [{ id: value.id, text: extracted[index]! }],
+    ),
     insert: extracted?.slice(values.length) ?? [],
   };
 }
@@ -54,9 +71,13 @@ const sourceFormatMaps = new WeakMap<NotebookClient, SourceFormats>();
 
 /** A change can add, drop or reformat a source only through a page the map hasn't seen, a removal, or a changed source capability. */
 export function changeTouchesSources(event: ChangeEvent, formats: ReadonlyMap<string, SourceFormat>): boolean {
-  return event.blocks.some(block => block.kind === 'page' && !formats.has(block.id))
-    || event.removed.some(id => formats.has(id))
-    || (event.capabilities ?? []).some(value => value.source !== undefined && (value.source?.format ?? null) !== (formats.get(value.block_id) ?? null));
+  return (
+    event.blocks.some(block => block.kind === 'page' && !formats.has(block.id)) ||
+    event.removed.some(id => formats.has(id)) ||
+    (event.capabilities ?? []).some(
+      value => value.source !== undefined && (value.source?.format ?? null) !== (formats.get(value.block_id) ?? null),
+    )
+  );
 }
 
 /** Every page icon reads one shared Sources index instead of each page's capabilities, so a long list costs one request. */
@@ -69,20 +90,33 @@ function sourceFormats(notebook: NotebookClient): SourceFormats {
     const map = createMemo(() => {
       if (index.error) return undefined;
       const value = index.latest;
-      return value && new Map(value.notes.flatMap(note => {
-        const format = value.summaries[note.id]?.source?.format;
-        return format ? [[note.id, format] as const] : [];
-      }));
+      return (
+        value &&
+        new Map(
+          value.notes.flatMap(note => {
+            const format = value.summaries[note.id]?.source?.format;
+            return format ? [[note.id, format] as const] : [];
+          }),
+        )
+      );
     });
     // `on` tracks only the change, so the refreshed map can't re-trigger its own reload; a later unrelated change keeps a scheduled one.
     let scheduled = false;
-    createEffect(on(() => notebook.lastChange(), event => {
-      if (!event || scheduled) return;
-      const current = map();
-      if (!index.error && (!current || !changeTouchesSources(event, current))) return;
-      scheduled = true;
-      setTimeout(() => { scheduled = false; setVersion(value => value + 1); }, 300);
-    }));
+    createEffect(
+      on(
+        () => notebook.lastChange(),
+        event => {
+          if (!event || scheduled) return;
+          const current = map();
+          if (!index.error && (!current || !changeTouchesSources(event, current))) return;
+          scheduled = true;
+          setTimeout(() => {
+            scheduled = false;
+            setVersion(value => value + 1);
+          }, 300);
+        },
+      ),
+    );
     return map;
   });
   sourceFormatMaps.set(notebook, formats);
@@ -90,7 +124,12 @@ function sourceFormats(notebook: NotebookClient): SourceFormats {
 }
 
 /** The same source-aware identity in navigation, Find and reference suggestions. */
-export function createPageIcon(notebook: NotebookClient, block: Accessor<Block>, enabled: Accessor<boolean> = () => true, journal: IconName = 'calendar'): Accessor<IconName> {
+export function createPageIcon(
+  notebook: NotebookClient,
+  block: Accessor<Block>,
+  enabled: Accessor<boolean> = () => true,
+  journal: IconName = 'calendar',
+): Accessor<IconName> {
   const formats = sourceFormats(notebook);
   return () => {
     const kind = block().kind;

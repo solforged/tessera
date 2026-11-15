@@ -25,11 +25,20 @@ test('project assignment creates an instance field and adds, replaces, removes, 
   const { baseUrl, api } = service;
   let notebook: Notebook | undefined;
   try {
-    notebook = createNotebookClient({ baseUrl, notebookId: service.workshopId, sessionId: ulid(), databaseName: `projects-${ulid()}` });
+    notebook = createNotebookClient({
+      baseUrl,
+      notebookId: service.workshopId,
+      sessionId: ulid(),
+      databaseName: `projects-${ulid()}`,
+    });
     await notebook.ready;
-    const first = ulid(), second = ulid(), journal = ulid(), task = ulid();
+    const first = ulid(),
+      second = ulid(),
+      journal = ulid(),
+      task = ulid();
     await notebook.commit([
-      { op: 'create_page', id: first, title: 'Tessera Android' }, { op: 'create_page', id: second, title: 'Sync' },
+      { op: 'create_page', id: first, title: 'Tessera Android' },
+      { op: 'create_page', id: second, title: 'Sync' },
       { op: 'set_project', id: first, base_revision: 1, project: { outcome: '', deadline: null, status: 'active' } },
       { op: 'set_project', id: second, base_revision: 1, project: { outcome: '', deadline: null, status: 'active' } },
       { op: 'create_journal', id: journal, date: '2026-10-12' },
@@ -46,7 +55,8 @@ test('project assignment creates an instance field and adds, replaces, removes, 
     const doc = notebook.open(journal);
     try {
       await ready(doc);
-      const query = createTaskQuery('2026-10-12'); query.filter.project_id = first;
+      const query = createTaskQuery('2026-10-12');
+      query.filter.project_id = first;
       expect(doc.edit({ kind: 'taskProject', id: task, fieldId: field.id, projectId: first }).ok).toBe(true);
       await doc.flush();
       const entry = doc.outline.children(task)[0]!;
@@ -54,26 +64,33 @@ test('project assignment creates an instance field and adds, replaces, removes, 
       expect(doc.block(value)?.text).toBe(`[[${first}]]`);
       expect((await api.taskQuery(query)).rows.map(row => row.source.block.id)).toEqual([task]);
       expect(taskProject(doc, task, new Set([field.id]), new Set([first, second]))).toBe(first);
-      doc.undo(); await doc.flush();
+      doc.undo();
+      await doc.flush();
       expect(doc.outline.children(task)).toHaveLength(0);
       expect((await api.taskQuery(query)).total).toBe(0);
-      doc.redo(); await doc.flush();
+      doc.redo();
+      await doc.flush();
       expect(doc.outline.children(task)).toEqual([entry]);
       expect(doc.edit({ kind: 'taskProject', id: task, fieldId: field.id, projectId: second }).ok).toBe(true);
       await doc.flush();
       expect(doc.outline.children(task)).toEqual([entry]);
       expect(doc.outline.children(entry)).toEqual([value]);
       expect(doc.block(value)?.text).toBe(`[[${second}]]`);
-      doc.undo(); await doc.flush();
+      doc.undo();
+      await doc.flush();
       expect(doc.block(value)?.text).toBe(`[[${first}]]`);
       expect(doc.edit({ kind: 'taskProject', id: task, fieldId: field.id, projectId: null }).ok).toBe(true);
       await doc.flush();
       expect(doc.outline.children(task)).toHaveLength(0);
-      doc.undo(); await doc.flush();
+      doc.undo();
+      await doc.flush();
       expect(doc.outline.children(task)).toEqual([entry]);
       expect((await api.taskQuery(query)).total).toBe(1);
-    } finally { doc.release(); }
+    } finally {
+      doc.release();
+    }
   } finally {
-    await notebook?.dispose(); await service.stop();
+    await notebook?.dispose();
+    await service.stop();
   }
 }, 60000);

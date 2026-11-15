@@ -2,7 +2,14 @@ import { expect, test } from 'bun:test';
 import type { BackupInfo } from '../api/types';
 import { STALE_BACKUP_MS, backupLabel, backupStale } from './backup';
 
-const backup: BackupInfo = { path: '/store/id/stamp', name: 'stamp', created_at: 1_000, object_count: 2, size: 10, safety: null };
+const backup: BackupInfo = {
+  path: '/store/id/stamp',
+  name: 'stamp',
+  created_at: 1_000,
+  object_count: 2,
+  size: 10,
+  safety: null,
+};
 const when = (value: number) => `at ${value}`;
 
 test('a backup line names its time, what it came before and its files', () => {

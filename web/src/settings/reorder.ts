@@ -4,7 +4,9 @@
  */
 export function dropIndex(centers: readonly number[], from: number, centre: number): number {
   let index = 0;
-  centers.forEach((value, row) => { if (row !== from && value < centre) index++; });
+  centers.forEach((value, row) => {
+    if (row !== from && value < centre) index++;
+  });
   return index;
 }
 

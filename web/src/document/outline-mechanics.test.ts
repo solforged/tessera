@@ -6,7 +6,14 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
-import { editingDepth, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from '../outline/visibility';
+import {
+  editingDepth,
+  inlineFieldValues,
+  selectionIds,
+  selectionRoots,
+  survivingZoomPath,
+  visibleIds,
+} from '../outline/visibility';
 import { newTask } from '../tasks/quick-date';
 import { markdownPasteRows } from './clipboard';
 
@@ -25,7 +32,10 @@ const success = (result: EditResult) => {
 };
 async function eventually(predicate: () => boolean) {
   const deadline = Date.now() + 5000;
-  while (!predicate()) { if (Date.now() > deadline) throw new Error('Document did not become ready'); await Bun.sleep(10); }
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('Document did not become ready');
+    await Bun.sleep(10);
+  }
 }
 beforeAll(async () => {
   service = await startService({ name: 'outline-mechanics', port });
@@ -36,7 +46,12 @@ afterAll(async () => {
   await service?.stop();
 });
 async function fixture(text = 'Alpha') {
-  const client = createNotebookClient({ baseUrl, notebookId, sessionId: `mechanics-${++serial}`, databaseName: 'tessera-outline-mechanics-tests' });
+  const client = createNotebookClient({
+    baseUrl,
+    notebookId,
+    sessionId: `mechanics-${++serial}`,
+    databaseName: 'tessera-outline-mechanics-tests',
+  });
   clients.push(client);
   await client.ready;
   const pageId = await client.createPage(`Mechanics ${serial}`);
@@ -47,21 +62,29 @@ async function fixture(text = 'Alpha') {
   await client.flush();
   return { client, doc, first, pageId };
 }
-const insert = (doc: PageDocument, parentId: string, after: string | null, text: string) => success(doc.edit({ kind: 'insert', parentId, after, text })).created[0]!;
-const snapshot = (doc: PageDocument) => Array.from({ length: doc.outline.size() }, (_, i) => {
-  const id = doc.outline.idAt(i);
-  return { id, text: doc.block(id)!.text, parent: doc.outline.parentOf(id) };
-});
+const insert = (doc: PageDocument, parentId: string, after: string | null, text: string) =>
+  success(doc.edit({ kind: 'insert', parentId, after, text })).created[0]!;
+const snapshot = (doc: PageDocument) =>
+  Array.from({ length: doc.outline.size() }, (_, i) => {
+    const id = doc.outline.idAt(i);
+    return { id, text: doc.block(id)!.text, parent: doc.outline.parentOf(id) };
+  });
 
 test('nested paste redo restores preorder and depths before any reload', async () => {
   const { client, doc, first } = await fixture('');
   const at = { id: first, offset: 0 };
   const pasted = success(doc.edit({ kind: 'paste', at, text: 'A\n  B\n    C\nD' }, at));
-  const expected = [[first, 'A', 0], [pasted.created[0]!, 'B', 1], [pasted.created[1]!, 'C', 2], [pasted.created[2]!, 'D', 0]];
-  const shape = () => Array.from({ length: doc.outline.size() }, (_, index) => {
-    const id = doc.outline.idAt(index);
-    return [id, doc.block(id)!.text, doc.outline.depth(id)];
-  });
+  const expected = [
+    [first, 'A', 0],
+    [pasted.created[0]!, 'B', 1],
+    [pasted.created[1]!, 'C', 2],
+    [pasted.created[2]!, 'D', 0],
+  ];
+  const shape = () =>
+    Array.from({ length: doc.outline.size() }, (_, index) => {
+      const id = doc.outline.idAt(index);
+      return [id, doc.block(id)!.text, doc.outline.depth(id)];
+    });
   await client.flush();
   for (let count = 0; count < 2; count++) {
     expect(doc.undo()).toEqual(at);
@@ -84,7 +107,12 @@ test('row replacement undo restores persisted identities before and after paste 
     const gamma = insert(doc, pageId, beta, 'Gamma');
     await client.flush();
     const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
-    const pasted = success(doc.edit({ kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') }, range.head));
+    const pasted = success(
+      doc.edit(
+        { kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') },
+        range.head,
+      ),
+    );
     const replacement = pasted.caret!.id;
     expect(snapshot(doc).map(row => row.text)).toEqual(['Replacement', 'Gamma']);
     if (settlePaste) await client.flush();
@@ -94,11 +122,17 @@ test('row replacement undo restores persisted identities before and after paste 
       expect(snapshot(doc).map(row => row.id)).toEqual([first, hidden, beta, gamma]);
       expect(doc.block(beta)?.task?.status).toBe('todo');
       expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text, row.depth])).toEqual([
-        [first, 'Alpha', 0], [hidden, 'Folded child', 1], [beta, 'Beta', 0], [gamma, 'Gamma', 0],
+        [first, 'Alpha', 0],
+        [hidden, 'Folded child', 1],
+        [beta, 'Beta', 0],
+        [gamma, 'Gamma', 0],
       ]);
       doc.redo();
       await client.flush();
-      expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([[replacement, 'Replacement'], [gamma, 'Gamma']]);
+      expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([
+        [replacement, 'Replacement'],
+        [gamma, 'Gamma'],
+      ]);
       expect(client.queuedChanges()).toBe(0);
     }
   }
@@ -108,15 +142,24 @@ test('Markdown paste persists native headings and nested open and completed task
   const { client, doc, first, pageId } = await fixture('');
   const at = { id: first, offset: 0 };
   success(doc.edit({ kind: 'paste', at, text: '## Heading\n- Bullet\n  - [ ] Todo\n- [x] Finished' }, at));
-  const shape = () => Array.from({ length: doc.outline.size() }, (_, i) => {
-    const id = doc.outline.idAt(i), block = doc.block(id)!;
-    return [block.text, doc.outline.depth(id), block.heading, block.task?.status ?? null];
-  });
-  const expected = [['Heading', 0, 2, null], ['Bullet', 0, null, null], ['Todo', 1, null, 'todo'], ['Finished', 0, null, 'done']];
+  const shape = () =>
+    Array.from({ length: doc.outline.size() }, (_, i) => {
+      const id = doc.outline.idAt(i),
+        block = doc.block(id)!;
+      return [block.text, doc.outline.depth(id), block.heading, block.task?.status ?? null];
+    });
+  const expected = [
+    ['Heading', 0, 2, null],
+    ['Bullet', 0, null, null],
+    ['Todo', 1, null, 'todo'],
+    ['Finished', 0, null, 'done'],
+  ];
   expect(shape()).toEqual(expected);
   await client.flush();
   const saved = await api.page(pageId);
-  expect(saved.rows.map(row => [row.block.text, row.depth, row.block.heading])).toEqual(expected.map(row => row.slice(0, 3)));
+  expect(saved.rows.map(row => [row.block.text, row.depth, row.block.heading])).toEqual(
+    expected.map(row => row.slice(0, 3)),
+  );
   doc.undo();
   await client.flush();
   expect(snapshot(doc).map(row => row.text)).toEqual(['']);
@@ -138,7 +181,9 @@ test('structured row replacement keeps copied native metadata and never reparses
   const gamma = insert(doc, pageId, beta, 'Gamma');
   await client.flush();
   const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
-  const result = success(doc.edit({ kind: 'pasteBlocks', range, between: [], replaceRoots: [first, beta], content }, range.head));
+  const result = success(
+    doc.edit({ kind: 'pasteBlocks', range, between: [], replaceRoots: [first, beta], content }, range.head),
+  );
   expect(snapshot(doc).map(row => row.text)).toEqual(['# Literal', '- Literal child', 'Gamma']);
   expect(result.created).toHaveLength(2);
   expect(doc.block(result.created[0]!)?.heading).toBe(2);
@@ -166,17 +211,27 @@ test('replacement undo restores rows that were previously cut and pasted with th
   await client.flush();
   expect(snapshot(doc).map(row => row.id)).toEqual([gamma, first, beta, delta]);
   const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
-  const pasted = success(doc.edit({ kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') }, range.head));
+  const pasted = success(
+    doc.edit(
+      { kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') },
+      range.head,
+    ),
+  );
   await client.flush();
   doc.undo();
   await client.flush();
   expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([
-    [gamma, 'Gamma'], [first, 'Alpha'], [beta, 'Beta'], [delta, 'Delta'],
+    [gamma, 'Gamma'],
+    [first, 'Alpha'],
+    [beta, 'Beta'],
+    [delta, 'Delta'],
   ]);
   doc.redo();
   await client.flush();
   expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([
-    [gamma, 'Gamma'], [pasted.caret!.id, 'Replacement'], [delta, 'Delta'],
+    [gamma, 'Gamma'],
+    [pasted.caret!.id, 'Replacement'],
+    [delta, 'Delta'],
   ]);
 });
 
@@ -193,7 +248,17 @@ test('typing redo restores the caret after the inserted character', async () => 
   const after = doc.redo();
   expect(after).toEqual({ id: first, offset: 3 });
   expect(doc.block(first)?.text).toBe('BBy');
-  success(doc.edit({ kind: 'text', id: first, text: `${doc.block(first)!.text.slice(0, after!.offset)}Z${doc.block(first)!.text.slice(after!.offset)}`, caret: 4 }, after));
+  success(
+    doc.edit(
+      {
+        kind: 'text',
+        id: first,
+        text: `${doc.block(first)!.text.slice(0, after!.offset)}Z${doc.block(first)!.text.slice(after!.offset)}`,
+        caret: 4,
+      },
+      after,
+    ),
+  );
   await client.flush();
   expect(doc.block(first)?.text).toBe('BByZ');
 });
@@ -204,7 +269,9 @@ test('field shorthand conversion restores the original block in one undo step', 
     const original = `${prefix}${value}`;
     const { client, doc, first } = await fixture(original);
     const at = { id: first, offset: original.length };
-    const converted = success(doc.edit({ kind: 'fieldEntry', id: first, fieldId: 'field-definition', from: prefix.length }, at));
+    const converted = success(
+      doc.edit({ kind: 'fieldEntry', id: first, fieldId: 'field-definition', from: prefix.length }, at),
+    );
     const child = converted.created[0]!;
     expect(doc.block(first)?.text).toBe('[[field-definition]]');
     expect(doc.block(child)?.text).toBe(value);
@@ -271,9 +338,14 @@ test('Enter at the start of a parent keeps its text and children on the original
     const before = snapshot(doc);
     const at = { id: first, offset: 0 };
     const range = { anchor: at, head: at };
-    const result = success(doc.edit(ranged
-      ? { kind: 'replaceRange', range, between: [], text: '', mode: 'split' }
-      : { kind: 'split', id: first, offset: 0 }, at));
+    const result = success(
+      doc.edit(
+        ranged
+          ? { kind: 'replaceRange', range, between: [], text: '', mode: 'split' }
+          : { kind: 'split', id: first, offset: 0 },
+        at,
+      ),
+    );
     const empty = result.created[0]!;
     expect(doc.outline.children(pageId)).toEqual([beforeParent, empty, first, sibling]);
     expect(doc.block(empty)?.text).toBe('');
@@ -301,7 +373,9 @@ test('Enter at the start of a zoomed task preserves its plan and inserts a plain
   const before = snapshot(doc);
   const at = { id: first, offset: 0 };
   const range = { anchor: at, head: at };
-  const result = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split', zoomRoot: first }, at));
+  const result = success(
+    doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split', zoomRoot: first }, at),
+  );
   const empty = result.created[0]!;
   expect(doc.outline.children(first)).toEqual([empty, child]);
   expect(doc.outline.children(pageId)).toEqual([first, hidden]);
@@ -329,9 +403,14 @@ test('Enter at the start of an unreviewed card inserts above without changing it
     const before = snapshot(doc);
     const at = { id: first, offset: 0 };
     const range = { anchor: at, head: at };
-    const result = success(doc.edit(ranged
-      ? { kind: 'replaceRange', range, between: [], text: '', mode: 'split' }
-      : { kind: 'split', id: first, offset: 0 }, at));
+    const result = success(
+      doc.edit(
+        ranged
+          ? { kind: 'replaceRange', range, between: [], text: '', mode: 'split' }
+          : { kind: 'split', id: first, offset: 0 },
+        at,
+      ),
+    );
     expect(doc.outline.children(pageId)).toEqual([result.created[0]!, first]);
     expect(doc.block(first)?.text).toBe('Front >> Back');
     expect(doc.block(result.created[0]!)?.text).toBe('');
@@ -372,7 +451,9 @@ test('Enter continues tasks without planning facts and empty tasks leave the lis
     success(doc.edit({ kind: 'task', id: first, value: task }));
     await client.flush();
     const at = { id: first, offset };
-    const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
+    const result = success(
+      doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at),
+    );
     const right = result.created[0]!;
     expect(doc.block(right)?.task).toEqual(newTask('todo'));
     expect(doc.block(first)?.task).toEqual(task);
@@ -457,7 +538,9 @@ test('Enter inside a reference or tag splits after it, and a range touching one 
     const text = doc.block(first)!.text;
     const token = text.slice('before '.length, -' after'.length);
     const at = { id: first, offset: 'before '.length + 3 };
-    const caret = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
+    const caret = success(
+      doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at),
+    );
     expect([doc.block(first)?.text, doc.block(caret.created[0]!)?.text]).toEqual([`before ${token}`, ' after']);
     expect(caret.caret).toEqual({ id: caret.created[0]!, offset: 0 });
     await client.flush();
@@ -468,7 +551,8 @@ test('Enter inside a reference or tag splits after it, and a range touching one 
     await client.flush();
     doc.undo();
     const range = { anchor: { id: first, offset: 3 }, head: at };
-    const ranged = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split' }, at)).created[0]!;
+    const ranged = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split' }, at))
+      .created[0]!;
     expect([doc.block(first)?.text, doc.block(ranged)?.text]).toEqual(['bef', ' after']);
   }
 });
@@ -477,7 +561,11 @@ test('reference deletion consumes the whole token and undo restores the selected
   const text = 'before [[01ARZ3NDEKTSV4RRFFQ69G5FAV|label]] after';
   const { client, doc, first } = await fixture(text);
   const end = text.indexOf(']]') + 2;
-  for (const [from, to] of [[end - 1, end], [7, 8], [15, 16]]) {
+  for (const [from, to] of [
+    [end - 1, end],
+    [7, 8],
+    [15, 16],
+  ]) {
     const range = { anchor: { id: first, offset: from! }, head: { id: first, offset: to! } };
     const result = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'text' }, range.head));
     expect(doc.block(first)?.text).toBe('before  after');
@@ -573,7 +661,11 @@ test('Delete at the zoomed root end cannot merge a sibling outside its subtree',
   expect(intent).toBeNull();
   expect(snapshot(doc)).toEqual(before);
   expect({ undo: doc.canUndo(), redo: doc.canRedo() }).toEqual(history);
-  expect(boundaryDeletion(doc, child, 'forward', first, undefined, first)).toEqual({ kind: 'merge', sourceId: nextChild, destinationId: child });
+  expect(boundaryDeletion(doc, child, 'forward', first, undefined, first)).toEqual({
+    kind: 'merge',
+    sourceId: nextChild,
+    destinationId: child,
+  });
   expect(boundaryDeletion(doc, first, 'forward')).toEqual({ kind: 'merge', sourceId: hidden, destinationId: first });
   await client.flush();
   expect((await api.block(first)).text).toBe('First');
@@ -586,7 +678,9 @@ test('undo of expanded token deletion restores the original collapsed caret', as
   const at = { id: first, offset: text.indexOf(']]') + 2 };
   const selectionBefore = { anchor: at, head: at };
   const range = { anchor: { id: first, offset: 7 }, head: at };
-  const result = success(doc.edit({ kind: 'replaceRange', range, selectionBefore, between: [], text: '', mode: 'text' }, at));
+  const result = success(
+    doc.edit({ kind: 'replaceRange', range, selectionBefore, between: [], text: '', mode: 'text' }, at),
+  );
   await client.flush();
   expect(doc.undo()).toEqual({ ...at, range: selectionBefore });
   expect(doc.block(first)?.text).toBe(text);
@@ -603,12 +697,22 @@ async function fieldFixture() {
   const after = insert(doc, pageId, entry, 'After the field');
   await client.flush();
   const definitions = new Map([['field-definition', { name: 'Area' }]]);
-  const rows = (retained: string | null = null, archived = false, folds: ReadonlySet<string> = new Set(), zoom: string | null = null) => {
+  const rows = (
+    retained: string | null = null,
+    archived = false,
+    folds: ReadonlySet<string> = new Set(),
+    zoom: string | null = null,
+  ) => {
     const visible = visibleIds(doc, zoom, folds, archived);
-    const inline = new Set(visible.filter(id => {
-      const values = id === retained ? null : inlineFieldValues(doc, id, definitions);
-      return !!values?.some(value => visible.includes(value)) && values.every(value => visible.includes(value) || doc.isArchived(value));
-    }));
+    const inline = new Set(
+      visible.filter(id => {
+        const values = id === retained ? null : inlineFieldValues(doc, id, definitions);
+        return (
+          !!values?.some(value => visible.includes(value)) &&
+          values.every(value => visible.includes(value) || doc.isArchived(value))
+        );
+      }),
+    );
     return visibleIds(doc, zoom, folds, archived, inline);
   };
   return { ...fixtureState, entry, value, after, rows };
@@ -638,7 +742,9 @@ test('Enter at the inline value end creates a second value that lines up under t
   const { doc, first, entry, value, after, rows } = await fieldFixture();
   expect(rows()).toEqual([first, value, after]);
   const at = { id: value, offset: doc.block(value)!.text.length };
-  const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
+  const result = success(
+    doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at),
+  );
   expect(doc.outline.children(entry)).toEqual([value, result.created[0]!]);
   expect(rows()).toEqual([first, value, result.created[0]!, after]);
 });
@@ -652,9 +758,14 @@ test('Enter on an empty field value exits after the entry in one undo step, even
     const before = snapshot(doc);
     const at = { id: empty, offset: 0 };
     const range = { anchor: at, head: at };
-    const result = success(doc.edit(sole
-      ? { kind: 'split', id: empty, offset: 0, fieldEntry: entry }
-      : { kind: 'replaceRange', range, between: [], text: '', mode: 'split', fieldEntry: entry }, at));
+    const result = success(
+      doc.edit(
+        sole
+          ? { kind: 'split', id: empty, offset: 0, fieldEntry: entry }
+          : { kind: 'replaceRange', range, between: [], text: '', mode: 'split', fieldEntry: entry },
+        at,
+      ),
+    );
     const next = result.created[0]!;
     expect(doc.block(empty)).toBeUndefined();
     expect(doc.outline.children(entry)).toEqual(sole ? [] : [value]);
@@ -779,14 +890,48 @@ test('depth stops show the gloss, the opening, then headings and positions, and 
   const subsection = insert(doc, section, null, 'Is it a circle?');
   insert(doc, subsection, null, 'Detail under a subheading');
   insert(doc, pageId, section, 'Top-level text after the sections');
-  for (const [id, level] of [[perspectives, 2], [section, 2], [subsection, 3]] as const) success(doc.edit({ kind: 'heading', id, level }));
-  const filter = (stop: 'gloss' | 'opening' | 'perspectives' | 'full') => ({ stop, gloss, position: (id: string) => id === position, gist: (id: string) => id === gist });
-  const rows = (stop: Parameters<typeof filter>[0], folds: ReadonlySet<string> = new Set(), zoom: string | null = null) => visibleIds(doc, zoom, folds, false, undefined, filter(stop));
+  for (const [id, level] of [
+    [perspectives, 2],
+    [section, 2],
+    [subsection, 3],
+  ] as const)
+    success(doc.edit({ kind: 'heading', id, level }));
+  const filter = (stop: 'gloss' | 'opening' | 'perspectives' | 'full') => ({
+    stop,
+    gloss,
+    position: (id: string) => id === position,
+    gist: (id: string) => id === gist,
+  });
+  const rows = (
+    stop: Parameters<typeof filter>[0],
+    folds: ReadonlySet<string> = new Set(),
+    zoom: string | null = null,
+  ) => visibleIds(doc, zoom, folds, false, undefined, filter(stop));
   expect(rows('gloss')).toEqual([gloss, glossValue]);
   expect(rows('opening')).toEqual([gloss, glossValue, intro, introChild]);
   expect(rows('opening', new Set([intro]))).toEqual([gloss, glossValue, intro]);
-  expect(rows('perspectives')).toEqual([gloss, glossValue, intro, introChild, perspectives, position, gist, gistValue, section, subsection]);
-  expect(rows('perspectives', new Set([position]))).toEqual([gloss, glossValue, intro, introChild, perspectives, position, section, subsection]);
+  expect(rows('perspectives')).toEqual([
+    gloss,
+    glossValue,
+    intro,
+    introChild,
+    perspectives,
+    position,
+    gist,
+    gistValue,
+    section,
+    subsection,
+  ]);
+  expect(rows('perspectives', new Set([position]))).toEqual([
+    gloss,
+    glossValue,
+    intro,
+    introChild,
+    perspectives,
+    position,
+    section,
+    subsection,
+  ]);
   expect(rows('full').length).toBe(doc.outline.size());
   expect(rows('gloss', new Set(), section)).toEqual([section, subsection, doc.outline.children(subsection)[0]!]);
 });
@@ -795,7 +940,12 @@ test('editing an inserted sibling at Perspectives depth reveals its own caret ta
   const { doc, first: heading } = await fixture('Perspectives');
   success(doc.edit({ kind: 'heading', id: heading, level: 2 }));
   const position = insert(doc, heading, null, 'Plato');
-  const filter = { stop: 'perspectives' as const, gloss: null, position: (id: string) => id === position, gist: () => false };
+  const filter = {
+    stop: 'perspectives' as const,
+    gloss: null,
+    position: (id: string) => id === position,
+    gist: () => false,
+  };
   const folds = new Set<string>();
   expect(editingDepth(doc, position, null, folds, false, filter)).toBe('perspectives');
   const inserted = success(doc.edit({ kind: 'insert', parentId: heading, after: position }));

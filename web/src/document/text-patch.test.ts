@@ -22,7 +22,9 @@ test('overlapping replacements and insertions cannot erase a newer contribution'
 });
 
 test('Unicode code points stay intact through independent edits', () => {
-  expect(rebaseText('\u{1F33F} café 日本', '\u{1F342} café 日本', '\u{1F33F} café 日本語')).toBe('\u{1F342} café 日本語');
+  expect(rebaseText('\u{1F33F} café 日本', '\u{1F342} café 日本', '\u{1F33F} café 日本語')).toBe(
+    '\u{1F342} café 日本語',
+  );
   expect(rebaseText('\u{1F33F} café 日本', '\u{1F342} café 日本', '\u{1F331} café 日本')).toBeNull();
 });
 

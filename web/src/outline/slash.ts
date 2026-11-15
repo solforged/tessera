@@ -2,16 +2,24 @@ import { parseCardText } from '../review/card-text';
 import { matchFieldEntry } from '../table/query';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 
-export interface SlashToken { from: number; to: number; query: string }
-export interface SlashEntry { id: string; title: string; aliases?: readonly string[] }
+export interface SlashToken {
+  from: number;
+  to: number;
+  query: string;
+}
+export interface SlashEntry {
+  id: string;
+  title: string;
+  aliases?: readonly string[];
+}
 
 /** The active slash token ends at the caret, not necessarily at the end of the block. */
 export function slashTokenAt(text: string, caret: number): SlashToken | null {
   if (caret <= 0 || caret > text.length || matchFieldEntry(text)) return null;
   const from = text.lastIndexOf('/', caret - 1);
-  if (from < 0 || from > 0 && !/\s/.test(text[from - 1]!) || insideProtectedSyntax(text, from)) return null;
+  if (from < 0 || (from > 0 && !/\s/.test(text[from - 1]!)) || insideProtectedSyntax(text, from)) return null;
   const query = text.slice(from + 1, caret);
-  if (query.length > 24 || query !== '' && !/^[\p{L}\p{N}]+(?: [\p{L}\p{N}]+)* ?$/u.test(query)) return null;
+  if (query.length > 24 || (query !== '' && !/^[\p{L}\p{N}]+(?: [\p{L}\p{N}]+)* ?$/u.test(query))) return null;
   return { from, to: caret, query };
 }
 

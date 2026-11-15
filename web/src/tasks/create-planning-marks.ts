@@ -18,16 +18,21 @@ export function createMonthPlanningMarks(notebook: Accessor<NotebookClient>, ini
     setMarks(cachedMonthPlanningMarks(currentNotebook, currentMonth) ?? {});
     setLoading(true);
     setError('');
-    void loadMonthPlanningMarks(currentNotebook, currentMonth).then(result => {
-      if (!current) return;
-      setMarks(result);
-      setLoading(false);
-    }, reason => {
-      if (!current) return;
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setLoading(false);
+    void loadMonthPlanningMarks(currentNotebook, currentMonth).then(
+      result => {
+        if (!current) return;
+        setMarks(result);
+        setLoading(false);
+      },
+      reason => {
+        if (!current) return;
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setLoading(false);
+      },
+    );
+    onCleanup(() => {
+      current = false;
     });
-    onCleanup(() => { current = false; });
   });
   return { marks, loading, error, setMonth };
 }

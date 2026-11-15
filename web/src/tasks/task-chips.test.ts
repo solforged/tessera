@@ -1,11 +1,26 @@
 import { describe, expect, test } from 'bun:test';
-import { chipLabels, dueMatches, dueRange, withDue, withPriority, withProject, withSearchText, withStatus } from './task-chips';
+import {
+  chipLabels,
+  dueMatches,
+  dueRange,
+  withDue,
+  withPriority,
+  withProject,
+  withSearchText,
+  withStatus,
+} from './task-chips';
 import { createTaskQuery } from './query';
 import { formatTaskQueryLine } from './task-query-line';
 import type { TaskQueryLineContext } from './task-query-line';
 
 const today = '2026-10-29';
-const ctx: TaskQueryLineContext = { context_date: today, resolveType: () => null, typeTitle: () => null, resolveProject: () => null, projectTitle: id => (id === 'kitchen' ? 'Kitchen renovation' : null) };
+const ctx: TaskQueryLineContext = {
+  context_date: today,
+  resolveType: () => null,
+  typeTitle: () => null,
+  resolveProject: () => null,
+  projectTitle: id => (id === 'kitchen' ? 'Kitchen renovation' : null),
+};
 const base = () => createTaskQuery(today);
 
 describe('task chips', () => {
@@ -33,7 +48,14 @@ describe('task chips', () => {
     expect(dueMatches(query, 'deadline', 'tomorrow', today)).toBe(true);
     expect(dueMatches(query, 'deadline', 'today', today)).toBe(false);
     expect(dueMatches(query, 'scheduled', 'tomorrow', today)).toBe(false);
-    expect(dueMatches({ ...query, filter: { ...query.filter, scheduled: dueRange('tomorrow', today) } }, 'deadline', 'tomorrow', today)).toBe(false);
+    expect(
+      dueMatches(
+        { ...query, filter: { ...query.filter, scheduled: dueRange('tomorrow', today) } },
+        'deadline',
+        'tomorrow',
+        today,
+      ),
+    ).toBe(false);
   });
 
   test('statuses toggle one at a time and clear together', () => {
@@ -55,11 +77,26 @@ describe('task chips', () => {
   });
 
   test('chip labels stay null at their defaults and name the value once set', () => {
-    expect(chipLabels(base(), today, () => undefined)).toEqual({ status: null, due: null, project: null, priority: null });
+    expect(chipLabels(base(), today, () => undefined)).toEqual({
+      status: null,
+      due: null,
+      project: null,
+      priority: null,
+    });
     let query = withStatus(withStatus(base(), 'doing'), 'todo');
     expect(chipLabels(query, today, () => undefined).status).toBe('2 statuses');
-    query = withDue(withPriority(withProject(withStatus(base(), 'doing'), 'kitchen'), 'low'), 'scheduled', 'before', today);
-    expect(chipLabels(query, today, id => (id === 'kitchen' ? 'Kitchen renovation' : undefined))).toEqual({ status: 'Doing', due: 'Scheduled before today', project: 'Kitchen renovation', priority: 'Low' });
+    query = withDue(
+      withPriority(withProject(withStatus(base(), 'doing'), 'kitchen'), 'low'),
+      'scheduled',
+      'before',
+      today,
+    );
+    expect(chipLabels(query, today, id => (id === 'kitchen' ? 'Kitchen renovation' : undefined))).toEqual({
+      status: 'Doing',
+      due: 'Scheduled before today',
+      project: 'Kitchen renovation',
+      priority: 'Low',
+    });
     const custom = { ...query, filter: { ...query.filter, scheduled: { from: '2026-01-01', through: '2026-01-02' } } };
     expect(chipLabels(custom, today, () => undefined).due).toBe('Scheduled dates');
     expect(chipLabels(custom, today, () => undefined).project).toBe('Project');

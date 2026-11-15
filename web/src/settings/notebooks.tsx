@@ -43,7 +43,12 @@ export async function forgetNotebook(path: string): Promise<void> {
  * Give unsent edits a moment to save, switch the service, and reload once it serves the chosen
  * notebook. Edits still unsent stay in this notebook's local outbox until it opens again.
  */
-export async function openNotebook(notebook: NotebookClient, path: string, create: boolean, label: string): Promise<void> {
+export async function openNotebook(
+  notebook: NotebookClient,
+  path: string,
+  create: boolean,
+  label: string,
+): Promise<void> {
   if (opening()) return;
   setOpening(label);
   try {
@@ -69,7 +74,10 @@ export async function reloadNotebook(path: string, label: string): Promise<void>
     setTimeout(wait.resolve, 250);
     await wait.promise;
     try {
-      if ((await api.notebook()).path === path) { location.reload(); return; }
+      if ((await api.notebook()).path === path) {
+        location.reload();
+        return;
+      }
     } catch (error) {
       // "switching" and connection failures mean the old service is still draining.
       if (error instanceof ApiError && error.code === 'notebook_changed') return;
@@ -79,20 +87,42 @@ export async function reloadNotebook(path: string, label: string): Promise<void>
 }
 
 /** Palette commands to switch to each other notebook on the list. */
-export function registerNotebookCommands(commands: CommandRegistry, notebook: NotebookClient, report: (error: unknown) => void): void {
+export function registerNotebookCommands(
+  commands: CommandRegistry,
+  notebook: NotebookClient,
+  report: (error: unknown) => void,
+): void {
   if (EMBEDDED) return;
-  void loadNotebooks().catch(() => { /* The commands appear once Settings loads the list. */ });
+  void loadNotebooks().catch(() => {
+    /* The commands appear once Settings loads the list. */
+  });
   createEffect(() => {
     const others = (known()?.notebooks ?? []).filter(entry => !entry.current && entry.available);
-    onCleanup(commands.register(others.map(entry => ({
-      id: `shell.notebook.${entry.path}`, title: `Switch to workshop: ${notebookLabel(entry)}`, section: 'Navigation' as const,
-      disabledReason: () => opening() ? 'A workshop is already opening' : undefined,
-      run: () => { void openNotebook(notebook, entry.path, false, notebookLabel(entry)).catch(report); },
-    }))));
+    onCleanup(
+      commands.register(
+        others.map(entry => ({
+          id: `shell.notebook.${entry.path}`,
+          title: `Switch to workshop: ${notebookLabel(entry)}`,
+          section: 'Navigation' as const,
+          disabledReason: () => (opening() ? 'A workshop is already opening' : undefined),
+          run: () => {
+            void openNotebook(notebook, entry.path, false, notebookLabel(entry)).catch(report);
+          },
+        })),
+      ),
+    );
   });
 }
 
 /** Covers the window between the switch and the reload, so nothing is edited in the notebook being left. */
 export function NotebookOpening() {
-  return <Show when={opening()}>{label => <div class="notebook-opening" role="status" aria-live="polite"><span>Opening {label()}…</span></div>}</Show>;
+  return (
+    <Show when={opening()}>
+      {label => (
+        <div class="notebook-opening" role="status" aria-live="polite">
+          <span>Opening {label()}…</span>
+        </div>
+      )}
+    </Show>
+  );
 }

@@ -9,7 +9,10 @@ export function settleHeight(element: HTMLElement, from: number): Animation | un
   const to = element.offsetHeight;
   if (!duration || !from || Math.abs(from - to) < 1) return undefined;
   return element.animate(
-    [{ height: `${from}px`, overflow: 'clip' }, { height: `${to}px`, overflow: 'clip' }],
+    [
+      { height: `${from}px`, overflow: 'clip' },
+      { height: `${to}px`, overflow: 'clip' },
+    ],
     { duration, easing: style.getPropertyValue('--motion-ease').trim() || 'ease-out' },
   );
 }

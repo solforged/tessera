@@ -4,8 +4,12 @@
  */
 export function installInputModality(): () => void {
   const root = document.documentElement;
-  const keydown = (event: KeyboardEvent) => { if (event.key === 'Tab') root.dataset.keyboard = ''; };
-  const pointerdown = () => { delete root.dataset.keyboard; };
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key === 'Tab') root.dataset.keyboard = '';
+  };
+  const pointerdown = () => {
+    delete root.dataset.keyboard;
+  };
   window.addEventListener('keydown', keydown, true);
   window.addEventListener('pointerdown', pointerdown, true);
   return () => {

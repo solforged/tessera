@@ -1,4 +1,14 @@
-export interface Token { start: number; end: number; kind: 'text' | 'reference' | 'tag' | 'url'; value: string; id?: string; alias?: string; locator?: string; targetKind?: 'view'; labelStart?: number }
+export interface Token {
+  start: number;
+  end: number;
+  kind: 'text' | 'reference' | 'tag' | 'url';
+  value: string;
+  id?: string;
+  alias?: string;
+  locator?: string;
+  targetKind?: 'view';
+  labelStart?: number;
+}
 
 export function isStableReference(token: Token): boolean {
   return token.kind === 'reference' && token.targetKind !== 'view' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id ?? '');
@@ -15,7 +25,8 @@ export function quoteTarget(text: string): string | null {
 
 export function textTokens(text: string): Token[] {
   const result: Token[] = [];
-  const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_/-])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
+  const pattern =
+    /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_/-])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
   let offset = 0;
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     const start = match.index;
@@ -25,7 +36,10 @@ export function textTokens(text: string): Token[] {
       for (;;) {
         close = text.indexOf(marker, close);
         if (close < 0) break;
-        if (text[close - 1] !== '`' && text[close + marker.length] !== '`') { pattern.lastIndex = close + marker.length; break; }
+        if (text[close - 1] !== '`' && text[close + marker.length] !== '`') {
+          pattern.lastIndex = close + marker.length;
+          break;
+        }
         close += marker.length;
       }
       continue;
@@ -34,9 +48,13 @@ export function textTokens(text: string): Token[] {
       let depth = 1;
       let cursor = start + 2;
       while (cursor < text.length && depth) {
-        if (text.startsWith('[[', cursor)) { depth++; cursor += 2; }
-        else if (text.startsWith(']]', cursor)) { depth--; cursor += 2; }
-        else cursor++;
+        if (text.startsWith('[[', cursor)) {
+          depth++;
+          cursor += 2;
+        } else if (text.startsWith(']]', cursor)) {
+          depth--;
+          cursor += 2;
+        } else cursor++;
       }
       pattern.lastIndex = cursor;
       continue;
@@ -47,12 +65,22 @@ export function textTokens(text: string): Token[] {
       let depth = 0;
       while (cursor < text.length && !/[\s<>"']/.test(text[cursor]!)) {
         if (text[cursor] === '(') depth++;
-        if (text[cursor] === ')') { if (!depth) break; depth--; }
+        if (text[cursor] === ')') {
+          if (!depth) break;
+          depth--;
+        }
         cursor++;
       }
       if (text[cursor] !== ')') continue;
       if (start > offset) result.push({ start: offset, end: start, kind: 'text', value: text.slice(offset, start) });
-      result.push({ start, end: cursor + 1, kind: 'url', value: text.slice(urlStart, cursor), alias: match[7], labelStart: start + 1 });
+      result.push({
+        start,
+        end: cursor + 1,
+        kind: 'url',
+        value: text.slice(urlStart, cursor),
+        alias: match[7],
+        labelStart: start + 1,
+      });
       offset = pattern.lastIndex = cursor + 1;
       continue;
     }
@@ -60,8 +88,10 @@ export function textTokens(text: string): Token[] {
     let value = match[0];
     if (match[5] !== undefined) {
       let balance = 0;
-      for (const char of value) if (char === '(') balance++; else if (char === ')') balance--;
-      while (/[.,;:!?]$/.test(value) || value.endsWith(')') && balance < 0) {
+      for (const char of value)
+        if (char === '(') balance++;
+        else if (char === ')') balance--;
+      while (/[.,;:!?]$/.test(value) || (value.endsWith(')') && balance < 0)) {
         if (value.endsWith(')')) balance++;
         value = value.slice(0, -1);
       }
@@ -72,14 +102,33 @@ export function textTokens(text: string): Token[] {
     const view = match[1]?.match(/^view:([0-7][0-9A-HJKMNP-TV-Z]{25})$/);
     const title = match[3] ?? match[4] ?? '';
     const canonical = /^([0-7][0-9A-HJKMNP-TV-Z]{25})\|([\s\S]*)$/.exec(title);
-    const invalidTag = title.includes('[') || !!canonical && /[\[\]|\r\n]/.test(canonical[2]!);
-    result.push(match[1] !== undefined
-      ? /^https?:\/\/[^\s<>"']+$/i.test(match[1]) && tail !== undefined
-        ? { start, end, kind: 'url', value: match[1], alias: tail, labelStart: start + 2 + match[1].length + 1 }
-        : { start, end, kind: 'reference', value, id: view?.[1] ?? match[1], ...(view ? { targetKind: 'view' as const } : {}), alias: separator < 0 ? tail : tail!.slice(0, separator), ...(separator < 0 ? {} : { locator: tail!.slice(separator + 1) }) }
-      : match[5] !== undefined ? { start, end, kind: 'url', value }
-      : invalidTag ? { start, end, kind: 'text', value }
-      : { start, end, kind: 'tag', value: canonical?.[2] ?? title.trim(), ...(canonical ? { id: canonical[1], alias: canonical[2] } : {}) });
+    const invalidTag = title.includes('[') || (!!canonical && /[\[\]|\r\n]/.test(canonical[2]!));
+    result.push(
+      match[1] !== undefined
+        ? /^https?:\/\/[^\s<>"']+$/i.test(match[1]) && tail !== undefined
+          ? { start, end, kind: 'url', value: match[1], alias: tail, labelStart: start + 2 + match[1].length + 1 }
+          : {
+              start,
+              end,
+              kind: 'reference',
+              value,
+              id: view?.[1] ?? match[1],
+              ...(view ? { targetKind: 'view' as const } : {}),
+              alias: separator < 0 ? tail : tail!.slice(0, separator),
+              ...(separator < 0 ? {} : { locator: tail!.slice(separator + 1) }),
+            }
+        : match[5] !== undefined
+          ? { start, end, kind: 'url', value }
+          : invalidTag
+            ? { start, end, kind: 'text', value }
+            : {
+                start,
+                end,
+                kind: 'tag',
+                value: canonical?.[2] ?? title.trim(),
+                ...(canonical ? { id: canonical[1], alias: canonical[2] } : {}),
+              },
+    );
     offset = end;
   }
   if (offset < text.length) result.push({ start: offset, end: text.length, kind: 'text', value: text.slice(offset) });
@@ -87,7 +136,9 @@ export function textTokens(text: string): Token[] {
 }
 
 export type InlineFormat = 'bold' | 'italic' | 'code';
-export interface InlineToken extends Token { formats?: InlineFormat[] }
+export interface InlineToken extends Token {
+  formats?: InlineFormat[];
+}
 
 /** Reading-only presentation; each visible literal retains its authored UTF-16 span. */
 export function inlineTokens(text: string): InlineToken[] {
@@ -97,9 +148,10 @@ export function inlineTokens(text: string): InlineToken[] {
   function parse(start: number, end: number, formats: InlineFormat[]) {
     let plainStart = start;
     const flush = (to: number) => {
-      if (to > plainStart) result.push({ start: plainStart, end: to, kind: 'text', value: text.slice(plainStart, to), formats });
+      if (to > plainStart)
+        result.push({ start: plainStart, end: to, kind: 'text', value: text.slice(plainStart, to), formats });
     };
-    for (let cursor = start; cursor < end;) {
+    for (let cursor = start; cursor < end; ) {
       const token = atomic.get(cursor);
       if (token && token.end <= end) {
         flush(cursor);
@@ -107,24 +159,58 @@ export function inlineTokens(text: string): InlineToken[] {
         cursor = plainStart = token.end;
         continue;
       }
-      if (text[cursor] === '\\') { cursor += 2; continue; }
-      const marker = text[cursor] === '`' ? /^`+/.exec(text.slice(cursor))![0]
-        : text.startsWith('***', cursor) ? '***' : text.startsWith('**', cursor) ? '**' : text[cursor] === '*' ? '*' : null;
-      if (!marker || /\s/.test(text[cursor + marker.length] ?? ' ')) { cursor++; continue; }
+      if (text[cursor] === '\\') {
+        cursor += 2;
+        continue;
+      }
+      const marker =
+        text[cursor] === '`'
+          ? /^`+/.exec(text.slice(cursor))![0]
+          : text.startsWith('***', cursor)
+            ? '***'
+            : text.startsWith('**', cursor)
+              ? '**'
+              : text[cursor] === '*'
+                ? '*'
+                : null;
+      if (!marker || /\s/.test(text[cursor + marker.length] ?? ' ')) {
+        cursor++;
+        continue;
+      }
       let close = cursor + marker.length;
       for (;;) {
         close = text.indexOf(marker, close);
         if (close < 0 || close >= end) break;
         const insideToken = tokens.some(token => token.kind !== 'text' && close >= token.start && close < token.end);
-        if (!insideToken && text[close - 1] !== '\\' && !/\s/.test(text[close - 1]!)
-          && (marker[0] !== '`' || text[close + marker.length] !== '`' && text[close - 1] !== '`')) break;
+        if (
+          !insideToken &&
+          text[close - 1] !== '\\' &&
+          !/\s/.test(text[close - 1]!) &&
+          (marker[0] !== '`' || (text[close + marker.length] !== '`' && text[close - 1] !== '`'))
+        )
+          break;
         close += marker.length;
       }
-      if (close < 0 || close >= end || /[\r\n]/.test(text.slice(cursor, close))) { cursor += marker.length; continue; }
+      if (close < 0 || close >= end || /[\r\n]/.test(text.slice(cursor, close))) {
+        cursor += marker.length;
+        continue;
+      }
       flush(cursor);
       const contentStart = cursor + marker.length;
-      if (marker[0] === '`') result.push({ start: contentStart, end: close, kind: 'text', value: text.slice(contentStart, close), formats: [...formats, 'code'] });
-      else parse(contentStart, close, [...formats, ...(marker.length >= 2 ? ['bold' as const] : []), ...(marker.length !== 2 ? ['italic' as const] : [])]);
+      if (marker[0] === '`')
+        result.push({
+          start: contentStart,
+          end: close,
+          kind: 'text',
+          value: text.slice(contentStart, close),
+          formats: [...formats, 'code'],
+        });
+      else
+        parse(contentStart, close, [
+          ...formats,
+          ...(marker.length >= 2 ? ['bold' as const] : []),
+          ...(marker.length !== 2 ? ['italic' as const] : []),
+        ]);
       cursor = plainStart = close + marker.length;
     }
     flush(end);
@@ -140,6 +226,10 @@ export function inlineTokens(text: string): InlineToken[] {
  * tag, whose pill shrinks with the word being typed.
  */
 export function tokenBeside(text: string, offset: number, direction: 'backward' | 'forward'): Token | undefined {
-  return textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag' && text.startsWith('#[[', token.start))
-    && !/[\r\n]/.test(token.value) && (direction === 'backward' ? token.end === offset : token.start === offset));
+  return textTokens(text).find(
+    token =>
+      (token.kind === 'reference' || (token.kind === 'tag' && text.startsWith('#[[', token.start))) &&
+      !/[\r\n]/.test(token.value) &&
+      (direction === 'backward' ? token.end === offset : token.start === offset),
+  );
 }

@@ -8,8 +8,11 @@ export function linkMentionEdit(id: string, text: string, pageId: string, term: 
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'giu');
   const protectedTokens = textTokens(text).filter(token => token.kind !== 'text');
-  for (let cursor = 0; cursor < text.length;) {
-    if (text[cursor] === '\\') { cursor += 2; continue; }
+  for (let cursor = 0; cursor < text.length; ) {
+    if (text[cursor] === '\\') {
+      cursor += 2;
+      continue;
+    }
     const end = protectedEnd(text, cursor);
     if (end !== null) {
       protectedTokens.push({ start: cursor, end, kind: 'text', value: '' });
@@ -17,10 +20,13 @@ export function linkMentionEdit(id: string, text: string, pageId: string, term: 
     } else cursor++;
   }
   for (const match of text.matchAll(pattern)) {
-    const start = match.index, end = start + match[0].length;
+    const start = match.index,
+      end = start + match[0].length;
     if (protectedTokens.some(token => token.start < end && token.end > start)) continue;
     return {
-      kind: 'replaceRange', mode: 'text', between: [],
+      kind: 'replaceRange',
+      mode: 'text',
+      between: [],
       range: { anchor: { id, offset: start }, head: { id, offset: end } },
       text: `[[${pageId}|${match[0]}]]`,
     };

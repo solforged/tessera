@@ -1,6 +1,9 @@
 import type { SourceRecord } from '../api/types';
 
-type SiglumSource = Pick<SourceRecord, 'block_id' | 'siglum' | 'siglum_basis' | 'siglum_authored' | 'siglum_disambiguation'>;
+type SiglumSource = Pick<
+  SourceRecord,
+  'block_id' | 'siglum' | 'siglum_basis' | 'siglum_authored' | 'siglum_disambiguation'
+>;
 
 /** Assign display sigla in first-appearance order without renaming earlier sources. */
 export function pageSigla(sources: readonly SiglumSource[]): Map<string, string> {
@@ -18,15 +21,24 @@ export function pageSigla(sources: readonly SiglumSource[]): Map<string, string>
         // Only earlier sources can veto a distinguisher: a later addition must not rename them.
         if (hints.year && !earlier?.years.has(hints.year) && !used.has(`${stem}${hints.year}`)) {
           display = `${stem}${hints.year}`;
-        } else if (hints.title_initial && !earlier?.initials.has(hints.title_initial) && !used.has(`${stem}${hints.title_initial}`)) {
+        } else if (
+          hints.title_initial &&
+          !earlier?.initials.has(hints.title_initial) &&
+          !used.has(`${stem}${hints.title_initial}`)
+        ) {
           display = `${stem}${hints.title_initial}`;
         } else {
           let ordinal = 2;
-          do { display = `${stem}${ordinal++}`; } while (used.has(display));
+          do {
+            display = `${stem}${ordinal++}`;
+          } while (used.has(display));
         }
       } else {
         // Authorless sources retain their editor/site/title extension rule.
-        const basis = [...source.siglum_basis].filter(letter => /\p{L}/u.test(letter)).join('').toUpperCase();
+        const basis = [...source.siglum_basis]
+          .filter(letter => /\p{L}/u.test(letter))
+          .join('')
+          .toUpperCase();
         for (const letter of [...basis].slice([...stem].length)) {
           display += letter;
           if (!used.has(display)) break;
@@ -34,7 +46,9 @@ export function pageSigla(sources: readonly SiglumSource[]): Map<string, string>
         if (used.has(display)) {
           const basisStem = display;
           let ordinal = 2;
-          do { display = `${basisStem}${ordinal++}`; } while (used.has(display));
+          do {
+            display = `${basisStem}${ordinal++}`;
+          } while (used.has(display));
         }
       }
     }
@@ -52,7 +66,8 @@ export function pageSigla(sources: readonly SiglumSource[]): Map<string, string>
 
 /** Page sigla also keyed by each cited reference, so a highlight named as a Work carries its source's mark. */
 export function citedSigla(cited: readonly { id: string; source: SiglumSource | null }[]): Map<string, string> {
-  const marks = pageSigla(cited.flatMap(row => row.source ? [row.source] : []));
-  for (const row of cited) if (row.source && row.id !== row.source.block_id) marks.set(row.id, marks.get(row.source.block_id)!);
+  const marks = pageSigla(cited.flatMap(row => (row.source ? [row.source] : [])));
+  for (const row of cited)
+    if (row.source && row.id !== row.source.block_id) marks.set(row.id, marks.get(row.source.block_id)!);
   return marks;
 }

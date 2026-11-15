@@ -1,14 +1,20 @@
 import type { FieldDefinition } from '../api/types';
 import { parseTaskDate } from '../tasks/date-input';
 
-export type ChoiceRow = { kind: 'option'; option: FieldDefinition['options'][number] } | { kind: 'create'; text: string } | { kind: 'clear' };
+export type ChoiceRow =
+  | { kind: 'option'; option: FieldDefinition['options'][number] }
+  | { kind: 'create'; text: string }
+  | { kind: 'clear' };
 
 export function choiceRows(options: FieldDefinition['options'], query: string): ChoiceRow[] {
-  const text = query.trim(), needle = text.toLowerCase();
+  const text = query.trim(),
+    needle = text.toLowerCase();
   const matches = options.filter(option => option.text.toLowerCase().includes(needle));
   return [
     ...matches.map(option => ({ kind: 'option' as const, option })),
-    ...(text && !options.some(option => option.text.trim().toLowerCase() === needle) ? [{ kind: 'create' as const, text }] : []),
+    ...(text && !options.some(option => option.text.trim().toLowerCase() === needle)
+      ? [{ kind: 'create' as const, text }]
+      : []),
     { kind: 'clear' },
   ];
 }
@@ -25,5 +31,5 @@ export function hasValueEditor(field: FieldDefinition | undefined, text: string,
   if (field?.kind === 'choice' || field?.kind === 'instance') return true;
   if (field?.kind !== 'date') return false;
   const parsed = parseTaskDate(text, contextDate);
-  return partialFieldDate(text) !== null || parsed.ok && parsed.time === null;
+  return partialFieldDate(text) !== null || (parsed.ok && parsed.time === null);
 }

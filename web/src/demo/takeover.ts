@@ -17,32 +17,52 @@ export class NotebookHandoff {
   private timer?: ReturnType<typeof setTimeout>;
   private releasing = false;
   private closed = false;
-  constructor(private channel: HandoffChannel, private options: HandoffOptions) {
+  constructor(
+    private channel: HandoffChannel,
+    private options: HandoffOptions,
+  ) {
     channel.onmessage = event => {
       const message = event.data as Partial<HandoffMessage> | null;
       if (!message || typeof message.id !== 'string') return;
       if (message.type === 'released' && message.id === this.requestId) {
-        this.cancel(); this.options.released();
+        this.cancel();
+        this.options.released();
       } else if (message.type === 'request' && !this.releasing) {
         this.releasing = true;
-        void this.options.release().then(released => {
-          if (released && !this.closed) channel.postMessage({ type: 'released', id: message.id! });
-        }).catch(reason => console.error('Workshop handoff failed.', reason)).finally(() => { this.releasing = false; });
+        void this.options
+          .release()
+          .then(released => {
+            if (released && !this.closed) channel.postMessage({ type: 'released', id: message.id! });
+          })
+          .catch(reason => console.error('Workshop handoff failed.', reason))
+          .finally(() => {
+            this.releasing = false;
+          });
       }
     };
   }
-  get requested(): boolean { return this.releasing; }
+  get requested(): boolean {
+    return this.releasing;
+  }
   request(): void {
     this.cancel();
     this.requestId = crypto.randomUUID();
     this.options.waiting();
-    this.timer = setTimeout(() => { this.cancel(); this.options.timeout(); }, 5000);
+    this.timer = setTimeout(() => {
+      this.cancel();
+      this.options.timeout();
+    }, 5000);
     this.channel.postMessage({ type: 'request', id: this.requestId });
   }
   cancel(): void {
-    clearTimeout(this.timer); this.timer = undefined; this.requestId = undefined;
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.requestId = undefined;
   }
   dispose(): void {
-    this.closed = true; this.cancel(); this.channel.onmessage = null; this.channel.close();
+    this.closed = true;
+    this.cancel();
+    this.channel.onmessage = null;
+    this.channel.close();
   }
 }

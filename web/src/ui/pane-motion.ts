@@ -5,20 +5,32 @@ import type { OpenTarget } from '../shell/contract';
 /** Navigation identity excludes presentation, scroll and caret state. */
 export function paneTargetIdentity(target: OpenTarget): string {
   switch (target.kind) {
-    case 'page': return `page:${target.pageId}`;
-    case 'table': return `table:${target.typeId}:${target.viewId}`;
-    case 'fields': return `fields:${target.typeId ?? ''}`;
-    case 'field': return `field:${target.fieldId}`;
-    case 'cards': return `cards:${target.typeId}`;
-    case 'reader': return `reader:${target.sourceId}:${target.snapshotId ?? ''}`;
-    case 'compare': return `compare:${target.subjectId}`;
-    case 'index': return `index:${target.key}`;
+    case 'page':
+      return `page:${target.pageId}`;
+    case 'table':
+      return `table:${target.typeId}:${target.viewId}`;
+    case 'fields':
+      return `fields:${target.typeId ?? ''}`;
+    case 'field':
+      return `field:${target.fieldId}`;
+    case 'cards':
+      return `cards:${target.typeId}`;
+    case 'reader':
+      return `reader:${target.sourceId}:${target.snapshotId ?? ''}`;
+    case 'compare':
+      return `compare:${target.subjectId}`;
+    case 'index':
+      return `index:${target.key}`;
     // A Library tab swaps the panel in place (crossfade); only arriving at the Library is a navigation.
-    case 'library': return 'library';
+    case 'library':
+      return 'library';
     // Day, Week and Tasks fade their panel in; only a new date or view arrives as a navigation.
-    case 'agenda': return `agenda:${target.date ?? ''}:${target.viewId ?? ''}`;
-    case 'review': return `review:${target.deckId ?? ''}`;
-    default: return target.kind;
+    case 'agenda':
+      return `agenda:${target.date ?? ''}:${target.viewId ?? ''}`;
+    case 'review':
+      return `review:${target.deckId ?? ''}`;
+    default:
+      return target.kind;
   }
 }
 
@@ -29,9 +41,12 @@ export function paneTargetIdentity(target: OpenTarget): string {
  */
 export function paneMotionIdentity(target: OpenTarget): string {
   switch (target.kind) {
-    case 'reader': return `reader:${target.sourceId}`;
-    case 'review': return 'review';
-    default: return paneTargetIdentity(target);
+    case 'reader':
+      return `reader:${target.sourceId}`;
+    case 'review':
+      return 'review';
+    default:
+      return paneTargetIdentity(target);
   }
 }
 
@@ -45,9 +60,15 @@ function settled(root: HTMLElement, cap: number): Promise<boolean> {
   if (!pending()) return Promise.resolve(true);
   const { promise, resolve } = Promise.withResolvers<boolean>();
   // Rendering is paused while a view transition waits, so nothing here may depend on animation frames.
-  const observer = new MutationObserver(() => { if (!pending()) finish(true); });
+  const observer = new MutationObserver(() => {
+    if (!pending()) finish(true);
+  });
   const timer = setTimeout(() => finish(false), cap);
-  function finish(value: boolean) { observer.disconnect(); clearTimeout(timer); resolve(value); }
+  function finish(value: boolean) {
+    observer.disconnect();
+    clearTimeout(timer);
+    resolve(value);
+  }
   observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-pane-pending'] });
   return promise;
 }
@@ -55,9 +76,18 @@ function settled(root: HTMLElement, cap: number): Promise<boolean> {
 /** A visible source cover for `sourceId` under `root`: a shelf or Reading now cover, or a source page header. */
 function sourceCover(root: ParentNode, sourceId: string): HTMLElement | null {
   const id = CSS.escape(sourceId);
-  for (const element of root.querySelectorAll<HTMLElement>(`[data-library-row="${id}"] .library-cover, [data-source-cover="${id}"]`)) {
+  for (const element of root.querySelectorAll<HTMLElement>(
+    `[data-library-row="${id}"] .library-cover, [data-source-cover="${id}"]`,
+  )) {
     const rect = element.getBoundingClientRect();
-    if (rect.width && rect.height && rect.bottom > 0 && rect.top < window.innerHeight && getComputedStyle(element).visibility === 'visible') return element;
+    if (
+      rect.width &&
+      rect.height &&
+      rect.bottom > 0 &&
+      rect.top < window.innerHeight &&
+      getComputedStyle(element).visibility === 'visible'
+    )
+      return element;
   }
   return null;
 }
@@ -73,11 +103,14 @@ const entryLimit = 600;
 /** How long after a click on a tab strip its selection is watched for a change that lands late, such as one waiting on a read. */
 const modeWatchLimit = 500;
 
-const motionless = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible';
+const motionless = () =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible';
 const canTransit = () => typeof document.startViewTransition === 'function' && !motionless();
-const paneContent = (pane: string) => document.querySelector<HTMLElement>(`section.pane[data-pane="${CSS.escape(pane)}"] > .pane-content`);
+const paneContent = (pane: string) =>
+  document.querySelector<HTMLElement>(`section.pane[data-pane="${CSS.escape(pane)}"] > .pane-content`);
 /** A surface that has not mounted or still waits on its data. */
-const waiting = (content: HTMLElement) => !content.firstElementChild || !!content.querySelector('[data-pane-pending], [data-pane-loading]');
+const waiting = (content: HTMLElement) =>
+  !content.firstElementChild || !!content.querySelector('[data-pane-pending], [data-pane-loading]');
 
 type Turn = 'forward' | 'back';
 /** `capture` until the browser has captured the old state and calls back, `hold` while the new state waits for its surface, `play` while both are on screen. */
@@ -112,7 +145,10 @@ let flight: Flight | null = null;
  * surface instead of showing every step. Anything else (another pane, or the row) cannot fold into a held turn and
  * applies without motion rather than skip a transition whose lazy surface has not mounted.
  */
-export function planTransition(busy: { pane: string | null; phase: Phase } | null, pane: string | null): 'start' | 'restart' | 'fold' | 'plain' {
+export function planTransition(
+  busy: { pane: string | null; phase: Phase } | null,
+  pane: string | null,
+): 'start' | 'restart' | 'fold' | 'plain' {
   if (!busy) return 'start';
   if (busy.phase === 'play') return 'restart';
   return pane !== null && busy.pane === pane ? 'fold' : 'plain';
@@ -120,7 +156,8 @@ export function planTransition(busy: { pane: string | null; phase: Phase } | nul
 
 /** A change asked for before the running transition has called back lines up behind the ones already asked for. */
 function join(busy: Flight, apply: () => void) {
-  if (busy.phase === 'capture') busy.queue.push(apply); else apply();
+  if (busy.phase === 'capture') busy.queue.push(apply);
+  else apply();
 }
 
 function nameElement(f: Flight, element: HTMLElement | null | undefined, value: string, group?: string) {
@@ -141,7 +178,10 @@ const rowTokens = new Map<string, number>();
 /** Pane ids are arbitrary strings and a transition name must be an identifier. */
 function rowToken(id: string) {
   let token = rowTokens.get(id);
-  if (token === undefined) { token = rowTokens.size + 1; rowTokens.set(id, token); }
+  if (token === undefined) {
+    token = rowTokens.size + 1;
+    rowTokens.set(id, token);
+  }
   return token;
 }
 
@@ -158,8 +198,15 @@ function nameRow(f: Flight) {
       continue;
     }
     const next = child.nextElementSibling;
-    const id = child.dataset.pane ?? child.dataset.spine ?? (next instanceof HTMLElement ? next.dataset.pane : undefined);
-    if (id !== undefined) nameElement(f, child, `${child.classList.contains('pane-divider') ? 'divider' : 'pane'}-${rowToken(id)}`, 'pane-row');
+    const id =
+      child.dataset.pane ?? child.dataset.spine ?? (next instanceof HTMLElement ? next.dataset.pane : undefined);
+    if (id !== undefined)
+      nameElement(
+        f,
+        child,
+        `${child.classList.contains('pane-divider') ? 'divider' : 'pane'}-${rowToken(id)}`,
+        'pane-row',
+      );
   }
 }
 
@@ -171,7 +218,7 @@ async function hold(f: Flight, incoming: HTMLElement) {
   incoming.setAttribute('data-transition', '');
   f.marked.add(incoming);
   f.incoming = incoming;
-  const ready = await settled(incoming, holdLimit) && !incoming.querySelector('[data-pane-loading]');
+  const ready = (await settled(incoming, holdLimit)) && !incoming.querySelector('[data-pane-loading]');
   if (flight !== f) return false;
   incoming.setAttribute('data-entered', '');
   f.ready = ready;
@@ -186,7 +233,10 @@ function release(f: Flight) {
     document.documentElement.style.removeProperty('--leaf-resume');
     document.documentElement.style.removeProperty('--leaf-lean');
   }
-  if (flight === f) { flight = null; delete document.documentElement.dataset.paneDirection; }
+  if (flight === f) {
+    flight = null;
+    delete document.documentElement.dataset.paneDirection;
+  }
 }
 
 /**
@@ -195,7 +245,10 @@ function release(f: Flight) {
  * travel share one easing. The turn lifts the old leaf away from there instead of from rest, which would pop it to
  * full first. Null once the leaf is at rest, or when none is entering.
  */
-export function leafResume(shown: number | null | undefined, direction: Turn): { opacity: number; lean: number } | null {
+export function leafResume(
+  shown: number | null | undefined,
+  direction: Turn,
+): { opacity: number; lean: number } | null {
   if (typeof shown !== 'number' || !Number.isFinite(shown) || shown >= 1) return null;
   const opacity = Math.max(0, shown);
   return { opacity, lean: (direction === 'back' ? -1 : 1) * (1 - opacity) };
@@ -208,7 +261,11 @@ export function leafResume(shown: number | null | undefined, direction: Turn): {
 function leafShown(): number | null {
   const entering = document.getAnimations().some(animation => {
     const effect = animation.effect;
-    return effect instanceof KeyframeEffect && effect.pseudoElement === '::view-transition-new(pane-leaf)' && !!(animation as CSSAnimation).animationName?.startsWith('leaf-in');
+    return (
+      effect instanceof KeyframeEffect &&
+      effect.pseudoElement === '::view-transition-new(pane-leaf)' &&
+      !!(animation as CSSAnimation).animationName?.startsWith('leaf-in')
+    );
   });
   if (!entering) return null;
   const opacity = parseFloat(getComputedStyle(document.documentElement, '::view-transition-new(pane-leaf)').opacity);
@@ -264,7 +321,10 @@ function transit(f: Flight, update: () => Promise<void>) {
  */
 export function navigatePane(pane: string, direction: Turn, apply: () => void, sourceId?: string) {
   const outgoing = paneContent(pane);
-  const plain = () => { outgoing?.removeAttribute('data-entered'); apply(); };
+  const plain = () => {
+    outgoing?.removeAttribute('data-entered');
+    apply();
+  };
   const busy = flight;
   const plan = !canTransit() || !document.querySelector('section.pane') ? 'plain' : planTransition(busy, pane);
   if (busy && plan === 'fold') {
@@ -275,13 +335,23 @@ export function navigatePane(pane: string, direction: Turn, apply: () => void, s
     return;
   }
   if (plan === 'plain') {
-    if (busy && busy.phase !== 'play') join(busy, plain); else plain();
+    if (busy && busy.phase !== 'play') join(busy, plain);
+    else plain();
     return;
   }
   // A leaf caught mid-entry in this pane lifts away from where it is, not from rest, or it would pop to full first.
   const resume = busy && busy.pane === pane ? leafResume(leafShown(), busy.direction) : null;
   if (busy) cancel(busy);
-  const f: Flight = { pane, direction, sourceId, phase: 'capture', queue: [apply], named: new Set(), marked: new Set(), ready: false };
+  const f: Flight = {
+    pane,
+    direction,
+    sourceId,
+    phase: 'capture',
+    queue: [apply],
+    named: new Set(),
+    marked: new Set(),
+    ready: false,
+  };
   flight = f;
   document.documentElement.dataset.paneDirection = direction;
   if (outgoing?.getClientRects().length) {
@@ -317,11 +387,21 @@ export function reflowPanes(apply: () => void) {
   const busy = flight;
   const plan = !canTransit() || !document.querySelector('.panes > .pane') ? 'plain' : planTransition(busy, null);
   if (plan === 'plain') {
-    if (busy && busy.phase !== 'play') join(busy, apply); else apply();
+    if (busy && busy.phase !== 'play') join(busy, apply);
+    else apply();
     return;
   }
   if (busy) cancel(busy);
-  const f: Flight = { pane: null, direction: 'forward', sourceId: undefined, phase: 'capture', queue: [apply], named: new Set(), marked: new Set(), ready: false };
+  const f: Flight = {
+    pane: null,
+    direction: 'forward',
+    sourceId: undefined,
+    phase: 'capture',
+    queue: [apply],
+    named: new Set(),
+    marked: new Set(),
+    ready: false,
+  };
   flight = f;
   nameRow(f);
   transit(f, async () => nameRow(f));
@@ -336,7 +416,10 @@ let swapping = false;
  * `after` names the new one. During a page turn or another swap it applies at once instead.
  */
 export function crossfade(panel: HTMLElement, apply: () => void, after?: () => HTMLElement | null) {
-  if (!canTransit() || flight || swapping) { apply(); return; }
+  if (!canTransit() || flight || swapping) {
+    apply();
+    return;
+  }
   swapping = true;
   panel.style.setProperty('view-transition-name', 'mode-panel');
   let next = panel;
@@ -349,7 +432,11 @@ export function crossfade(panel: HTMLElement, apply: () => void, after?: () => H
       next = element;
     }
   });
-  const restore = () => { swapping = false; panel.style.removeProperty('view-transition-name'); next.style.removeProperty('view-transition-name'); };
+  const restore = () => {
+    swapping = false;
+    panel.style.removeProperty('view-transition-name');
+    next.style.removeProperty('view-transition-name');
+  };
   transition.ready.catch(() => {});
   void transition.finished.then(restore, restore);
 }
@@ -359,7 +446,10 @@ export function crossfade(panel: HTMLElement, apply: () => void, after?: () => H
  * change state that renders later in the same task; positions are read again before the next paint.
  */
 export function glide(parts: () => readonly HTMLElement[], apply: () => void) {
-  if (motionless()) { apply(); return; }
+  if (motionless()) {
+    apply();
+    return;
+  }
   const before = new Map<HTMLElement, DOMRect>();
   for (const part of parts()) before.set(part, part.getBoundingClientRect());
   apply();
@@ -374,7 +464,8 @@ export function glide(parts: () => readonly HTMLElement[], apply: () => void) {
       const now = part.getBoundingClientRect();
       // A part that appears or disappears has nowhere to glide from.
       if (!was || !was.width || !now.width) continue;
-      const x = was.left - now.left, y = was.top - now.top;
+      const x = was.left - now.left,
+        y = was.top - now.top;
       if (Math.abs(x) < 1 && Math.abs(y) < 1) continue;
       part.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: 'none' }], { duration, easing });
     }
@@ -392,16 +483,30 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
     for (const animation of animations) animation.cancel();
     animations.clear();
   };
-  const animate = (element: HTMLElement, frames: Keyframe[], id: string, finished?: () => void): Animation | undefined => {
-    if (reduced.matches) { finished?.(); return; }
+  const animate = (
+    element: HTMLElement,
+    frames: Keyframe[],
+    id: string,
+    finished?: () => void,
+  ): Animation | undefined => {
+    if (reduced.matches) {
+      finished?.();
+      return;
+    }
     const style = getComputedStyle(content());
     const time = style.getPropertyValue('--motion-ui').trim();
     const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
-    if (!duration) { finished?.(); return; }
+    if (!duration) {
+      finished?.();
+      return;
+    }
     const animation = element.animate(frames, { duration, easing: style.getPropertyValue('--motion-ease').trim() });
     animation.id = id;
     animations.add(animation);
-    const done = () => { animations.delete(animation); finished?.(); };
+    const done = () => {
+      animations.delete(animation);
+      finished?.();
+    };
     animation.onfinish = done;
     animation.oncancel = done;
     return animation;
@@ -423,10 +528,18 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
       // This is the entry: a surface that fades its own content in when it lands has nothing left to add.
       content().setAttribute('data-entered', '');
       const distance = getComputedStyle(content()).getPropertyValue('--motion-distance').trim();
-      animate(surface, [{ opacity: 0, transform: `translateY(${distance})` }, { opacity: 1, transform: 'translateY(0)' }], 'pane-enter');
+      animate(
+        surface,
+        [
+          { opacity: 0, transform: `translateY(${distance})` },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        'pane-enter',
+      );
     };
     // A surface kept hidden while it loads has nothing to fade yet: the entry waits for it, which needs no frames.
-    if (getComputedStyle(panel).visibility === 'hidden' && content().querySelector('[data-pane-pending]')) void settled(content(), entryLimit).then(show);
+    if (getComputedStyle(panel).visibility === 'hidden' && content().querySelector('[data-pane-pending]'))
+      void settled(content(), entryLimit).then(show);
     else show();
   };
   createEffect(() => {
@@ -453,15 +566,34 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
     // The strip's own button changes the tab when this click reaches it, after this capturing listener has run (and
     // after any microtask queued from it), so the change is looked for just before the next frame is drawn. A strip
     // whose tab changes when a read lands (the Review queue) is watched for `modeWatchLimit` ms after that.
-    let modeFrame = 0, modeTimer = 0, modeWatch: MutationObserver | undefined;
-    const unwatch = () => { cancelAnimationFrame(modeFrame); clearTimeout(modeTimer); modeWatch?.disconnect(); modeWatch = undefined; };
+    let modeFrame = 0,
+      modeTimer = 0,
+      modeWatch: MutationObserver | undefined;
+    const unwatch = () => {
+      cancelAnimationFrame(modeFrame);
+      clearTimeout(modeTimer);
+      modeWatch?.disconnect();
+      modeWatch = undefined;
+    };
     const click = (event: MouseEvent) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('.mode-tabs > button');
       const strip = button?.parentElement;
       const selector = strip?.dataset.modePanel;
-      if (!button || !strip || !selector || button.disabled || event.shiftKey || event.metaKey || event.ctrlKey || reduced.matches || button.matches('[aria-pressed="true"], [aria-selected="true"]')) return;
+      if (
+        !button ||
+        !strip ||
+        !selector ||
+        button.disabled ||
+        event.shiftKey ||
+        event.metaKey ||
+        event.ctrlKey ||
+        reduced.matches ||
+        button.matches('[aria-pressed="true"], [aria-selected="true"]')
+      )
+        return;
       const selected = strip.querySelector('[aria-pressed="true"], [aria-selected="true"]');
-      const changed = () => !strip.isConnected || strip.querySelector('[aria-pressed="true"], [aria-selected="true"]') !== selected;
+      const changed = () =>
+        !strip.isConnected || strip.querySelector('[aria-pressed="true"], [aria-selected="true"]') !== selected;
       /** Fades the panel in once the tab has changed; true when this click is decided, either way. */
       const decide = () => {
         if (!element.isConnected) return true;
@@ -479,8 +611,14 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
       unwatch();
       modeFrame = requestAnimationFrame(() => {
         if (decide()) return;
-        modeWatch = new MutationObserver(() => { if (decide()) unwatch(); });
-        modeWatch.observe(strip, { subtree: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-selected'] });
+        modeWatch = new MutationObserver(() => {
+          if (decide()) unwatch();
+        });
+        modeWatch.observe(strip, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['aria-pressed', 'aria-selected'],
+        });
         modeTimer = window.setTimeout(unwatch, modeWatchLimit);
       });
     };
@@ -489,6 +627,14 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
     host.addEventListener('click', click, true);
     reduced.addEventListener('change', stop);
     element.addEventListener('beforeinput', typing, true);
-    onCleanup(() => { arrivals.disconnect(); pendingEntry = false; unwatch(); element.removeEventListener('beforeinput', typing, true); host.removeEventListener('click', click, true); reduced.removeEventListener('change', stop); stop(); });
+    onCleanup(() => {
+      arrivals.disconnect();
+      pendingEntry = false;
+      unwatch();
+      element.removeEventListener('beforeinput', typing, true);
+      host.removeEventListener('click', click, true);
+      reduced.removeEventListener('change', stop);
+      stop();
+    });
   });
 }

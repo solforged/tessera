@@ -1,10 +1,21 @@
 import { textTokens } from '../document/text-tokens';
 
-export interface TableSource { href: string; label: string; hostname: string }
-export interface SourceText { sources: TableSource[]; remainder: string }
+export interface TableSource {
+  href: string;
+  label: string;
+  hostname: string;
+}
+export interface SourceText {
+  sources: TableSource[];
+  remainder: string;
+}
 
 /** Recognise authored Markdown labels around URL tokens without changing stored text. */
-function markdownLink(text: string, start: number, end: number): { start: number; end: number; hrefEnd: number; label: string } | undefined {
+function markdownLink(
+  text: string,
+  start: number,
+  end: number,
+): { start: number; end: number; hrefEnd: number; label: string } | undefined {
   const angled = text[start - 1] === '<';
   let opening = start - (angled ? 2 : 1);
   while (opening >= 0 && /\s/.test(text[opening]!)) opening--;
@@ -24,13 +35,19 @@ function markdownLink(text: string, start: number, end: number): { start: number
       if (text[index - 1] === '\\') continue;
       if (text[index] === '(') parentheses++;
       else if (text[index] === ')') {
-        if (!parentheses) { hrefEnd = index; break; }
+        if (!parentheses) {
+          hrefEnd = index;
+          break;
+        }
         parentheses--;
       }
     }
   }
   let closing = hrefEnd;
-  if (angled) { if (text[closing] !== '>') return undefined; closing++; }
+  if (angled) {
+    if (text[closing] !== '>') return undefined;
+    closing++;
+  }
   while (/\s/.test(text[closing] ?? '') && closing < text.length) closing++;
   // A Markdown title is metadata, not an authored link label.
   if (text[closing] === '"' || text[closing] === "'") {
@@ -41,7 +58,15 @@ function markdownLink(text: string, start: number, end: number): { start: number
     while (/\s/.test(text[closing] ?? '') && closing < text.length) closing++;
   }
   if (text[closing] !== ')') return undefined;
-  return { start: labelStart, end: closing + 1, hrefEnd, label: text.slice(labelStart + 1, opening - 1).trim().replace(/\\([\[\]()\\])/g, '$1') };
+  return {
+    start: labelStart,
+    end: closing + 1,
+    hrefEnd,
+    label: text
+      .slice(labelStart + 1, opening - 1)
+      .trim()
+      .replace(/\\([\[\]()\\])/g, '$1'),
+  };
 }
 
 /** Every original URL is retained, including repeated destinations with different labels. */
@@ -57,19 +82,33 @@ export function sourceText(text: string): SourceText {
     const href = markdown ? text.slice(token.start, markdown.hrefEnd) : token.value;
     // An ordinary source value can also be written as "Authored title: URL".
     const prefix = text.slice(0, token.start).trim();
-    const labelled = !markdown && offset === 0 && !text.slice(token.end).trim() && prefix.endsWith(':') ? prefix.slice(0, -1).trim() : '';
+    const labelled =
+      !markdown && offset === 0 && !text.slice(token.end).trim() && prefix.endsWith(':')
+        ? prefix.slice(0, -1).trim()
+        : '';
     let hostname = '';
     let bareLabel = href;
     try {
       const url = new URL(href);
       hostname = url.hostname;
       bareLabel = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}${url.search}${url.hash}`;
-    } catch { /* Invalid URL readings retain their original destination and warning. */ }
+    } catch {
+      /* Invalid URL readings retain their original destination and warning. */
+    }
     sources.push({ href, label: token.alias || markdown?.label || labelled || bareLabel, hostname });
     remainder.push(labelled ? '' : text.slice(offset, markdown?.start ?? token.start));
     offset = markdown?.end ?? token.end;
     // Adjacent Markdown links can share one URL token; revisit its unconsumed tail.
-    if (markdown && markdown.end < token.end) tokens.splice(index + 1, 0, ...textTokens(text.slice(markdown.end, token.end)).map(part => ({ ...part, start: part.start + markdown.end, end: part.end + markdown.end })));
+    if (markdown && markdown.end < token.end)
+      tokens.splice(
+        index + 1,
+        0,
+        ...textTokens(text.slice(markdown.end, token.end)).map(part => ({
+          ...part,
+          start: part.start + markdown.end,
+          end: part.end + markdown.end,
+        })),
+      );
   }
   remainder.push(text.slice(offset));
   const remaining = remainder.join('').trim();

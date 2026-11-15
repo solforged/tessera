@@ -19,7 +19,11 @@ const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 /** Keep UTF-16 editor positions on extended-grapheme boundaries, including Indic conjuncts. */
 export function graphemeBoundary(text: string, offset: number, forward: boolean): number {
   const segment = graphemes.segment(text).containing(offset);
-  return !segment || segment.index === offset ? offset : forward ? segment.index + segment.segment.length : segment.index;
+  return !segment || segment.index === offset
+    ? offset
+    : forward
+      ? segment.index + segment.segment.length
+      : segment.index;
 }
 
 export const graphemeSelection = EditorState.transactionFilter.of(transaction => {
@@ -28,7 +32,11 @@ export const graphemeSelection = EditorState.transactionFilter.of(transaction =>
   const text = transaction.state.doc.toString();
   const ranges = transaction.selection.ranges.map((range, index) => {
     const previous = transaction.startState.selection.ranges[index] ?? transaction.startState.selection.main;
-    const head = graphemeBoundary(text, range.head, range.empty ? range.head >= previous.head : range.head > range.anchor);
+    const head = graphemeBoundary(
+      text,
+      range.head,
+      range.empty ? range.head >= previous.head : range.head > range.anchor,
+    );
     const anchor = range.empty ? head : graphemeBoundary(text, range.anchor, range.anchor > range.head);
     return EditorSelection.range(anchor, head, range.goalColumn, range.bidiLevel ?? undefined, range.assoc);
   });
@@ -39,11 +47,17 @@ export const graphemeSelection = EditorState.transactionFilter.of(transaction =>
 type FieldResolver = (id: string) => string | undefined;
 type FieldKindResolver = (name: string) => FieldKind | undefined;
 const fieldName = Facet.define<FieldResolver, FieldResolver>({ combine: values => values.at(-1) ?? (() => undefined) });
-const fieldKind = Facet.define<FieldKindResolver, FieldKindResolver>({ combine: values => values.at(-1) ?? (() => undefined) });
+const fieldKind = Facet.define<FieldKindResolver, FieldKindResolver>({
+  combine: values => values.at(-1) ?? (() => undefined),
+});
 
 class FieldNameWidget extends WidgetType {
-  constructor(private readonly name: string) { super(); }
-  eq(other: FieldNameWidget): boolean { return this.name === other.name; }
+  constructor(private readonly name: string) {
+    super();
+  }
+  eq(other: FieldNameWidget): boolean {
+    return this.name === other.name;
+  }
   toDOM(): HTMLElement {
     const label = document.createElement('span');
     label.className = 'field-entry-widget';
@@ -55,21 +69,23 @@ class FieldNameWidget extends WidgetType {
 function fieldDecoration(state: EditorState): DecorationSet {
   const id = fieldEntryId(state.doc.toString());
   const name = id ? state.facet(fieldName)(id) : undefined;
-  return name === undefined ? Decoration.none
+  return name === undefined
+    ? Decoration.none
     : Decoration.set([Decoration.replace({ widget: new FieldNameWidget(name) }).range(0, state.doc.length)]);
 }
 const fieldDecorations = StateField.define<DecorationSet>({
   create: fieldDecoration,
-  update: (value, transaction) => transaction.docChanged || transaction.startState.facet(fieldName) !== transaction.state.facet(fieldName)
-    ? fieldDecoration(transaction.state) : value,
-  provide: field => [
-    EditorView.decorations.from(field),
-    EditorView.atomicRanges.of(view => view.state.field(field)),
-  ],
+  update: (value, transaction) =>
+    transaction.docChanged || transaction.startState.facet(fieldName) !== transaction.state.facet(fieldName)
+      ? fieldDecoration(transaction.state)
+      : value,
+  provide: field => [EditorView.decorations.from(field), EditorView.atomicRanges.of(view => view.state.field(field))],
 });
 
 class FieldIconWidget extends WidgetType {
-  eq(): boolean { return true; }
+  eq(): boolean {
+    return true;
+  }
   toDOM(): HTMLElement {
     const icon = document.createElement('span');
     icon.className = 'field-draft-icon';
@@ -78,8 +94,12 @@ class FieldIconWidget extends WidgetType {
   }
 }
 class FieldHintWidget extends WidgetType {
-  constructor(private readonly hint: string) { super(); }
-  eq(other: FieldHintWidget): boolean { return this.hint === other.hint; }
+  constructor(private readonly hint: string) {
+    super();
+  }
+  eq(other: FieldHintWidget): boolean {
+    return this.hint === other.hint;
+  }
   toDOM(): HTMLElement {
     const hint = document.createElement('span');
     hint.className = 'field-draft-hint';
@@ -98,16 +118,24 @@ export function fieldDraftDecorations(text: string, kindOf: FieldKindResolver): 
   const match = matchFieldEntry(text);
   if (!match) return Decoration.none;
   const kind = kindOf(match.name);
-  const guess = match.value.trim() ? guessFieldKind(match.value) ?? 'text' : null;
-  const hint = kind ? match.value.trim() ? null : kindLabels[kind] : guess ? `New ${kindNoun(guess)} field` : 'New field';
+  const guess = match.value.trim() ? (guessFieldKind(match.value) ?? 'text') : null;
+  const hint = kind
+    ? match.value.trim()
+      ? null
+      : kindLabels[kind]
+    : guess
+      ? `New ${kindNoun(guess)} field`
+      : 'New field';
   const ranges = [fieldIcon.range(0), draftName.range(0, text.indexOf('::') + 2)];
   if (hint) ranges.push(Decoration.widget({ widget: new FieldHintWidget(hint), side: 1 }).range(text.length));
   return Decoration.set(ranges, true);
 }
 const fieldDrafts = StateField.define<DecorationSet>({
   create: state => fieldDraftDecorations(state.doc.toString(), state.facet(fieldKind)),
-  update: (value, transaction) => transaction.docChanged || transaction.startState.facet(fieldKind) !== transaction.state.facet(fieldKind)
-    ? fieldDraftDecorations(transaction.state.doc.toString(), transaction.state.facet(fieldKind)) : value.map(transaction.changes),
+  update: (value, transaction) =>
+    transaction.docChanged || transaction.startState.facet(fieldKind) !== transaction.state.facet(fieldKind)
+      ? fieldDraftDecorations(transaction.state.doc.toString(), transaction.state.facet(fieldKind))
+      : value.map(transaction.changes),
   provide: field => EditorView.decorations.from(field),
 });
 
@@ -131,8 +159,10 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
       const id = fieldEntryId(state.doc.toString());
       if (!id || state.facet(fieldName)(id) === undefined) return transaction;
       const end = state.doc.length;
-      const boundary = (offset: number) => offset > 0 && offset < end ? offset < end / 2 ? 0 : end : offset;
-      const ranges = state.selection.ranges.map(range => EditorSelection.range(boundary(range.anchor), boundary(range.head)));
+      const boundary = (offset: number) => (offset > 0 && offset < end ? (offset < end / 2 ? 0 : end) : offset);
+      const ranges = state.selection.ranges.map(range =>
+        EditorSelection.range(boundary(range.anchor), boundary(range.head)),
+      );
       const selection = EditorSelection.create(ranges, state.selection.mainIndex);
       return selection.eq(state.selection) ? transaction : [transaction, { selection, sequential: true }];
     }),
@@ -141,11 +171,38 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false, readonly open?: EditorHooks['openReference'], readonly icon?: IconName, readonly unresolved = false) { super(); }
-  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation && this.icon === other.icon && this.unresolved === other.unresolved; }
+  constructor(
+    readonly label: string,
+    readonly length: number,
+    readonly token: Token,
+    readonly ambiguous: boolean,
+    readonly choose?: EditorHooks['referenceMenu'],
+    readonly citation = false,
+    readonly open?: EditorHooks['openReference'],
+    readonly icon?: IconName,
+    readonly unresolved = false,
+  ) {
+    super();
+  }
+  eq(other: ReferenceWidget): boolean {
+    return (
+      this.label === other.label &&
+      this.length === other.length &&
+      this.token.start === other.token.start &&
+      this.token.id === other.token.id &&
+      this.token.locator === other.token.locator &&
+      this.ambiguous === other.ambiguous &&
+      this.citation === other.citation &&
+      this.icon === other.icon &&
+      this.unresolved === other.unresolved
+    );
+  }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
-    dom.className = this.token.kind === 'tag' ? 'outline-tag' : `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}${this.citation ? ' outline-citation' : ''}`;
+    dom.className =
+      this.token.kind === 'tag'
+        ? 'outline-tag'
+        : `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}${this.citation ? ' outline-citation' : ''}`;
     if (this.unresolved) dom.classList.add('outline-reference-unresolved');
     if (this.icon) dom.append(glyphElement(this.icon));
     dom.append(document.createTextNode(this.label));
@@ -165,17 +222,34 @@ class ReferenceWidget extends WidgetType {
       dom.setAttribute('role', 'button');
       dom.tabIndex = 0;
       dom.addEventListener('keydown', event => {
-        if ((event.key === 'Enter' || event.key === ' ') && this.choose) { event.preventDefault(); event.stopPropagation(); this.choose(this.token, dom); }
+        if ((event.key === 'Enter' || event.key === ' ') && this.choose) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.choose(this.token, dom);
+        }
       });
     }
-    dom.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
+    dom.addEventListener('mousedown', event => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
     // A click or tap puts the caret at the nearer end, measured along the label's lines, so the row keeps its shape.
     dom.addEventListener('click', event => {
-      event.preventDefault(); event.stopPropagation();
-      if (this.ambiguous && this.choose) { this.choose(this.token, dom); return; }
-      if (opensBeside(event) && this.open) { this.open(this.token, true); return; }
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.ambiguous && this.choose) {
+        this.choose(this.token, dom);
+        return;
+      }
+      if (opensBeside(event) && this.open) {
+        this.open(this.token, true);
+        return;
+      }
       const lines = [...dom.getClientRects()];
-      const line = Math.max(0, lines.findIndex(rect => event.clientY <= rect.bottom));
+      const line = Math.max(
+        0,
+        lines.findIndex(rect => event.clientY <= rect.bottom),
+      );
       const box = lines[line] ?? dom.getBoundingClientRect();
       const along = (line + (event.clientX - box.left) / Math.max(1, box.width)) / Math.max(1, lines.length);
       view.dispatch({ selection: { anchor: view.posAtDOM(dom) + (along > 0.5 ? this.length : 0) } });
@@ -189,38 +263,112 @@ class ReferenceWidget extends WidgetType {
  * Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the
  * field widget's job; a whole-text reference to anything else, such as a choice value, still gets a label.
  */
-export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu'], isSource?: EditorHooks['isSource'], open?: EditorHooks['openReference'], tag?: EditorHooks['tag']): DecorationSet {
+export function referenceDecorations(
+  text: string,
+  head: number,
+  label: EditorHooks['label'],
+  isField: (id: string) => boolean = () => true,
+  names?: EditorHooks['nameMatches'],
+  choose?: EditorHooks['referenceMenu'],
+  isSource?: EditorHooks['isSource'],
+  open?: EditorHooks['openReference'],
+  tag?: EditorHooks['tag'],
+): DecorationSet {
   const whole = fieldEntryId(text);
   if (whole !== null && isField(whole)) return Decoration.none;
-  return Decoration.set(textTokens(text).flatMap(token => {
-    if (token.kind === 'tag') {
-      if (head > token.start && head < token.end) return [];
-      const presentation = tag?.(token.value, token.id);
-      return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(`#${presentation?.name || token.alias || token.value || token.id}`, token.end - token.start, token, false, undefined, false, open, presentation?.icon, presentation?.unresolved) }).range(token.start, token.end)];
-    }
-    if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
-    const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
-    const ambiguous = !stable && (names?.(token.id!)?.length ?? 0) > 1;
-    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start, token, ambiguous, choose, !!(token.alias || token.locator) && !!isSource?.(token.id!), open) }).range(token.start, token.end)];
-  }));
+  return Decoration.set(
+    textTokens(text).flatMap(token => {
+      if (token.kind === 'tag') {
+        if (head > token.start && head < token.end) return [];
+        const presentation = tag?.(token.value, token.id);
+        return [
+          Decoration.replace({
+            inclusive: false,
+            widget: new ReferenceWidget(
+              `#${presentation?.name || token.alias || token.value || token.id}`,
+              token.end - token.start,
+              token,
+              false,
+              undefined,
+              false,
+              open,
+              presentation?.icon,
+              presentation?.unresolved,
+            ),
+          }).range(token.start, token.end),
+        ];
+      }
+      if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || (head > token.start && head < token.end))
+        return [];
+      const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
+      const ambiguous = !stable && (names?.(token.id!)?.length ?? 0) > 1;
+      return [
+        Decoration.replace({
+          inclusive: false,
+          widget: new ReferenceWidget(
+            token.alias || label(token.id!) || token.id!,
+            token.end - token.start,
+            token,
+            ambiguous,
+            choose,
+            !!(token.alias || token.locator) && !!isSource?.(token.id!),
+            open,
+          ),
+        }).range(token.start, token.end),
+      ];
+    }),
+  );
 }
 
 function references(hooks: EditorHooks) {
-  return ViewPlugin.fromClass(class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference, hooks.tag); }
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet || update.startState.facet(fieldName) !== update.state.facet(fieldName) || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
-        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference, hooks.tag);
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = referenceDecorations(
+          view.state.doc.toString(),
+          view.state.selection.main.head,
+          hooks.label,
+          id => view.state.facet(fieldName)(id) !== undefined,
+          hooks.nameMatches,
+          hooks.referenceMenu,
+          hooks.isSource,
+          hooks.openReference,
+          hooks.tag,
+        );
       }
-    }
-  }, {
-    decorations: plugin => plugin.decorations,
-    provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.decorations ?? Decoration.none),
-  });
+      update(update: ViewUpdate) {
+        if (
+          update.docChanged ||
+          update.selectionSet ||
+          update.startState.facet(fieldName) !== update.state.facet(fieldName) ||
+          update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))
+        ) {
+          this.decorations = referenceDecorations(
+            update.state.doc.toString(),
+            update.state.selection.main.head,
+            hooks.label,
+            id => update.state.facet(fieldName)(id) !== undefined,
+            hooks.nameMatches,
+            hooks.referenceMenu,
+            hooks.isSource,
+            hooks.openReference,
+            hooks.tag,
+          );
+        }
+      }
+    },
+    {
+      decorations: plugin => plugin.decorations,
+      provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.decorations ?? Decoration.none),
+    },
+  );
 }
 
-const pairs: Record<string, { open: string; close: string }> = { '[': { open: '[[', close: ']]' }, '(': { open: '((', close: '))' } };
+const pairs: Record<string, { open: string; close: string }> = {
+  '[': { open: '[[', close: ']]' },
+  '(': { open: '((', close: '))' },
+};
 const closers: Record<string, { open: string; close: string }> = { ']': pairs['[']!, ')': pairs['(']! };
 /**
  * As in Roam and Logseq, a second `[` or `(` closes its pair, and typing a closer inside an open pair steps
@@ -243,14 +391,20 @@ export function pairInput(doc: string, at: number, text: string): { insert: stri
  * it and leaves the caret before the closer. A whole `[[` or `((` in one input surrounds at once. Null means
  * the key should replace the selection, including a third opener.
  */
-export function pairSelection(doc: string, from: number, to: number, text: string): { before: string; after: string; anchor: number; head: number } | null {
+export function pairSelection(
+  doc: string,
+  from: number,
+  to: number,
+  text: string,
+): { before: string; after: string; anchor: number; head: number } | null {
   if (from >= to) return null;
   const pair = text === '[[' || text === '((' ? pairs[text[0]!] : pairs[text];
   if (!pair || (text !== pair.open[0] && text !== pair.open)) return null;
   const preceding = doc.slice(Math.max(0, from - pair.open.length), from);
   if (preceding.endsWith(pair.open)) return null;
   const open = text === pair.open ? pair.open : pair.open[0]!;
-  if (open.length === 1 && !preceding.endsWith(open)) return { before: open, after: '', anchor: from + 1, head: to + 1 };
+  if (open.length === 1 && !preceding.endsWith(open))
+    return { before: open, after: '', anchor: from + 1, head: to + 1 };
   const have = doc.startsWith(pair.close, to) ? pair.close.length : doc.startsWith(pair.close[0]!, to) ? 1 : 0;
   const caret = to + open.length;
   return { before: open, after: pair.close.slice(have), anchor: caret, head: caret };
@@ -262,7 +416,12 @@ export function applyBracketInput(view: EditorView, from: number, to: number, te
     const wrapped = pairSelection(view.state.doc.toString(), from, to, text);
     if (!wrapped) return false;
     view.dispatch({
-      changes: wrapped.after ? [{ from, insert: wrapped.before }, { from: to, insert: wrapped.after }] : { from, insert: wrapped.before },
+      changes: wrapped.after
+        ? [
+            { from, insert: wrapped.before },
+            { from: to, insert: wrapped.after },
+          ]
+        : { from, insert: wrapped.before },
       selection: { anchor: wrapped.anchor, head: wrapped.head },
       userEvent: 'input.type',
     });
@@ -270,9 +429,11 @@ export function applyBracketInput(view: EditorView, from: number, to: number, te
   }
   const result = pairInput(view.state.doc.toString(), from, text);
   if (!result) return false;
-  view.dispatch(result.insert
-    ? { changes: { from, insert: result.insert }, selection: { anchor: result.caret }, userEvent: 'input.type' }
-    : { selection: { anchor: result.caret }, userEvent: 'select' });
+  view.dispatch(
+    result.insert
+      ? { changes: { from, insert: result.insert }, selection: { anchor: result.caret }, userEvent: 'input.type' }
+      : { selection: { anchor: result.caret }, userEvent: 'select' },
+  );
   return true;
 }
 const bracketPairs = EditorView.inputHandler.of((view, from, to, text) => applyBracketInput(view, from, to, text));
@@ -283,11 +444,12 @@ const draftMark = Decoration.mark({ class: 'outline-reference-draft' });
 const draftReference = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update: (value, transaction) => {
-    for (const effect of transaction.effects) if (effect.is(setDraft)) {
-      const range = effect.value;
-      const to = range ? Math.min(range.to, transaction.state.doc.length) : 0;
-      return range && to > range.from ? Decoration.set([draftMark.range(range.from, to)]) : Decoration.none;
-    }
+    for (const effect of transaction.effects)
+      if (effect.is(setDraft)) {
+        const range = effect.value;
+        const to = range ? Math.min(range.to, transaction.state.doc.length) : 0;
+        return range && to > range.from ? Decoration.set([draftMark.range(range.from, to)]) : Decoration.none;
+      }
     return value.map(transaction.changes);
   },
   provide: field => EditorView.decorations.from(field),
@@ -317,15 +479,38 @@ export interface EditorHooks {
 /** Notebook undo owns plain u only when Vim has no operator, prefix or count to finish. */
 export function vimUndoKey(
   event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
-  state: Pick<VimModule.vimState, 'insertMode' | 'visualMode' | 'exMode' | 'expectLiteralNext'> & {
-    inputState: Pick<VimModule.InputStateInterface, 'keyBuffer' | 'prefixRepeat' | 'motionRepeat' | 'operator' | 'motion' | 'registerName'>;
-  } | null | undefined,
+  state:
+    | (Pick<VimModule.vimState, 'insertMode' | 'visualMode' | 'exMode' | 'expectLiteralNext'> & {
+        inputState: Pick<
+          VimModule.InputStateInterface,
+          'keyBuffer' | 'prefixRepeat' | 'motionRepeat' | 'operator' | 'motion' | 'registerName'
+        >;
+      })
+    | null
+    | undefined,
 ): boolean {
-  if (event.key !== 'u' || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey
-    || !state || state.insertMode || state.visualMode || state.exMode || state.expectLiteralNext) return false;
+  if (
+    event.key !== 'u' ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.shiftKey ||
+    !state ||
+    state.insertMode ||
+    state.visualMode ||
+    state.exMode ||
+    state.expectLiteralNext
+  )
+    return false;
   const input = state.inputState;
-  return !input.keyBuffer.length && !input.prefixRepeat.length && !input.motionRepeat.length
-    && !input.operator && !input.motion && !input.registerName;
+  return (
+    !input.keyBuffer.length &&
+    !input.prefixRepeat.length &&
+    !input.motionRepeat.length &&
+    !input.operator &&
+    !input.motion &&
+    !input.registerName
+  );
 }
 
 /** Toggle authored emphasis without changing the selected words or surrounding source. */
@@ -349,8 +534,11 @@ function toggleEmphasis(view: EditorView, marker: '*' | '**'): boolean {
   if (view.state.readOnly || view.state.selection.ranges.length !== 1) return false;
   const selection = view.state.selection.main;
   const change = emphasisChange(view.state.doc.toString(), selection.from, selection.to, marker);
-  view.dispatch({ changes: { from: change.from, to: change.to, insert: change.insert },
-    selection: { anchor: change.anchor, head: change.head }, userEvent: 'input.emphasis' });
+  view.dispatch({
+    changes: { from: change.from, to: change.to, insert: change.insert },
+    selection: { anchor: change.anchor, head: change.head },
+    userEvent: 'input.emphasis',
+  });
   return true;
 }
 
@@ -363,7 +551,8 @@ export class PendingEditorRange {
     const range = this.range;
     if (!range) return;
     changes.iterChangedRanges((from, to) => {
-      if (from < range.to && to > range.from || from === to && from > range.from && from < range.to) this.range = null;
+      if ((from < range.to && to > range.from) || (from === to && from > range.from && from < range.to))
+        this.range = null;
     });
     if (this.range) this.range = { from: changes.mapPos(range.from, 1), to: changes.mapPos(range.to, -1) };
   }
@@ -379,9 +568,15 @@ function captureScroll(start: Node): { restore(): void } {
   };
   for (let node: Node | null = start; node; node = node.parentNode) if (node instanceof Element) remember(node);
   remember(document.scrollingElement);
-  return { restore() { for (const item of saved) { if (item.el.scrollTop !== item.top) item.el.scrollTop = item.top; if (item.el.scrollLeft !== item.left) item.el.scrollLeft = item.left; } } };
+  return {
+    restore() {
+      for (const item of saved) {
+        if (item.el.scrollTop !== item.top) item.el.scrollTop = item.top;
+        if (item.el.scrollLeft !== item.left) item.el.scrollLeft = item.left;
+      }
+    },
+  };
 }
-
 
 /** A single retained CM instance moves between row hosts; composition never moves it. */
 export class PaneEditor {
@@ -398,60 +593,86 @@ export class PaneEditor {
   private readonly pendingRanges = new Set<{ id: string; tracker: PendingEditorRange }>();
 
   constructor(private readonly hooks: EditorHooks) {
-    this.view = new EditorView({ state: EditorState.create({ extensions: [
-      EditorView.lineWrapping,
-      graphemeSelection,
-      drawSelection(),
-      references(hooks),
-      EditorView.inputHandler.of((view, from, to, text) => hooks.input(view, from, to, text)),
-      bracketPairs,
-      draftReference,
-      keymap.of([
-        { key: 'Mod-b', run: view => toggleEmphasis(view, '**'), preventDefault: true },
-        { key: 'Mod-i', run: view => toggleEmphasis(view, '*'), preventDefault: true },
-      ]),
-      keymap.of(standardKeymap),
-      EditorView.theme({
-        '&': { background: 'transparent', color: 'inherit', font: 'inherit' },
-        '.cm-content': { padding: '0', minHeight: '24px', fontFamily: 'inherit', caretColor: 'var(--accent)' },
-        '.cm-line': { padding: '0' },
-        '&.cm-focused': { outline: 'none' },
-        '.cm-scroller': { font: 'inherit', overflow: 'visible', lineHeight: 'inherit' },
-        '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { background: 'var(--text-selection)' },
-        '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'currentColor', borderLeftWidth: '2px' },
-        '&.cm-focused .cm-fat-cursor': { background: 'currentColor', color: 'var(--canvas)', outline: 'none' },
-        '&:not(.cm-focused) .cm-fat-cursor': { outline: '1px solid currentColor' },
+    this.view = new EditorView({
+      state: EditorState.create({
+        extensions: [
+          EditorView.lineWrapping,
+          graphemeSelection,
+          drawSelection(),
+          references(hooks),
+          EditorView.inputHandler.of((view, from, to, text) => hooks.input(view, from, to, text)),
+          bracketPairs,
+          draftReference,
+          keymap.of([
+            { key: 'Mod-b', run: view => toggleEmphasis(view, '**'), preventDefault: true },
+            { key: 'Mod-i', run: view => toggleEmphasis(view, '*'), preventDefault: true },
+          ]),
+          keymap.of(standardKeymap),
+          EditorView.theme({
+            '&': { background: 'transparent', color: 'inherit', font: 'inherit' },
+            '.cm-content': { padding: '0', minHeight: '24px', fontFamily: 'inherit', caretColor: 'var(--accent)' },
+            '.cm-line': { padding: '0' },
+            '&.cm-focused': { outline: 'none' },
+            '.cm-scroller': { font: 'inherit', overflow: 'visible', lineHeight: 'inherit' },
+            '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { background: 'var(--text-selection)' },
+            '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'currentColor', borderLeftWidth: '2px' },
+            '&.cm-focused .cm-fat-cursor': { background: 'currentColor', color: 'var(--canvas)', outline: 'none' },
+            '&:not(.cm-focused) .cm-fat-cursor': { outline: '1px solid currentColor' },
+          }),
+          this.vimConfig.of([]),
+          this.fieldConfig.of(fieldEntryExtension(() => undefined)),
+          Prec.highest(
+            EditorView.domEventHandlers({
+              keydown: (event, view) => {
+                if (event.isComposing || this.composing || view.composing || event.keyCode === 229) return false;
+                return this.hooks.key(event, view);
+              },
+              blur: () => {
+                if (!this.replacing && !this.composing) this.hooks.blur();
+                return false;
+              },
+              compositionstart: () => {
+                this.composing = true;
+                this.hooks.composition(true);
+                return false;
+              },
+              compositionend: event => {
+                this.composing = false;
+                this.hooks.composition(false, event.data);
+                return false;
+              },
+            }),
+          ),
+          // A page that opens at its top restores the caret without EditorView.scrollIntoView moving the pane.
+          EditorView.scrollHandler.of(() => hooks.suppressScroll?.() ?? false),
+          EditorView.updateListener.of(update => {
+            for (const pending of this.pendingRanges)
+              if (pending.id === this.id && update.docChanged) pending.tracker.map(update.changes);
+            const caret = { id: this.id, offset: update.state.selection.main.head };
+            if (!this.replacing && this.id && update.docChanged)
+              this.hooks.text(update.state.doc.toString(), caret, this.useVim ? this.vimGroup : undefined);
+            if (!this.replacing && this.id && (update.selectionSet || update.docChanged)) this.hooks.selection(caret);
+            this.reportMode();
+          }),
+        ],
       }),
-      this.vimConfig.of([]),
-      this.fieldConfig.of(fieldEntryExtension(() => undefined)),
-      Prec.highest(EditorView.domEventHandlers({
-        keydown: (event, view) => {
-          if (event.isComposing || this.composing || view.composing || event.keyCode === 229) return false;
-          return this.hooks.key(event, view);
-        },
-        blur: () => { if (!this.replacing && !this.composing) this.hooks.blur(); return false; },
-        compositionstart: () => { this.composing = true; this.hooks.composition(true); return false; },
-        compositionend: event => { this.composing = false; this.hooks.composition(false, event.data); return false; },
-      })),
-      // A page that opens at its top restores the caret without EditorView.scrollIntoView moving the pane.
-      EditorView.scrollHandler.of(() => hooks.suppressScroll?.() ?? false),
-      EditorView.updateListener.of(update => {
-        for (const pending of this.pendingRanges) if (pending.id === this.id && update.docChanged) pending.tracker.map(update.changes);
-        const caret = { id: this.id, offset: update.state.selection.main.head };
-        if (!this.replacing && this.id && update.docChanged) this.hooks.text(update.state.doc.toString(), caret, this.useVim ? this.vimGroup : undefined);
-        if (!this.replacing && this.id && (update.selectionSet || update.docChanged)) this.hooks.selection(caret);
-        this.reportMode();
-      }),
-    ] }) });
+    });
     this.view.contentDOM.setAttribute('aria-label', 'Atom text');
     // CM skips extension key handlers during composition. The native commit
     // key belongs to the IME, not contenteditable's default newline insertion.
-    this.view.contentDOM.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && (this.composing || this.view.composing || event.isComposing || event.keyCode === 229)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    }, true);
+    this.view.contentDOM.addEventListener(
+      'keydown',
+      event => {
+        if (
+          event.key === 'Enter' &&
+          (this.composing || this.view.composing || event.isComposing || event.keyCode === 229)
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      },
+      true,
+    );
   }
 
   configure(enabled: boolean): void {
@@ -470,7 +691,9 @@ export class PaneEditor {
       this.useVim = true;
       this.view.dispatch({ effects: this.vimConfig.reconfigure(api.vim()) });
       // Vim's completed commands and insert sessions are semantic undo boundaries.
-      api.getCM(this.view)?.on('vim-command-done', () => { this.vimGroup++; });
+      api.getCM(this.view)?.on('vim-command-done', () => {
+        this.vimGroup++;
+      });
       this.reportMode();
     });
   }
@@ -488,11 +711,23 @@ export class PaneEditor {
     return this.useVim && vimUndoKey(event, this.vimApi?.getCM(this.view)?.state.vim);
   }
 
-  reportMode(): void { this.hooks.mode(this.mode()); }
+  reportMode(): void {
+    this.hooks.mode(this.mode());
+  }
   forwardVim(event: KeyboardEvent): boolean {
     if (!this.useVim || !this.vimApi || this.mode() === 'insert' || event.metaKey || event.altKey) return false;
-    const keys: Record<string, string> = { Backspace: '<BS>', Delete: '<Del>', Enter: '<CR>', Escape: '<Esc>', ArrowLeft: '<Left>', ArrowRight: '<Right>', ArrowUp: '<Up>', ArrowDown: '<Down>', Tab: '<Tab>' };
-    const key = keys[event.key] ?? (event.key.length === 1 ? event.ctrlKey ? `<C-${event.key}>` : event.key : null);
+    const keys: Record<string, string> = {
+      Backspace: '<BS>',
+      Delete: '<Del>',
+      Enter: '<CR>',
+      Escape: '<Esc>',
+      ArrowLeft: '<Left>',
+      ArrowRight: '<Right>',
+      ArrowUp: '<Up>',
+      ArrowDown: '<Down>',
+      Tab: '<Tab>',
+    };
+    const key = keys[event.key] ?? (event.key.length === 1 ? (event.ctrlKey ? `<C-${event.key}>` : event.key) : null);
     const cm = this.vimApi.getCM(this.view);
     if (!key || !cm) return false;
     this.vimApi.Vim.handleKey(cm, key, 'outline');
@@ -505,7 +740,9 @@ export class PaneEditor {
     const held = captureScroll(this.view.contentDOM);
     this.view.focus();
     held.restore();
-    queueMicrotask(() => { if (this.view.dom.isConnected) held.restore(); });
+    queueMicrotask(() => {
+      if (this.view.dom.isConnected) held.restore();
+    });
   }
 
   mount(host: HTMLElement, id: string, text: string, offset: number, insert: boolean, focus = true): void {
@@ -514,12 +751,14 @@ export class PaneEditor {
     const changed = id !== this.id || text !== this.view.state.doc.toString();
     this.id = id;
     if (this.view.dom.parentElement !== host) host.append(this.view.dom);
-    if (changed) this.view.dispatch({
-      changes: { from: 0, to: this.view.state.doc.length, insert: text },
-      selection: EditorSelection.cursor(Math.min(offset, text.length)),
-      scrollIntoView: false,
-    });
-    else this.view.dispatch({ selection: EditorSelection.cursor(Math.min(offset, text.length)), scrollIntoView: false });
+    if (changed)
+      this.view.dispatch({
+        changes: { from: 0, to: this.view.state.doc.length, insert: text },
+        selection: EditorSelection.cursor(Math.min(offset, text.length)),
+        scrollIntoView: false,
+      });
+    else
+      this.view.dispatch({ selection: EditorSelection.cursor(Math.min(offset, text.length)), scrollIntoView: false });
     const selection = this.view.state.selection;
     if (this.useVim && this.vimApi && insert) {
       const cm = this.vimApi.getCM(this.view);
@@ -530,7 +769,10 @@ export class PaneEditor {
     // Moving a focused contenteditable can reset WebKit's native caret and CM's observed selection.
     if (!this.view.state.selection.eq(selection)) this.view.dispatch({ selection, scrollIntoView: false });
     held?.restore();
-    if (held) queueMicrotask(() => { if (this.view.dom.isConnected) held.restore(); });
+    if (held)
+      queueMicrotask(() => {
+        if (this.view.dom.isConnected) held.restore();
+      });
     this.replacing = false;
     this.view.requestMeasure();
     this.reportMode();
@@ -540,9 +782,14 @@ export class PaneEditor {
     if (this.composing || text === this.view.state.doc.toString()) return;
     this.replacing = true;
     const previous = this.view.state.doc.toString();
-    let from = 0, beforeEnd = previous.length, afterEnd = text.length;
+    let from = 0,
+      beforeEnd = previous.length,
+      afterEnd = text.length;
     while (from < beforeEnd && from < afterEnd && previous[from] === text[from]) from++;
-    while (beforeEnd > from && afterEnd > from && previous[beforeEnd - 1] === text[afterEnd - 1]) { beforeEnd--; afterEnd--; }
+    while (beforeEnd > from && afterEnd > from && previous[beforeEnd - 1] === text[afterEnd - 1]) {
+      beforeEnd--;
+      afterEnd--;
+    }
     this.view.dispatch({ changes: { from, to: beforeEnd, insert: text.slice(from, afterEnd) } });
     this.replacing = false;
     this.hooks.rewrite?.(this.id, previous, text);
@@ -555,11 +802,17 @@ export class PaneEditor {
     return { tracker, release: () => this.pendingRanges.delete(pending) };
   }
 
-  refreshLabels(): void { this.view.dispatch({ effects: refreshLabels.of(null) }); }
+  refreshLabels(): void {
+    this.view.dispatch({ effects: refreshLabels.of(null) });
+  }
   /** Completion state changes inside editor updates, so the mark follows in a microtask. */
   markDraft(range: { from: number; to: number } | null): void {
-    queueMicrotask(() => { if (this.view.dom.isConnected) this.view.dispatch({ effects: setDraft.of(range) }); });
+    queueMicrotask(() => {
+      if (this.view.dom.isConnected) this.view.dispatch({ effects: setDraft.of(range) });
+    });
   }
 
-  destroy(): void { this.view.destroy(); }
+  destroy(): void {
+    this.view.destroy();
+  }
 }

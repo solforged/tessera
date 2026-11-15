@@ -57,7 +57,7 @@ export function mondayWeekStart(date: string): string | null {
 /** Keep seven columns even when the final supported year ends midweek. */
 export function calendarWeekDates(date: string): (string | null)[] {
   const start = mondayWeekStart(date);
-  return Array.from({ length: 7 }, (_, index) => start ? shiftCalendarDate(start, index) : null);
+  return Array.from({ length: 7 }, (_, index) => (start ? shiftCalendarDate(start, index) : null));
 }
 
 export function timeMinutes(time: string): number {
@@ -70,7 +70,10 @@ export function snapWeekMinutes(minutes: number): number {
 
 export function scheduleWeekTask(task: TaskState, date: string, minutes: number | null): TaskState {
   const snapped = minutes === null ? null : snapWeekMinutes(minutes);
-  const time = snapped === null ? null : `${String(Math.floor(snapped / 60)).padStart(2, '0')}:${String(snapped % 60).padStart(2, '0')}`;
+  const time =
+    snapped === null
+      ? null
+      : `${String(Math.floor(snapped / 60)).padStart(2, '0')}:${String(snapped % 60).padStart(2, '0')}`;
   return { ...task, scheduled: date, scheduled_time: time };
 }
 
@@ -108,21 +111,40 @@ export function weekTaskEntries(rows: readonly TaskRow[], dates: readonly (strin
     const task = row.task;
     const scheduled = task.scheduled !== null && visible.has(task.scheduled);
     const combined = scheduled && task.scheduled_time === null && task.deadline === task.scheduled;
-    if (scheduled) entries.push({ key: `scheduled:${row.source.block.id}`, row, date: task.scheduled!, kind: 'scheduled', time: task.scheduled_time, due: combined });
+    if (scheduled)
+      entries.push({
+        key: `scheduled:${row.source.block.id}`,
+        row,
+        date: task.scheduled!,
+        kind: 'scheduled',
+        time: task.scheduled_time,
+        due: combined,
+      });
     if (task.deadline !== null && visible.has(task.deadline) && !combined) {
-      entries.push({ key: `due:${row.source.block.id}`, row, date: task.deadline, kind: 'due', time: task.deadline_time, due: true });
+      entries.push({
+        key: `due:${row.source.block.id}`,
+        row,
+        date: task.deadline,
+        kind: 'due',
+        time: task.deadline_time,
+        due: true,
+      });
     }
   }
-  return entries.sort((left, right) => left.date.localeCompare(right.date)
-    || Number(isFinished(left.row.task)) - Number(isFinished(right.row.task))
-    || (left.time ?? '').localeCompare(right.time ?? '')
-    || left.row.source.block.text.localeCompare(right.row.source.block.text)
-    || left.key.localeCompare(right.key));
+  return entries.sort(
+    (left, right) =>
+      left.date.localeCompare(right.date) ||
+      Number(isFinished(left.row.task)) - Number(isFinished(right.row.task)) ||
+      (left.time ?? '').localeCompare(right.time ?? '') ||
+      left.row.source.block.text.localeCompare(right.row.source.block.text) ||
+      left.key.localeCompare(right.key),
+  );
 }
 
 /** Thirty-minute overlaps share lanes; spare room lets cards show a second title line without covering the next card. */
 export function layoutWeekTimedEntries(entries: readonly WeekEntry[]): TimedWeekEntry[] {
-  const timed = entries.filter(entry => entry.kind === 'scheduled' && entry.time !== null)
+  const timed = entries
+    .filter(entry => entry.kind === 'scheduled' && entry.time !== null)
     .map(entry => ({ entry, minute: timeMinutes(entry.time!), lane: 0, lanes: 1, heightMinutes: 30 }))
     .sort((left, right) => left.minute - right.minute || left.entry.key.localeCompare(right.entry.key));
   let group: TimedWeekEntry[] = [];
@@ -152,15 +174,23 @@ export function layoutWeekTimedEntries(entries: readonly WeekEntry[]): TimedWeek
   return timed;
 }
 
-export function weekRangeQuery(field: 'scheduled' | 'deadline', from: string, through: string, statuses: readonly TaskStatus[] = taskStatuses): TaskQuery {
+export function weekRangeQuery(
+  field: 'scheduled' | 'deadline',
+  from: string,
+  through: string,
+  statuses: readonly TaskStatus[] = taskStatuses,
+): TaskQuery {
   return {
     source: null,
     context_date: from,
     filter: {
-      selection: 'all', statuses: [...statuses], recent_days: 7,
+      selection: 'all',
+      statuses: [...statuses],
+      recent_days: 7,
       scheduled: field === 'scheduled' ? { from, through } : null,
       deadline: field === 'deadline' ? { from, through } : null,
-      priority: null, project_id: null,
+      priority: null,
+      project_id: null,
     },
     limit: taskQueryLimit,
   };
@@ -176,7 +206,9 @@ export async function fetchWeekTaskRange(
   const result = await query(weekRangeQuery(field, from, through));
   if (result.rows.length >= result.total) return { rows: result.rows, incomplete: [] };
   if (from !== through) {
-    const dayCount = Math.round((new Date(`${through}T12:00:00Z`).getTime() - new Date(`${from}T12:00:00Z`).getTime()) / 86400000);
+    const dayCount = Math.round(
+      (new Date(`${through}T12:00:00Z`).getTime() - new Date(`${from}T12:00:00Z`).getTime()) / 86400000,
+    );
     const middle = shiftCalendarDate(from, Math.floor(dayCount / 2))!;
     const next = shiftCalendarDate(middle, 1)!;
     const [left, right] = await Promise.all([
@@ -185,12 +217,20 @@ export async function fetchWeekTaskRange(
     ]);
     return { rows: mergeWeekTaskRows(left.rows, right.rows), incomplete: [...left.incomplete, ...right.incomplete] };
   }
-  const partitions = await Promise.all(taskStatuses.map(async status => {
-    const partition = await query(weekRangeQuery(field, from, through, [status]));
-    return {
-      rows: partition.rows,
-      incomplete: partition.rows.length < partition.total ? [{ field, date: from, status, shown: partition.rows.length, total: partition.total }] : [],
-    };
-  }));
-  return { rows: mergeWeekTaskRows(...partitions.map(partition => partition.rows)), incomplete: partitions.flatMap(partition => partition.incomplete) };
+  const partitions = await Promise.all(
+    taskStatuses.map(async status => {
+      const partition = await query(weekRangeQuery(field, from, through, [status]));
+      return {
+        rows: partition.rows,
+        incomplete:
+          partition.rows.length < partition.total
+            ? [{ field, date: from, status, shown: partition.rows.length, total: partition.total }]
+            : [],
+      };
+    }),
+  );
+  return {
+    rows: mergeWeekTaskRows(...partitions.map(partition => partition.rows)),
+    incomplete: partitions.flatMap(partition => partition.incomplete),
+  };
 }

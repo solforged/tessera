@@ -13,7 +13,7 @@ test('a dragged row lands after the rows whose centres it has passed', () => {
   expect(dropIndex(centers, 2, 250)).toBe(2);
 });
 
-test('rows between the start and the drop slide by the held row\'s height, and no other', () => {
+test("rows between the start and the drop slide by the held row's height, and no other", () => {
   expect([0, 1, 2, 3].map(row => makeRoom(row, 0, 2, 60))).toEqual([0, -60, -60, 0]);
   expect([0, 1, 2, 3].map(row => makeRoom(row, 3, 1, 60))).toEqual([0, 60, 60, 0]);
   expect([0, 1, 2, 3].map(row => makeRoom(row, 1, 1, 60))).toEqual([0, 0, 0, 0]);

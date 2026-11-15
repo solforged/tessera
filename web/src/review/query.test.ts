@@ -1,20 +1,80 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, CardQuery, CardRow, ReviewEvent, ReviewSession, SchedulingState } from '../api/types';
 import { ApiError } from '../api/client';
-import { copyCardQuery, gradeIntervals, gradeOperation, loadReviewCard, openReviewSession, reviewedInSession, sameCardSnapshot, sessionQueue } from './query';
+import {
+  copyCardQuery,
+  gradeIntervals,
+  gradeOperation,
+  loadReviewCard,
+  openReviewSession,
+  reviewedInSession,
+  sameCardSnapshot,
+  sessionQueue,
+} from './query';
 
-const schedule: SchedulingState = { stability: 8, difficulty: 5, interval_days: 8, repetitions: 3, lapses: 0, due_at: 100, last_reviewed_at: 50 };
-const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Vocabulary', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+const schedule: SchedulingState = {
+  stability: 8,
+  difficulty: 5,
+  interval_days: 8,
+  repetitions: 3,
+  lapses: 0,
+  due_at: 100,
+  last_reviewed_at: 50,
+};
+const page: Block = {
+  id: 'page',
+  kind: 'page',
+  parent_id: null,
+  page_id: 'page',
+  text: 'Vocabulary',
+  heading: null,
+  archived: false,
+  revision: 1,
+  created_at: 0,
+  updated_at: 0,
+};
 const source: Block = { ...page, id: 'source', kind: 'block', parent_id: page.id, text: 'amo >> I love' };
 const row: CardRow = {
-  card: { id: 'card', source_block_id: source.id, key: 'forward', kind: 'forward', active: true, held: false, definition_revision: 2, front: 'amo', back: 'I love', answer_blocks: [], revision: 4, schedule, template: null },
-  source: { page, block: source }, last_review: null,
+  card: {
+    id: 'card',
+    source_block_id: source.id,
+    key: 'forward',
+    kind: 'forward',
+    active: true,
+    held: false,
+    definition_revision: 2,
+    front: 'amo',
+    back: 'I love',
+    answer_blocks: [],
+    revision: 4,
+    schedule,
+    template: null,
+  },
+  source: { page, block: source },
+  last_review: null,
 };
-const session: ReviewSession = { id: 'session', deck_id: 'deck', started_at: 100, ended_at: null, state: 'open', revision: 1 };
+const session: ReviewSession = {
+  id: 'session',
+  deck_id: 'deck',
+  started_at: 100,
+  ended_at: null,
+  state: 'open',
+  revision: 1,
+};
 const event: ReviewEvent = {
-  id: 'grade', card_id: row.card.id, session_id: session.id, kind: 'grade', grade: 'good',
-  shown_front: row.card.front, shown_back: row.card.back, definition_revision: row.card.definition_revision,
-  scheduler_version: 'fsrs-6', before: schedule, after: { ...schedule, interval_days: 20 }, created_at: 110, change_seq: 8,
+  id: 'grade',
+  card_id: row.card.id,
+  session_id: session.id,
+  kind: 'grade',
+  grade: 'good',
+  shown_front: row.card.front,
+  shown_back: row.card.back,
+  definition_revision: row.card.definition_revision,
+  scheduler_version: 'fsrs-6',
+  before: schedule,
+  after: { ...schedule, interval_days: 20 },
+  created_at: 110,
+  change_seq: 8,
   undone_by: null,
 };
 
@@ -24,16 +84,26 @@ describe('review snapshots and retained session evidence', () => {
     expect(sameCardSnapshot(row.card, corrected)).toBe(false);
     const operation = gradeOperation(row, session.id, 'hard', true, 'event-id', 120);
     expect(operation).toEqual({
-      op: 'grade_card', id: 'card', base_revision: 4, definition_revision: 2,
-      event_id: 'event-id', session_id: 'session', grade: 'hard', reset: true,
-      shown_front: 'amo', shown_back: 'I love', reviewed_at: 120,
+      op: 'grade_card',
+      id: 'card',
+      base_revision: 4,
+      definition_revision: 2,
+      event_id: 'event-id',
+      session_id: 'session',
+      grade: 'hard',
+      reset: true,
+      shown_front: 'amo',
+      shown_back: 'I love',
+      reviewed_at: 120,
     });
     corrected.front = 'amare';
     expect(operation.op === 'grade_card' && operation.shown_front).toBe('amo');
   });
 
   test('another grade or reset invalidates the shown intervals even without a text change', () => {
-    expect(sameCardSnapshot(row.card, { ...row.card, revision: 5, schedule: { ...schedule, interval_days: 0 } })).toBe(false);
+    expect(sameCardSnapshot(row.card, { ...row.card, revision: 5, schedule: { ...schedule, interval_days: 0 } })).toBe(
+      false,
+    );
     expect(sameCardSnapshot(row.card, { ...row.card, active: false })).toBe(false);
     expect(sameCardSnapshot(row.card, { ...row.card, back: 'changed without the expected revision' })).toBe(false);
   });
@@ -57,7 +127,8 @@ describe('review snapshots and retained session evidence', () => {
   test('recovery chooses a stable open session without reopening or mutating retained closed sessions', () => {
     const values: ReviewSession[] = [
       { ...session, id: 'older', started_at: 90 },
-      { ...session, id: 'tie-a' }, { ...session, id: 'tie-z' },
+      { ...session, id: 'tie-a' },
+      { ...session, id: 'tie-z' },
       { ...session, id: 'closed', state: 'finished', ended_at: 200, started_at: 150 },
       { ...session, id: 'abandoned', state: 'abandoned', ended_at: 210, started_at: 160 },
       { ...session, id: 'different-deck', deck_id: 'other', started_at: 300 },
@@ -70,8 +141,15 @@ describe('review snapshots and retained session evidence', () => {
 
   test('unsaved deck filters cannot mutate the saved query or an already captured command', () => {
     const saved: CardQuery = {
-      source: { type: 'vocabulary', text: 'Latin', filters: [{ field: 'language', op: 'is', value: 'Latin' }], sort: [{ by: 'field', field: 'language', direction: 'asc' }], limit: 20 },
-      selection: 'due', limit: 50,
+      source: {
+        type: 'vocabulary',
+        text: 'Latin',
+        filters: [{ field: 'language', op: 'is', value: 'Latin' }],
+        sort: [{ by: 'field', field: 'language', direction: 'asc' }],
+        limit: 20,
+      },
+      selection: 'due',
+      limit: 50,
     };
     const draft = copyCardQuery(saved);
     const captured = copyCardQuery(draft);
@@ -86,8 +164,15 @@ describe('review snapshots and retained session evidence', () => {
 });
 
 test('rounded interval units cannot collapse distinct grading choices', () => {
-  for (const days of [[1, 1, 2, 8], [1, 60, 61, 62], [1, 36498, 36499, 36500]]) {
-    const previews = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({ grade, interval_days: days[index]! }));
+  for (const days of [
+    [1, 1, 2, 8],
+    [1, 60, 61, 62],
+    [1, 36498, 36499, 36500],
+  ]) {
+    const previews = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({
+      grade,
+      interval_days: days[index]!,
+    }));
     const labels = gradeIntervals(previews);
     expect(labels.hard).not.toBe(labels.good);
     expect(labels.good).not.toBe(labels.easy);
@@ -97,7 +182,7 @@ test('rounded interval units cannot collapse distinct grading choices', () => {
 describe('effective session queue after undo', () => {
   const api = {
     card: async () => row.card,
-    block: async (id: string) => id === page.id ? page : source,
+    block: async (id: string) => (id === page.id ? page : source),
     cardReviews: async () => [] as ReviewEvent[],
   };
 
@@ -116,9 +201,19 @@ describe('effective session queue after undo', () => {
     const effective = { ...event, id: 'prior-grade' };
     const undone = { ...event, undone_by: 'correction' };
     let settled = false;
-    const pending = sessionQueue({
-      ...api, card: () => deferred.promise, cardReviews: async () => [effective, undone],
-    }, [], [], row.card.id).then(queue => { settled = true; return queue; });
+    const pending = sessionQueue(
+      {
+        ...api,
+        card: () => deferred.promise,
+        cardReviews: async () => [effective, undone],
+      },
+      [],
+      [],
+      row.card.id,
+    ).then(queue => {
+      settled = true;
+      return queue;
+    });
     await Promise.resolve();
     expect(settled).toBe(false);
     const restored = { ...row.card, revision: 6, schedule: { ...schedule, repetitions: 0, last_reviewed_at: null } };
@@ -133,25 +228,75 @@ describe('effective session queue after undo', () => {
 
   test('restored cards that become held, inactive or missing can be explicitly skipped without losing the remaining queue', async () => {
     const other = { ...row, card: { ...row.card, id: 'other' } };
-    for (const card of [{ ...row.card, held: true }, { ...row.card, active: false }]) {
+    for (const card of [
+      { ...row.card, held: true },
+      { ...row.card, active: false },
+    ]) {
       const paused = await sessionQueue(api, [{ ...row, card }, other], [], row.card.id);
       expect(paused).toEqual({ rows: [other], restoredUnavailable: true });
       expect(await sessionQueue(api, [other], [], null)).toEqual({ rows: [other], restoredUnavailable: false });
     }
-    const missing = await sessionQueue({ ...api, card: async () => { throw new ApiError('gone', 404, 'card_not_found'); } }, [other], [], row.card.id);
+    const missing = await sessionQueue(
+      {
+        ...api,
+        card: async () => {
+          throw new ApiError('gone', 404, 'card_not_found');
+        },
+      },
+      [other],
+      [],
+      row.card.id,
+    );
     expect(missing).toEqual({ rows: [other], restoredUnavailable: true });
-    const goneSource = await sessionQueue({ ...api, block: async () => { throw new ApiError('gone', 404, 'block_not_found'); } }, [], [], row.card.id);
+    const goneSource = await sessionQueue(
+      {
+        ...api,
+        block: async () => {
+          throw new ApiError('gone', 404, 'block_not_found');
+        },
+      },
+      [],
+      [],
+      row.card.id,
+    );
     expect(goneSource).toEqual({ rows: [], restoredUnavailable: true });
     expect(await sessionQueue(api, [], [], null)).toEqual({ rows: [], restoredUnavailable: false });
   });
 
   test('failed restored-card reads remain errors, not skippable missing-card or exhausted-queue states', async () => {
-    await expect(sessionQueue({ ...api, card: async () => { throw new Error('offline'); } }, [], [], row.card.id)).rejects.toThrow('offline');
-    await expect(sessionQueue({ ...api, block: async () => { throw new ApiError('unavailable', 503, 'service_unavailable'); } }, [], [], row.card.id)).rejects.toThrow('unavailable');
+    await expect(
+      sessionQueue(
+        {
+          ...api,
+          card: async () => {
+            throw new Error('offline');
+          },
+        },
+        [],
+        [],
+        row.card.id,
+      ),
+    ).rejects.toThrow('offline');
+    await expect(
+      sessionQueue(
+        {
+          ...api,
+          block: async () => {
+            throw new ApiError('unavailable', 503, 'service_unavailable');
+          },
+        },
+        [],
+        [],
+        row.card.id,
+      ),
+    ).rejects.toThrow('unavailable');
   });
 
   test('raw evidence keeps undone grades out of the current comparison snapshot', async () => {
-    const result = await loadReviewCard({ ...api, cardReviews: async () => [{ ...event, undone_by: 'correction' }] }, row.card.id);
+    const result = await loadReviewCard(
+      { ...api, cardReviews: async () => [{ ...event, undone_by: 'correction' }] },
+      row.card.id,
+    );
     expect(result.last_review).toBeNull();
   });
 });

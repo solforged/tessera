@@ -13,7 +13,19 @@ describe('type completion tokens', () => {
     expect(atEnd('Read #Book')).toEqual({ from: 5, to: 10, query: 'Book' });
     expect(atEnd('Read\t#書籍_2/notes')).toEqual({ from: 5, to: 16, query: '書籍_2/notes' });
     expect(atEnd('#C++')?.query).toBe('C++');
-    for (const text of ['# ', '##', '##heading', 'a#b', 'https://site.test/#fragment', '#Book ', '#Book\n', '#123', 'Read #１２３', '`#', '`#`']) {
+    for (const text of [
+      '# ',
+      '##',
+      '##heading',
+      'a#b',
+      'https://site.test/#fragment',
+      '#Book ',
+      '#Book\n',
+      '#123',
+      'Read #１２３',
+      '`#',
+      '`#`',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     expect(typeTokenAt('Read # next', 6)).toBeNull();
@@ -34,7 +46,15 @@ describe('type completion tokens', () => {
   });
 
   test('shields references, block references, inline code and code fences', () => {
-    for (const text of ['[[source #bo', '[[source| #bo]]', '#[[Long #bo', '` #bo`', '`` #bo``', '```md\n#bo', '~~~\n#bo']) {
+    for (const text of [
+      '[[source #bo',
+      '[[source| #bo]]',
+      '#[[Long #bo',
+      '` #bo`',
+      '`` #bo``',
+      '```md\n#bo',
+      '~~~\n#bo',
+    ]) {
       expect(atEnd(text)).toBeNull();
     }
     expect(typeTokenAt('((source #bo', 12)).toBeNull();
@@ -64,25 +84,44 @@ describe('type completion tokens', () => {
 
 test('type completion excludes note bodies, matches registered type aliases and offers absent built-in tags', async () => {
   const type = { id: 'type', kind: 'page', text: 'idea', archived: false } as Block;
-  const prose = { id: 'prose', kind: 'block', text: '[[person|Plato]] describes an ideal city', archived: false } as Block;
+  const prose = {
+    id: 'prose',
+    kind: 'block',
+    text: '[[person|Plato]] describes an ideal city',
+    archived: false,
+  } as Block;
   const kinds = [
     { key: 'person', name: 'Person', icon: 'person', type_id: null, tag: true },
     { key: 'question', name: 'Question', icon: 'question-open', type_id: null, tag: false },
     { key: 'type:type', name: 'idea', icon: null, type_id: 'type', tag: true },
   ];
-  const notebook = { roots: () => [type], changeSequence: () => 0, api: {
-    types: async () => [{ page: type }],
-    noteIndex: async () => ({ kinds }),
-    complete: async () => [{ ...type, alias: 'idéa' }, { ...prose, alias: null }],
-    resolveName: async () => [{ page: type, alias: 'idéa' }],
-  } } as unknown as NotebookClient;
-  expect(await completeTypes(notebook, 'idéa')).toEqual({ rows: [{ ...type, alias: 'idéa', icon: null }], canCreate: false });
-  const absent = { roots: () => [type], changeSequence: () => 0, api: {
-    types: async () => [{ page: type }],
-    noteIndex: async () => ({ kinds }),
-    complete: async () => [],
-    resolveName: async () => [],
-  } } as unknown as NotebookClient;
+  const notebook = {
+    roots: () => [type],
+    changeSequence: () => 0,
+    api: {
+      types: async () => [{ page: type }],
+      noteIndex: async () => ({ kinds }),
+      complete: async () => [
+        { ...type, alias: 'idéa' },
+        { ...prose, alias: null },
+      ],
+      resolveName: async () => [{ page: type, alias: 'idéa' }],
+    },
+  } as unknown as NotebookClient;
+  expect(await completeTypes(notebook, 'idéa')).toEqual({
+    rows: [{ ...type, alias: 'idéa', icon: null }],
+    canCreate: false,
+  });
+  const absent = {
+    roots: () => [type],
+    changeSequence: () => 0,
+    api: {
+      types: async () => [{ page: type }],
+      noteIndex: async () => ({ kinds }),
+      complete: async () => [],
+      resolveName: async () => [],
+    },
+  } as unknown as NotebookClient;
   const person = await completeTypes(absent, 'pers');
   expect(person.rows.map(row => [row.text, row.icon, row.id])).toEqual([['Person', 'person', '']]);
   expect(person.canCreate).toBe(true);
@@ -100,10 +139,12 @@ test('a bare hash puts the four behavior tags first, retaining existing IDs and 
     { key: 'project', name: 'Project', icon: 'flag', type_id: null, tag: true },
     { key: 'question', name: 'Question', icon: 'question-open', type_id: null, tag: true },
   ];
-  const notebook = { api: {
-    types: async () => [{ page: essay }, { page: task }],
-    noteIndex: async () => ({ kinds }),
-  } } as unknown as NotebookClient;
+  const notebook = {
+    api: {
+      types: async () => [{ page: essay }, { page: task }],
+      noteIndex: async () => ({ kinds }),
+    },
+  } as unknown as NotebookClient;
   const result = await completeTypes(notebook, '');
   expect(result.rows.map(row => [row.text, row.icon, row.id])).toEqual([
     ['Task', 'task', task.id],

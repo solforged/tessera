@@ -10,18 +10,26 @@ export function fieldValueProblem(field: FieldDefinition | undefined, text: stri
   const value = text.trim();
   if (!field || !value) return;
   switch (field.kind) {
-    case 'number': return /^-?\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value)) ? undefined : 'not a number';
-    case 'checkbox': return checkboxValue(value) === null ? 'not a checkbox' : undefined;
-    case 'span': return readSpan(value) ? undefined : 'not a historical span';
+    case 'number':
+      return /^-?\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value)) ? undefined : 'not a number';
+    case 'checkbox':
+      return checkboxValue(value) === null ? 'not a checkbox' : undefined;
+    case 'span':
+      return readSpan(value) ? undefined : 'not a historical span';
     case 'date': {
       if (/^\[\[[^\]]+\]\]$/.test(value) || partialFieldDate(value) !== null) return;
       const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) && parseTaskDate(value, '2000-01-01');
       return parsed && parsed.ok ? undefined : 'not a date';
     }
-    case 'choice': return field.options.some(option => value === `[[${option.id}]]`) ? undefined : 'not an option';
+    case 'choice':
+      return field.options.some(option => value === `[[${option.id}]]`) ? undefined : 'not an option';
     // A creator or contributor may be a plain name rather than a linked person or group.
-    case 'instance': return /^\[\[[^\]]+\]\]$/.test(value) || field.counts_as === 'creator' || field.counts_as === 'contributor' ? undefined : 'not a reference';
-    case 'url': return /^https?:\/\/[^/?#\s]+[^\s]*$/.test(value) ? undefined : 'not a URL';
+    case 'instance':
+      return /^\[\[[^\]]+\]\]$/.test(value) || field.counts_as === 'creator' || field.counts_as === 'contributor'
+        ? undefined
+        : 'not a reference';
+    case 'url':
+      return /^https?:\/\/[^/?#\s]+[^\s]*$/.test(value) ? undefined : 'not a URL';
   }
 }
 
@@ -30,7 +38,10 @@ export function fieldValueProblem(field: FieldDefinition | undefined, text: stri
  * journal day; a calendar date, a number or a web address reads as such. Anything else stays text, and a bare
  * year counts as a number.
  */
-export function guessFieldKind(text: string, targetKind: (id: string) => BlockKind | undefined = () => undefined): FieldKind | null {
+export function guessFieldKind(
+  text: string,
+  targetKind: (id: string) => BlockKind | undefined = () => undefined,
+): FieldKind | null {
   const value = text.trim();
   const reference = /^\[\[([0-9A-HJKMNP-TV-Z]{26})(?:\|[^\]]*)?\]\]$/i.exec(value);
   if (reference) return targetKind(reference[1]!) === 'journal' ? 'date' : 'instance';

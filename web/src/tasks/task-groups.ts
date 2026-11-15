@@ -5,7 +5,10 @@ import { taskStatuses } from './task-chips';
 
 /** How the phone's Tasks list is grouped: by the day a task is due, or by where it stands. */
 export type TaskGrouping = 'due' | 'status';
-export const taskGroupings: { value: TaskGrouping; label: string }[] = [{ value: 'due', label: 'By due' }, { value: 'status', label: 'By status' }];
+export const taskGroupings: { value: TaskGrouping; label: string }[] = [
+  { value: 'due', label: 'By due' },
+  { value: 'status', label: 'By status' },
+];
 
 export interface TaskGroup {
   key: string;
@@ -27,12 +30,14 @@ export function dueGroupName(date: string, today: string): string {
   const days = daysBetween(today, date);
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
-  if (days > 1 && days < 7) return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  if (days > 1 && days < 7)
+    return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
   return calendarDate(date, today);
 }
 
 const byClock = (date: string) => (left: TaskRow, right: TaskRow) => {
-  const from = agendaTaskTime(left, date), to = agendaTaskTime(right, date);
+  const from = agendaTaskTime(left, date),
+    to = agendaTaskTime(right, date);
   if (from !== to && (from === null || to === null)) return from === null ? 1 : -1;
   return (from ?? '').localeCompare(to ?? '') || left.source.block.text.localeCompare(right.source.block.text);
 };
@@ -42,17 +47,29 @@ const byClock = (date: string) => (left: TaskRow, right: TaskRow) => {
  * A task with a time leads its day's untimed ones.
  */
 export function groupByDue(rows: readonly TaskRow[], today: string): TaskGroup[] {
-  const overdue: TaskRow[] = [], days = new Map<string, TaskRow[]>(), undated: TaskRow[] = [], done: TaskRow[] = [];
+  const overdue: TaskRow[] = [],
+    days = new Map<string, TaskRow[]>(),
+    undated: TaskRow[] = [],
+    done: TaskRow[] = [];
   for (const row of rows) {
     const date = dueDate(row);
     if (isFinished(row.task)) done.push(row);
     else if (!date) undated.push(row);
     else if (date < today) overdue.push(row);
-    else days.set(date, [...days.get(date) ?? [], row]);
+    else days.set(date, [...(days.get(date) ?? []), row]);
   }
   const groups: TaskGroup[] = [];
-  if (overdue.length) groups.push({ key: 'overdue', name: 'Overdue', overdue: true, rows: overdue.sort((left, right) => dueDate(left)!.localeCompare(dueDate(right)!) || byClock(dueDate(left)!)(left, right)) });
-  for (const date of [...days.keys()].sort()) groups.push({ key: date, name: dueGroupName(date, today), date, rows: days.get(date)!.sort(byClock(date)) });
+  if (overdue.length)
+    groups.push({
+      key: 'overdue',
+      name: 'Overdue',
+      overdue: true,
+      rows: overdue.sort(
+        (left, right) => dueDate(left)!.localeCompare(dueDate(right)!) || byClock(dueDate(left)!)(left, right),
+      ),
+    });
+  for (const date of [...days.keys()].sort())
+    groups.push({ key: date, name: dueGroupName(date, today), date, rows: days.get(date)!.sort(byClock(date)) });
   if (undated.length) groups.push({ key: 'undated', name: 'No date', rows: undated });
   if (done.length) groups.push({ key: 'done', name: 'Done', rows: done });
   return groups;
@@ -64,7 +81,9 @@ const statusOrder: TaskStatus[] = ['doing', 'todo', 'waiting', 'done', 'cancelle
 export function groupByStatus(rows: readonly TaskRow[]): TaskGroup[] {
   const groups: TaskGroup[] = statusOrder.flatMap(status => {
     const members = rows.filter(row => row.task.status === status);
-    return members.length ? [{ key: status, name: taskStatuses.find(item => item.value === status)!.label, rows: members }] : [];
+    return members.length
+      ? [{ key: status, name: taskStatuses.find(item => item.value === status)!.label, rows: members }]
+      : [];
   });
   const appointments = rows.filter(row => row.task.status === null);
   return appointments.length ? [...groups, { key: 'none', name: 'No status', rows: appointments }] : groups;

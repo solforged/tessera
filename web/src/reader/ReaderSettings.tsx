@@ -14,14 +14,21 @@ const layouts = { scroll: 'Scroll', pages: 'Pages' } as const;
 const pageThemes = { auto: 'Auto', day: 'Day', night: 'Night' } as const;
 interface ReaderSettings {
   typeface: 'sans' | 'serif';
-  size: typeof sizes[number];
+  size: (typeof sizes)[number];
   width: keyof typeof widths;
   spacing: keyof typeof spacings;
   /** Pages turn sideways and show two columns when the pane fits them. */
   layout: keyof typeof layouts;
   page: keyof typeof pageThemes;
 }
-const defaults: ReaderSettings = { typeface: 'serif', size: 17, width: 'Medium', spacing: 'Normal', layout: 'scroll', page: 'auto' };
+const defaults: ReaderSettings = {
+  typeface: 'serif',
+  size: 17,
+  width: 'Medium',
+  spacing: 'Normal',
+  layout: 'scroll',
+  page: 'auto',
+};
 const storageKey = 'tessera.reader';
 function storedSettings(): ReaderSettings {
   try {
@@ -35,7 +42,9 @@ function storedSettings(): ReaderSettings {
       layout: Object.hasOwn(layouts, value.layout) ? value.layout : defaults.layout,
       page: Object.hasOwn(pageThemes, value.page) ? value.page : defaults.page,
     };
-  } catch { return defaults; }
+  } catch {
+    return defaults;
+  }
 }
 // One device preference shared by every reader pane.
 const [readerSettings, setReaderSettingsSignal] = createRoot(() => createSignal(storedSettings()));
@@ -43,7 +52,11 @@ export { readerSettings };
 function setSettings(patch: Partial<ReaderSettings>) {
   const value = { ...readerSettings(), ...patch };
   setReaderSettingsSignal(value);
-  try { localStorage.setItem(storageKey, JSON.stringify(value)); } catch { /* The preference lasts for this tab. */ }
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(value));
+  } catch {
+    /* The preference lasts for this tab. */
+  }
 }
 export const readerStyle = () => ({
   '--reader-font': readerSettings().typeface === 'serif' ? 'var(--font-reading-serif)' : 'var(--font-body)',
@@ -62,42 +75,182 @@ export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean
   // A phone's Appearance: a floating sheet that leaves the page undimmed, so the text answers each change; every choice a
   // segmented control, and the size a pair of capsules around its value.
   if (isPhone()) {
-    const named = <T extends string>(names: Record<T, string>) => (Object.keys(names) as T[]).map(value => ({ value, label: names[value] }));
-    return <Popup anchor={props.anchor} placement="sheet" scrim={false} title="Appearance" label="Reader settings" class="reader-settings reader-appearance" onDismiss={props.onDismiss}>
-      <div class="reader-settings-body">
-        <div class="reader-option"><span class="reader-option-label">Layout</span><Seg label="Layout" value={readerSettings().layout} options={named(layouts)} onChange={layout => setSettings({ layout })} /></div>
-        <div class="reader-option"><span class="reader-option-label">Typeface</span><Seg label="Typeface" value={readerSettings().typeface} options={[{ value: 'sans', label: <span class="reader-face-sans">Sans</span> }, { value: 'serif', label: <span class="reader-face-serif">Serif</span> }]} onChange={typeface => setSettings({ typeface })} /></div>
-        <div class="reader-option"><span class="reader-option-label">Size</span><div class="reader-step" role="group" aria-label="Size">
-          <Button class="reader-step-less" label="Decrease size" disabled={sizeIndex() === 0} onClick={() => setSettings({ size: sizes[sizeIndex() - 1]! })}>A<em>−</em></Button>
-          <output class="reader-step-value" aria-label="Reader size">{readerSettings().size}</output>
-          <Button class="reader-step-more" label="Increase size" disabled={sizeIndex() === sizes.length - 1} onClick={() => setSettings({ size: sizes[sizeIndex() + 1]! })}>A<em>+</em></Button>
-        </div></div>
-        <Show when={widthMatters()}><div class="reader-option"><span class="reader-option-label">Width</span><Seg label="Width" value={readerSettings().width} options={(Object.keys(widths) as (keyof typeof widths)[]).map(value => ({ value, label: value }))} onChange={width => setSettings({ width })} /></div></Show>
-        <div class="reader-option"><span class="reader-option-label">Line spacing</span><Seg label="Line spacing" value={readerSettings().spacing} options={(Object.keys(spacings) as (keyof typeof spacings)[]).map(value => ({ value, label: value }))} onChange={spacing => setSettings({ spacing })} /></div>
-        <div class="reader-option"><span class="reader-option-label">Page</span><Seg label="Page" value={readerSettings().page} options={named(pageThemes)} onChange={page => setSettings({ page })} /></div>
-      </div>
-    </Popup>;
+    const named = <T extends string>(names: Record<T, string>) =>
+      (Object.keys(names) as T[]).map(value => ({ value, label: names[value] }));
+    return (
+      <Popup
+        anchor={props.anchor}
+        placement="sheet"
+        scrim={false}
+        title="Appearance"
+        label="Reader settings"
+        class="reader-settings reader-appearance"
+        onDismiss={props.onDismiss}
+      >
+        <div class="reader-settings-body">
+          <div class="reader-option">
+            <span class="reader-option-label">Layout</span>
+            <Seg
+              label="Layout"
+              value={readerSettings().layout}
+              options={named(layouts)}
+              onChange={layout => setSettings({ layout })}
+            />
+          </div>
+          <div class="reader-option">
+            <span class="reader-option-label">Typeface</span>
+            <Seg
+              label="Typeface"
+              value={readerSettings().typeface}
+              options={[
+                { value: 'sans', label: <span class="reader-face-sans">Sans</span> },
+                { value: 'serif', label: <span class="reader-face-serif">Serif</span> },
+              ]}
+              onChange={typeface => setSettings({ typeface })}
+            />
+          </div>
+          <div class="reader-option">
+            <span class="reader-option-label">Size</span>
+            <div class="reader-step" role="group" aria-label="Size">
+              <Button
+                class="reader-step-less"
+                label="Decrease size"
+                disabled={sizeIndex() === 0}
+                onClick={() => setSettings({ size: sizes[sizeIndex() - 1]! })}
+              >
+                A<em>−</em>
+              </Button>
+              <output class="reader-step-value" aria-label="Reader size">
+                {readerSettings().size}
+              </output>
+              <Button
+                class="reader-step-more"
+                label="Increase size"
+                disabled={sizeIndex() === sizes.length - 1}
+                onClick={() => setSettings({ size: sizes[sizeIndex() + 1]! })}
+              >
+                A<em>+</em>
+              </Button>
+            </div>
+          </div>
+          <Show when={widthMatters()}>
+            <div class="reader-option">
+              <span class="reader-option-label">Width</span>
+              <Seg
+                label="Width"
+                value={readerSettings().width}
+                options={(Object.keys(widths) as (keyof typeof widths)[]).map(value => ({ value, label: value }))}
+                onChange={width => setSettings({ width })}
+              />
+            </div>
+          </Show>
+          <div class="reader-option">
+            <span class="reader-option-label">Line spacing</span>
+            <Seg
+              label="Line spacing"
+              value={readerSettings().spacing}
+              options={(Object.keys(spacings) as (keyof typeof spacings)[]).map(value => ({ value, label: value }))}
+              onChange={spacing => setSettings({ spacing })}
+            />
+          </div>
+          <div class="reader-option">
+            <span class="reader-option-label">Page</span>
+            <Seg
+              label="Page"
+              value={readerSettings().page}
+              options={named(pageThemes)}
+              onChange={page => setSettings({ page })}
+            />
+          </div>
+        </div>
+      </Popup>
+    );
   }
-  return <Popup anchor={props.anchor} placement={props.sheet ? 'sheet' : 'anchor'} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
-    <div class="reader-settings-body">
-    <div class="reader-setting"><span>Layout</span><div class="mode-tabs" role="group" aria-label="Layout"><For each={Object.keys(layouts) as (keyof typeof layouts)[]}>{layout =>
-      <Button aria-pressed={readerSettings().layout === layout} onClick={() => setSettings({ layout })}>{layouts[layout]}</Button>
-    }</For></div></div>
-    <div class="reader-setting"><span>Typeface</span><div class="mode-tabs" role="group" aria-label="Typeface">
-      <Button aria-pressed={readerSettings().typeface === 'sans'} onClick={() => setSettings({ typeface: 'sans' })}>Sans</Button>
-      <Button aria-pressed={readerSettings().typeface === 'serif'} onClick={() => setSettings({ typeface: 'serif' })}>Serif</Button>
-    </div></div>
-    <div class="reader-setting"><span>Size</span><div>
-      <Button label="Decrease size" disabled={sizeIndex() === 0} onClick={() => setSettings({ size: sizes[sizeIndex() - 1]! })}>−</Button>
-      <output aria-label="Reader size">{readerSettings().size}</output>
-      <Button label="Increase size" disabled={sizeIndex() === sizes.length - 1} onClick={() => setSettings({ size: sizes[sizeIndex() + 1]! })}>+</Button>
-    </div></div>
-    <Show when={widthMatters()}><div class="reader-setting"><span>Width</span><div class="mode-tabs" role="group" aria-label="Width"><For each={Object.keys(widths) as (keyof typeof widths)[]}>{width =>
-      <Button aria-pressed={readerSettings().width === width} onClick={() => setSettings({ width })}>{width}</Button>
-    }</For></div></div></Show>
-    <div class="reader-setting"><span>Line spacing</span><div class="mode-tabs" role="group" aria-label="Line spacing"><For each={Object.keys(spacings) as (keyof typeof spacings)[]}>{spacing =>
-      <Button aria-pressed={readerSettings().spacing === spacing} onClick={() => setSettings({ spacing })}>{spacing}</Button>
-    }</For></div></div>
-    </div>
-  </Popup>;
+  return (
+    <Popup
+      anchor={props.anchor}
+      placement={props.sheet ? 'sheet' : 'anchor'}
+      label="Reader settings"
+      class="reader-settings"
+      onDismiss={props.onDismiss}
+    >
+      <div class="reader-settings-body">
+        <div class="reader-setting">
+          <span>Layout</span>
+          <div class="mode-tabs" role="group" aria-label="Layout">
+            <For each={Object.keys(layouts) as (keyof typeof layouts)[]}>
+              {layout => (
+                <Button aria-pressed={readerSettings().layout === layout} onClick={() => setSettings({ layout })}>
+                  {layouts[layout]}
+                </Button>
+              )}
+            </For>
+          </div>
+        </div>
+        <div class="reader-setting">
+          <span>Typeface</span>
+          <div class="mode-tabs" role="group" aria-label="Typeface">
+            <Button
+              aria-pressed={readerSettings().typeface === 'sans'}
+              onClick={() => setSettings({ typeface: 'sans' })}
+            >
+              Sans
+            </Button>
+            <Button
+              aria-pressed={readerSettings().typeface === 'serif'}
+              onClick={() => setSettings({ typeface: 'serif' })}
+            >
+              Serif
+            </Button>
+          </div>
+        </div>
+        <div class="reader-setting">
+          <span>Size</span>
+          <div>
+            <Button
+              label="Decrease size"
+              disabled={sizeIndex() === 0}
+              onClick={() => setSettings({ size: sizes[sizeIndex() - 1]! })}
+            >
+              −
+            </Button>
+            <output aria-label="Reader size">{readerSettings().size}</output>
+            <Button
+              label="Increase size"
+              disabled={sizeIndex() === sizes.length - 1}
+              onClick={() => setSettings({ size: sizes[sizeIndex() + 1]! })}
+            >
+              +
+            </Button>
+          </div>
+        </div>
+        <Show when={widthMatters()}>
+          <div class="reader-setting">
+            <span>Width</span>
+            <div class="mode-tabs" role="group" aria-label="Width">
+              <For each={Object.keys(widths) as (keyof typeof widths)[]}>
+                {width => (
+                  <Button aria-pressed={readerSettings().width === width} onClick={() => setSettings({ width })}>
+                    {width}
+                  </Button>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+        <div class="reader-setting">
+          <span>Line spacing</span>
+          <div class="mode-tabs" role="group" aria-label="Line spacing">
+            <For each={Object.keys(spacings) as (keyof typeof spacings)[]}>
+              {spacing => (
+                <Button aria-pressed={readerSettings().spacing === spacing} onClick={() => setSettings({ spacing })}>
+                  {spacing}
+                </Button>
+              )}
+            </For>
+          </div>
+        </div>
+      </div>
+    </Popup>
+  );
 }

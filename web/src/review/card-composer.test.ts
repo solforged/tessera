@@ -11,10 +11,15 @@ test('the composer produces one real forward card and preserves authored line br
 
 test('blank sides and extra card operators cannot persist through the composer', () => {
   for (const [front, back] of [
-    ['', 'answer'], ['question', ' \n '], ['question <> reverse', 'answer'],
-    ['question', 'answer >> extra'], ['{{c1::question}}', 'answer'],
-    ['`unfinished', 'answer'], ['[[unfinished', 'answer'],
-  ]) expect(() => forwardCardText(front!, back!)).toThrow();
+    ['', 'answer'],
+    ['question', ' \n '],
+    ['question <> reverse', 'answer'],
+    ['question', 'answer >> extra'],
+    ['{{c1::question}}', 'answer'],
+    ['`unfinished', 'answer'],
+    ['[[unfinished', 'answer'],
+  ])
+    expect(() => forwardCardText(front!, back!)).toThrow();
 });
 
 test('intentional literal operators retain the parser shielding rules', () => {

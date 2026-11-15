@@ -20,22 +20,58 @@ interface RelationProps {
 
 /** Incoming names describe the source, but always open its authored reading, not its holder page. */
 export function IncomingRelationLine(props: RelationProps & { rows: readonly RelationRow[] }) {
-  return <Show when={props.rows.length}><div class="relation-line" onMouseDown={event => event.stopPropagation()}>
-    <For each={props.rows}>{(row, index) => {
-      const source = row.source.block.block;
-      const label = createMemo(() => {
-        const holder = row.source.holder_id;
-        const text = holder ? props.notebook.lookup(holder)()?.text : props.notebook.lookup(source.id)()?.text ?? source.text;
-        return plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom');
-      });
-      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{incomingRelationLabels[row.kind]} <Button aria-label={`Open ${label()}`} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined }, opensBeside(event)); }}>{label()}</Button></span></>;
-    }}</For>
-  </div></Show>;
+  return (
+    <Show when={props.rows.length}>
+      <div class="relation-line" onMouseDown={event => event.stopPropagation()}>
+        <For each={props.rows}>
+          {(row, index) => {
+            const source = row.source.block.block;
+            const label = createMemo(() => {
+              const holder = row.source.holder_id;
+              const text = holder
+                ? props.notebook.lookup(holder)()?.text
+                : (props.notebook.lookup(source.id)()?.text ?? source.text);
+              return (
+                plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom')
+              );
+            });
+            return (
+              <>
+                <Show when={index() > 0}>
+                  <span aria-hidden="true"> · </span>
+                </Show>
+                <span>
+                  {incomingRelationLabels[row.kind]}{' '}
+                  <Button
+                    aria-label={`Open ${label()}`}
+                    onClick={event => {
+                      event.stopPropagation();
+                      props.onOpen(
+                        {
+                          kind: 'page',
+                          pageId: row.source.block.page.id,
+                          blockId: source.kind === 'block' ? source.id : undefined,
+                        },
+                        opensBeside(event),
+                      );
+                    }}
+                  >
+                    {label()}
+                  </Button>
+                </span>
+              </>
+            );
+          }}
+        </For>
+      </div>
+    </Show>
+  );
 }
 
 /** Built-in relations their targets already list: creators as Works, collections as their members. */
 // A person's Works lists the works its creator fields, editors and translators name, and a collection lists its members.
-const listedElsewhere = (row: IncomingFieldValue) => row.counts_as === 'creator' || ['translator', 'collections'].includes(row.field_name.trim().toLowerCase());
+const listedElsewhere = (row: IncomingFieldValue) =>
+  row.counts_as === 'creator' || ['translator', 'collections'].includes(row.field_name.trim().toLowerCase());
 const ownersShown = 3;
 
 /** Relation fields read from the target as `← name`, one group per field, each owner opening where it is written. */
@@ -51,21 +87,81 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
     return [...byField.values()];
   });
   const [expanded, setExpanded] = createSignal(new Set<string>());
-  const label = (owner: FieldOwner) => targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty atom';
-  return <Show when={groups().length}><div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
-    <For each={groups()}>{(group, index) => {
-      const shown = () => expanded().has(group.id) ? group.owners : group.owners.slice(0, ownersShown);
-      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span><span class="incoming-field-name" title={`Values of ${group.name} that link here`}>← {group.name}</span> <For each={shown()}>{(owner, at) => <><Show when={at() > 0}><span aria-hidden="true">, </span></Show><Button aria-label={`Open ${label(owner)}`} title={owner.id === owner.page_id ? owner.page_title : `In ${owner.page_title}`} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: owner.page_id, blockId: owner.id === owner.page_id ? undefined : owner.id }, opensBeside(event)); }}>{label(owner)}</Button></>}</For>
-        <Show when={shown().length < group.owners.length}> <Button onClick={event => { event.stopPropagation(); setExpanded(previous => new Set(previous).add(group.id)); }}>{`+${group.owners.length - shown().length} more`}</Button></Show></span></>;
-    }}</For>
-  </div></Show>;
+  const label = (owner: FieldOwner) =>
+    targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty atom';
+  return (
+    <Show when={groups().length}>
+      <div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
+        <For each={groups()}>
+          {(group, index) => {
+            const shown = () => (expanded().has(group.id) ? group.owners : group.owners.slice(0, ownersShown));
+            return (
+              <>
+                <Show when={index() > 0}>
+                  <span aria-hidden="true"> · </span>
+                </Show>
+                <span>
+                  <span class="incoming-field-name" title={`Values of ${group.name} that link here`}>
+                    ← {group.name}
+                  </span>{' '}
+                  <For each={shown()}>
+                    {(owner, at) => (
+                      <>
+                        <Show when={at() > 0}>
+                          <span aria-hidden="true">, </span>
+                        </Show>
+                        <Button
+                          aria-label={`Open ${label(owner)}`}
+                          title={owner.id === owner.page_id ? owner.page_title : `In ${owner.page_title}`}
+                          onClick={event => {
+                            event.stopPropagation();
+                            props.onOpen(
+                              {
+                                kind: 'page',
+                                pageId: owner.page_id,
+                                blockId: owner.id === owner.page_id ? undefined : owner.id,
+                              },
+                              opensBeside(event),
+                            );
+                          }}
+                        >
+                          {label(owner)}
+                        </Button>
+                      </>
+                    )}
+                  </For>
+                  <Show when={shown().length < group.owners.length}>
+                    {' '}
+                    <Button
+                      onClick={event => {
+                        event.stopPropagation();
+                        setExpanded(previous => new Set(previous).add(group.id));
+                      }}
+                    >{`+${group.owners.length - shown().length} more`}</Button>
+                  </Show>
+                </span>
+              </>
+            );
+          }}
+        </For>
+      </div>
+    </Show>
+  );
 }
 
-interface Mention { key: string; name: string; relation: string; pageId: string; blockId?: string }
+interface Mention {
+  key: string;
+  name: string;
+  relation: string;
+  pageId: string;
+  blockId?: string;
+}
 const mentionsShown = 5;
 
 /** A phone gathers what points at the page into one group: the pointing atom's name at the start, what it calls this page at the end. */
-function MentionedIn(props: RelationProps & { relations: readonly RelationRow[]; fields: readonly IncomingFieldValue[] }) {
+function MentionedIn(
+  props: RelationProps & { relations: readonly RelationRow[]; fields: readonly IncomingFieldValue[] },
+) {
   const work = createWorkTest(props.notebook);
   const [all, setAll] = createSignal(false);
   const mentions = createMemo(() => {
@@ -74,65 +170,178 @@ function MentionedIn(props: RelationProps & { relations: readonly RelationRow[];
     for (const row of props.relations) {
       const source = row.source.block.block;
       const holder = row.source.holder_id;
-      const text = holder ? props.notebook.lookup(holder)()?.text : props.notebook.lookup(source.id)()?.text ?? source.text;
-      result.push({ key: `relation:${source.id}:${row.kind}`, name: plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom'), relation: incomingRelationLabels[row.kind], pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined });
+      const text = holder
+        ? props.notebook.lookup(holder)()?.text
+        : (props.notebook.lookup(source.id)()?.text ?? source.text);
+      result.push({
+        key: `relation:${source.id}:${row.kind}`,
+        name: plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom'),
+        relation: incomingRelationLabels[row.kind],
+        pageId: row.source.block.page.id,
+        blockId: source.kind === 'block' ? source.id : undefined,
+      });
     }
     for (const row of props.fields) {
       const key = `field:${row.owner.id}:${row.field_id}`;
       if (listedElsewhere(row) || seen.has(key)) continue;
       seen.add(key);
       const owner = row.owner;
-      result.push({ key, name: targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty atom', relation: row.field_name, pageId: owner.page_id, blockId: owner.id === owner.page_id ? undefined : owner.id });
+      result.push({
+        key,
+        name:
+          targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) ||
+          'Empty atom',
+        relation: row.field_name,
+        pageId: owner.page_id,
+        blockId: owner.id === owner.page_id ? undefined : owner.id,
+      });
     }
     return result;
   });
-  const shown = () => all() ? mentions() : mentions().slice(0, mentionsShown);
-  return <Show when={mentions().length}><div class="mentioned-in" onMouseDown={event => event.stopPropagation()}><ListGroup label="Mentioned in">
-    <For each={shown()}>{mention => <ListRow push name={work(mention.pageId) && !mention.blockId ? 'work' : 'thing'} value={mention.relation} onClick={() => props.onOpen({ kind: 'page', pageId: mention.pageId, blockId: mention.blockId }, false)}>{mention.name}</ListRow>}</For>
-    <Show when={!all() && mentions().length > mentionsShown}><ListRow count={mentions().length - mentionsShown} onClick={() => setAll(true)}>Show all</ListRow></Show>
-  </ListGroup></div></Show>;
+  const shown = () => (all() ? mentions() : mentions().slice(0, mentionsShown));
+  return (
+    <Show when={mentions().length}>
+      <div class="mentioned-in" onMouseDown={event => event.stopPropagation()}>
+        <ListGroup label="Mentioned in">
+          <For each={shown()}>
+            {mention => (
+              <ListRow
+                push
+                name={work(mention.pageId) && !mention.blockId ? 'work' : 'thing'}
+                value={mention.relation}
+                onClick={() => props.onOpen({ kind: 'page', pageId: mention.pageId, blockId: mention.blockId }, false)}
+              >
+                {mention.name}
+              </ListRow>
+            )}
+          </For>
+          <Show when={!all() && mentions().length > mentionsShown}>
+            <ListRow count={mentions().length - mentionsShown} onClick={() => setAll(true)}>
+              Show all
+            </ListRow>
+          </Show>
+        </ListGroup>
+      </div>
+    </Show>
+  );
 }
 
 /** Visible targets share the outline's settled-change clock; unreferenced rows issue no query. */
-export function IncomingRelations(props: RelationProps & { target: string; version: number; enabled?: boolean; /** The page's own header: a phone shows its incoming relations as Mentioned in. */ heading?: boolean }) {
+export function IncomingRelations(
+  props: RelationProps & {
+    target: string;
+    version: number;
+    enabled?: boolean /** The page's own header: a phone shows its incoming relations as Mentioned in. */;
+    heading?: boolean;
+  },
+) {
   let request: AbortController | undefined;
   onCleanup(() => request?.abort());
-  const [rows] = createResource(() => props.enabled === false || props.notebook.lookup(props.target)()?.revision === 0 ? false : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`, async () => {
-    request?.abort();
-    request = new AbortController();
-    const [relations, fields] = await Promise.all([
-      props.notebook.api.relations({ target: props.target }, request.signal),
-      // Relation fields are secondary here; an older service without the route still shows arguments.
-      props.notebook.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
-    ]);
-    return { relations, fields };
-  });
-  return <Show when={props.enabled !== false}>
-    {/* A stopped service is already said once by the offline banner; any other failure names what could not load. */}
-    <Show when={!rows.error} fallback={<Show when={!(rows.error instanceof ApiError && rows.error.status === 0)}><div class="relation-line" role="status">Relations unavailable.</div></Show>}>
-      <Show when={props.heading && isPhone()} fallback={<>
-        <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
-        <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
-      </>}>
-        <MentionedIn relations={rows()?.relations ?? []} fields={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+  const [rows] = createResource(
+    () =>
+      props.enabled === false || props.notebook.lookup(props.target)()?.revision === 0
+        ? false
+        : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`,
+    async () => {
+      request?.abort();
+      request = new AbortController();
+      const [relations, fields] = await Promise.all([
+        props.notebook.api.relations({ target: props.target }, request.signal),
+        // Relation fields are secondary here; an older service without the route still shows arguments.
+        props.notebook.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
+      ]);
+      return { relations, fields };
+    },
+  );
+  return (
+    <Show when={props.enabled !== false}>
+      {/* A stopped service is already said once by the offline banner; any other failure names what could not load. */}
+      <Show
+        when={!rows.error}
+        fallback={
+          <Show when={!(rows.error instanceof ApiError && rows.error.status === 0)}>
+            <div class="relation-line" role="status">
+              Relations unavailable.
+            </div>
+          </Show>
+        }
+      >
+        <Show
+          when={props.heading && isPhone()}
+          fallback={
+            <>
+              <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+              <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+            </>
+          }
+        >
+          <MentionedIn
+            relations={rows()?.relations ?? []}
+            fields={rows()?.fields ?? []}
+            notebook={props.notebook}
+            onOpen={props.onOpen}
+          />
+        </Show>
       </Show>
     </Show>
-  </Show>;
+  );
 }
 
 /** Reading cards show authored edges as apparatus, never as reading prose. */
 export function OutgoingRelations(props: RelationProps & { rows: readonly BlockState[] }) {
-  return <Show when={props.rows.length}><div class="relation-line">
-    <For each={props.rows}>{(row, index) => <Show when={row.relation}>{relation => {
-      const target = () => relation().target_id ? props.notebook.lookup(relation().target_id!)() : null;
-      const label = () => {
-        const block = target();
-        return block ? plainText(block.text, id => props.notebook.lookup(id)) || 'Empty atom' : relation().target_id ? 'Loading reference…' : 'No target';
-      };
-      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{relationLabels[relation().kind]} <Button onClick={event => {
-        const block = target();
-        props.onOpen({ kind: 'page', pageId: block?.page_id ?? row.pageId, blockId: block ? block.kind === 'block' ? block.id : undefined : row.id }, opensBeside(event));
-      }}>{label()}</Button><Show when={relation().problem}>{problem => <span class="relation-problem" role="img" aria-label={problem()} title={problem()}><Icon name="warning" /></span>}</Show></span></>;
-    }}</Show>}</For>
-  </div></Show>;
+  return (
+    <Show when={props.rows.length}>
+      <div class="relation-line">
+        <For each={props.rows}>
+          {(row, index) => (
+            <Show when={row.relation}>
+              {relation => {
+                const target = () => (relation().target_id ? props.notebook.lookup(relation().target_id!)() : null);
+                const label = () => {
+                  const block = target();
+                  return block
+                    ? plainText(block.text, id => props.notebook.lookup(id)) || 'Empty atom'
+                    : relation().target_id
+                      ? 'Loading reference…'
+                      : 'No target';
+                };
+                return (
+                  <>
+                    <Show when={index() > 0}>
+                      <span aria-hidden="true"> · </span>
+                    </Show>
+                    <span>
+                      {relationLabels[relation().kind]}{' '}
+                      <Button
+                        onClick={event => {
+                          const block = target();
+                          props.onOpen(
+                            {
+                              kind: 'page',
+                              pageId: block?.page_id ?? row.pageId,
+                              blockId: block ? (block.kind === 'block' ? block.id : undefined) : row.id,
+                            },
+                            opensBeside(event),
+                          );
+                        }}
+                      >
+                        {label()}
+                      </Button>
+                      <Show when={relation().problem}>
+                        {problem => (
+                          <span class="relation-problem" role="img" aria-label={problem()} title={problem()}>
+                            <Icon name="warning" />
+                          </span>
+                        )}
+                      </Show>
+                    </span>
+                  </>
+                );
+              }}
+            </Show>
+          )}
+        </For>
+      </div>
+    </Show>
+  );
 }

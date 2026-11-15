@@ -1,11 +1,24 @@
 import { describe, expect, test } from 'bun:test';
 import type { HistoryEntry, PaneSession } from './contract';
-import { activatePhoneTab, adoptPhoneTab, collapsePhoneLanding, passiveHistory, popPhoneTab, pushPhoneEntry } from './phone-navigation';
+import {
+  activatePhoneTab,
+  adoptPhoneTab,
+  collapsePhoneLanding,
+  passiveHistory,
+  popPhoneTab,
+  pushPhoneEntry,
+} from './phone-navigation';
 
-const today: HistoryEntry = { target: { kind: 'page', pageId: 'today' }, view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false } };
+const today: HistoryEntry = {
+  target: { kind: 'page', pageId: 'today' },
+  view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false },
+};
 const library: HistoryEntry = { target: { kind: 'library' }, view: { scroll: 0 } };
 const directory: HistoryEntry = { target: { kind: 'directory' }, view: { scroll: 140 } };
-const reader: HistoryEntry = { target: { kind: 'reader', sourceId: 'meditations' }, view: { snapshotId: 'edition', ordinal: 72, offset: -12 } };
+const reader: HistoryEntry = {
+  target: { kind: 'reader', sourceId: 'meditations' },
+  view: { snapshotId: 'edition', ordinal: 72, offset: -12 },
+};
 
 describe('phone tab histories', () => {
   test('parks the full stack and reader position across another tab and JSON persistence', () => {
@@ -29,7 +42,13 @@ describe('phone tab histories', () => {
   });
 
   test('reselection pops to root, removes Forward and leaves other tabs intact', () => {
-    const start: PaneSession = { tab: 'today', tabs: { library: { entries: [library, reader], index: 1 } }, entries: [today, directory], index: 1, generation: 5 };
+    const start: PaneSession = {
+      tab: 'today',
+      tabs: { library: { entries: [library, reader], index: 1 } },
+      entries: [today, directory],
+      index: 1,
+      generation: 5,
+    };
     const popped = popPhoneTab(start);
     expect(popped.entries).toEqual([today]);
     expect(popped.index).toBe(0);
@@ -43,7 +62,10 @@ describe('phone tab histories', () => {
     expect(adopted.entries).toEqual([library, reader]);
     expect(adopted.index).toBe(1);
     expect(adoptPhoneTab(adopted, 'today', today)).toBe(adopted);
-    expect(adoptPhoneTab({ ...legacy, entries: [today, directory], index: 1 }, 'today', today).entries).toEqual([today, directory]);
+    expect(adoptPhoneTab({ ...legacy, entries: [today, directory], index: 1 }, 'today', today).entries).toEqual([
+      today,
+      directory,
+    ]);
     expect(adoptPhoneTab({ entries: [], index: -1, generation: 0 }, 'today', today).index).toBe(0);
   });
 
@@ -58,10 +80,16 @@ describe('phone tab histories', () => {
     const pendingToday = adoptPhoneTab({ entries: [], index: -1, generation: 0 }, 'today', today);
     expect(pushPhoneEntry(pendingToday, today).index).toBe(0);
 
-    const zoomed: HistoryEntry = { target: { kind: 'page', pageId: 'today', blockId: 'plan' }, view: { ...today.view, zoom: 'plan' } };
+    const zoomed: HistoryEntry = {
+      target: { kind: 'page', pageId: 'today', blockId: 'plan' },
+      view: { ...today.view, zoom: 'plan' },
+    };
     expect(pushPhoneEntry(reopened, zoomed).entries).toHaveLength(2);
     expect(pushPhoneEntry(reopened, directory).entries).toHaveLength(2);
-    expect(pushPhoneEntry({ ...start, entries: [today, directory], index: 0 }, today).entries).toEqual([today, directory]);
+    expect(pushPhoneEntry({ ...start, entries: [today, directory], index: 0 }, today).entries).toEqual([
+      today,
+      directory,
+    ]);
   });
 
   test('collapses a saved landing-only stack to its current view on load', () => {

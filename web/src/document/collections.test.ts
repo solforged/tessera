@@ -6,7 +6,14 @@ import { freePort, startService, type WorkshopService } from '../testing/service
 import { emptyMetadata } from '../library/details';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
-import { changeCollectionMembers, collectionPages, createCollection, deleteCollection, renameCollection, sourceCollections } from './collections';
+import {
+  changeCollectionMembers,
+  collectionPages,
+  createCollection,
+  deleteCollection,
+  renameCollection,
+  sourceCollections,
+} from './collections';
 
 const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -16,7 +23,12 @@ let notebook: Notebook;
 
 beforeAll(async () => {
   service = await startService({ name: 'collection-tests', port });
-  notebook = createNotebookClient({ baseUrl, sessionId: ulid(), notebookId: service.workshopId, databaseName: `collections-${ulid()}` });
+  notebook = createNotebookClient({
+    baseUrl,
+    sessionId: ulid(),
+    notebookId: service.workshopId,
+    databaseName: `collections-${ulid()}`,
+  });
   await notebook.ready;
 }, 60000);
 afterAll(async () => {
@@ -63,7 +75,9 @@ test('collections use one commit, extend templates, backlink, filter, undo and c
   const added = await changeCollectionMembers(notebook, created.id, sources.slice(0, 2), true);
   expect(await api.changeHead()).toBe(head + 1);
   expect(added).not.toBeNull();
-  expect((await api.library({ collection_id: created.id, sort: 'title', direction: 'asc' })).rows.map(row => row.page.id)).toEqual(sources.slice(0, 2));
+  expect(
+    (await api.library({ collection_id: created.id, sort: 'title', direction: 'asc' })).rows.map(row => row.page.id),
+  ).toEqual(sources.slice(0, 2));
   expect(new Set((await api.backlinks(created.id)).map(link => link.page.id))).toEqual(new Set(sources.slice(0, 2)));
   expect(await sourceCollections(api, sources[0]!)).toEqual([created.id]);
   expect(await changeCollectionMembers(notebook, created.id, sources.slice(0, 2), true)).toBeNull();
@@ -119,7 +133,10 @@ test('undo refuses to overwrite a later membership value edit', async () => {
   const removed = await changeCollectionMembers(notebook, collection.id, [plan.source_id], false);
   const page = await api.page(plan.source_id);
   const value = page.rows.find(row => row.depth === 1 && row.block.text === '')!.block;
-  await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'edit_text', id: value.id, base_revision: value.revision, text: 'Later edit' }] });
+  await api.submit({
+    actor: { kind: 'person' },
+    operations: [{ op: 'edit_text', id: value.id, base_revision: value.revision, text: 'Later edit' }],
+  });
   await expect(removed!.undo()).rejects.toThrow();
   expect((await api.block(value.id)).text).toBe('Later edit');
 });
