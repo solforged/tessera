@@ -10,44 +10,36 @@ repository.workspace = true
 embed-web = ["dep:include_dir"]
 
 [dependencies]
+tessera-api.workspace = true
 tessera-core.workspace = true
-tessera-ingest.workspace = true
-percent-encoding = "2"
-serde.workspace = true
-serde_json.workspace = true
-parking_lot = "0.12"
-tracing.workspace = true
-roxmltree = "0.21"
-
-[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
 anyhow.workspace = true
 axum.workspace = true
+base64 = "0.22"
 dirs.workspace = true
+futures-util.workspace = true
+getrandom = "0.4"
+include_dir = { version = "0.7", optional = true }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
-tokio = { workspace = true, features = ["process"] }
+parking_lot.workspace = true
+percent-encoding.workspace = true
+qrcodegen = "1.8"
 reqwest.workspace = true
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
-webpki-roots = "1"
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["process"] }
 tokio-util = { version = "0.7", features = ["io"] }
-include_dir = { version = "0.7", optional = true }
-base64 = "0.22"
-getrandom = "0.4"
-qrcodegen = "1.8"
+tracing.workspace = true
 ulid.workspace = true
+webpki-roots = "1"
 
-[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
-axum = { version = "0.8", default-features = false, features = ["json", "query", "matched-path", "original-uri"] }
-tokio = { version = "1", default-features = false, features = ["sync"] }
-
-[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dev-dependencies]
-tempfile.workspace = true
+[dev-dependencies]
 rusqlite.workspace = true
-tower.workspace = true
-tokio-tungstenite.workspace = true
-futures-util.workspace = true
-ulid.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
+tokio-tungstenite.workspace = true
+tower.workspace = true
 
 [lints]
 workspace = true

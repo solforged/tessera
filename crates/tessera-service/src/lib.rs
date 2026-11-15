@@ -8,78 +8,47 @@
 //! `GET /api/notebook/size` reports the bytes the open workshop's folder holds: its database and every stored object.
 //! `/api/notebooks` lists known notebooks and switches the service to another one.
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod agent;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-pub mod agent_render;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-mod assets;
-mod capabilities;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-mod daily_backup;
 mod error;
-mod images;
-pub mod library;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use tessera_api::images;
+pub use tessera_api::library;
+pub mod agent_render;
+mod assets;
+mod daily_backup;
 pub mod migration;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod notebooks;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod pairing;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use tessera_core::paths;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod replica;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod security;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod sharing;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod sync;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod sync_client;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use replica::start_sync_runner;
+pub(crate) use tessera_api::editor_receipt;
 
 use parking_lot::Mutex;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::net::Ipv4Addr;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use anyhow::Context;
 use axum::{
     Json, Router,
     extract::{
         DefaultBodyLimit, Path, Query, State,
-        rejection::{JsonRejection, PathRejection, QueryRejection},
+        rejection::{PathRejection, QueryRejection},
     },
     routing::{get, post},
 };
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    middleware,
-    response::Response,
-};
+use axum::{middleware, response::Response};
 use serde::Deserialize;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use serde::Serialize;
-use tessera_core::{
-    Actor, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage, ChangeEvent,
-    CheckReport, Committed, Completion, FieldDetail, FieldKind, FieldsView, HistoryEntry,
-    KindIndex, NameMatch, NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult,
-    SettingsView, TypeInfo, UndoReceipt, View,
-};
-use tessera_core::{IncomingFieldValue, PageReferences, ReferenceCount, UnlinkedMentions};
+use tessera_core::{Notebook, NotebookInfo};
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use crate::security::validate_dev_origin;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use tessera_core::NotebookOwnership;
 
 pub const DEFAULT_PORT: u16 = 4318;
@@ -90,7 +59,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The commit a release or `ts-ship` built from; absent in development builds.
 pub const BUILD: Option<&str> = option_env!("TESSERA_BUILD");
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SyncVersion {
     pub version: Option<String>,
@@ -98,7 +66,6 @@ pub struct SyncVersion {
     pub schema: u32,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl SyncVersion {
     pub(crate) fn current() -> Self {
         Self {
@@ -109,17 +76,14 @@ impl SyncVersion {
     }
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub const LAUNCH_AGENT_LABEL: &str = "dev.tessera.serve";
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// The per-user launch agent location. This does not invoke launchctl.
 pub fn launch_agent_path(home: &std::path::Path) -> PathBuf {
     home.join("Library/LaunchAgents")
         .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub struct Config {
     /// Notebook directory; created if missing.
     pub notebook: PathBuf,
@@ -141,7 +105,6 @@ pub struct Config {
     pub backup_store: Option<PathBuf>,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// A switch the service drained for: restart on `notebook` at the ports it had bound.
 pub struct Restart {
     pub notebook: PathBuf,
@@ -152,33 +115,22 @@ pub struct Restart {
 #[derive(Clone)]
 pub(crate) struct AppState {
     notebook: Arc<Mutex<Notebook>>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     assets: Option<Arc<PathBuf>>,
     changes: broadcast::Sender<i64>,
     library: library::Library,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    objects: tessera_api::ObjectReader,
     port: u16,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     backup: BackupLock,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     backup_store: Option<PathBuf>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     sync_port: u16,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pairing: Arc<Mutex<pairing::Pairing>>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     sharing: Arc<tokio::sync::Mutex<()>>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     replica: Arc<replica::ReplicaRuntime>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     sync_health: Arc<Mutex<std::collections::HashMap<String, sync::DeviceHealth>>>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     switcher: Option<Arc<notebooks::Switcher>>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     agent: Arc<agent::Runtime>,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Build the HTTP router. `port` must be the port the listener actually bound,
 /// because host and origin checks compare against it.
 pub fn router(
@@ -204,7 +156,6 @@ pub fn router(
     .0)
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[allow(clippy::too_many_arguments)]
 fn routers(
     notebook: Notebook,
@@ -226,6 +177,7 @@ fn routers(
         assets: assets.map(Arc::new),
         changes: notifications,
         library,
+        objects: hub_objects(),
         port,
         backup: Arc::new(tokio::sync::Mutex::new(None)),
         backup_store,
@@ -280,6 +232,10 @@ fn routers(
         .merge(pairing::editor_routes())
         .merge(notebooks::routes())
         .merge(agent::routes())
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            refuse_while_switching,
+        ))
         .layer(middleware::from_fn_with_state(state.clone(), same_notebook))
         .layer(middleware::from_fn_with_state(policy, security::protect))
         .with_state(state.clone());
@@ -290,9 +246,7 @@ fn routers(
 pub struct EmbeddedHandles {
     pub notebook: Arc<Mutex<Notebook>>,
     pub changes: broadcast::Sender<i64>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub replica: Arc<replica::ReplicaRuntime>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     _daily_backup: Option<daily_backup::Task>,
 }
 
@@ -302,17 +256,10 @@ pub struct EmbeddedHandles {
 /// hosts deliver changes from [`EmbeddedHandles`]. Backups require an explicit store.
 /// The browser worker ingests queued uploads before this returns.
 pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), String> {
-    embedded_router_inner(
-        notebook,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        None,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        None,
-    )
+    embedded_router_inner(notebook, None, None)
 }
 
 /// Build a native embedded router with explicit provider settings and backup storage.
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn embedded_router_with_paths(
     notebook: Notebook,
     agent_path: PathBuf,
@@ -323,47 +270,34 @@ pub fn embedded_router_with_paths(
 
 fn embedded_router_inner(
     notebook: Notebook,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))] agent_path: Option<PathBuf>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))] backup_store: Option<PathBuf>,
+    agent_path: Option<PathBuf>,
+    backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
     let notebook = Arc::new(Mutex::new(notebook));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     let replica = Arc::default();
     let state = AppState {
         notebook,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         assets: None,
         changes,
         library,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        objects: hub_objects(),
         port: 0,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         backup: Arc::new(tokio::sync::Mutex::new(None)),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         backup_store,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         sync_port: 0,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         sharing: Arc::new(tokio::sync::Mutex::new(())),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         replica,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         sync_health: Arc::default(),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         switcher: None,
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         agent: Arc::new(agent::Runtime::new(agent_path)?),
     };
     let handles = EmbeddedHandles {
         notebook: state.notebook.clone(),
         changes: state.changes.clone(),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         replica: state.replica.clone(),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         _daily_backup: daily_backup::start(&state),
     };
     let router = notebook_routes()
@@ -373,7 +307,6 @@ fn embedded_router_inner(
         .merge(library::routes())
         .merge(images::routes());
     // A first pairing swaps the notebook in place; a window bound to the old one reloads on the 409.
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     let router = router
         .merge(agent::routes())
         .merge(backup_routes())
@@ -382,112 +315,6 @@ fn embedded_router_inner(
     Ok((router, handles))
 }
 
-fn notebook_routes() -> Router<AppState> {
-    let routes = Router::new()
-        .route("/api/notebook", get(notebook_info))
-        .route("/api/settings", get(settings))
-        .route("/api/roots", get(roots))
-        .route("/api/pages/deleted", get(deleted_pages))
-        .route("/api/pages/{id}", get(page))
-        .route("/api/pages/{id}/cards", get(capabilities::page_cards))
-        .route("/api/pages/by-title/{title}", get(page_by_title))
-        .route("/api/pages/{id}/kinds", get(note_kinds))
-        .route("/api/pages/{id}/aliases", post(add_alias))
-        .route("/api/names/{name}", get(resolve_name))
-        .route("/api/index", get(note_index))
-        .route("/api/index/{key}", get(kind_notes))
-        .route("/api/spreads", post(spread))
-        .route("/api/pages/{id}/spread", get(saved_spread))
-        .route("/api/journal/written", get(written_journal_dates))
-        .route("/api/journal/{date}", get(journal))
-        .route("/api/blocks/{id}", get(block))
-        .route("/api/blocks/{id}/subtree", get(subtree))
-        .route("/api/blocks/subtrees", post(subtrees))
-        .route("/api/pages/{id}/arrivals", get(stream_arrivals))
-        .route("/api/blocks/{id}/quote-snapshot", get(quote_snapshot))
-        .route("/api/pages/{id}/quote-status", get(quote_status))
-        .route("/api/blocks/{id}/backlinks", get(backlinks))
-        .route("/api/blocks/{id}/incoming-fields", get(incoming_fields))
-        .route("/api/pages/{id}/references", get(page_references))
-        .route("/api/pages/{id}/reference-counts", get(reference_counts))
-        .route("/api/pages/{id}/unlinked-mentions", get(unlinked_mentions))
-        .route("/api/types/{id}/members", get(members))
-        .route("/api/types/{id}/card-templates", get(card_templates))
-        .route(
-            "/api/card-templates/{id}/forecast",
-            get(card_template_forecast),
-        )
-        .route("/api/blocks/{id}/capabilities", get(capabilities::block))
-        .route(
-            "/api/blocks/{id}/task-occurrences",
-            get(capabilities::task_occurrences),
-        )
-        .route(
-            "/api/blocks/{id}/work-sessions",
-            get(capabilities::work_sessions),
-        )
-        .route(
-            "/api/work-sessions/active",
-            get(capabilities::active_work_session),
-        )
-        .route("/api/projects", get(capabilities::projects))
-        .route("/api/positions", get(capabilities::positions))
-        .route("/api/relations", get(capabilities::relations))
-        .route("/api/questions", get(capabilities::questions))
-        .route("/api/revisits", get(capabilities::revisits))
-        .route(
-            "/api/blocks/{id}/revisits",
-            get(capabilities::revisit_events),
-        )
-        .route("/api/tasks/query", post(capabilities::task_query))
-        .route("/api/agenda/{date}", get(capabilities::agenda))
-        .route("/api/task-views", get(capabilities::task_views))
-        .route("/api/task-views/{id}", get(capabilities::task_view))
-        .route("/api/blocks/{id}/cards", get(capabilities::source_cards))
-        .route("/api/cards/{id}", get(capabilities::card))
-        .route("/api/cards/query", post(capabilities::card_query))
-        .route("/api/cards/{id}/previews", get(capabilities::card_previews))
-        .route("/api/cards/{id}/reviews", get(capabilities::card_reviews))
-        .route("/api/decks", get(capabilities::decks))
-        .route("/api/tag-decks", get(capabilities::tag_decks))
-        .route("/api/decks/{id}", get(capabilities::deck))
-        .route("/api/review-sessions", get(capabilities::review_sessions))
-        .route(
-            "/api/review-sessions/{id}",
-            get(capabilities::review_session),
-        )
-        .route("/api/review/stats", get(review_stats))
-        .route(
-            "/api/review-sessions/{id}/reviews",
-            get(review_session_events),
-        )
-        .route("/api/types", get(types))
-        .route("/api/entities", get(entities))
-        .route("/api/types/{id}", get(type_info))
-        .route("/api/types/{id}/starting-template", post(starting_template))
-        .route("/api/fields", get(fields))
-        .route("/api/fields/{id}", get(field_detail))
-        .route("/api/query", post(query))
-        .route("/api/views", get(views))
-        .route("/api/views/{id}", get(view))
-        .route("/api/complete", get(complete))
-        .route("/api/search", get(search))
-        .route("/api/changes", get(changes))
-        .route("/api/changes/head", get(change_head))
-        .route("/api/check", get(check_notebook))
-        .route("/api/check/repair", post(repair_notebook))
-        .route("/api/batches", post(apply))
-        .route("/api/agent-changes", post(agent_edit))
-        .route("/api/history", get(history))
-        .route("/api/history/{seq}/undo", post(undo_change));
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    let routes = routes
-        .route("/api/notebook/size", get(notebook_size))
-        .merge(replica::routes());
-    routes
-}
-
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Hold exclusive notebook ownership, bind loopback, and drain on termination. Returns the
 /// restart a notebook switch asked for, after draining and releasing this notebook.
 pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
@@ -590,14 +417,12 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     Ok(restart)
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Deserialize, Serialize)]
 struct PendingRestore {
     source: PathBuf,
     requested_at: i64,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn apply_pending_restore(
     ownership: &NotebookOwnership,
     workshop: &std::path::Path,
@@ -634,7 +459,6 @@ fn apply_pending_restore(
     Ok(())
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn write_pending_restore(workshop: &std::path::Path, source: PathBuf) -> std::io::Result<()> {
     use std::io::Write;
 
@@ -660,7 +484,6 @@ fn write_pending_restore(workshop: &std::path::Path, source: PathBuf) -> std::io
     result
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Refuse a window's request meant for another notebook, named by the `X-Tessera-Notebook`
 /// header or, for the change stream, the `notebook` query parameter. A switch or a replica
 /// reclone changes the notebook behind a port; an old window must not write into the new one.
@@ -699,7 +522,6 @@ async fn same_notebook(
     next.run(request).await
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
     #[cfg(unix)]
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -722,30 +544,12 @@ fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
     })
 }
 
-async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInfo>, ApiError> {
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    if state
-        .switcher
-        .as_ref()
-        .is_some_and(|switcher| switcher.request.borrow().is_some())
-    {
-        return Err(ApiError::new(
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            "switching",
-            "The workshop is reopening.",
-        ));
-    }
-    run(&state, |notebook| notebook.info()).await.map(Json)
-}
-
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct NotebookSize {
     size: u64,
 }
 
 /// What the workshop takes on disk, for Settings › About. Each file counts once, including its write-ahead log.
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn notebook_size(State(state): State<AppState>) -> Result<Json<NotebookSize>, ApiError> {
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || backup_size(&info.path, false))
@@ -754,34 +558,12 @@ async fn notebook_size(State(state): State<AppState>) -> Result<Json<NotebookSiz
         .map(|size| Json(NotebookSize { size }))
 }
 
-async fn check_notebook(State(state): State<AppState>) -> Result<Json<CheckReport>, ApiError> {
-    run(&state, |notebook| notebook.check(false))
-        .await
-        .map(Json)
-}
-
-/// Repair publishes its change like a batch, so open windows reload what it touched.
-async fn repair_notebook(State(state): State<AppState>) -> Result<Json<CheckReport>, ApiError> {
-    let changes = state.changes.clone();
-    run(&state, move |notebook| {
-        let report = notebook.check(true)?;
-        if let Some(seq) = report.repaired {
-            let _ = changes.send(notebook.editor_change_cursor(seq)?);
-        }
-        Ok(report)
-    })
-    .await
-    .map(Json)
-}
-
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct LaunchAgentInfo {
     installed: bool,
     path: Option<PathBuf>,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct ServiceInfo {
     version: &'static str,
@@ -792,7 +574,6 @@ struct ServiceInfo {
     launch_agent: LaunchAgentInfo,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>, ApiError> {
     tokio::task::spawn_blocking(move || {
         let path = dirs::home_dir().map(|home| launch_agent_path(&home));
@@ -820,7 +601,6 @@ async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>
     .map_err(ApiError::internal)?
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_routes() -> Router<AppState> {
     Router::new()
         .route("/api/backups", get(backups).post(create_backup))
@@ -832,7 +612,6 @@ fn backup_routes() -> Router<AppState> {
         )
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct BackupInfo {
     path: PathBuf,
@@ -844,7 +623,6 @@ struct BackupInfo {
     safety: Option<tessera_core::Safety>,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct OtherBackups {
     workshop_id: String,
@@ -856,7 +634,6 @@ struct OtherBackups {
     path: PathBuf,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct Backups {
     backups: Vec<BackupInfo>,
@@ -868,24 +645,20 @@ struct Backups {
 
 /// Serializes store backups. It holds the latest automatic backup failure,
 /// which lives only in memory: a restart retries within two minutes.
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) type BackupLock = Arc<tokio::sync::Mutex<Option<BackupFailure>>>;
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct BackupFailure {
     pub(crate) at: i64,
     pub(crate) message: String,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct CreatedBackup {
     created: bool,
     backups: Backups,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct RestoringBackup {
     restoring: bool,
@@ -893,17 +666,14 @@ struct RestoringBackup {
     safety: Option<BackupInfo>,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_store(state: &AppState) -> Result<PathBuf, ApiError> {
     state.backup_store.clone().ok_or_else(ApiError::not_found)
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_directory(store: &std::path::Path, info: &NotebookInfo) -> Result<PathBuf, ApiError> {
     tessera_core::backup_directory(store, &info.id).map_err(ApiError::from)
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_size(path: &std::path::Path, exclusive: bool) -> Result<u64, ApiError> {
     fn visit(
         path: &std::path::Path,
@@ -940,13 +710,11 @@ fn backup_size(path: &std::path::Path, exclusive: bool) -> Result<u64, ApiError>
     visit(path, exclusive, &mut std::collections::HashSet::new()).map_err(ApiError::internal)
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn valid_workshop_id(id: &str) -> bool {
     id.parse::<ulid::Ulid>()
         .is_ok_and(|value| value.to_string() == id)
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_info(
     path: PathBuf,
     manifest: tessera_core::BackupManifest,
@@ -965,7 +733,6 @@ fn backup_info(
     })
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups, ApiError> {
     let backups = tessera_core::finished_backups(store, &info.id)
         .map_err(ApiError::from)?
@@ -1014,7 +781,6 @@ fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups,
     })
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiError> {
     let store = backup_store(&state)?;
     let guard = state.backup.clone().lock_owned().await;
@@ -1032,7 +798,6 @@ async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiErro
     .map_err(ApiError::internal)?
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn validate_backup_name(name: &str) -> Result<(), ApiError> {
     if name.is_empty() || matches!(name, "." | "..") || name.contains(['/', '\\', '\0']) {
         return Err(ApiError::new(
@@ -1044,7 +809,6 @@ fn validate_backup_name(name: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn delete_backup(
     State(state): State<AppState>,
     name: Result<Path<String>, PathRejection>,
@@ -1079,7 +843,6 @@ async fn delete_backup(
     .map_err(ApiError::internal)?
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn restore_backup(
     State(state): State<AppState>,
     name: Result<Path<String>, PathRejection>,
@@ -1146,7 +909,6 @@ async fn restore_backup(
     .map_err(ApiError::internal)?
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn delete_other_backups(
     State(state): State<AppState>,
     id: Result<Path<String>, PathRejection>,
@@ -1187,7 +949,6 @@ async fn delete_other_backups(
     .map_err(ApiError::internal)?
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBackup>, ApiError> {
     let store = backup_store(&state)?;
     let guard = state.backup.clone().try_lock_owned().map_err(|_| {
@@ -1213,752 +974,122 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
     .map_err(ApiError::internal)?
 }
 
-#[derive(Deserialize)]
-struct ReviewStatsQuery {
-    deck: Option<String>,
-    date: Option<String>,
+pub(crate) fn hub_objects() -> tessera_api::ObjectReader {
+    Arc::new(|notebook, sha| Box::pin(sync::object_or_fetch(notebook, sha)))
 }
 
-async fn review_stats(
-    State(state): State<AppState>,
-    query: Result<Query<ReviewStatsQuery>, QueryRejection>,
-) -> Result<Json<tessera_core::ReviewStats>, ApiError> {
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        let date = query
-            .date
-            .map(Ok)
-            .unwrap_or_else(|| notebook.today(tessera_core::now_ms()))?;
-        notebook.review_stats(query.deck.as_deref(), &date)
-    })
-    .await
-    .map(Json)
+impl axum::extract::FromRef<AppState> for tessera_api::WorkshopState {
+    fn from_ref(state: &AppState) -> Self {
+        tessera_api::WorkshopState::from_parts(
+            state.notebook.clone(),
+            state.changes.clone(),
+            state.library.clone(),
+        )
+        .with_objects(state.objects.clone())
+    }
 }
 
-async fn review_session_events(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<tessera_core::ReviewEvent>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.review_session_events(&id))
-        .await
-        .map(Json)
+fn notebook_routes() -> Router<AppState> {
+    tessera_api::workshop_routes()
+        .route("/api/notebook/size", get(notebook_size))
+        .merge(replica::routes())
 }
 
-#[derive(Deserialize)]
-struct Limit {
-    #[serde(default = "default_limit")]
-    limit: usize,
+async fn run<T: Send + 'static>(
+    state: &AppState,
+    operation: impl FnOnce(&mut tessera_core::Notebook) -> tessera_core::Result<T> + Send + 'static,
+) -> Result<T, ApiError> {
+    tessera_api::run(&state.notebook, operation).await
 }
 
-fn default_limit() -> usize {
-    50
-}
-
-#[derive(Deserialize)]
-struct TextQuery {
-    q: String,
-    #[serde(default = "default_limit")]
-    limit: usize,
-}
-
-const CHANGES_PAGE_SIZE: usize = 500;
-
-fn default_changes_limit() -> usize {
-    CHANGES_PAGE_SIZE
-}
-
-#[derive(Deserialize)]
-struct ChangesQuery {
-    #[serde(default)]
-    after: i64,
-    #[serde(default = "default_changes_limit")]
-    limit: usize,
-}
-
-async fn roots(State(state): State<AppState>) -> Result<Json<Vec<Block>>, ApiError> {
-    run(&state, |notebook| notebook.roots()).await.map(Json)
-}
-
-async fn page(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<PageView>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.page(&id))
-        .await
-        .map(Json)
-}
-
-async fn page_by_title(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Block>, ApiError> {
-    let Path(title) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook
-            .page_by_name(&title)?
-            .ok_or(tessera_core::Error::NotFound {
-                what: "atom",
-                id: title,
-                op_index: None,
-            })
-    })
-    .await
-    .map(Json)
-}
-
-async fn journal(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Block>, ApiError> {
-    let Path(date) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook
-            .journal(&date)?
-            .ok_or(tessera_core::Error::NotFound {
-                what: "atom",
-                id: date,
-                op_index: None,
-            })
-    })
-    .await
-    .map(Json)
-}
-
-async fn block(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Block>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.block(&id))
-        .await
-        .map(Json)
-}
-
-async fn subtree(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<Limit>, QueryRejection>,
-) -> Result<Json<tessera_core::Subtree>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.subtree(&id, query.limit))
-        .await
-        .map(Json)
-}
-
-#[derive(Deserialize)]
-struct SubtreesRead {
-    ids: Vec<String>,
-    #[serde(default = "subtree_rows")]
-    per_id: usize,
-    #[serde(default = "subtree_total")]
-    total: usize,
-}
-fn subtree_rows() -> usize {
-    200
-}
-fn subtree_total() -> usize {
-    4096
-}
-
-async fn subtrees(
-    State(state): State<AppState>,
-    body: Result<Json<SubtreesRead>, JsonRejection>,
-) -> Result<Json<tessera_core::BatchSubtrees>, ApiError> {
-    let Json(body) = body.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.subtrees(&body.ids, body.per_id, body.total)
-    })
-    .await
-    .map(Json)
-}
-
-async fn stream_arrivals(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<tessera_core::StreamArrival>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.stream_arrivals(&id, &notebook.today(tessera_core::now_ms())?, 100, 200)
-    })
-    .await
-    .map(Json)
-}
-
-async fn quote_snapshot(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<tessera_core::QuoteState>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.quote_snapshot(&id, tessera_core::now_ms())
-    })
-    .await
-    .map(Json)
-}
-
-async fn quote_status(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<tessera_core::QuoteStatus>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.quote_status(&id))
-        .await
-        .map(Json)
-}
-
-async fn backlinks(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<Limit>, QueryRejection>,
-) -> Result<Json<Vec<Backlink>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.backlinks(&id, query.limit))
-        .await
-        .map(Json)
-}
-
-async fn incoming_fields(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<IncomingFieldValue>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.incoming_field_values(&id))
-        .await
-        .map(Json)
-}
-
-async fn page_references(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<Limit>, QueryRejection>,
-) -> Result<Json<PageReferences>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.page_references(&id, query.limit)
-    })
-    .await
-    .map(Json)
-}
-
-async fn reference_counts(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<ReferenceCount>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.reference_counts(&id))
-        .await
-        .map(Json)
-}
-
-async fn unlinked_mentions(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<Limit>, QueryRejection>,
-) -> Result<Json<UnlinkedMentions>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.unlinked_mentions(&id, query.limit)
-    })
-    .await
-    .map(Json)
-}
-
-async fn members(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<Limit>, QueryRejection>,
-) -> Result<Json<Vec<BlockInPage>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.members(&id, query.limit))
-        .await
-        .map(Json)
-}
-
-async fn fields(State(state): State<AppState>) -> Result<Json<FieldsView>, ApiError> {
-    run(&state, |notebook| notebook.fields()).await.map(Json)
-}
-
-#[derive(Deserialize)]
-struct FieldDetailQuery {
-    kind: Option<FieldKind>,
-    limit: Option<usize>,
-}
-
-async fn field_detail(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<FieldDetailQuery>, QueryRejection>,
-) -> Result<Json<FieldDetail>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.field_detail(&id, query.kind, query.limit)
-    })
-    .await
-    .map(Json)
-}
-
-/// People and groups, including members of types that refine them: the pages that can hold perspectives.
-async fn entities(State(state): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
-    run(&state, |notebook| notebook.entities()).await.map(Json)
-}
-
-async fn types(State(state): State<AppState>) -> Result<Json<Vec<TypeInfo>>, ApiError> {
-    run(&state, |notebook| notebook.types()).await.map(Json)
-}
-
-async fn type_info(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<TypeInfo>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.type_info(&id))
-        .await
-        .map(Json)
-}
-
-async fn card_templates(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<tessera_core::CardTemplateInfo>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.card_templates(&id))
-        .await
-        .map(Json)
-}
-
-#[derive(Deserialize)]
-struct TemplateForecastQuery {
-    days: Option<usize>,
-}
-
-async fn card_template_forecast(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    query: Result<Query<TemplateForecastQuery>, QueryRejection>,
-) -> Result<Json<tessera_core::CardTemplateForecast>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.card_template_forecast(&id, query.days.unwrap_or(14), tessera_core::now_ms())
-    })
-    .await
-    .map(Json)
-}
-
-#[derive(Deserialize)]
-struct JournalRange {
-    from: String,
-    to: String,
-}
-
-async fn written_journal_dates(
-    State(state): State<AppState>,
-    query: Result<Query<JournalRange>, QueryRejection>,
-) -> Result<Json<Vec<String>>, ApiError> {
-    let Query(range) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.written_journal_dates(&range.from, &range.to)
-    })
-    .await
-    .map(Json)
-}
-
-async fn note_index(State(state): State<AppState>) -> Result<Json<NoteIndex>, ApiError> {
-    run(&state, |notebook| notebook.note_index())
-        .await
-        .map(Json)
-}
-
-async fn kind_notes(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<KindIndex>, ApiError> {
-    let Path(key) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.kind_notes(&key))
-        .await
-        .map(Json)
-}
-
-async fn note_kinds(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<NoteKind>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.note_kinds(&id))
-        .await
-        .map(Json)
-}
-
-async fn spread(
-    State(state): State<AppState>,
-    body: Result<Json<Vec<String>>, JsonRejection>,
-) -> Result<Json<tessera_core::Spread>, ApiError> {
-    let Json(ids) = body.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.spread(&ids))
-        .await
-        .map(Json)
-}
-
-async fn saved_spread(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<tessera_core::Spread>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.saved_spread(&id))
-        .await
-        .map(Json)
-}
-
-async fn query(
-    State(state): State<AppState>,
-    body: Result<Json<tessera_core::Query>, JsonRejection>,
-) -> Result<Json<QueryResult>, ApiError> {
-    let Json(query) = body.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.query(&query))
-        .await
-        .map(Json)
-}
-
-async fn views(State(state): State<AppState>) -> Result<Json<Vec<View>>, ApiError> {
-    run(&state, |notebook| notebook.views()).await.map(Json)
-}
-
-async fn settings(State(state): State<AppState>) -> Result<Json<SettingsView>, ApiError> {
-    run(&state, |notebook| {
-        notebook.settings_view(tessera_core::now_ms())
-    })
-    .await
-    .map(Json)
-}
-
-async fn view(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<View>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.view(&id))
-        .await
-        .map(Json)
-}
-
-async fn complete(
-    State(state): State<AppState>,
-    query: Result<Query<TextQuery>, QueryRejection>,
-) -> Result<Json<Vec<Completion>>, ApiError> {
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.complete(&query.q, query.limit)
-    })
-    .await
-    .map(Json)
-}
-
-async fn resolve_name(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<NameMatch>>, ApiError> {
-    let Path(name) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.resolve_name(&name))
-        .await
-        .map(Json)
-}
-
-async fn deleted_pages(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<tessera_core::DeletedPage>>, ApiError> {
-    run(&state, |notebook| notebook.deleted_pages())
-        .await
-        .map(Json)
-}
-
-#[derive(Deserialize)]
-struct AliasRequest {
-    name: String,
-}
-
-async fn add_alias(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-    body: Result<Json<AliasRequest>, JsonRejection>,
-) -> Result<Json<Option<Committed>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let Json(AliasRequest { name }) = body.map_err(ApiError::from)?;
-    let changes = state.changes.clone();
-    run(&state, move |notebook| {
-        let mut committed = notebook.add_alias(&id, &name, Actor::Person)?;
-        if let Some(committed) = &mut committed {
-            editor_receipt(notebook, &changes, committed)?;
-        }
-        Ok(committed)
-    })
-    .await
-    .map(Json)
-}
-
-async fn starting_template(
-    State(state): State<AppState>,
-    path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Option<Committed>>, ApiError> {
-    let Path(id) = path.map_err(ApiError::from)?;
-    let changes = state.changes.clone();
-    run(&state, move |notebook| {
-        let mut committed = notebook.apply_starting_template(&id, Actor::Person)?;
-        if let Some(committed) = &mut committed {
-            editor_receipt(notebook, &changes, committed)?;
-        }
-        Ok(committed)
-    })
-    .await
-    .map(Json)
-}
-
-async fn search(
-    State(state): State<AppState>,
-    query: Result<Query<TextQuery>, QueryRejection>,
-) -> Result<Json<Vec<BlockInPage>>, ApiError> {
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.search(&query.q, query.limit)
-    })
-    .await
-    .map(Json)
-}
-
-/// The local editor journal, not the replicated changes log.
-async fn change_head(State(state): State<AppState>) -> Result<Json<i64>, ApiError> {
-    run(&state, |notebook| notebook.editor_cursor())
-        .await
-        .map(Json)
-}
-
-async fn changes(
-    State(state): State<AppState>,
-    query: Result<Query<ChangesQuery>, QueryRejection>,
-) -> Result<Json<Vec<ChangeEvent>>, ApiError> {
-    let Query(query) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| {
-        notebook.changes_since(query.after, query.limit)
-    })
-    .await
-    .map(Json)
-}
-
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Deserialize)]
 struct StreamQuery {
     #[serde(default)]
     after: i64,
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn change_stream(
     State(state): State<AppState>,
     query: Result<Query<StreamQuery>, QueryRejection>,
-    upgrade: WebSocketUpgrade,
-) -> Result<Response, ApiError> {
+    upgrade: axum::extract::ws::WebSocketUpgrade,
+) -> Result<axum::response::Response, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
-    // Subscribe before reading history. A commit in either phase is observed
-    // by history, the receiver, or both; the cursor removes the overlap.
-    let receiver = state.changes.subscribe();
-    Ok(upgrade.on_upgrade(move |socket| stream_changes(socket, state, receiver, query.after)))
+    Ok(upgrade.on_upgrade(move |socket| stream_socket(socket, state, query.after)))
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-async fn catch_up(socket: &mut WebSocket, state: &AppState, after: &mut i64) -> Result<(), ()> {
-    loop {
-        let cursor = *after;
-        let changes = run(state, move |notebook| {
-            notebook.changes_since(cursor, CHANGES_PAGE_SIZE)
-        })
-        .await
-        .map_err(|_| ())?;
-        if changes.is_empty() {
-            return Ok(());
-        }
-        for change in changes {
-            if change.seq > *after {
-                let text = serde_json::to_string(&change).map_err(|_| ())?;
-                socket
-                    .send(Message::Text(text.into()))
-                    .await
-                    .map_err(|_| ())?;
-                *after = change.seq;
+struct SocketSink<S>(S);
+
+impl<S> tessera_api::ChangeSink for SocketSink<S>
+where
+    S: futures_util::Sink<axum::extract::ws::Message, Error = axum::Error> + Unpin,
+{
+    type Error = axum::Error;
+    async fn emit(&mut self, event: String) -> Result<tessera_api::StreamStop, Self::Error> {
+        use futures_util::SinkExt;
+        self.0
+            .send(axum::extract::ws::Message::Text(event.into()))
+            .await?;
+        Ok(tessera_api::StreamStop::Continue)
+    }
+}
+
+async fn stream_socket(socket: axum::extract::ws::WebSocket, state: AppState, after: i64) {
+    use futures_util::StreamExt;
+    let (sink, mut stream) = socket.split();
+    let watch = async move {
+        while let Some(message) = stream.next().await {
+            if matches!(message, Err(_) | Ok(axum::extract::ws::Message::Close(_))) {
+                return;
             }
         }
-    }
+    };
+    let mut sink = SocketSink(sink);
+    let _ = tessera_api::follow_changes(
+        &state.changes,
+        state.notebook.clone(),
+        after,
+        tessera_api::CHANGES_PAGE_SIZE,
+        || true,
+        &mut sink,
+        watch,
+    )
+    .await;
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-async fn stream_changes(
-    mut socket: WebSocket,
-    state: AppState,
-    mut receiver: broadcast::Receiver<i64>,
-    mut after: i64,
-) {
-    if catch_up(&mut socket, &state, &mut after).await.is_err() {
-        return;
-    }
-    loop {
-        tokio::select! {
-            notification = receiver.recv() => {
-                match notification {
-                    // Notifications are wakeups; editor cursors are local, not changes.seq.
-                    Err(broadcast::error::RecvError::Closed) => return,
-                    // A slow consumer may overflow notifications, never history.
-                    Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
-                }
-                if catch_up(&mut socket, &state, &mut after).await.is_err() {
-                    return;
-                }
-            }
-            message = socket.recv() => {
-                if matches!(message, None | Some(Err(_)) | Some(Ok(Message::Close(_)))) {
-                    return;
-                }
-            }
-        }
-    }
-}
-
-fn editor_receipt(
-    notebook: &Notebook,
-    changes: &broadcast::Sender<i64>,
-    committed: &mut Committed,
-) -> tessera_core::Result<()> {
-    committed.seq = notebook.editor_change_cursor(committed.seq)?;
-    if !committed.replayed {
-        // Publish while the writer lock is still held, in arrival order.
-        let _ = changes.send(notebook.editor_cursor()?);
-    }
-    Ok(())
-}
-
-async fn apply(
+async fn refuse_while_switching(
     State(state): State<AppState>,
-    body: Result<Json<Batch>, JsonRejection>,
-) -> Result<Json<Committed>, ApiError> {
-    let Json(batch) = body.map_err(ApiError::from)?;
-    let changes = state.changes.clone();
-    run(&state, move |notebook| {
-        let mut committed = notebook.apply(&batch)?;
-        editor_receipt(notebook, &changes, &mut committed)?;
-        Ok(committed)
-    })
-    .await
-    .map(Json)
-}
-
-/// The agent write path: add a note, edit, move or delete a block, or set a
-/// task, as one attributed batch that records its own undo. An
-/// `Idempotency-Key` header makes a resent request return its first receipt.
-async fn agent_edit(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-    body: Result<Json<AgentRequest>, JsonRejection>,
-) -> Result<Json<AgentReceipt>, ApiError> {
-    let Json(request) = body.map_err(ApiError::from)?;
-    let key = headers
-        .get("idempotency-key")
-        .map(|value| {
-            value.to_str().map(str::to_owned).map_err(|_| {
-                ApiError::new(
-                    axum::http::StatusCode::BAD_REQUEST,
-                    "invalid_header",
-                    "The Idempotency-Key header must be plain ASCII text.",
-                )
-            })
-        })
-        .transpose()?;
-    let changes = state.changes.clone();
-    run(&state, move |notebook| {
-        let mut receipt = notebook.agent_edit_keyed(&request, key.as_deref())?;
-        editor_receipt(notebook, &changes, &mut receipt.committed)?;
-        Ok(receipt)
-    })
-    .await
-    .map(Json)
-}
-
-#[derive(Deserialize)]
-struct HistoryQuery {
-    #[serde(default = "default_limit")]
-    limit: usize,
-    before: Option<i64>,
-}
-
-#[derive(serde::Serialize)]
-struct HistoryResponse {
-    entries: Vec<HistoryEntry>,
-}
-
-async fn history(
-    State(state): State<AppState>,
-    query: Result<Query<HistoryQuery>, QueryRejection>,
-) -> Result<Json<HistoryResponse>, ApiError> {
-    let Query(HistoryQuery { limit, before }) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.history(limit, before))
-        .await
-        .map(|entries| Json(HistoryResponse { entries }))
-}
-
-#[derive(Deserialize)]
-struct UndoRequest {
-    actor: Actor,
-}
-
-async fn undo_change(
-    State(state): State<AppState>,
-    path: Result<Path<i64>, PathRejection>,
-    body: Result<Json<UndoRequest>, JsonRejection>,
-) -> Result<Json<UndoReceipt>, ApiError> {
-    let Path(seq) = path.map_err(ApiError::from)?;
-    let Json(UndoRequest { actor }) = body.map_err(ApiError::from)?;
-    let changes = state.changes.clone();
-    run(&state, move |notebook| {
-        let mut receipt = notebook.undo_change(seq, &actor)?;
-        editor_receipt(notebook, &changes, &mut receipt.committed)?;
-        Ok(receipt)
-    })
-    .await
-    .map(Json)
-}
-
-/// Run on a blocking runtime thread natively, or inline in the browser worker.
-async fn run<T: Send + 'static>(
-    state: &AppState,
-    operation: impl FnOnce(&mut Notebook) -> tessera_core::Result<T> + Send + 'static,
-) -> Result<T, ApiError> {
-    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if request.uri().path() == "/api/notebook"
+        && matches!(
+            *request.method(),
+            axum::http::Method::GET | axum::http::Method::HEAD
+        )
+        && state
+            .switcher
+            .as_ref()
+            .is_some_and(|switcher| switcher.request.borrow().is_some())
     {
-        operation(&mut state.notebook.lock()).map_err(ApiError::from)
+        return ApiError::new(
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "switching",
+            "The workshop is reopening.",
+        )
+        .into_response();
     }
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    {
-        let notebook = state.notebook.clone();
-        tokio::task::spawn_blocking(move || {
-            let mut notebook = notebook.lock();
-            operation(&mut notebook).map_err(ApiError::from)
-        })
-        .await
-        .map_err(ApiError::internal)?
-    }
+    next.run(request).await
 }
 
-#[cfg(all(test, not(all(target_arch = "wasm32", target_os = "unknown"))))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use axum::{
         body::{Body, to_bytes},
         http::{Request, StatusCode},
     };
+    use tessera_core::{Actor, Batch};
     use tower::ServiceExt;
 
     #[tokio::test]
@@ -2363,6 +1494,7 @@ mod tests {
                 assets: None,
                 changes,
                 library,
+                objects: hub_objects(),
                 port: 4396,
                 backup: backup.clone(),
                 backup_store: Some(dir.path().join("backups")),
@@ -2438,6 +1570,7 @@ mod tests {
             assets: None,
             changes,
             library,
+            objects: hub_objects(),
             port: 4396,
             backup,
             backup_store: Some(dir.path().join("backups")),
@@ -2473,6 +1606,7 @@ mod tests {
             assets: None,
             changes,
             library,
+            objects: hub_objects(),
             port: 4561,
             backup: Arc::new(tokio::sync::Mutex::new(None)),
             backup_store: Some(dir.path().join("backups")),
@@ -2674,6 +1808,7 @@ mod tests {
                 assets: None,
                 changes,
                 library,
+                objects: hub_objects(),
                 port: 4561,
                 backup: Arc::new(tokio::sync::Mutex::new(None)),
                 backup_store: Some(dir.path().join("backups")),
