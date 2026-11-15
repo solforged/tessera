@@ -6,7 +6,6 @@
 mod cards;
 mod library;
 mod notes;
-mod outline;
 mod query;
 mod relations;
 use tessera_service::agent_render as render;
