@@ -6,7 +6,6 @@ import type { Edit } from '../document/contract';
 import { depthStops } from '../shell/contract';
 import type { Command } from '../shell/contract';
 import { parseCardText } from '../review/card-text';
-import { newTask } from '../tasks/quick-date';
 import { statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
 import type { MenuItem, MenuPaletteButton } from '../ui/Menu';

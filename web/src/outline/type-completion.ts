@@ -102,7 +102,7 @@ export async function completeTypes(
 /** Existing pages are addressed by identity; new tags normalize when their write commits. */
 export function typeSpelling(title: string, id?: string): string {
   return id
-    ? `#[[${id}|${/[\[\]|\r\n]/.test(title) ? '' : title}]]`
+    ? `#[[${id}|${/[[\]|\r\n]/.test(title) ? '' : title}]]`
     : /^[\p{L}\p{M}\p{N}_/-]+$/u.test(title)
       ? `#${title}`
       : `#[[${title}]]`;

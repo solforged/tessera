@@ -90,7 +90,7 @@ test('plain clipboard exports live tag titles while private data retains canonic
     '01ARZ3NDEKTSV4RRFFQ69G5FAY',
   ];
   const titles = ['Task', 'Question', 'Project', 'Source'];
-  const authored = 'Copy tags ' + ids.map((id, index) => `#[[${id}|${titles[index]!.toLowerCase()}]]`).join(' ');
+  const authored = `Copy tags ${ids.map((id, index) => `#[[${id}|${titles[index]!.toLowerCase()}]]`).join(' ')}`;
   const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [block('tags', authored)] };
   expect(clipboardText(content, id => titles[ids.indexOf(id)])).toBe('Copy tags #Task #Question #Project #Source');
   expect(parseBlockClipboard(JSON.stringify(content))?.blocks[0]?.block.text).toBe(authored);

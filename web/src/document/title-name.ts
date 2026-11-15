@@ -28,7 +28,7 @@ function* codeSpans(text: string): Generator<[number, number]> {
       rest.startsWith('[') &&
       !rest.startsWith('[[') &&
       labelEnd > 1 &&
-      !/[\[\]\r\n]/.test(rest.slice(1, labelEnd)) &&
+      !/[[\]\r\n]/.test(rest.slice(1, labelEnd)) &&
       urlStart.test(rest.slice(labelEnd + 2))
     ) {
       cursor += labelEnd + 2;
@@ -92,7 +92,7 @@ function* tagSpans(text: string): Generator<[number, number]> {
       const value = text.slice(cursor + 2, end);
       cursor = end + 2;
       const canonical = /^([0-7][0-9A-HJKMNP-TV-Z]{25})\|([\s\S]*)$/.exec(value);
-      if (canonical ? !/[\[\]|\r\n]/.test(canonical[2]!) : !!value.replace(trimWhitespace, '') && !/[\[\]]/.test(value))
+      if (canonical ? !/[[\]|\r\n]/.test(canonical[2]!) : !!value.replace(trimWhitespace, '') && !/[[\]]/.test(value))
         yield [start, cursor];
       continue;
     }

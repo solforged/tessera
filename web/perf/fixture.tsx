@@ -125,7 +125,7 @@ render(
       </header>
       <div class="perf-panes">
         <Show keyed when={epoch() + 1}>
-          {generation => (
+          {_generation => (
             <OutlinePane
               pane="main"
               pageId={page()}

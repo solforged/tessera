@@ -20,7 +20,6 @@ import { api } from '../api/client';
 import type {
   QueryAttributeValue,
   FieldDefinition,
-  FieldKind,
   Fields,
   FieldValue,
   Filter,
@@ -69,7 +68,6 @@ import {
   chooseSort,
   copyQuery,
   fieldEntryId,
-  fieldEntryText,
   filterLabel,
   missingQueryFields,
   noteTableQuery,
@@ -3348,6 +3346,7 @@ interface CellMeasure {
 }
 const cellMeasures = new WeakMap<Element, CellMeasure>();
 const pendingCells = new Set<CellMeasure>();
+// biome-ignore lint/correctness/noUnusedVariables: `||=` below reads it to schedule one frame at a time.
 let cellFrame = 0;
 let cellResize: ResizeObserver | undefined;
 function measureCells(cells: CellMeasure[]) {

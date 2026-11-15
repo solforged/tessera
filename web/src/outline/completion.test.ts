@@ -125,9 +125,9 @@ describe('an open reference completion', () => {
     const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
     const result = referenceAliasInput('see [[gener]] next', 4, 11, id);
     expect(result).toEqual({ from: 4, to: 13, insert: `[[${id}|]]`, caret: 4 + id.length + 3 });
-    const text = 'see ' + result.insert + ' next';
+    const text = `see ${result.insert} next`;
     expect(referenceCompletionAt(text, result.caret)).toBeNull();
-    const aliased = text.slice(0, result.caret) + 'memory boost' + text.slice(result.caret);
+    const aliased = `${text.slice(0, result.caret)}memory boost${text.slice(result.caret)}`;
     expect(aliased).toBe(`see [[${id}|memory boost]] next`);
     expect(referenceCompletionAt(aliased, result.caret + 12)).toBeNull();
   });
@@ -166,7 +166,7 @@ describe('an open reference completion', () => {
   test('places a soft newline after the paired query without losing it during title normalization', () => {
     const text = 'Meet [[QA Inline]] then continue';
     const after = referenceNewlineAt(text, 5, 10, false);
-    const next = text.slice(0, after) + '\n' + text.slice(after);
+    const next = `${text.slice(0, after)}\n${text.slice(after)}`;
     expect(next).toBe('Meet [[QA Inline]]\n then continue');
     const targets = new Map<string, string>();
     targets.set(foldName('QA Inline'), '01ARZ3NDEKTSV4RRFFQ69G5FAV');

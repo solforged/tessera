@@ -28,7 +28,6 @@ import type {
   TagDeck,
 } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { BlockText } from '../outline/BlockText';
 import { displayTitle } from '../outline/names';
 import { opensBeside } from '../shell/beside';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
@@ -1964,7 +1963,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                     {
                       label: 'End review',
                       disabledReason:
-                        locked() || loading() || !!readError()
+                        locked() || loading() || readError()
                           ? 'Wait for the review to finish loading or saving.'
                           : undefined,
                       action: () => {

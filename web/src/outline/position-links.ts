@@ -17,7 +17,7 @@ export function fileUnderText(text: string, id: string): string {
   const token = `[[${id}]]`;
   return second
     ? text.slice(0, second.start) + token + text.slice(second.end)
-    : text.slice(0, first.end) + ` ${token}` + text.slice(first.end);
+    : `${text.slice(0, first.end)} ${token}${text.slice(first.end)}`;
 }
 
 export function usePlaceReason(text: string): string | undefined {

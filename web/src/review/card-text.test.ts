@@ -137,8 +137,8 @@ describe('card text', () => {
       ['```txt\na >> b\n```\nquestion>>answer', '```txt\na >> b\n```\nquestion', 'answer'],
       ['   ~~~~\na >> b\n~~~\nstill << code\n   ~~~~\nQ>>A', '~~~~\na >> b\n~~~\nstill << code\n   ~~~~\nQ', 'A'],
       ['```\na >> b\n``` not a closer\nc << d\n```\nQ>>A', '```\na >> b\n``` not a closer\nc << d\n```\nQ', 'A'],
-      ['Q>>```x```' + String.raw` \>>`, 'Q', '```x``` >>'],
-      ['Q>>`' + String.raw`x\>>y` + '`', 'Q', '`' + String.raw`x\>>y` + '`'],
+      [`Q>>\`\`\`x\`\`\`${String.raw` \>>`}`, 'Q', '```x``` >>'],
+      [`Q>>\`${String.raw`x\>>y`}\``, 'Q', `\`${String.raw`x\>>y`}\``],
     ];
     for (const [text, front, back] of cases)
       expect(parseCardText(text)).toEqual({
@@ -163,7 +163,7 @@ describe('card text', () => {
       ],
       problems: [],
     });
-    expect(parseCardText('{{c1::```x``` ' + String.raw`\>>` + '::hint}}')).toEqual({
+    expect(parseCardText(`{{c1::\`\`\`x\`\`\` ${String.raw`\>>`}::hint}}`)).toEqual({
       cards: [{ key: 'cloze:c1', kind: 'cloze', front: 'hint', back: '```x``` >>' }],
       problems: [],
     });
@@ -248,7 +248,7 @@ describe('card text', () => {
       const parsed = parseCardText(text);
       expect(parsed.cards).toEqual([]);
       expect(parsed.problems.map(({ start, end }) => ({ start, end }))).toEqual([{ start: 0, end: text.length }]);
-      expect(parseCardText('{{c9::valid}} ' + text).cards).toEqual([]);
+      expect(parseCardText(`{{c9::valid}} ${text}`).cards).toEqual([]);
     }
   });
 

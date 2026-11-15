@@ -271,7 +271,7 @@ describe('field entry input rule', () => {
     expect(matchFieldEntry(' Read on ::2026-03-02')).toEqual({ name: 'Read on', value: '2026-03-02' });
     expect(matchFieldEntry('Author::')).toEqual({ name: 'Author', value: '' });
     expect(matchFieldEntry('Author::  Frank Herbert')).toEqual({ name: 'Author', value: ' Frank Herbert' });
-    expect(matchFieldEntry('A'.repeat(60) + '::yes')).toEqual({ name: 'A'.repeat(60), value: 'yes' });
+    expect(matchFieldEntry(`${'A'.repeat(60)}::yes`)).toEqual({ name: 'A'.repeat(60), value: 'yes' });
   });
   test('rejects tags, references, extra colons, blank names, and overlong names', () => {
     for (const text of [
@@ -279,7 +279,7 @@ describe('field entry input rule', () => {
       '[[Author]]:: value',
       'A:B:: value',
       ' :: value',
-      'A'.repeat(61) + '::value',
+      `${'A'.repeat(61)}::value`,
       'Author: value',
       'Author::value\nnext',
     ])

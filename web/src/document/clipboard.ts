@@ -31,7 +31,7 @@ export function clipboardText(
                   '  '.repeat(depth) +
                   '> ' +
                   '  '.repeat(row.depth) +
-                  (index === 0 && row.heading ? '#'.repeat(row.heading) + ' ' : '') +
+                  (index === 0 && row.heading ? `${'#'.repeat(row.heading)} ` : '') +
                   line,
               ),
           )

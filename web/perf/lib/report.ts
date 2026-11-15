@@ -29,7 +29,7 @@ export async function report(name: string, summary: string, data: unknown, outco
   const markdown = `# ${name}\n\n${summary}\n\n${checks}\n`;
   await Bun.write(
     `${file}.json`,
-    JSON.stringify(
+    `${JSON.stringify(
       {
         name,
         createdAt: new Date().toISOString(),
@@ -39,7 +39,7 @@ export async function report(name: string, summary: string, data: unknown, outco
       },
       null,
       2,
-    ) + '\n',
+    )}\n`,
   );
   await Bun.write(`${file}.md`, markdown);
   console.log(`${summary}\n\n${checks}\n\nJSON: ${file}.json`);

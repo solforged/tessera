@@ -63,7 +63,7 @@ export function groupSources(rows: readonly LibraryRow[], group: Exclude<Library
             key: person.id ?? `name:${name}`,
             label: name,
             personId: person.id,
-            order: (name.includes(',') ? name.split(',')[0]! : name.split(/\s+/).at(-1)!) + ' ' + name,
+            order: `${name.includes(',') ? name.split(',')[0]! : name.split(/\s+/).at(-1)!} ${name}`,
           }
         : group === 'year'
           ? dated
