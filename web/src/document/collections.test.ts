@@ -1,45 +1,27 @@
 import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
+import { freePort, startService, type WorkshopService } from '../testing/service';
 import { emptyMetadata } from '../library/details';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import { changeCollectionMembers, collectionPages, createCollection, deleteCollection, renameCollection, sourceCollections } from './collections';
 
-const port = Bun.env.TESSERA_COLLECTION_TEST_PORT ?? '4784';
+const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
-let process: Subprocess<'ignore', 'pipe', 'pipe'>;
-let directory: string;
+let service: WorkshopService | undefined;
 let notebook: Notebook;
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'tessera-collection-tests-'));
-  const root = resolve(import.meta.dir, '../../..');
-  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
-  const expectedPath = await realpath(directory);
-  // A subprocess's real HTTP listener cannot be advanced by fake timers.
-  const deadline = Date.now() + 10000;
-  while (true) {
-    try {
-      const info = await api.notebook();
-      if (await realpath(info.path) !== expectedPath) throw new Error('The test port belongs to another notebook.');
-      notebook = createNotebookClient({ baseUrl, sessionId: ulid(), notebookId: info.id, databaseName: `collections-${ulid()}` });
-      await notebook.ready;
-      break;
-    } catch { if (Date.now() > deadline) throw new Error(`Service did not start: ${await new Response(process.stderr).text()}`); await Bun.sleep(20); }
-  }
-});
+  service = await startService({ name: 'collection-tests', port });
+  notebook = createNotebookClient({ baseUrl, sessionId: ulid(), notebookId: service.workshopId, databaseName: `collections-${ulid()}` });
+  await notebook.ready;
+}, 60000);
 afterAll(async () => {
   await notebook?.dispose();
-  process?.kill();
-  if (process) await process.exited;
-  if (directory) await rm(directory, { recursive: true, force: true });
+  await service?.stop();
 });
 
 test('undoing first-use creation restores fields and templates but retains the system tag page', async () => {

@@ -1,10 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import type { Subprocess } from 'bun';
 import type * as Solid from 'solid-js';
+import { freePort, startService, type WorkshopService } from '../testing/service';
 import { ulid } from 'ulid';
 import type { ChangeSocket } from '../api/client';
 import type { Notebook } from '../document/index';
@@ -21,12 +18,11 @@ const { createNotebookClient } = await import('../document/index');
 const { createCitationSources, createCitedSources } = await import('./source-reads');
 const { textTokens } = await import('../document/text-tokens');
 
-const port = Bun.env.TESSERA_SOURCE_READS_TEST_PORT ?? '4617';
+const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const actualFetch = globalThis.fetch;
-let service: Subprocess<'ignore', 'pipe', 'pipe'>;
-let directory: string;
+let service: WorkshopService | undefined;
 let notebook: Notebook;
 let notebookId: string;
 let held: (() => void)[] | undefined;
@@ -41,19 +37,8 @@ async function eventually(predicate: () => boolean, message: string) {
 }
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'tessera-source-reads-tests-'));
-  const root = resolve(import.meta.dir, '../../..');
-  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
-  const expectedPath = await realpath(directory);
-  const deadline = Date.now() + 10000;
-  while (true) {
-    try {
-      const info = await api.notebook();
-      if (await realpath(info.path) !== expectedPath) throw new Error('The test port belongs to another notebook.');
-      notebookId = info.id;
-      break;
-    } catch { if (Date.now() > deadline) throw new Error(`Service did not start: ${await new Response(service.stderr).text()}`); await Bun.sleep(20); }
-  }
+  service = await startService({ name: 'source-reads-tests', port });
+  notebookId = service.workshopId;
   notebook = createNotebookClient({ baseUrl, sessionId: ulid(), notebookId, databaseName: `source-reads-${ulid()}` });
   // Holding stream events back keeps this window's own saves from being announced twice.
   const stream = notebook.api.stream;
@@ -70,13 +55,11 @@ beforeAll(async () => {
     } as ChangeSocket;
   };
   await notebook.ready;
-});
+}, 60000);
 afterAll(async () => {
   globalThis.fetch = actualFetch;
   await notebook?.dispose();
-  service?.kill();
-  if (service) await service.exited;
-  if (directory) await rm(directory, { recursive: true, force: true });
+  await service?.stop();
 });
 
 test('an open concept page rereads a cited source only when that source changes', async () => {

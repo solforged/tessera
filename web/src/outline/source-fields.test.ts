@@ -1,13 +1,10 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import { ulid } from 'ulid';
-import { createApi } from '../api/client';
 import { createNotebookClient } from '../document/index';
 import type { Notebook } from '../document/index';
 import type { PageDocument } from '../document/contract';
+import { startService } from '../testing/service';
 import { ensureField, isFreshField } from './source-fields';
 
 // Bun loads Solid's server build, so effects cannot signal real document I/O readiness here.
@@ -21,23 +18,11 @@ async function ready(doc: PageDocument) {
 }
 
 test('ensureField returns the definition the service created, which for a built-in name is the core’s', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'tessera-ensure-field-test-'));
-  const root = resolve(import.meta.dir, '../../..');
-  const listener = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
-  const port = listener.port!; listener.stop(true);
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const service = await startService({ name: 'ensure-field-test' });
+  const { baseUrl, api } = service;
   let notebook: Notebook | undefined;
   try {
-    // A real subprocess's HTTP listener cannot be advanced with fake timers.
-    const deadline = Date.now() + 10000;
-    while (true) {
-      try { await api.notebook(); break; }
-      catch { if (Date.now() > deadline) throw new Error('Service did not start.'); await Bun.sleep(20); }
-    }
-    const info = await api.notebook();
-    notebook = createNotebookClient({ baseUrl, notebookId: info.id, sessionId: ulid(), databaseName: `ensure-field-${ulid()}` });
+    notebook = createNotebookClient({ baseUrl, notebookId: service.workshopId, sessionId: ulid(), databaseName: `ensure-field-${ulid()}` });
     await notebook.ready;
     const person = ulid(), group = ulid();
     await notebook.commit([{ op: 'create_page', id: person, title: 'Person' }, { op: 'create_page', id: group, title: 'Group' }]);
@@ -67,6 +52,6 @@ test('ensureField returns the definition the service created, which for a built-
       expect((await ensureField(notebook, 'mood')).id).toBe(mood.id);
     } finally { fieldsDoc.release(); }
   } finally {
-    await notebook?.dispose(); process.kill(); await process.exited; await rm(directory, { recursive: true, force: true });
+    await notebook?.dispose(); await service.stop();
   }
-}, 30000);
+}, 60000);

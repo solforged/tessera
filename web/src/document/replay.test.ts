@@ -1,26 +1,22 @@
 import 'fake-indexeddb/auto';
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import type { Subprocess } from 'bun';
 import { openDB } from 'idb';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
+import { freePort, startService, type WorkshopService } from '../testing/service';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import { Outbox } from './outbox';
 import type { Batch } from '../api/types';
 import type { PageCommand } from './types';
 
-const port = Bun.env.TESSERA_REPLAY_TEST_PORT ?? '4541';
+const port = freePort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const actualFetch = globalThis.fetch;
 const clients: Notebook[] = [];
 const pageId = ulid(), blockId = ulid();
-let service: Subprocess<'ignore', 'pipe', 'pipe'>;
-let directory: string;
+let service: WorkshopService | undefined;
 let notebookId: string;
 
 // These cross real service and WebSocket boundaries; bounded condition polling is not a debounce assertion.
@@ -73,37 +69,21 @@ async function offlineRestore(database: string) {
 }
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'tessera-replay-tests-'));
-  const root = resolve(import.meta.dir, '../../..');
-  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
-  const expectedPath = await realpath(directory);
-  const deadline = Date.now() + 5000;
-  while (true) {
-    try {
-      const info = await api.notebook();
-      if (await realpath(info.path) !== expectedPath) throw new Error('Test port belongs to another notebook');
-      notebookId = info.id;
-      break;
-    } catch {
-      if (Date.now() > deadline) throw new Error(`Service did not start: ${await new Response(service.stderr).text()}`);
-      await Bun.sleep(20);
-    }
-  }
+  service = await startService({ name: 'replay-tests', port });
+  notebookId = service.workshopId;
   await api.submit({ actor: { kind: 'person' }, operations: [
     { op: 'create_page', id: pageId, title: 'Replay regression' },
     { op: 'insert', id: blockId, parent_id: pageId, after: null, text: 'Original', heading: null },
   ] });
   for (let index = 0; index < 520; index++) await edit(`Prior event ${index}`);
-}, 20000);
+}, 60000);
 
 afterEach(async () => {
   globalThis.fetch = actualFetch;
   for (const instance of clients.splice(0)) await instance.dispose();
 });
 afterAll(async () => {
-  service?.kill();
-  if (service) await service.exited;
-  if (directory) await rm(directory, { recursive: true, force: true });
+  await service?.stop();
 });
 
 test('a fresh window starts at the editor head and receives edits after its snapshot', async () => {
