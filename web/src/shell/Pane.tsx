@@ -13,9 +13,8 @@ import {
 } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 import type { IndexKind, NoteKind } from '../api/types';
-import type { CreateRequest } from '../create/request';
 import { blankCapture } from '../create/request';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { PageDocument } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { noteKindIcon } from '../notes/kinds';
 import { displayTitle, readableText } from '../outline/names';
@@ -33,12 +32,10 @@ import type { MenuItem } from '../ui/Menu';
 import { PaneChromeContext } from '../ui/NavBar';
 import type { BarTitle, PaneChrome } from '../ui/NavBar';
 import { Popup } from '../ui/Popup';
-import type { PopupAnchor } from '../ui/Popup';
 import { createPaneMotion, paneMotionIdentity, paneTargetIdentity } from '../ui/pane-motion';
 import { opensBeside } from './beside';
 import type {
   AgendaViewState,
-  CommandRegistry,
   CompareViewState,
   Depth,
   DirectoryViewState,
@@ -47,7 +44,6 @@ import type {
   IndexViewState,
   LibraryViewState,
   OpenTarget,
-  PagePresentation,
   PageProjection,
   PaneId,
   PaneSession,
@@ -59,6 +55,7 @@ import type {
   TableViewState,
   ViewState,
 } from './contract';
+import { useWorkshop } from './context';
 import { depthLabels, depthStops } from './contract';
 import { DirectoryPane } from './DirectoryPane';
 import { paneModules } from './pane-modules';
@@ -98,28 +95,17 @@ export function Pane(props: {
   neighbour: boolean;
   session: Accessor<PaneSession>;
   active: boolean;
-  split: boolean;
   immersive: boolean;
   onImmersive(immersive: boolean): void;
   renderDirectory(): JSX.Element;
-  atomCount?: number;
-  directoryReady: boolean;
-  notebook: NotebookClient;
-  commands: CommandRegistry;
-  vim: boolean;
   vimMode: VimMode;
   onVimMode(mode: VimMode): void;
   pinned: boolean;
-  pagePresentations: Record<string, PagePresentation>;
   title?: string;
-  fieldName(id: string): string;
   noteKind?: IndexKind;
-  noteKinds?: NoteKind[];
   besideReason?: string;
-  onPagePresentation(id: string, value: PagePresentation): void;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
-  onCreate(request: CreateRequest, anchor?: PopupAnchor): void;
   onTargetChange(target: OpenTarget): void;
   onPageBeside(): void;
   onViewChange(view: PaneView): void;
@@ -130,10 +116,10 @@ export function Pane(props: {
   onPin(): void;
   onRename(): void;
   onDelete(anchor: HTMLElement, source?: boolean): void;
-  onDeleteSources(sources: { id: string; title: string }[]): Promise<void>;
   onArchived(): void;
   onRestoreView(view: ViewState): void;
 }) {
+  const workshop = useWorkshop();
   const current = () => props.session().entries[props.session().index]!;
   const coverQuery = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
   const [cover, setCover] = createSignal(coverQuery.matches);
@@ -231,12 +217,12 @@ export function Pane(props: {
     setDoc(undefined);
     setPageKinds(undefined);
     if (!id) return;
-    const document = props.notebook.open(id);
+    const document = workshop.notebook.open(id);
     setDoc(document);
     onCleanup(() => document.release());
   });
   const root = () => doc()?.root();
-  const presentation = () => props.pagePresentations[pageId() ?? ''] ?? {};
+  const presentation = () => workshop.pagePresentations[pageId() ?? ''] ?? {};
   // A source with a snapshot reads as its book: Read opens the reader, so its page itself always shows the outline.
   const readableSource = () => !!root()?.source?.current_snapshot_id;
   const defaultProjection = createMemo<PageProjection>(() => {
@@ -257,7 +243,7 @@ export function Pane(props: {
   const readSubject = () => {
     const zoom = outlineView().zoom;
     const subject = zoom && doc()?.block(zoom)?.position?.subject_id;
-    return subject ? props.notebook.lookup(subject)() : undefined;
+    return subject ? workshop.notebook.lookup(subject)() : undefined;
   };
   const projectionReason = (value: PageProjection) => {
     if (value !== 'read' || readerTarget()) return undefined;
@@ -273,7 +259,7 @@ export function Pane(props: {
     const subject = readSubject();
     if (subject === undefined) return 'The perspective’s subject is loading.';
     if (!subject || subject.archived) return 'The perspective’s subject is unavailable.';
-    const page = subject.id === subject.page_id ? subject : props.notebook.lookup(subject.page_id)();
+    const page = subject.id === subject.page_id ? subject : workshop.notebook.lookup(subject.page_id)();
     if (page === undefined) return 'The perspective’s subject atom is loading.';
     if (!page || page.archived) return 'The perspective’s subject atom is unavailable.';
     if (page.kind !== 'page') return 'Read needs a titled subject. File this perspective under a concept or question.';
@@ -285,7 +271,7 @@ export function Pane(props: {
       if (value === 'read') return;
       const id = reader.sourceId,
         previous = props.session().entries[props.session().index - 1];
-      props.onPagePresentation(id, { ...props.pagePresentations[id], projection: value });
+      workshop.onPagePresentation(id, { ...workshop.pagePresentations[id], projection: value });
       // The page the book was opened from is the way back to its outline.
       if (
         !beside &&
@@ -311,7 +297,7 @@ export function Pane(props: {
         return;
       }
       batch(() => {
-        props.onPagePresentation(pageId()!, { ...presentation(), projection: 'read' });
+        workshop.onPagePresentation(pageId()!, { ...presentation(), projection: 'read' });
         props.onRestoreView({
           ...outlineView(),
           projection: 'read',
@@ -326,7 +312,7 @@ export function Pane(props: {
     }
     batch(() => {
       props.onViewChange({ ...outlineView(), projection: value });
-      props.onPagePresentation(pageId()!, { ...presentation(), projection: value });
+      workshop.onPagePresentation(pageId()!, { ...presentation(), projection: value });
     });
   };
   const pageStyle = () => ((presentation().bullets ?? root()?.kind === 'journal') ? 'bullets' : 'prose');
@@ -381,13 +367,13 @@ export function Pane(props: {
   });
   const breadcrumbTitle = createMemo(() =>
     root()?.kind === 'page'
-      ? displayTitle(root()!.text, id => props.notebook.lookup(id))
+      ? displayTitle(root()!.text, id => workshop.notebook.lookup(id))
       : (root()?.text ?? 'Loading…'),
   );
   const readerTitle = createMemo(() => {
     const reader = readerTarget();
-    const source = reader && props.notebook.lookup(reader.sourceId)();
-    return source ? displayTitle(source.text, id => props.notebook.lookup(id)) : 'Reader';
+    const source = reader && workshop.notebook.lookup(reader.sourceId)();
+    return source ? displayTitle(source.text, id => workshop.notebook.lookup(id)) : 'Reader';
   });
   // A phone's nav bar names the pane in prose once the large title has scrolled under it; a surface can say it itself (ui/NavBar.tsx).
   const [barEnd, setBarEnd] = createSignal<HTMLElement>();
@@ -401,7 +387,8 @@ export function Pane(props: {
       if (zoomed)
         return {
           title:
-            readableText(zoomed.text, id => props.notebook.lookup(id), zoomed.position?.deleted_holder) || 'Empty atom',
+            readableText(zoomed.text, id => workshop.notebook.lookup(id), zoomed.position?.deleted_holder) ||
+            'Empty atom',
         };
       const page = root();
       return page?.kind === 'journal' && /^\d{4}-\d{2}-\d{2}$/.test(page.text)
@@ -410,7 +397,7 @@ export function Pane(props: {
     }
     if (readerTarget()) return { title: readerTitle() };
     const target = current().target;
-    return { title: target.kind === 'field' ? props.fieldName(target.fieldId) : (props.title ?? paneLabel(target)) };
+    return { title: target.kind === 'field' ? workshop.fieldName(target.fieldId) : (props.title ?? paneLabel(target)) };
   };
   // Typing queues edits in the local outbox for at most a second before sending, and most sends are
   // acknowledged within milliseconds; announcing each one would flash the header on every keystroke.
@@ -438,7 +425,7 @@ export function Pane(props: {
   };
   const rootCapability = (kind: 'task' | 'project') => outlineCommand(`${kind}-root`)?.run();
   const outlineCommand = (id: string) =>
-    props.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
+    workshop.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
   const showDial = () => root()?.kind === 'page' && !outlineView().zoom && projection() === 'outline';
@@ -496,12 +483,15 @@ export function Pane(props: {
         ]
       : []),
   ];
-  const pageInfo = () => props.notebook.roots().find(page => page.id === pageId());
+  const pageInfo = () => workshop.notebook.roots().find(page => page.id === pageId());
   // The Info sheet names the created day the same way the page header does.
   const createdDate = () => {
     const page = pageInfo();
     if (!page) return '';
-    return relativeDate(civilDate(page.created_at, props.notebook.settings()?.time_zone), props.notebook.todayDate());
+    return relativeDate(
+      civilDate(page.created_at, workshop.notebook.settings()?.time_zone),
+      workshop.notebook.todayDate(),
+    );
   };
   const [info, setInfo] = createSignal(false);
   // A phone keeps the title in its bar; projection and depth remain explicit, checked choices here.
@@ -661,7 +651,7 @@ export function Pane(props: {
                 icon: 'bullet',
                 disabledReason: root() ? undefined : 'Atom is still loading',
                 action: () =>
-                  props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }),
+                  workshop.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }),
               } satisfies MenuItem,
             ]
           : []),
@@ -731,7 +721,7 @@ export function Pane(props: {
       if (page?.project) return noteKindIcon('project');
       const kind = pageKinds()
         ? pageKinds()!.find(kind => kind.type_id)
-        : props.noteKinds?.find(
+        : workshop.noteKinds?.find(
             kind => kind.type_id && page?.manual_types.some(title => titleKey(title) === titleKey(kind.name)),
           );
       return kind ? noteKindIcon(kind) : 'page';
@@ -766,7 +756,7 @@ export function Pane(props: {
   const tabRoot = () =>
     (!cover() || props.session().index === 0) &&
     (['agenda', 'review', 'library'].includes(current().target.kind) ||
-      (root()?.kind === 'journal' && root()?.text === props.notebook.todayDate() && !outlineView().zoom));
+      (root()?.kind === 'journal' && root()?.text === workshop.notebook.todayDate() && !outlineView().zoom));
   const showNew = () =>
     cover() &&
     (current().target.kind === 'index'
@@ -781,7 +771,7 @@ export function Pane(props: {
   const create = (anchor: HTMLElement) => {
     if (current().target.kind === 'index') kindCreate()?.run(anchor);
     else
-      props.onCreate(
+      workshop.onCreate(
         current().target.kind === 'agenda'
           ? {
               kind: 'task',
@@ -847,7 +837,7 @@ export function Pane(props: {
             </div>
           </div>
           <Icon class="pane-kind" name={kindIcon()} />
-          <Show when={props.split}>
+          <Show when={workshop.split}>
             <span class="pane-number" aria-hidden="true">
               {props.number}
             </span>
@@ -907,7 +897,7 @@ export function Pane(props: {
                 {block => {
                   const title = createMemo(
                     () =>
-                      readableText(block.text, id => props.notebook.lookup(id), block.position?.deleted_holder) ||
+                      readableText(block.text, id => workshop.notebook.lookup(id), block.position?.deleted_holder) ||
                       'Empty atom',
                   );
                   return (
@@ -988,7 +978,7 @@ export function Pane(props: {
                 {status()}
               </Show>
             </span>
-            <Show when={props.vim && props.active}>
+            <Show when={workshop.vim && props.active}>
               <span
                 class="vim-mode"
                 data-mode={props.vimMode ?? 'outline'}
@@ -1073,10 +1063,10 @@ export function Pane(props: {
                   </Button>
                   <span class="breadcrumb-separator">/</span>
                   <Button
-                    title={props.fieldName(target().fieldId)}
+                    title={workshop.fieldName(target().fieldId)}
                     onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}
                   >
-                    {props.fieldName(target().fieldId)}
+                    {workshop.fieldName(target().fieldId)}
                   </Button>
                 </nav>
               </>
@@ -1107,7 +1097,7 @@ export function Pane(props: {
               </Show>
             </div>
           </div>
-          <Show when={props.split}>
+          <Show when={workshop.split}>
             <Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} />
           </Show>
         </header>
@@ -1157,10 +1147,10 @@ export function Pane(props: {
                       )
                         props.onActivate();
                     }}
-                    vim={props.vim}
+                    vim={workshop.vim}
                     onVimMode={props.onVimMode}
-                    commands={props.commands}
-                    notebook={props.notebook}
+                    commands={workshop.commands}
+                    notebook={workshop.notebook}
                   />
                 }
               >
@@ -1170,7 +1160,7 @@ export function Pane(props: {
                     neighbour={props.neighbour}
                     target={current().target as Extract<OpenTarget, { kind: 'table' }>}
                     view={snapshotView(current().view) as TableViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     active={props.active}
                     onActivate={props.onActivate}
                     onOpen={(target, beside) => {
@@ -1182,14 +1172,14 @@ export function Pane(props: {
                     onViewChange={view => {
                       if (generation === props.session().generation) props.onViewChange(view);
                     }}
-                    onDeletePages={props.onDeleteSources}
+                    onDeletePages={workshop.onDeleteSources}
                   />
                 </Match>
                 <Match when={current().target.kind === 'fields'}>
                   <FieldsPane
                     typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId}
                     view={snapshotView(current().view) as FieldsViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     onActivate={props.onActivate}
                     onOpen={(target, beside) => {
                       if (generation === props.session().generation) props.onOpen(target, beside);
@@ -1203,7 +1193,7 @@ export function Pane(props: {
                   <FieldPane
                     target={current().target as Extract<OpenTarget, { kind: 'field' }>}
                     view={snapshotView(current().view) as FieldViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     onActivate={props.onActivate}
                     onOpen={(target, beside) => {
                       if (generation === props.session().generation) props.onOpen(target, beside);
@@ -1228,7 +1218,7 @@ export function Pane(props: {
                       typeId={target().typeId}
                       applyId={target().applyId}
                       view={snapshotView(current().view) as FieldsViewState}
-                      notebook={props.notebook}
+                      notebook={workshop.notebook}
                       onActivate={props.onActivate}
                       onOpen={(next, beside) => {
                         if (generation === props.session().generation) props.onOpen(next, beside);
@@ -1252,7 +1242,7 @@ export function Pane(props: {
                       view={snapshotView(current().view) as SettingsViewState}
                       section={target().section}
                       deviceId={target().deviceId}
-                      notebook={props.notebook}
+                      notebook={workshop.notebook}
                       onOpen={(target, beside) => {
                         if (generation === props.session().generation) props.onOpen(target, beside);
                       }}
@@ -1266,7 +1256,7 @@ export function Pane(props: {
                   <HistoryPane
                     pane={props.pane}
                     view={snapshotView(current().view) as SettingsViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     onOpen={(target, beside) => {
                       if (generation === props.session().generation) props.onOpen(target, beside);
                     }}
@@ -1278,8 +1268,8 @@ export function Pane(props: {
                 <Match when={current().target.kind === 'directory'}>
                   <DirectoryPane
                     view={snapshotView(current().view) as DirectoryViewState}
-                    atomCount={props.atomCount}
-                    ready={props.directoryReady}
+                    atomCount={workshop.atomCount}
+                    ready={workshop.directoryReady}
                     onViewChange={view => {
                       if (generation === props.session().generation) props.onViewChange(view);
                     }}
@@ -1298,7 +1288,7 @@ export function Pane(props: {
                     <ComparePane
                       subjectId={target().subjectId}
                       view={snapshotView(current().view) as CompareViewState}
-                      notebook={props.notebook}
+                      notebook={workshop.notebook}
                       onActivate={props.onActivate}
                       onOpen={(next, beside) => {
                         if (generation === props.session().generation) props.onOpen(next, beside);
@@ -1319,7 +1309,7 @@ export function Pane(props: {
                   {target => (
                     <SpreadPane
                       noteIds={target().noteIds}
-                      notebook={props.notebook}
+                      notebook={workshop.notebook}
                       onActivate={props.onActivate}
                       onChange={noteIds => props.onTargetChange({ kind: 'spread', noteIds })}
                       onOpen={(next, beside) => {
@@ -1341,7 +1331,7 @@ export function Pane(props: {
                       neighbour={props.neighbour}
                       kind={props.noteKind}
                       view={snapshotView(current().view) as IndexViewState}
-                      notebook={props.notebook}
+                      notebook={workshop.notebook}
                       onActivate={props.onActivate}
                       onNewAction={action => {
                         if (generation === props.session().generation) setKindCreate(action);
@@ -1352,7 +1342,7 @@ export function Pane(props: {
                       onViewChange={view => {
                         if (generation === props.session().generation) props.onViewChange(view);
                       }}
-                      onDeletePages={props.onDeleteSources}
+                      onDeletePages={workshop.onDeleteSources}
                       onSpread={(noteIds, beside) => {
                         if (generation === props.session().generation)
                           props.onOpen({ kind: 'spread', noteIds }, beside);
@@ -1364,7 +1354,7 @@ export function Pane(props: {
                   <AgendaPane
                     pane={props.pane}
                     view={snapshotView(current().view) as AgendaViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     active={props.active}
                     onActivate={props.onActivate}
                     onOpen={(target, beside) => {
@@ -1379,11 +1369,11 @@ export function Pane(props: {
                   <ReviewPane
                     pane={props.pane}
                     view={snapshotView(current().view) as ReviewViewState}
-                    notebook={props.notebook}
-                    commands={props.commands}
+                    notebook={workshop.notebook}
+                    commands={workshop.commands}
                     active={props.active}
                     onActivate={props.onActivate}
-                    onCreate={props.onCreate}
+                    onCreate={workshop.onCreate}
                     onOpen={(target, beside) => {
                       if (generation === props.session().generation) props.onOpen(target, beside);
                     }}
@@ -1396,8 +1386,8 @@ export function Pane(props: {
                   <NotesReview
                     pane={props.pane}
                     view={snapshotView(current().view) as RevisitsViewState}
-                    notebook={props.notebook}
-                    commands={props.commands}
+                    notebook={workshop.notebook}
+                    commands={workshop.commands}
                     active={props.active}
                     onActivate={props.onActivate}
                     onOpen={(target, beside) => {
@@ -1412,7 +1402,7 @@ export function Pane(props: {
                   <LibraryPane
                     pane={props.pane}
                     view={snapshotView(current().view) as LibraryViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     active={props.active}
                     neighbour={props.neighbour}
                     add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add}
@@ -1439,7 +1429,7 @@ export function Pane(props: {
                     onViewChange={view => {
                       if (generation === props.session().generation) props.onViewChange(view);
                     }}
-                    onDeleteSources={props.onDeleteSources}
+                    onDeleteSources={workshop.onDeleteSources}
                   />
                 </Match>
                 <Match when={current().target.kind === 'reader'}>
@@ -1447,7 +1437,7 @@ export function Pane(props: {
                     pane={props.pane}
                     target={current().target as Extract<OpenTarget, { kind: 'reader' }>}
                     view={snapshotView(current().view) as ReaderViewState}
-                    notebook={props.notebook}
+                    notebook={workshop.notebook}
                     active={props.active}
                     immersive={props.immersive}
                     onImmersive={props.onImmersive}
@@ -1482,7 +1472,7 @@ export function Pane(props: {
               label="Atom actions"
               title="Atom actions"
               context={
-                root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text
+                root()?.kind === 'page' ? displayTitle(root()!.text, id => workshop.notebook.lookup(id)) : root()?.text
               }
               items={cover() ? phoneItems() : items()}
               onDismiss={() => setMenu(null)}
@@ -1502,7 +1492,7 @@ export function Pane(props: {
                       <span>
                         Created{' '}
                         {new Intl.DateTimeFormat('en-CA', {
-                          timeZone: props.notebook.settings()?.time_zone,
+                          timeZone: workshop.notebook.settings()?.time_zone,
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
@@ -1573,7 +1563,7 @@ export function Pane(props: {
           {from => (
             <PageMergePicker
               anchor={menuButton}
-              notebook={props.notebook}
+              notebook={workshop.notebook}
               from={from}
               onDismiss={() => setMergeFrom(undefined)}
               onMerged={id => {
