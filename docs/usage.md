@@ -757,5 +757,5 @@ new or changed block's revision, and the pages, fields and decks the change
 created or saved. Other change kinds are `edit_block`, `move_block`,
 `delete_block`, `set_task`, `set_relation`, `revisit`, `set_card_held`, `cite`,
 `save_deck` and `delete_deck`.
-[`crates/tessera-core/src/agent.rs`](../crates/tessera-core/src/agent.rs)
+[`crates/tessera-core/src/agent/request.rs`](../crates/tessera-core/src/agent/request.rs)
 defines their fields.

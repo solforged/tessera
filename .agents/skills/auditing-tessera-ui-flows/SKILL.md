@@ -191,7 +191,7 @@ exercised verification and deviations. Keep evidence/provenance under
   on empty value, pill click (opens target beside, not an editor), slot click
   per kind, block menu on a field row, Add field → Create field, and measure row
   y before/after selecting another block (sheet collapse shifts content).
-- Known structural hotspot (2026-10-12): `web/src/outline/OutlinePane.tsx` ~219
+- Known structural hotspot (2026-10-12): `web/src/outline/OutlinePane.tsx` ~699
   hides _every_ field entry on source pages unless metadata fields are shown, so
   user-added fields vanish there; filled header-mapped fields (Translator) move
   into `SourceHeader.tsx` pills. Re-check before reporting as still open.

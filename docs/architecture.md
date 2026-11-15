@@ -19,17 +19,18 @@ flowchart TB
         MCP["tessera mcp<br/>for agents"]
     end
     subgraph Hub["tessera serve, run by the launch agent"]
-        Service["tessera-service<br/>one writer"]
+        Service["tessera-service<br/>native hosting"]
+        Api["tessera-api<br/>routes; one writer, three readers"]
         Core["tessera-core<br/>rules and transactions"]
     end
     DB[("`notebook.db`<br/>SQLite")]
     Objects[("objects/<br/>original files")]
     subgraph Phone["Android and iOS app"]
-        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-mobile<br/>embedded router + core"]
+        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-mobile<br/>tessera-api router + core"]
         AndroidHost --> AndroidDB[("private workshop")]
     end
     subgraph Demo["Browser demo"]
-        DemoPage["Demo editor"] -->|"postMessage"| Worker["wasm worker<br/>tessera-web + core"]
+        DemoPage["Demo editor"] -->|"postMessage"| Worker["wasm worker<br/>tessera-web: tessera-api + core"]
         Worker --> OPFS[("OPFS SQLite")]
     end
     Browser -->|"HTTP + WebSocket, loopback"| Service
@@ -37,7 +38,8 @@ flowchart TB
     CLI -->|"HTTP, loopback"| Service
     MCP -->|"HTTP, loopback"| Service
     CLI -.->|"install, serve"| Hub
-    Service --> Core
+    Service --> Api
+    Api --> Core
     Core --> DB
     Core --> Objects
     AndroidHost <-->|"sync: HTTPS through Tailscale Serve"| Service
@@ -122,8 +124,16 @@ effects.
 
 ## Service
 
-`tessera-service` holds the workshop's one connection behind a lock, so reads,
-agent context queries and writes take turns.
+The workshop's HTTP routes live in `tessera-api`, which the loopback service,
+the phone app and the browser worker all serve. `tessera-service` adds what only
+a Mac hosts: the listener and launch agent, backups, sync sharing and pairing,
+the in-app agent and the embedded editor.
+
+Writes go through the workshop's one writer connection behind a lock. Reads
+that need no write, about 70 `GET` routes, use one of three `query_only` reader
+connections beside it (`tessera-api/src/run.rs`), so a slow query or page read
+does not hold up a save. Agent context and sync reads still take the writer
+lock.
 
 Editor receipts and change streams use the local `editor_events` cursor, not
 replicated `changes.seq`. `GET /api/changes/head` reads it without loading
@@ -353,6 +363,13 @@ not change location when focus moves between panes.
 Two panes, back and forward history, and per-pane fold, zoom and caret state are
 part of the shell from the start.
 
+Modules import downward. `web/src/api` (transport and wire types) and
+`web/src/core` (shared contracts and helpers) import only each other.
+`web/src/ui` (components with no feature knowledge) imports only those two. The
+feature folders, `document`, `outline`, `reader`, `tasks` and the rest, sit
+above them, and `shell` composes them. Biome's `noRestrictedImports` in
+`web/biome.json` enforces the lower layers, with tests exempt.
+
 ## Conflicts
 
 A stale operation fails without writing, except a stale position: a move or
@@ -413,19 +430,24 @@ flowchart LR
     Bench["tessera-bench"]
     Wasm["tessera-web<br/>wasm worker crate"]
     Service["tessera-service"]
+    Api["tessera-api"]
     Ingest["tessera-ingest"]
     Core["tessera-core"]
     Web["web/<br/>Solid package: tessera-web"]
     CLI --> Service
     CLI --> Core
+    Desktop --> Core
     Android --> Service
+    Android --> Api
     Android --> Core
     Bench --> Service
     Bench --> Core
-    Wasm --> Service
+    Wasm --> Api
     Wasm --> Core
-    Service --> Ingest
+    Service --> Api
     Service --> Core
+    Api --> Ingest
+    Api --> Core
     Ingest --> Core
     Service -. "embed-web: web/dist" .-> Web
     Android -. "web/dist-mobile" .-> Web
@@ -434,13 +456,14 @@ flowchart LR
 
 ```text
 crates/tessera-core      domain model, migrations, operations
-crates/tessera-service   HTTP and WebSocket service
+crates/tessera-api       workshop HTTP routes shared by every host
+crates/tessera-service   native hosting: listener, backups, sync, agent
 crates/tessera-cli       command line
 crates/tessera-desktop   macOS app: window, launch agent handover, updates
 crates/tessera-mobile    Android and iOS app: workshop in process, pages over IPC
 crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
-crates/tessera-web       browser demo: core and service routes in a WASM worker
+crates/tessera-web       browser demo: core and API routes in a WASM worker
 web/                     Solid editor
 mise-tasks/              development, build and publishing tasks
 docs/                    design documents

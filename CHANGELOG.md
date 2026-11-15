@@ -54,6 +54,13 @@ back.
 - Raised the workshop schema to 55, which keeps an agent request's idempotency
   key, request hash and receipt with its undo record. A hub and its replicas
   sync only on the same schema, so update them together.
+- Added `mise run wire`, which writes the editor's wire types in
+  `web/src/api/wire.ts` from the Rust types that serialize them, and a test that
+  fails while the file is stale. The hand-mirrored copies are gone.
+- Added Biome to the editor: `mise run fmt` formats the TypeScript and CSS,
+  `mise run web:lint` lints them and checks that the editor's lower layers
+  import no feature code, and CI runs it and the editor's tests on every pull
+  request.
 
 ### Changed
 
@@ -293,6 +300,17 @@ back.
   `sort` for `direction`, filter ops are limited to the nine the tool lists, and
   `tessera_revisit` takes no `next_on` for resolve and reopen. Listing `done` or
   `cancelled` tasks defaults `include` to `all`.
+- Served the loopback service's reads from three read-only connections beside
+  the writer, so page reads, queries and search no longer wait behind a save.
+  Reads that write, such as the check and resurfacing, still take the writer.
+  The phone and the browser demo keep one connection.
+- Gave the in-app agent the MCP server's tool schemas and edits: a tool call
+  commits the same change on either surface, the in-app agent refuses arguments
+  a tool does not declare, and `add_note` reads the same Markdown outline syntax
+  as `tessera_add_note`.
+- Moved the workshop's HTTP routes into a `tessera-api` crate that the loopback
+  service, the phone app and the browser demo share. `tessera-service` keeps
+  the native hosting and no longer builds for WebAssembly.
 
 ### Fixed
 

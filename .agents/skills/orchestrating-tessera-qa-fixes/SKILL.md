@@ -54,7 +54,7 @@ owner.
   service.** Both run the host's
   `tailscale serve --bg --https=4319 http://127.0.0.1:<that service's sync port>`
   (off runs `--https=4319 off`,
-  `crates/tessera-service/src/sharing.rs:102-131`), which repoints or removes
+  `crates/tessera-service/src/sharing.rs:216-239`), which repoints or removes
   the live phone route. Put this in every contract. To exercise the Pair dialog,
   install an in-page `window.fetch` shim (`tab.addInitScript`) that answers
   `POST /api/sync/sharing` and `/api/sync/pairing` in the browser and label
