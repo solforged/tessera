@@ -108,6 +108,7 @@ open.
 | `ts-docs-test`                                               | The Vale rules' own test cases, with every rule required to fire in at least one.          |
 | `ts-commit-lint`                                             | Commit messages from `origin/main` to `HEAD` against the commit convention.                 |
 | `ts-fmt`                                                     | Formats Rust code.                                                                          |
+| `ts-wire`                                                    | Rewrites `web/src/api/wire.ts` from the Rust wire types.                                    |
 | `ts-bench --root /tmp/tessera-bench --fail-on budgets`       | Backend budgets; see [Performance](performance.md).                                         |
 
 [CI](../.github/workflows/ci.yml) runs `ts-lint` and `ts-test` on Linux and
@@ -124,6 +125,17 @@ checks.
 
 `ts-fonts-keys` redraws the key glyphs in
 [`web/src/ui/fonts/keys.woff2`](../web/src/ui/fonts/keys.woff2).
+
+### Wire types
+
+The editor's JSON types in `web/src/api/wire.ts` are written from the Rust types
+that serialize them. A type that crosses the wire derives `ts_rs::TS`, and the
+`wire_types` test lists the ones the editor names. Change the Rust type, run
+`ts-wire`, and commit the file with it; `ts-test` fails while the file is stale.
+
+A field the editor may leave out carries `#[ts(optional)]`, or
+`#[ts(optional = nullable)]` when it may also be `null`. A string with a fixed
+vocabulary states it with `#[ts(type = "...")]`.
 
 ### Browser demo
 

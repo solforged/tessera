@@ -12,14 +12,16 @@ use crate::{
     Result, Revision,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardTemplate {
     pub id: String,
     pub type_id: String,
     pub name: String,
     pub front: String,
     pub back: String,
+    #[ts(optional = nullable)]
     pub hint: Option<String>,
+    #[ts(optional = nullable)]
     pub details: Vec<String>,
     pub position: i64,
     pub applied: bool,
@@ -29,7 +31,7 @@ pub struct CardTemplate {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct CardTemplateProvenance {
     pub id: String,
     pub name: String,
@@ -45,14 +47,14 @@ pub struct CardTemplateProvenance {
     pub details: Vec<RecipeDetail>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct RecipeDetail {
     pub field_id: String,
     pub label: String,
     pub value: String,
     pub prose: bool,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct CardTemplatePreview {
     pub member_id: String,
     pub member_text: String,
@@ -60,14 +62,14 @@ pub struct CardTemplatePreview {
     pub back: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct CardTemplateWaiting {
     pub id: String,
     pub text: String,
     pub missing: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct CardTemplateInfo {
     #[serde(flatten)]
     pub template: CardTemplate,
@@ -80,14 +82,14 @@ pub struct CardTemplateInfo {
     pub preview: Option<CardTemplatePreview>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct TemplateLoadDay {
     pub date: String,
     pub due: usize,
     pub added: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct CardTemplateForecast {
     pub members: usize,
     pub ready: usize,

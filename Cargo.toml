@@ -30,6 +30,8 @@ tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "
 tokio-tungstenite = "0.29"
 tower = { version = "0.5", features = ["util"] }
 tracing = "0.1"
+# Writes the TypeScript declarations of the wire types; see ts-wire.
+ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = "3"
 

@@ -7,13 +7,13 @@ use crate::library_store::{json, source_at, source_columns, source_siglum};
 use crate::reads::hidden_blocks;
 use crate::{NoteEntry, Notebook, Result, SeeTarget};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SummaryField {
     pub name: String,
     pub value: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SourceSummary {
     pub siglum: String,
     pub citation_key: Option<String>,
@@ -27,7 +27,7 @@ pub struct SourceSummary {
     pub highlights: usize,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteSummary {
     pub preview: Option<String>,
     pub field: Option<SummaryField>,

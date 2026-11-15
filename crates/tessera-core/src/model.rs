@@ -14,7 +14,7 @@ use crate::{AssessmentState, QuestionState, RelationKind};
 
 /// What a block is. Pages and journal days are roots; everything else has a
 /// parent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockKind {
     Block,
@@ -24,7 +24,7 @@ pub enum BlockKind {
 
 /// One live block as stored. A root's text is its title; a journal root's
 /// text is its date in `YYYY-MM-DD` form.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Block {
     pub id: String,
     pub kind: BlockKind,
@@ -32,17 +32,19 @@ pub struct Block {
     pub page_id: String,
     pub text: String,
     /// Heading level 1 to 3.
+    #[ts(type = "1 | 2 | 3 | null")]
     pub heading: Option<u8>,
     pub archived: bool,
     pub revision: i64,
     pub created_at: i64,
     pub updated_at: i64,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub kept_copy: Option<KeptCopy>,
 }
 
 /// A live, unsettled version kept beside its original by sync.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct KeptCopy {
     pub of: String,
     pub origin: String,
@@ -51,7 +53,7 @@ pub struct KeptCopy {
 }
 
 /// Who committed a batch.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Actor {
     Person,
@@ -63,7 +65,7 @@ pub enum Actor {
 /// so a retried creation can be recognised instead of duplicated. Every
 /// operation on an existing block names the revision it was based on; a
 /// mismatch fails the whole batch and writes nothing.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
     SettleSyncCopy {
@@ -92,6 +94,7 @@ pub enum Operation {
         start: PassagePoint,
         end: PassagePoint,
         #[serde(default)]
+        #[ts(optional, type = "Citation[\"color\"]")]
         color: Option<String>,
     },
     Uncite {
@@ -102,11 +105,13 @@ pub enum Operation {
     SetCitationTriage {
         id: String,
         base_revision: i64,
+        #[ts(type = "Citation[\"triage\"]")]
         triage: Option<String>,
     },
     SetCitationColor {
         id: String,
         base_revision: i64,
+        #[ts(type = "Citation[\"color\"]")]
         color: Option<String>,
     },
     SetCitationRange {
@@ -133,6 +138,7 @@ pub enum Operation {
         parent_id: String,
         after: Option<String>,
         text: String,
+        #[ts(type = "1 | 2 | 3 | null")]
         heading: Option<u8>,
     },
     /// Replace a block's text. On a page root this renames the page.
@@ -144,6 +150,7 @@ pub enum Operation {
     SetHeading {
         id: String,
         base_revision: i64,
+        #[ts(type = "1 | 2 | 3 | null")]
         heading: Option<u8>,
     },
     CreateCardTemplate {
@@ -153,8 +160,10 @@ pub enum Operation {
         front: String,
         back: String,
         #[serde(default)]
+        #[ts(optional = nullable)]
         hint: Option<String>,
         #[serde(default)]
+        #[ts(optional = nullable)]
         details: Vec<String>,
         new_per_day: u32,
     },
@@ -165,8 +174,10 @@ pub enum Operation {
         front: String,
         back: String,
         #[serde(default)]
+        #[ts(optional = nullable)]
         hint: Option<String>,
         #[serde(default)]
+        #[ts(optional = nullable)]
         details: Vec<String>,
         new_per_day: u32,
     },
@@ -495,15 +506,17 @@ pub enum Operation {
 }
 
 /// Operations committed together or not at all.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Batch {
     pub actor: Actor,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub reason: Option<String>,
     /// Retrying a batch with the same key and the same operations returns
     /// the original result without applying it again. The same key with
     /// different operations is rejected.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub idempotency_key: Option<String>,
     pub operations: Vec<Operation>,
 }
@@ -519,7 +532,7 @@ pub struct ChangeStamp {
     pub at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Revision {
     pub id: String,
     pub revision: i64,
@@ -527,7 +540,7 @@ pub struct Revision {
 
 /// A source considered for automatic tag rewriting during a page rename.
 /// Equal-text entries are revision-checked spelling guards for undo.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct TextRewrite {
     pub id: String,
     pub before: String,
@@ -536,7 +549,7 @@ pub struct TextRewrite {
 }
 
 /// A provisional tag page removed by derivation, retained for exact history replay.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PrunedPage {
     pub id: String,
     pub deletion_id: String,
@@ -544,7 +557,7 @@ pub struct PrunedPage {
 }
 
 /// The result of a committed batch.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Committed {
     /// Position in the notebook's change sequence.
     pub seq: i64,
@@ -554,6 +567,7 @@ pub struct Committed {
     /// Touched blocks that are no longer live after the batch, including
     /// provisional pages removed by derivation.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub removed: Vec<String>,
     /// Exact restoration tickets for unused provisional pages pruned by this batch.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -565,6 +579,7 @@ pub struct Committed {
     /// receipt which pages it touched without fetching each block. `None`
     /// in receipts stored before it was recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub pages: Option<Vec<String>>,
     /// Pages where the engine placed a block somewhere other than the request
     /// named, because its `after` sibling had been moved or deleted, sorted.
@@ -580,25 +595,32 @@ pub struct Committed {
     #[serde(default)]
     pub settings: Vec<SettingRevision>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub capabilities: Vec<BlockCapabilities>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub cards: Vec<Revision>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub work_sessions: Vec<WorkSession>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub review_sessions: Vec<ReviewSession>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub decks: Vec<Revision>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub task_views: Vec<Revision>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub library_views: Vec<Revision>,
     /// True when this is the stored result of an earlier identical batch.
     pub replayed: bool,
 }
 
 /// A block in a page, in reading (preorder) order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Row {
     pub block: Block,
     /// 0 for the root's children.
@@ -606,23 +628,24 @@ pub struct Row {
     pub manual_types: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Subtree {
     /// Includes the root at depth 0, followed by its visible descendants.
     pub rows: Vec<Row>,
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuotedRow {
     pub id: String,
     pub depth: u32,
     pub text: String,
+    #[ts(type = "1 | 2 | 3 | null")]
     pub heading: Option<u8>,
     pub revision: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuoteState {
     pub target_id: String,
     pub captured_at: i64,
@@ -630,7 +653,7 @@ pub struct QuoteState {
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QuoteStatus {
     pub block_id: String,
     pub source_live: bool,
@@ -638,11 +661,12 @@ pub struct QuoteStatus {
 }
 
 /// Everything needed to show one page.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PageView {
     pub root: Block,
     /// Explicit tags on the page itself, separate from descendant memberships.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub root_manual_types: Vec<String>,
     /// Live descendants in preorder, including archived ones (flagged).
     pub rows: Vec<Row>,
@@ -650,23 +674,24 @@ pub struct PageView {
     /// named by its tags. A missing reference target is unresolved.
     pub targets: Vec<Block>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub capabilities: Vec<BlockCapabilities>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Backlink {
     pub source: Block,
     pub page: Block,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct BlockInPage {
     pub block: Block,
     pub page: Block,
 }
 
 /// One committed batch, for clients catching up after `seq`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct ChangeEvent {
     pub seq: i64,
     pub actor: Actor,
@@ -681,30 +706,40 @@ pub struct ChangeEvent {
     /// The receipt's `pages`: every page this change touched. `None` for
     /// changes recorded before it was.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub pages: Option<Vec<String>>,
     /// Views saved or deleted by this change; clients reload their view list.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub views: Vec<String>,
     /// Settings changed by this batch; clients reload their settings.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub settings: Vec<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub capabilities: Vec<BlockCapabilities>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub cards: Vec<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub work_sessions: Vec<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub review_sessions: Vec<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub decks: Vec<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub task_views: Vec<String>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub library_views: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldKind {
     Text,
@@ -752,7 +787,7 @@ impl FieldKind {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldHide {
     #[default]
@@ -777,7 +812,7 @@ impl FieldHide {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldRole {
     Standfirst,
@@ -810,7 +845,7 @@ impl FieldRole {
 }
 
 /// What a field's values count as, so readers find creators by meaning rather than by field name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum CountsAs {
     /// Who made the work: bylines, sigla, sorting and `@creator`.
@@ -839,14 +874,14 @@ impl CountsAs {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
     Asc,
     Desc,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum FilterOp {
     Is,
@@ -864,7 +899,7 @@ pub enum FilterOp {
     Empty,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Filter {
     pub field: String,
     pub op: FilterOp,
@@ -873,7 +908,7 @@ pub struct Filter {
     pub or_empty: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum SortBy {
     Title,
@@ -882,14 +917,14 @@ pub enum SortBy {
     Field,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SortKey {
     pub by: SortBy,
     pub field: Option<String>,
     pub direction: Direction,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum QuerySource {
     #[default]
@@ -901,7 +936,7 @@ pub enum QuerySource {
     Highlights,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryLayout {
     #[default]
@@ -911,31 +946,35 @@ pub enum QueryLayout {
     Desk,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryColumn {
     pub key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub width: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryGrouping {
     pub key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub collapsed: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct DeskQuery {
     pub positions: Query,
     pub sources: Query,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Query {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub source: Option<QuerySource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub layout: Option<QueryLayout>,
     pub r#type: Option<String>,
     pub text: Option<String>,
@@ -946,9 +985,11 @@ pub struct Query {
     pub limit: Option<usize>,
     /// Rows skipped after sorting; total and column metadata cover all matches.
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub offset: usize,
     /// Restrict to this finding-aid kind's members, including inline capability atoms.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub note_kind: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<String>,
@@ -958,37 +999,43 @@ pub struct Query {
     pub cites: Vec<String>,
     /// Presentation travels in the existing saved query JSON, not a second view store.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub note_view: Option<NoteView>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub columns: Option<Vec<QueryColumn>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub group: Option<QueryGrouping>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub card: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub purpose: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub desk: Option<Box<DeskQuery>>,
     /// Remembered labels for references left behind by field detachment or deletion.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub field_names: std::collections::BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteView {
     pub layout: NoteLayout,
     /// letter, source, link, created, or field:<definition id>.
     pub grouping: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
 pub enum NoteLayout {
     Index,
     Table,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteGroup {
     pub key: String,
     pub title: String,
@@ -998,13 +1045,13 @@ pub struct NoteGroup {
 }
 
 /// Inclusive historical years; missing bounds are open, and BCE years are negative.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct YearSpan {
     pub from: Option<i32>,
     pub through: Option<i32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(untagged)]
 pub enum ReadingValue {
     Text(String),
@@ -1013,41 +1060,43 @@ pub enum ReadingValue {
     Span(YearSpan),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(untagged)]
 pub enum Reading {
     Value {
+        #[ts(type = "true")]
         ok: bool,
         value: ReadingValue,
         target: Option<String>,
     },
     Problem {
+        #[ts(type = "false")]
         ok: bool,
         problem: String,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldValue {
     pub id: String,
     pub text: String,
     pub reading: Reading,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryAttributeValue {
     pub text: String,
     pub reading: Reading,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryAttribute {
     pub key: String,
     pub name: String,
     pub kind: FieldKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryGroup {
     pub key: String,
     pub title: String,
@@ -1056,31 +1105,35 @@ pub struct QueryGroup {
     pub count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryRow {
     pub block: BlockInPage,
     pub values: std::collections::BTreeMap<String, Vec<FieldValue>>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub attributes: std::collections::BTreeMap<String, Vec<QueryAttributeValue>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldOption {
     pub id: String,
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldDefinition {
     pub id: String,
     pub name: String,
     pub kind: FieldKind,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub hide: FieldHide,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub role: FieldRole,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub counts_as: Option<CountsAs>,
+    #[ts(optional = nullable)]
     pub archived: bool,
     pub revision: i64,
     pub options: Vec<FieldOption>,
@@ -1091,7 +1144,7 @@ pub struct FieldDefinition {
     pub built_in: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct QueryResult {
     pub fields: Vec<FieldDefinition>,
     pub columns: Vec<String>,
@@ -1100,12 +1153,14 @@ pub struct QueryResult {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub note_groups: Vec<NoteGroup>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub attributes: Vec<QueryAttribute>,
     #[serde(default)]
+    #[ts(optional = nullable)]
     pub groups: Vec<QueryGroup>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct View {
     pub id: String,
     pub name: String,
@@ -1131,7 +1186,7 @@ pub struct TypeInfo {
     pub starting: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct RequiredField {
     pub field_id: String,
     /// Members with no nonblank value for the field.
@@ -1144,7 +1199,7 @@ pub struct FieldsView {
     pub fields: Vec<FieldSummary>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldSummary {
     #[serde(flatten)]
     pub definition: FieldDefinition,
@@ -1152,13 +1207,13 @@ pub struct FieldSummary {
     pub types: Vec<FieldType>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldType {
     pub id: String,
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldOwner {
     pub id: String,
     pub text: String,
@@ -1167,7 +1222,7 @@ pub struct FieldOwner {
 }
 
 /// A relation field value pointing at a block, read from the target's side.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct IncomingFieldValue {
     pub field_id: String,
     pub field_name: String,
@@ -1177,7 +1232,7 @@ pub struct IncomingFieldValue {
     pub value_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldOwnerValues {
     pub owner: FieldOwner,
     /// The first entry in outline order when this owner has several entries.
@@ -1185,14 +1240,14 @@ pub struct FieldOwnerValues {
     pub values: Vec<FieldValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldValueUse {
     pub owner: FieldOwner,
     pub entry_id: String,
     pub value: FieldValue,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldTemplate {
     pub type_id: String,
     pub name: String,
@@ -1200,13 +1255,13 @@ pub struct FieldTemplate {
     pub members: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldOptionUse {
     pub option_id: String,
     pub uses: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldChoiceValue {
     pub id: String,
     pub text: String,
@@ -1214,21 +1269,21 @@ pub struct FieldChoiceValue {
     pub page_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldChoiceCandidate {
     pub text: String,
     pub option_id: Option<String>,
     pub values: Vec<FieldChoiceValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldInterpretation {
     pub text: String,
     pub reading: Reading,
     pub values: Vec<FieldChoiceValue>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct FieldDetail {
     pub field: FieldSummary,
     pub kind: FieldKind,
@@ -1249,13 +1304,13 @@ pub struct FieldDetail {
     pub entries: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SettingRevision {
     pub key: String,
     pub revision: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct Setting {
     pub key: String,
     pub value: String,
@@ -1263,7 +1318,7 @@ pub struct Setting {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct SettingsView {
     pub settings: Vec<Setting>,
     pub today: String,
