@@ -26,7 +26,7 @@ back.
   spike 5 soak harness (`bun web/perf/soak.ts`) under `web/perf/`, and recorded
   the first runs of both in
   [performance](docs/performance.md#spike-4-result-runtime-and-concurrency-2026-10-22).
-- Added an iOS build of the phone app: `mise run ios:build` makes a development
+- Added an iOS build of the phone app: `ts-ios-build` makes a development
   IPA signed for the team in `tauri.ios.conf.json`, with
   `TESSERA_IOS_SIGNING_IDENTITY` choosing among several certificates. It runs
   the Android app's workshop and pages; opening EPUBs from other apps and
@@ -195,7 +195,7 @@ back.
 - Kept iPhones in portrait and hid WebKit's form toolbar above the iOS keyboard.
 - Renamed `crates/tessera-android` to `crates/tessera-mobile` and the pages'
   `android` build mode to `mobile` (`web/mobile.html`, `web/dist-mobile`,
-  `mise run mobile:pages`). The Android package stays `dev.tessera.android`, so
+  `ts-mobile-pages`). The Android package stays `dev.tessera.android`, so
   installed phones update in place.
 - Kept receipt blobs out of the change catch-up read's sort, so `changes_since`
   meets its 100 ms budget at 10,000 and 50,000 blocks, and paged HTTP and
