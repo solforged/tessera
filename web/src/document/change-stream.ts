@@ -162,7 +162,10 @@ export class WorkshopChangeStream {
       await this.host.reloadReanchored();
       if (this.host.closed()) return;
       if (this.socket?.readyState === CHANGE_OPEN) {
+        // A failed request can mark the workshop offline while the socket stays up. Nothing else
+        // wakes the commands it left queued, so resend them now that the service answered.
         this.serviceReached();
+        this.host.scheduleCommands();
         return;
       }
       if (this.socket?.readyState === CHANGE_CONNECTING) return;
