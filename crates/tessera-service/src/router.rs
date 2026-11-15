@@ -61,12 +61,14 @@ pub(crate) fn routers(
     backup_store: Option<PathBuf>,
 ) -> Result<(Router, Router, AppState), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
+    let readers = tessera_api::Readers::open(&notebook).map_err(|error| error.to_string())?;
     let notebook = Arc::new(Mutex::new(notebook));
     let notifications = broadcast::channel(256).0;
     let library =
         library::Library::start(notebook.clone(), notifications.clone(), library::extract)?;
     let state = AppState {
         notebook,
+        readers: Some(readers),
         assets: assets.map(Arc::new),
         changes: notifications,
         library,
@@ -203,4 +205,60 @@ async fn refuse_while_switching(
         .into_response();
     }
     next.run(request).await
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use tower::ServiceExt;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_read_answers_while_the_writer_is_busy() {
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Notebook::open(dir.path().join("workshop")).unwrap();
+        let (editor, _sync, state) = routers(
+            notebook,
+            4318,
+            4319,
+            None,
+            None,
+            None,
+            Some(dir.path().join("agent.json")),
+            None,
+        )
+        .unwrap();
+        // Hold the writer as a long save or sync apply would.
+        let writer = state.notebook.clone();
+        let (held, wait) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        let holder = std::thread::spawn(move || {
+            let _writer = writer.lock();
+            held.send(()).unwrap();
+            let _ = released.recv();
+        });
+        wait.recv().unwrap();
+
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            editor.oneshot(
+                Request::get("/api/roots")
+                    .header("host", "127.0.0.1:4318")
+                    .header("origin", "http://127.0.0.1:4318")
+                    .body(Body::empty())
+                    .unwrap(),
+            ),
+        )
+        .await
+        .expect("the read waited for the writer")
+        .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        release.send(()).unwrap();
+        holder.join().unwrap();
+    }
 }

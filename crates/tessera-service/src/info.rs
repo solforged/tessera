@@ -4,7 +4,7 @@ use axum::{Json, extract::State};
 use serde::Serialize;
 
 use crate::error::ApiError;
-use crate::state::{AppState, run};
+use crate::state::{AppState, read};
 use crate::{BUILD, VERSION, launch_agent_path};
 
 #[derive(Serialize)]
@@ -16,7 +16,7 @@ pub(crate) struct NotebookSize {
 pub(crate) async fn notebook_size(
     State(state): State<AppState>,
 ) -> Result<Json<NotebookSize>, ApiError> {
-    let info = run(&state, |notebook| notebook.info()).await?;
+    let info = read(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || crate::backups::backup_size(&info.path, false))
         .await
         .map_err(ApiError::internal)?
@@ -102,6 +102,7 @@ mod tests {
         let app = Router::new()
             .route("/api/notebook/size", get(notebook_size))
             .with_state(AppState {
+                readers: None,
                 notebook,
                 assets: None,
                 changes,

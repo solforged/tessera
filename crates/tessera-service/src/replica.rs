@@ -493,7 +493,7 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
 async fn conflicts(
     State(state): State<AppState>,
 ) -> Result<Json<sync::ReplicaConflicts>, crate::error::ApiError> {
-    crate::run(&state, |n| n.sync_replica_conflicts())
+    crate::read(&state, |n| n.sync_replica_conflicts())
         .await
         .map(Json)
 }

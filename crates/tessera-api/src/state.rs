@@ -26,6 +26,9 @@ pub struct WorkshopState {
     pub notebook: Arc<Mutex<Notebook>>,
     pub changes: broadcast::Sender<i64>,
     pub library: Library,
+    /// Read-only connections for [`crate::read`]; absent where the host has
+    /// one connection.
+    pub readers: Option<crate::Readers>,
     objects: ObjectReader,
 }
 
@@ -38,6 +41,7 @@ impl WorkshopState {
             notebook,
             changes,
             library,
+            readers: None,
             objects: Arc::new(local_object),
         })
     }
@@ -56,8 +60,14 @@ impl WorkshopState {
             notebook,
             changes,
             library,
+            readers: None,
             objects: Arc::new(local_object),
         }
+    }
+
+    pub fn with_readers(mut self, readers: Option<crate::Readers>) -> Self {
+        self.readers = readers;
+        self
     }
 
     pub fn with_objects(mut self, objects: ObjectReader) -> Self {

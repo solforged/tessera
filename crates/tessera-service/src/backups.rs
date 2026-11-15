@@ -10,7 +10,7 @@ use serde::Serialize;
 use tessera_core::NotebookInfo;
 
 use crate::error::ApiError;
-use crate::state::{AppState, run};
+use crate::state::{AppState, read, run};
 
 pub(crate) fn backup_routes() -> Router<AppState> {
     Router::new()
@@ -195,7 +195,7 @@ fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups,
 async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiError> {
     let store = backup_store(&state)?;
     let guard = state.backup.clone().lock_owned().await;
-    let info = run(&state, |notebook| notebook.info()).await?;
+    let info = read(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
         let failure = guard.clone();
         list_backups(&store, &info).map(|backups| {
@@ -420,6 +420,7 @@ mod tests {
         let app = Router::new()
             .route("/api/backups", post(create_backup))
             .with_state(AppState {
+                readers: None,
                 notebook,
                 assets: None,
                 changes,
@@ -496,6 +497,7 @@ mod tests {
             message: "disk full".into(),
         })));
         let app = backup_routes().with_state(AppState {
+            readers: None,
             notebook,
             assets: None,
             changes,
@@ -532,6 +534,7 @@ mod tests {
         let library =
             library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
         let app = backup_routes().with_state(AppState {
+            readers: None,
             notebook,
             assets: None,
             changes,

@@ -51,6 +51,7 @@ fn embedded_router_inner(
     let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
     let replica = Arc::default();
     let state = AppState {
+        readers: None,
         notebook,
         assets: None,
         changes,

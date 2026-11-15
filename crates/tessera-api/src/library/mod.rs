@@ -1,6 +1,6 @@
 mod lookup;
 use crate::error::ApiError;
-use crate::run::run;
+use crate::run::{read, run};
 use crate::state::WorkshopState;
 use axum::{
     Json, Router,
@@ -165,9 +165,7 @@ async fn job(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<IngestJob>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.ingest_job(&id))
-        .await
-        .map(Json)
+    read(&state, move |n| n.ingest_job(&id)).await.map(Json)
 }
 async fn retry(
     State(state): State<WorkshopState>,
@@ -186,9 +184,7 @@ async fn query(
     run(&state.notebook, move |n| n.library(&q)).await.map(Json)
 }
 async fn views(State(state): State<WorkshopState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
-    run(&state.notebook, move |n| n.library_views())
-        .await
-        .map(Json)
+    read(&state, move |n| n.library_views()).await.map(Json)
 }
 async fn collection_values(
     State(state): State<WorkshopState>,
@@ -204,14 +200,14 @@ async fn source(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<SourceView>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.source(&id)).await.map(Json)
+    read(&state, move |n| n.source(&id)).await.map(Json)
 }
 async fn extracted(
     State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<(String, Vec<String>)>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.extracted_values(&id))
+    read(&state, move |n| n.extracted_values(&id))
         .await
         .map(Json)
 }
@@ -229,7 +225,7 @@ async fn passages(
 ) -> Result<Json<PassagePage>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.passages(&id, q.from, q.limit))
+    read(&state, move |n| n.passages(&id, q.from, q.limit))
         .await
         .map(Json)
 }
@@ -244,16 +240,14 @@ async fn locate(
 ) -> Result<Json<Option<i64>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| n.locate(&id, &q.at))
-        .await
-        .map(Json)
+    read(&state, move |n| n.locate(&id, &q.at)).await.map(Json)
 }
 async fn resource(
     State(state): State<WorkshopState>,
     path: Result<Path<(String, String)>, PathRejection>,
 ) -> Result<Response, ApiError> {
     let Path((id, href)) = path.map_err(ApiError::from)?;
-    let data = run(&state.notebook, move |n| {
+    let data = read(&state, move |n| {
         let (sha, media_type) = n.snapshot_resource(&id, &href)?;
         Ok(media_type
             .starts_with("image/")
@@ -324,7 +318,7 @@ async fn search(
     query: Result<Query<SearchQuery>, QueryRejection>,
 ) -> Result<Json<Vec<PassageHit>>, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state.notebook, move |n| {
+    read(&state, move |n| {
         n.search_passages(&q.q, q.source.as_deref(), q.limit, q.offset)
     })
     .await
@@ -395,7 +389,7 @@ async fn export(
                 .collect()
         })
         .unwrap_or_default();
-    let output = run(&state.notebook, move |n| n.export(&ids, q.format)).await?;
+    let output = read(&state, move |n| n.export(&ids, q.format)).await?;
     Ok(export_response(q.format, output))
 }
 #[derive(Deserialize)]
