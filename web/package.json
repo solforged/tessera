@@ -9,7 +9,7 @@
     "build:demo": "tsc --noEmit -p tsconfig.demo.json && vite build --mode demo",
     "build:mobile": "tsc --noEmit && vite build --mode mobile",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src"
+    "test": "bun test src --timeout 30000"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

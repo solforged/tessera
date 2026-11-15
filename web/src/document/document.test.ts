@@ -1143,7 +1143,14 @@ describe('real workshop operations and recovery', () => {
       await recovered.flush();
       const canonical = `QA #[[${(await api.pageByTitle(title)).id}|${title}]] `;
       expect(requests[1]).toBe(requests[0]);
-      expect((JSON.parse(requests[2]!) as Batch).operations).toContainEqual(
+      // A receipt still being stored at dispose is replayed after reopening as the
+      // same idempotent request, so the splits follow zero or more such copies.
+      const splits = requests.findIndex(body =>
+        (JSON.parse(body) as Batch).operations.some(operation => operation.op === 'split'),
+      );
+      expect(splits).toBeGreaterThan(1);
+      expect(requests.slice(1, splits).every(body => body === requests[0])).toBe(true);
+      expect((JSON.parse(requests[splits]!) as Batch).operations).toContainEqual(
         expect.objectContaining({ op: 'split', id: first, left: canonical, right: '' }),
       );
       expect((await api.page(id)).rows.map(row => row.block.text)).toEqual([canonical, 'next row', 'third row']);
