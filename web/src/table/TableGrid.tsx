@@ -1,4 +1,4 @@
-import { listOpensBeside } from '../shell/beside';
+import { listOpensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { FieldDefinition, QueryRow, TaskState, TaskStatus } from '../api/types';

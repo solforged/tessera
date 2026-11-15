@@ -1,8 +1,8 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { Show, createEffect, createMemo, createResource, createSignal, on } from 'solid-js';
 import type { Query } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import type { Token } from '../document/text-tokens';
 import { isViewReference, textTokens } from '../document/text-tokens';
 import { ViewBody } from '../table/ViewBody';

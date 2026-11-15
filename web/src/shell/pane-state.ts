@@ -1,6 +1,6 @@
 import { copyTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
-import type { HistoryEntry, OpenTarget, PaneView, ViewState } from './contract';
+import type { HistoryEntry, OpenTarget, PaneView, ViewState } from '../core/contract';
 
 export type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 

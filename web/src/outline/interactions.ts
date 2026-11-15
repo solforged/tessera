@@ -1,4 +1,4 @@
-import type { Caret } from '../document/contract';
+import type { Caret } from '../core/contract';
 import {
   BLOCK_CLIPBOARD_MIME,
   clipboardPasteRows,

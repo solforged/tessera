@@ -1,5 +1,5 @@
 import type { TocEntry } from '../api/types';
-import { contentsTitle, isFrontMatter } from '../reader/openings';
+import { contentsTitle, isFrontMatter } from './openings';
 
 /** A stretch of the text by character offset: `start` up to, not including, `end`. */
 export interface Chapter {

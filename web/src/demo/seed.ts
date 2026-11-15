@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
 import type { Batch, Citation, Operation, Passage, PassagePoint, TaskState } from '../api/types';
-import { besideHint } from '../shell/beside';
+import { besideHint } from '../core/beside';
 
 export function localToday(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

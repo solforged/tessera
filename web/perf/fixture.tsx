@@ -2,7 +2,7 @@ import { createSignal, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 import { createNotebookClient } from '../src/document';
 import type { PageDocument } from '../src/document/contract';
-import type { Command, CommandRegistry, OpenTarget, ViewState } from '../src/shell/contract';
+import type { Command, CommandRegistry, OpenTarget, ViewState } from '../src/core/contract';
 import { OutlinePane } from '../src/outline/OutlinePane';
 import '../src/styles.css';
 import '@fontsource-variable/ibm-plex-sans';

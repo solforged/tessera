@@ -1,7 +1,7 @@
 import { Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { View } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { Icon } from '../ui/Icon';

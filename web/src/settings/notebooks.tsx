@@ -1,9 +1,9 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { ApiError, api } from '../api/client';
 import type { KnownNotebook, KnownNotebooks } from '../api/types';
-import { EMBEDDED } from '../demo/mode';
+import { EMBEDDED } from '../core/mode';
 import type { NotebookClient } from '../document/contract';
-import type { CommandRegistry } from '../shell/contract';
+import type { CommandRegistry } from '../core/contract';
 
 // One service owns one notebook. Switching asks it to restart on another; every window on it then
 // reloads, because its requests name the notebook it opened and the service refuses them.

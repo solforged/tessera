@@ -2,7 +2,7 @@ import { Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Menu } from '../ui/Menu';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import type { NoteIndex } from '../api/types';
 import { noteKindIcon } from '../notes/kinds';
 import { Icon } from '../ui/Icon';

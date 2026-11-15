@@ -1,4 +1,4 @@
-import type { HistoryEntry, PaneHistory, PaneSession, PhoneTab } from './contract';
+import type { HistoryEntry, PaneHistory, PaneSession, PhoneTab } from '../core/contract';
 import { paneTargetIdentity } from '../ui/pane-motion';
 
 export const phoneTabs: readonly PhoneTab[] = ['today', 'agenda', 'review', 'library'];

@@ -4,7 +4,7 @@ import { createMonthPlanningMarks } from '../tasks/create-planning-marks';
 import { createMonthDayCounts } from '../tasks/month-day-counts';
 import { shiftCalendarDate } from '../tasks/week-calendar';
 import { Button } from '../ui/Button';
-import { MonthGrid } from '../ui/MonthGrid';
+import { MonthGrid } from '../tasks/MonthGrid';
 import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';

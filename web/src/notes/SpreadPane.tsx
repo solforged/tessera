@@ -1,10 +1,10 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Operation, SpreadReference, SpreadValue } from '../api/types';
 import type { Edit, NotebookClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';

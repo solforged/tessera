@@ -3,8 +3,8 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount }
 import { api } from '../api/client';
 import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { FieldsViewState, OpenTarget } from '../shell/contract';
-import { besideHint, opensBeside } from '../shell/beside';
+import type { FieldsViewState, OpenTarget } from '../core/contract';
+import { besideHint, opensBeside } from '../core/beside';
 import { typeQuery } from '../table/query';
 import { fieldLabel, fieldNameProblem, formatMenuItems, formatMenuNote, kindLabels, taskFormatReason } from './kinds';
 import { Button } from '../ui/Button';

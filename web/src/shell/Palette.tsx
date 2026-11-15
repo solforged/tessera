@@ -28,8 +28,8 @@ import { Seg } from '../ui/Seg';
 import { isPhone } from '../ui/phone';
 import './find.css';
 import { createVisualViewport } from '../ui/visual-viewport';
-import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
-import { besideKey, opensBeside } from './beside';
+import type { Command, CommandRegistry, OpenTarget, PaneId } from '../core/contract';
+import { besideKey, opensBeside } from '../core/beside';
 import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 import { citationRange, passageSegments } from '../reader/passages';
 import { contentsTitle } from '../reader/openings';
@@ -43,7 +43,8 @@ import { typeSpelling } from '../outline/type-completion';
 import { textTokens } from '../document/text-tokens';
 import { displayTitle } from '../outline/names';
 import { noteKindIcon } from '../notes/kinds';
-import { fieldEntryId, matchFieldEntry, typeQuery } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry, typeQuery } from '../table/query';
 
 type CreateEntry = {
   kind: 'create';

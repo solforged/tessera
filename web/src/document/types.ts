@@ -14,9 +14,10 @@ import type {
 import type { AssessmentState, QuestionState, QuestionStatus, QuoteState } from '../api/types';
 import type { CardTemplateState } from '../api/types';
 import type { ImageRef, Occlusion } from '../api/types';
-import type { CaptureIntent, Caret, DocumentChange, HistoryCaret, RelationPickIntent } from './contract';
+import type { CaptureIntent, DocumentChange, HistoryCaret, RelationPickIntent } from './contract';
+import type { Caret } from '../core/contract';
 import type { OutlineRow } from './outline-index';
-import type { FieldHide } from '../fields/hide';
+import type { FieldHide } from '../core/hide';
 import type { CountsAs } from '../fields/counts';
 import type { FieldRole } from '../fields/roles';
 

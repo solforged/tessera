@@ -450,7 +450,7 @@ fn field_kind_contract_matches_web_order() {
 #[test]
 fn field_hide_contract_matches_web_order() {
     let source = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/fields/hide.ts"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/core/hide.ts"),
     )
     .unwrap();
     let array = source

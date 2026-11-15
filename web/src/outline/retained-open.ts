@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import { motionMilliseconds } from '../shell/motion';
+import { motionMilliseconds } from '../core/motion';
 
 /**
  * Whether a disclosure's content stays mounted: at once when it opens, and until its close transition has run when it

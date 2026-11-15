@@ -1,7 +1,7 @@
 import type { FieldDefinition, FieldKind, Filter, FilterOp, Query, SortKey } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
-import { parseCardText } from '../review/card-text';
+import type { OpenTarget } from '../core/contract';
+import { parseCardText } from '../core/card-text';
 import { targetLabel } from '../outline/names';
 import { fieldLabel } from '../fields/kinds';
 
@@ -321,7 +321,4 @@ export function matchFieldEntry(text: string): { name: string; value: string } |
 }
 export function fieldEntryText(fieldId: string): string {
   return `[[${fieldId}]]`;
-}
-export function fieldEntryId(text: string): string | null {
-  return /^\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/.exec(text)?.[1] ?? null;
 }

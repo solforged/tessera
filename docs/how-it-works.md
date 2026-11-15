@@ -259,7 +259,7 @@ flowchart TD
 | `#Type`, `#[[Type name]]`                                          | Core `storage.rs::tag_tokens`, `derive_memberships`; browser `textTokens`          | `memberships` rows with `manual=0`                                   |
 | Whole `[[field-id]]` entry with children                           | Core `fields.rs::reference`, `derive_owner`                                        | `field_values` identity/order rows                                   |
 | `Name:: value`                                                     | Browser `table/query.ts::matchFieldEntry`, `OutlinePane.tsx::commitFieldEntry`     | Authored reference entry and child value blocks, then `field_values` |
-| `front >> back`, `front << back`, `front <> back`, numbered clozes | Core `card_text.rs::parse_card_text`; browser `review/card-text.ts::parseCardText` | Retained `card_units` definitions                                    |
+| `front >> back`, `front << back`, `front <> back`, numbered clozes | Core `card_text.rs::parse_card_text`; browser `core/card-text.ts::parseCardText` | Retained `card_units` definitions                                    |
 | Searchable text                                                    | SQLite FTS triggers                                                                | `blocks_fts`, with live candidates in `search_blocks`                |
 
 The table's implementations are in `crates/tessera-core/src/storage.rs:143`,
@@ -360,7 +360,7 @@ The parsers implement [card syntax](domain-model.md#cards): `>>`, `<<`, `<>` and
 numbered clozes such as `{{c1::answer::hint}}`. Invalid explicit syntax returns
 problems and no units. Code, references and escapes shield literal syntax. Code:
 `crates/tessera-core/src/card_text.rs:55` (`protected_end`, `cloze`,
-`parse_card_text`), `web/src/review/card-text.ts:149`.
+`parse_card_text`), `web/src/core/card-text.ts:149`.
 
 | Derived rows | Replacement                                                              |
 | ------------ | ------------------------------------------------------------------------ |
@@ -419,7 +419,7 @@ and `kindLabels` is exhaustive. Historical migrations keep their original CHECK
 definitions.
 
 `FieldHide::ALL` defines the ordered hiding contract, pinned against
-`web/src/fields/hide.ts::fieldHides` by a Rust parity test. Unknown stored
+`web/src/core/hide.ts::fieldHides` by a Rust parity test. Unknown stored
 hiding values are corruption.
 
 `fields::reading` interprets authored values using the current kind, retaining
@@ -699,7 +699,7 @@ only after the last item.
 
 Descriptors (`;;`) store the composed `subject › name` front, so review, card
 lists, search and MCP need no outline walk. `card_subject`, mirrored by
-`cardSubject` in `web/src/review/card-text.ts`, implements the
+`cardSubject` in `web/src/core/card-text.ts`, implements the
 [parent-subject rules](domain-model.md#cards). `derive_sources` reads parent
 text beside each source; an empty subject skips the card and deactivates a
 retained unit.
@@ -1374,14 +1374,14 @@ recovery. Pane closure therefore retains recoverable work. Code:
 
 The shell owns location/view state, and the document owns content. Pane IDs are
 `main` and `side`. `OpenTarget` names page/block, table, agenda, review, fields
-or settings destinations. Code: `web/src/shell/contract.ts:10` (`OpenTarget`),
+or settings destinations. Code: `web/src/core/contract.ts:94` (`OpenTarget`),
 `web/src/shell/App.tsx:25`.
 
 Each pane session holds history entries, current index and generation. Entries
 pair targets with view snapshots. Pages retain zoom, caret, top-row scroll
 anchor, folds and archived visibility. Other surfaces retain query, date,
 deck/session or scroll state. Copying prevents fold/caret objects from aliasing
-old entries. Code: `web/src/shell/contract.ts:40`, `web/src/shell/App.tsx:25`
+old entries. Code: `web/src/core/contract.ts:68`, `web/src/shell/App.tsx:25`
 (`copyView`, `snapshotView`).
 
 Opening chooses the active/opposite pane, truncates forward history and appends
@@ -1400,7 +1400,7 @@ Mounted shell/pane code registers commands through `createCommandRegistry`, each
 with a symbol-owned group and cleanup. Commands supply title, section, displayed
 shortcuts, optional disabled reason, execution callback and optional capture
 callback. Owning components handle shortcuts. The registry binds no keys. Code:
-`web/src/shell/commands.ts:5`, `web/src/shell/contract.ts:18`, with shell key
+`web/src/shell/commands.ts:5`, `web/src/core/contract.ts:43`, with shell key
 routing in `web/src/shell/App.tsx:246`.
 
 The palette captures commands on opening so focus cannot retarget
@@ -1429,7 +1429,7 @@ Start with the layer that owns the symptom.
 | A table value/filter/column is wrong                                               | Core field readings and queries         | `crates/tessera-core/src/fields.rs` · `derive_owner`, `reading`; `query.rs` · `query_sources`, `PreparedFilter`, `sort_value`                              |
 | Task completion, recurrence or agenda planning is wrong                            | Core task state and civil dates         | `crates/tessera-core/src/task_store.rs` · `complete_task`; `calendar.rs` · `advance_window`; `task_query.rs` · `agenda`                                    |
 | A task cannot be hidden/completed, or another clock cannot start                   | Core work guards                        | `crates/tessera-core/src/work_store.rs` · `require_free_clock`, `guard_hide_subtree`; `task_store.rs` · `guard_running_work`                               |
-| Card syntax creates no unit or progress seems to change on edit                    | Core card derivation and browser parser | `crates/tessera-core/src/card_text.rs` · `parse_card_text`; `card_store.rs` · `derive_sources`; `web/src/review/card-text.ts` · `parseCardText`            |
+| Card syntax creates no unit or progress seems to change on edit                    | Core card derivation and browser parser | `crates/tessera-core/src/card_text.rs` · `parse_card_text`; `card_store.rs` · `derive_sources`; `web/src/core/card-text.ts` · `parseCardText`            |
 | A shown card cannot be graded or advances before saving                            | Core review checks and review pane      | `crates/tessera-core/src/review_store.rs` · `GradeCard` handling; `web/src/review/ReviewPane.tsx` · `refresh`, `grade`                                     |
 | Pane back/forward, restored folds or command targeting is wrong                    | Shell navigation and palette            | `web/src/shell/App.tsx` · `open`, `changeView`, `travel`, navigation restore; `web/src/shell/Palette.tsx` · command capture                                |
 | Service startup fails with existing ownership                                      | Core ownership and service startup      | `crates/tessera-core/src/ownership.rs` · `NotebookOwnership::acquire`; `crates/tessera-service/src/lib.rs` · `serve`                                       |

@@ -1,4 +1,4 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { CardSummary } from './CardSummary';
 import {
   For,
@@ -20,18 +20,19 @@ import { Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, PositionQuestion } from '../api/types';
 import { api } from '../api/client';
-import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
+import type { Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import { mapTextOffset } from '../document/text-patch';
-import { depthStops } from '../shell/contract';
-import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
-import { fieldEntryId } from '../table/query';
+import { depthStops } from '../core/contract';
+import type { Caret, Depth, ViewState } from '../core/contract';
+import type { OutlinePaneProps } from './contract';
+import { fieldEntryId } from '../core/field-entry';
 import { setLinkedCitation } from '../library/highlights';
 import { createTemplateCache, typeKeys } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { citedSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
 import { isCatalogueField } from '../library/details';
-import { fieldHide } from '../fields/hide';
+import { fieldHide } from '../core/hide';
 import { hasValueEditor } from '../fields/value-options';
 import { PersonWorks } from '../library/PersonWorks';
 import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';

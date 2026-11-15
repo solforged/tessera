@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, Show } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
-import { MonthGrid } from '../ui/MonthGrid';
+import { MonthGrid } from './MonthGrid';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { createMonthPlanningMarks } from './create-planning-marks';

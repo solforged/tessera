@@ -14,8 +14,8 @@ import {
 import type { JSX } from 'solid-js';
 import type { ExtractedMetadata, FieldDefinition, SourceView } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
-import { opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { opensBeside } from '../core/beside';
 import { textTokens } from '../document/text-tokens';
 import { documentReady } from '../outline/source-fields';
 import { displayTitle } from '../outline/names';

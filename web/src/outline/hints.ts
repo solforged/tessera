@@ -2,8 +2,8 @@ import { createEffect, createMemo, createResource, createSignal, on, onCleanup }
 import type { DerivedType, NotebookClient, PageDocument } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { typeKeys } from '../fields/templates';
-import { parseCardText } from '../review/card-text';
-import { fieldEntryId } from '../table/query';
+import { parseCardText } from '../core/card-text';
+import { fieldEntryId } from '../core/field-entry';
 
 type Hint =
   | { kind: 'tag'; blockId: string; type: DerivedType }

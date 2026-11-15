@@ -23,7 +23,6 @@ import type {
   BlockClipboard,
   CaptureIntent,
   CaptureReceipt,
-  Caret,
   DerivedType,
   DocumentChange,
   NotebookClient,
@@ -31,6 +30,7 @@ import type {
   SaveState,
   SourceDetailsEdit,
 } from './contract';
+import type { Caret } from '../core/contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
@@ -40,7 +40,7 @@ import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } 
 import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { SubtreeCache } from './subtrees';
 import { titleKey } from './title-key';
-export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
+export type { NotebookClient, PageDocument, BlockState, Edit, EditResult, SaveState } from './contract';
 
 export interface NotebookOptions {
   baseUrl?: string;

@@ -1,4 +1,4 @@
-import { opensBeside, listOpensBeside } from '../shell/beside';
+import { opensBeside, listOpensBeside } from '../core/beside';
 import {
   batch,
   createEffect,
@@ -28,7 +28,7 @@ import type {
 import { missingFilter } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient } from '../document/contract';
-import type { IndexViewState, OpenTarget } from '../shell/contract';
+import type { IndexViewState, OpenTarget } from '../core/contract';
 import { displayTitle, plainText, readableText } from '../outline/names';
 import { titleKey } from '../document/title-key';
 import { builtInTagReason, PageMergePicker } from '../outline/PageMerge';

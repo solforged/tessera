@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { render } from 'solid-js/web';
-import { createRetained } from '../shell/retained';
+import { createRetained } from '../core/retained';
 import { Button } from './Button';
 import type { IconName } from './Icon';
 import './overlays.css';

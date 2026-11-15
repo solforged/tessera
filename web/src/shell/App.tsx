@@ -38,7 +38,7 @@ import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { pendingCaretInput } from './pending-caret';
 import { Calendar } from './Calendar';
-import { localDate } from '../ui/MonthGrid';
+import { localDate } from '../tasks/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import type {
@@ -53,7 +53,7 @@ import type {
   PhoneTab,
   RevisitsViewState,
   ViewState,
-} from './contract';
+} from '../core/contract';
 import {
   activatePhoneTab,
   adoptPhoneTab,
@@ -68,11 +68,11 @@ import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
 import { Shortcuts } from './Shortcuts';
 import { installDisclosureMotion } from './disclosure';
-import { createRetained } from './retained';
+import { createRetained } from '../core/retained';
 import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
 import { installHomeShortcuts } from './home-shortcuts';
-import { opensBeside } from './beside';
+import { opensBeside } from '../core/beside';
 import { besideSlot, insertPane, journalTurn, MAX_PANES, paneCapacity, revealedStart, windowStart } from './pane-row';
 import { paneModules } from './pane-modules';
 import { copyView, pageIdOf, paneLabel, snapshotView } from './pane-state';
@@ -93,7 +93,7 @@ import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncS
 import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { NotebookSwitcher } from '../settings/NotebookSwitcher';
 import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, shelves, tagOnly } from '../notes/kinds';
-import { DEMO } from '../demo/mode';
+import { DEMO } from '../core/mode';
 import { AgentDock } from '../agent/AgentDock';
 import type { ContextChip } from '../agent/AgentDock';
 import { AgentMarks } from '../agent/marks';

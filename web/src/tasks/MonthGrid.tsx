@@ -1,9 +1,9 @@
 import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js';
-import { planningCountLabel } from '../tasks/planning-marks';
-import type { PlanningMarks } from '../tasks/planning-marks';
-import { Button } from './Button';
-import type { DayCounts } from '../tasks/month-day-counts';
-import { inMonth } from './month-day';
+import { planningCountLabel } from './planning-marks';
+import type { PlanningMarks } from './planning-marks';
+import { Button } from '../ui/Button';
+import type { DayCounts } from './month-day-counts';
+import { inMonth } from '../ui/month-day';
 import './month-grid.css';
 
 /** Calendar dates are local dates, never UTC slices. */

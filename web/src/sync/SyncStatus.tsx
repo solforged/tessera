@@ -2,7 +2,7 @@ import { For, Match, Show, Switch, createEffect, createSignal, on, onCleanup, on
 import { Portal } from 'solid-js/web';
 import type { PairedDevice, SyncState } from '../api/types';
 import { api } from '../api/client';
-import { DEMO, MOBILE } from '../demo/mode';
+import { DEMO, MOBILE } from '../core/mode';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';

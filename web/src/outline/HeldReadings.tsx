@@ -1,10 +1,10 @@
-import { opensBeside, besideHint } from '../shell/beside';
+import { opensBeside, besideHint } from '../core/beside';
 import { For, Show, createMemo, createResource } from 'solid-js';
 import type { PositionRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
+import type { OpenTarget } from '../core/contract';
 import { citedSigla } from '../library/sigla';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import { fieldRole } from '../fields/roles';

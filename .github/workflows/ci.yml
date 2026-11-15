@@ -20,7 +20,8 @@ jobs:
   # building. Android and embedded build the editor and always run. The
   # steps are skipped rather than the jobs, because a skipped matrix job never
   # reports the expanded check names that the green ruleset requires. Rust
-  # tests read web/src/fields, so those files still count as Rust.
+  # tests read web/src/fields/kinds.ts, web/src/core/hide.ts and
+  # web/src/api/wire.ts, so those files still count as Rust.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -39,7 +40,7 @@ jobs:
           rust=true
           if [ -n "$PR" ] && files=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only) && [ -n "$files" ] \
             && ! printf '%s\n' "$files" | grep -qvE '^(web/|docs/)|\.md$' \
-            && ! printf '%s\n' "$files" | grep -q '^web/src/fields/'; then
+            && ! printf '%s\n' "$files" | grep -qE '^web/src/(fields/kinds|core/hide|api/wire)\.ts$'; then
             rust=false
           fi
           echo "rust=$rust" | tee -a "$GITHUB_OUTPUT"

@@ -1,4 +1,4 @@
-import type { PaneId } from './contract';
+import type { PaneId } from '../core/contract';
 
 /**
  * The workspace is a row of panes. Opening beside lands right of the pane it came from, so the page you started from

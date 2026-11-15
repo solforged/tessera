@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { Occlusion } from '../api/types';
-import { cardKindLabel, groupLetter, occlusionCards, occlusionSides, occlusionSubject } from './card-text';
+import { cardKindLabel, groupLetter, occlusionCards, occlusionSides, occlusionSubject } from '../core/card-text';
 import { prepareOcclusionDraft } from './occlusion-draft';
 
 const image = { sha256: 'a'.repeat(64), media_type: 'image/png', width: 800, height: 600 };

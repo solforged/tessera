@@ -1,6 +1,6 @@
 import { createMemo, createResource } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
 
 /** Match the core's first live Project value, then the nearest project ancestor. */
 export function taskProject(

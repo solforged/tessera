@@ -1,7 +1,7 @@
 import { Show, createRenderEffect, createResource, createSignal, splitProps } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import { EMBEDDED } from '../demo/mode';
+import { EMBEDDED } from '../core/mode';
 
 // Snapshot resources are immutable. Keep URLs for the tab's lifetime so virtualized
 // reader rows can remount without downloading the same image again.

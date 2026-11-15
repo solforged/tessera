@@ -1,5 +1,6 @@
 import type { BlockState, PageDocument } from '../document/contract';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../core/field-entry';
+import { matchFieldEntry } from '../table/query';
 
 /** A field entry directly under a position, with its first value. */
 export interface PositionField {

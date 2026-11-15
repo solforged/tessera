@@ -20,7 +20,7 @@ import type { CreateKind } from './request';
 import { draftFieldRows } from './draft';
 import type { DraftFieldsState, DraftValue } from './draft';
 import { draftPattern } from '../fields/card-patterns';
-import { parseCardText } from '../review/card-text';
+import { parseCardText } from '../core/card-text';
 import { trackSlipLoading } from './slip-loading';
 
 type Editing = { anchor: HTMLElement } & (

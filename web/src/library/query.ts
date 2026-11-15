@@ -8,7 +8,7 @@ import type {
   ReadingState,
   SourceFormat,
 } from '../api/types';
-import type { LibraryGroup, LibraryViewState } from '../shell/contract';
+import type { LibraryGroup, LibraryViewState } from '../core/contract';
 import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
 import { referenceValue } from '../outline/names';

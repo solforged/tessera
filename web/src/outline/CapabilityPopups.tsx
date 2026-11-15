@@ -1,4 +1,4 @@
-import { opensBeside } from '../shell/beside';
+import { opensBeside } from '../core/beside';
 import { Show, createEffect, createResource, createSignal } from 'solid-js';
 import type { Block, WorkSession } from '../api/types';
 import { ProjectControls } from '../projects/ProjectControls';

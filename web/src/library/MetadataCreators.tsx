@@ -1,8 +1,8 @@
 import { For, Index, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import type { OpenTarget } from '../shell/contract';
-import { opensBeside } from '../shell/beside';
+import type { OpenTarget } from '../core/contract';
+import { opensBeside } from '../core/beside';
 import { documentReady } from '../outline/source-fields';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';

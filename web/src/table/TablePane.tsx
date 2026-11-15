@@ -1,6 +1,6 @@
-import { opensBeside, listOpensBeside } from '../shell/beside';
+import { opensBeside, listOpensBeside } from '../core/beside';
 import { glide } from '../ui/pane-motion';
-import { scrollBehavior } from '../shell/motion';
+import { scrollBehavior } from '../core/motion';
 import {
   For,
   Index,
@@ -38,7 +38,7 @@ import { titleKey } from '../document/title-key';
 import { BlockText } from '../outline/BlockText';
 import { plainText, targetLabel } from '../outline/names';
 import { EmbedOnPagePicker } from '../outline/ViewPicker';
-import type { OpenTarget, PaneId, TableViewState } from '../shell/contract';
+import type { OpenTarget, PaneId, TableViewState } from '../core/contract';
 import { pendingCaretInput } from '../shell/pending-caret';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -63,11 +63,11 @@ import { kindNoun } from '../create/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
+import { fieldEntryId } from '../core/field-entry';
 import {
   addFilter,
   chooseSort,
   copyQuery,
-  fieldEntryId,
   filterLabel,
   missingQueryFields,
   noteTableQuery,

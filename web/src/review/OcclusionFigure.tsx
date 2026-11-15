@@ -2,8 +2,8 @@ import { For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import { NotebookImage } from '../ui/NotebookImage';
-import { occlusionSides } from './card-text';
-import type { CardMask } from './card-text';
+import { occlusionSides } from '../core/card-text';
+import type { CardMask } from '../core/card-text';
 import './occlusion.css';
 
 export function MaskShape(props: { mask: CardMask; class?: string; style?: JSX.CSSProperties }) {
