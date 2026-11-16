@@ -20,7 +20,7 @@ use crate::notebooks;
 use crate::pairing;
 use crate::replica;
 use crate::security;
-use crate::state::{AppState, hub_objects, run};
+use crate::state::{AppState, hub_objects, read};
 use crate::stream::change_stream;
 use crate::sync;
 use crate::{backups, library};
@@ -159,7 +159,7 @@ pub(crate) async fn same_workshop(
         })
         .map(str::to_owned);
     if let Some(expected) = expected {
-        match run(&state, |workshop| workshop.info()).await {
+        match read(&state, |workshop| workshop.info()).await {
             Ok(info) if info.id != expected => {
                 return ApiError::new(
                     axum::http::StatusCode::CONFLICT,

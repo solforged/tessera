@@ -550,6 +550,7 @@ pub fn subscribe(
                 tessera_api::follow_changes(
                     &changes,
                     workshop,
+                    None,
                     after as i64,
                     100,
                     || subscription_open(id),

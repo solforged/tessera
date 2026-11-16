@@ -15,7 +15,7 @@ use tessera_core::{ChangeEvent, Workshop};
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
-use crate::run::{WorkshopError, read_workshop};
+use crate::run::{Readers, WorkshopError, read_snapshot};
 use crate::state::WorkshopState;
 
 /// Page size for `GET /api/changes` and the service WebSocket. The phone and the
@@ -79,10 +79,13 @@ pub enum FollowError<E> {
 /// closes its subscription is not followed into a reset workshop. `watch`
 /// completes when the host wants to stop for a reason other than the sink, such
 /// as a WebSocket close. A pending watch never completes; aborting the task
-/// stops a phone stream.
+/// stops a phone stream. Catch-up reads use `readers` where the host has them,
+/// so every open stream reading after a commit does not hold up the next one.
+#[allow(clippy::too_many_arguments)]
 pub async fn follow_changes<S, G, W>(
     changes: &broadcast::Sender<i64>,
     workshop: Arc<Mutex<Workshop>>,
+    readers: Option<Readers>,
     mut after: i64,
     page_size: usize,
     mut gate: G,
@@ -96,7 +99,17 @@ where
 {
     let mut wakeups = changes.subscribe();
     let mut watch = std::pin::pin!(watch);
-    if catch_up(&workshop, &mut after, page_size, &mut gate, sink).await? == StreamStop::Stop {
+    if catch_up(
+        &workshop,
+        readers.as_ref(),
+        &mut after,
+        page_size,
+        &mut gate,
+        sink,
+    )
+    .await?
+        == StreamStop::Stop
+    {
         return Ok(());
     }
     loop {
@@ -108,7 +121,15 @@ where
                 // that has not moved cannot name an event this stream has missed.
                 Ok(seq) if seq <= after => continue,
                 Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {
-                    if catch_up(&workshop, &mut after, page_size, &mut gate, sink).await?
+                    if catch_up(
+                        &workshop,
+                        readers.as_ref(),
+                        &mut after,
+                        page_size,
+                        &mut gate,
+                        sink,
+                    )
+                    .await?
                         == StreamStop::Stop
                     {
                         return Ok(());
@@ -122,6 +143,7 @@ where
 
 async fn catch_up<S, G>(
     workshop: &Arc<Mutex<Workshop>>,
+    readers: Option<&Readers>,
     after: &mut i64,
     page_size: usize,
     gate: &mut G,
@@ -136,7 +158,7 @@ where
             return Ok(StreamStop::Stop);
         }
         let cursor = *after;
-        let changes = read_workshop(workshop, move |workshop| {
+        let changes = read_snapshot(workshop, readers, move |workshop| {
             workshop.changes_since(cursor, page_size)
         })
         .await

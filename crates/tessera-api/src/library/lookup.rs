@@ -1,6 +1,6 @@
 use super::invalid;
 use crate::error::ApiError;
-use crate::run::run;
+use crate::run::{read, run};
 use crate::state::WorkshopState;
 use axum::{
     Json,
@@ -450,11 +450,9 @@ pub(super) async fn record_plan(
             download_cover(&state, &url).await?
         });
     }
-    run(&state.workshop, move |n| {
-        n.plan_source_record(&body.metadata)
-    })
-    .await
-    .map(Json)
+    read(&state, move |n| n.plan_source_record(&body.metadata))
+        .await
+        .map(Json)
 }
 pub(super) async fn normalize_metadata(
     Json(mut metadata): Json<ExtractedMetadata>,
