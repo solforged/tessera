@@ -48,7 +48,7 @@ export function JournalTrail(props: {
   const [writtenError, setWrittenError] = createSignal('');
   createEffect(() => {
     const open = ledger();
-    props.workshop.changeSequence();
+    props.workshop.changed('pages');
     if (!open) {
       setWritten(new Set<string>());
       setWrittenError('');

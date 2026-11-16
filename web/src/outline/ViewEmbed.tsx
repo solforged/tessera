@@ -27,7 +27,7 @@ export function ViewEmbed(props: {
   const [relink, setRelink] = createSignal<HTMLElement>();
   const [localQuery, setLocalQuery] = createSignal<Query>();
   const [views] = createResource(
-    () => [props.reference.id, props.workshop.changeSequence()] as const,
+    () => [props.reference.id, props.workshop.changed('views')] as const,
     () => props.workshop.api.views(),
   );
   const view = createMemo(() => views()?.find(view => view.id === props.reference.id));

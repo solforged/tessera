@@ -143,6 +143,7 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
   let written: SourceDetailsEdit | undefined;
   const workshop = {
     changeSequence: () => 0,
+    changed: () => 0,
     flush: async () => {},
     api: {
       fields: async () => ({
@@ -177,6 +178,7 @@ test('the catalog Title reads the tagless title, and a new title keeps the store
   const written: (string | undefined)[] = [];
   const workshop = {
     changeSequence: () => 0,
+    changed: () => 0,
     flush: async () => {},
     lookup: () => () => page('Source'),
     api: { fields: async () => ({ page_id: 'fields', fields: [] }) },
@@ -230,6 +232,7 @@ test('role changes resolve a title-form creator while preserving the same bare p
   const resolved: string[] = [];
   const workshop = {
     changeSequence: () => 0,
+    changed: () => 0,
     flush: async () => {},
     lookup: () => () => person,
     api: {

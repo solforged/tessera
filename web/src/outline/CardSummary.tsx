@@ -53,7 +53,7 @@ export function CardSummary(props: {
   createEffect(() => {
     const id = props.blockId;
     const cardKeys = keys();
-    const sequence = props.workshop.changeSequence();
+    const sequence = props.workshop.changed('cards');
     retry();
     const controller = new AbortController();
     onCleanup(() => controller.abort());
@@ -108,7 +108,7 @@ export function CardSummary(props: {
   });
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
-    const cards = storedSequence() === props.workshop.changeSequence() ? ordered() : [];
+    const cards = storedSequence() === props.workshop.changed('cards') ? ordered() : [];
     const due = cards.filter(card => !card.held && card.schedule.due_at <= now()).length;
     const held = cards.filter(card => card.held).length;
     return { count, due, held, text: `${count} ${count === 1 ? 'card' : 'cards'}` };

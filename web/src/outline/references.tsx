@@ -12,7 +12,7 @@ import { typeHue } from './pill-hue';
 // Rows in one change frame share the registry read, including the editor's widgets.
 const registryReads = new WeakMap<WorkshopClient, { sequence: number; promise: Promise<NoteIndex> }>();
 export function readTagRegistry(workshop: WorkshopClient): Promise<NoteIndex> {
-  const sequence = workshop.changeSequence();
+  const sequence = workshop.changed('pages');
   const cached = registryReads.get(workshop);
   if (cached?.sequence === sequence) return cached.promise;
   const promise = workshop.api.noteIndex();
@@ -34,7 +34,7 @@ export function TypePill(props: {
 }) {
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
   const [registry] = createResource(
-    () => [props.workshop.changeSequence(), props.workshop.connection()] as const,
+    () => [props.workshop.changed('pages'), props.workshop.connection()] as const,
     () => readTagRegistry(props.workshop),
   );
   const target = () => (props.id ? props.workshop.lookup(props.id)() : undefined);

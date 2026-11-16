@@ -105,7 +105,7 @@ const UNDO_TOAST_MS = 8000;
 
 function HolderDeletionImpact(props: { workshop: WorkshopClient; pageId: string | undefined }) {
   const [count] = createResource(
-    () => (props.pageId ? ([props.pageId, props.workshop.changeSequence()] as const) : false),
+    () => (props.pageId ? ([props.pageId, props.workshop.changed('inquiry')] as const) : false),
     async ([holder]) => {
       const result = await props.workshop.api.positions({ holder });
       return result.rows.filter(row => row.block.page.id !== holder).length;
@@ -287,7 +287,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     reopen: boolean;
   } | null>(null);
   const [retainedDeletions] = createResource(
-    () => workshop.changeSequence(),
+    () => workshop.changed('pages'),
     () => workshop.api.deletedPages(),
   );
   const [deletionUndoSequence, setDeletionUndoSequence] = createSignal<number | null>(null);
@@ -1868,7 +1868,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
   const index = noteIndex(workshop);
   const [destinationTypes] = createResource(
-    () => workshop.changeSequence(),
+    () => workshop.changed('types'),
     () => workshop.api.types(),
   );
   const goToCommand = (id: string, title: string, action: (beside: boolean, pane: PaneId) => void): Command => ({
@@ -1957,7 +1957,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
           : undefined;
   };
   const [fieldNames] = createResource(
-    () => (order().some(pane => entry(pane)?.target.kind === 'field') ? workshop.changeSequence() : false),
+    () => (order().some(pane => entry(pane)?.target.kind === 'field') ? workshop.changed('fields') : false),
     async () => {
       try {
         return await workshop.api.fields();

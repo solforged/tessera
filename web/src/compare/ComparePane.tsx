@@ -44,7 +44,8 @@ interface Perspective {
 export function ComparePane(props: ComparePaneProps) {
   const [version, setVersion] = createSignal(0);
   createEffect(() => {
-    props.workshop.changeSequence();
+    props.workshop.changed('inquiry');
+    props.workshop.changed('fields');
     const timer = setTimeout(() => setVersion(value => value + 1), 300);
     onCleanup(() => clearTimeout(timer));
   });

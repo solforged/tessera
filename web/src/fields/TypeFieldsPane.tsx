@@ -30,7 +30,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   let restored = false;
   createEffect(
     on(
-      () => props.workshop.changeSequence(),
+      () => [props.workshop.changed('types'), props.workshop.changed('fields'), props.workshop.changed('pages')],
       () => {
         const timer = setTimeout(() => setVersion(value => value + 1), 150);
         onCleanup(() => clearTimeout(timer));

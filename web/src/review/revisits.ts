@@ -9,7 +9,7 @@ export function createRevisits(workshop: WorkshopClient) {
   const [rows, setRows] = createSignal<RevisitRow[]>([]);
   const [error, setError] = createSignal('');
   createEffect(() => {
-    workshop.changeSequence();
+    workshop.changed('revisits');
     const today = workshop.todayDate();
     const controller = new AbortController();
     void workshop.api.revisits(today, controller.signal).then(

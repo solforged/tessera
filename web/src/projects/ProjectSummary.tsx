@@ -19,7 +19,7 @@ export function createProjectSummary(props: {
   const [tasks, { refetch }] = createResource(
     () =>
       props.doc.root()?.revision !== 0 && props.doc.root()?.project
-        ? ([props.workshop.changeSequence(), props.date()] as const)
+        ? ([props.workshop.changed('tasks'), props.date()] as const)
         : false,
     async ([, date]) => {
       const query = createTaskQuery(date);

@@ -63,7 +63,9 @@ export function DeckEditor(props: DeckEditorProps) {
   });
 
   createEffect(() => {
-    props.workshop.changeSequence();
+    props.workshop.changed('fields');
+    props.workshop.changed('pages');
+    props.workshop.changed('cards');
     retry();
     let cancelled = false;
     setLoading(true);
@@ -94,7 +96,7 @@ export function DeckEditor(props: DeckEditorProps) {
   // The count previews the draft query; it never blocks saving.
   createEffect(() => {
     const draft = copyCardQuery(query());
-    props.workshop.changeSequence();
+    props.workshop.changed('cards');
     let cancelled = false;
     void props.workshop.api
       .cardQuery({ ...draft, limit: 1 })

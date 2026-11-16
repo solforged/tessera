@@ -93,7 +93,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     });
   });
   createEffect(() => {
-    props.workshop.changeSequence();
+    props.workshop.changed('fields');
     retry();
     const controller = new AbortController();
     const timer = setTimeout(() => {

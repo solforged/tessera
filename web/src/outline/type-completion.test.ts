@@ -97,7 +97,7 @@ test('type completion excludes note bodies, matches registered type aliases and 
   ];
   const workshop = {
     roots: () => [type],
-    changeSequence: () => 0,
+    changed: () => 0,
     api: {
       types: async () => [{ page: type }],
       noteIndex: async () => ({ kinds }),
@@ -114,7 +114,7 @@ test('type completion excludes note bodies, matches registered type aliases and 
   });
   const absent = {
     roots: () => [type],
-    changeSequence: () => 0,
+    changed: () => 0,
     api: {
       types: async () => [{ page: type }],
       noteIndex: async () => ({ kinds }),

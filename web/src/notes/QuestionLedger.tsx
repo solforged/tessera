@@ -23,9 +23,10 @@ export function QuestionLedger(props: {
   const [tab, setTab] = createSignal<(typeof tabs)[number]>('Active');
   const [query, setQuery] = createSignal<Query>({ ...typeQuery(null), source: 'questions' });
   const changes = createSettledChanges(props.workshop);
-  const [all] = createResource(changes, () => props.workshop.api.questions({ include_inline: true }));
+  const inquiryChanges = createSettledChanges(props.workshop, ['inquiry']);
+  const [all] = createResource(inquiryChanges, () => props.workshop.api.questions({ include_inline: true }));
   const [questions] = createResource(
-    () => [tab(), changes()] as const,
+    () => [tab(), inquiryChanges()] as const,
     ([state]) =>
       props.workshop.api.questions({
         include_inline: true,

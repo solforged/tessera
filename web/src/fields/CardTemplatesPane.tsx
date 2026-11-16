@@ -37,7 +37,7 @@ export function CardTemplatesPane(props: Props) {
   const index = noteIndex(props.workshop);
   const kind = createMemo(() => index()?.kinds.find(value => value.type_id === props.typeId));
   const [type] = createResource(
-    () => [props.typeId, props.workshop.changeSequence()] as const,
+    () => [props.typeId, props.workshop.changed('types')] as const,
     ([id]) => props.workshop.api.type(id),
   );
   let scroll!: HTMLDivElement;

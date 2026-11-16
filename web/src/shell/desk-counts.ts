@@ -31,8 +31,7 @@ export function deskCounts(workshop: WorkshopClient, date: Accessor<string>): Ac
   const [counts, setCounts] = createSignal<DeskCounts>();
   createEffect(() => {
     const day = date();
-    workshop.changeSequence();
-    workshop.lastChange();
+    for (const topic of ['tasks', 'cards', 'library', 'revisits'] as const) workshop.changed(topic);
     const controller = new AbortController();
     const timer = setTimeout(() => {
       void Promise.all([

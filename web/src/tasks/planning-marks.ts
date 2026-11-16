@@ -11,7 +11,7 @@ export interface PlanningRange {
   through: string;
 }
 type PlanningField = 'scheduled' | 'deadline';
-type PlanningWorkshop = Pick<WorkshopClient, 'changeSequence'> & {
+type PlanningWorkshop = Pick<WorkshopClient, 'changed'> & {
   readonly api: Pick<WorkshopClient['api'], 'taskQuery'>;
 };
 interface CachedMonth {
@@ -126,10 +126,10 @@ export function cachedMonthPlanningMarks(workshop: PlanningWorkshop, date: strin
   return cache.get(workshop)?.get(date.slice(0, 7))?.marks;
 }
 
-/** Share loads by workshop and month, with changeSequence as the cache revision. */
+/** Share loads by workshop and month, with the tasks version as the cache revision. */
 export function loadMonthPlanningMarks(workshop: PlanningWorkshop, date: string): Promise<PlanningMarks> {
   const month = date.slice(0, 7);
-  const sequence = workshop.changeSequence();
+  const sequence = workshop.changed('tasks');
   const months = cache.get(workshop) ?? new Map<string, CachedMonth>();
   cache.set(workshop, months);
   const previous = months.get(month);

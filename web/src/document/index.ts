@@ -12,6 +12,7 @@ import type {
   PageView,
   SettingsView,
   TaskState,
+  Topic,
   WorkSession,
 } from '../api/types';
 import type { ApiClient } from '../api/client';
@@ -41,6 +42,23 @@ import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, s
 import { SubtreeCache } from './subtrees';
 import { titleKey } from './title-key';
 export type { WorkshopClient, PageDocument, BlockState, Edit, EditResult, SaveState } from './contract';
+
+/** Every topic a change can name; a change that names none of its own alters them all. */
+const TOPICS = [
+  'fields',
+  'types',
+  'pages',
+  'inquiry',
+  'tasks',
+  'cards',
+  'library',
+  'revisits',
+  'views',
+  'sync',
+] as const satisfies readonly Topic[];
+// Fails to compile when the service adds a topic this list lacks.
+const everyTopic: Exclude<Topic, (typeof TOPICS)[number]> extends never ? true : never = true;
+void everyTopic;
 
 export interface WorkshopOptions {
   baseUrl?: string;
@@ -93,6 +111,10 @@ export class Workshop implements WorkshopClient, DocumentHost {
   changeSequence = this.observedSequence[0];
   private observedChange = createSignal<ChangeEvent | null>(null);
   lastChange = this.observedChange[0];
+  private topicVersions = new Map(TOPICS.map(topic => [topic, createSignal(0)] as const));
+  /** The newest change sequence counted for each topic, so a receipt and its stream echo count once. */
+  private topicSequence = new Map<Topic, number>();
+  changed = (topic: Topic) => this.topicVersions.get(topic)![0]();
   private derived = createSignal<readonly DerivedType[]>([]);
   derivedTypes = this.derived[0];
   private failure = '';
@@ -2134,8 +2156,17 @@ export class Workshop implements WorkshopClient, DocumentHost {
       decks: (ack.decks ?? []).map(value => value.id),
       task_views: (ack.task_views ?? []).map(value => value.id),
       library_views: (ack.library_views ?? []).map(value => value.id),
+      topics: ack.topics,
     });
+    this.noteTopics(ack.seq, ack.topics);
     this.observedSequence[1](seq => Math.max(seq, ack.seq));
+  }
+  private noteTopics(seq: number, topics: readonly Topic[] | undefined) {
+    for (const topic of topics ?? TOPICS) {
+      if (seq <= (this.topicSequence.get(topic) ?? 0)) continue;
+      this.topicSequence.set(topic, seq);
+      this.topicVersions.get(topic)![1](version => version + 1);
+    }
   }
   private acceptCapabilities(values: readonly BlockCapabilities[], sequence: number) {
     return values.filter(value => {
@@ -2632,6 +2663,11 @@ export class Workshop implements WorkshopClient, DocumentHost {
     this.seq = head;
     this.cursorSeeded = true;
     this.observedSequence[1](head);
+    // Changes were missed, or the journal restarted its sequence, possibly at zero: count every topic again.
+    for (const topic of TOPICS) {
+      this.topicSequence.set(topic, head);
+      this.topicVersions.get(topic)![1](version => version + 1);
+    }
     this.capabilitySequence.clear();
     this.workSequence = 0;
     await this.refreshRoots();
@@ -2705,7 +2741,9 @@ export class Workshop implements WorkshopClient, DocumentHost {
       decks: [...new Set(changed.flatMap(event => event.decks ?? []))],
       task_views: [...new Set(changed.flatMap(event => event.task_views ?? []))],
       library_views: [...new Set(changed.flatMap(event => event.library_views ?? []))],
+      topics: changed.every(event => event.topics) ? [...new Set(changed.flatMap(event => event.topics!))] : undefined,
     });
+    for (const event of changed) this.noteTopics(event.seq, event.topics);
     if (changed.some(event => event.work_sessions?.length)) await this.refreshWork(latest.seq);
     if (events.some(event => (event.settings ?? []).length)) await this.refreshSettings();
     this.seq = Math.max(this.seq, events.at(-1)!.seq);
@@ -2729,6 +2767,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     if (event.settings?.length) await this.refreshSettings();
     this.seq = event.seq;
     this.observedChange[1]({ ...event, views: event.views ?? [] });
+    this.noteTopics(event.seq, event.topics);
     this.observedSequence[1](seq => Math.max(seq, event.seq));
     this.touch();
   }

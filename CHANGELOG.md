@@ -63,6 +63,10 @@ back.
 
 ### Changed
 
+- Made each window fetch the field register, types, note index, desk counts and
+  other workshop-wide lists again only when a change alters them, rather than
+  after every saved keystroke in any window. With four windows editing, those
+  reads queued every save behind them; its p95 fell from 174 ms to 19 ms.
 - Made pane motion one system: every pane turns its leaf on navigation (not only
   the first), an earlier journal day turns back, opening a pane beside, closing,
   folding and revealing panes glide the row and fade the pane that leaves, fast

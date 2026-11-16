@@ -31,7 +31,7 @@ export function createCapabilityPopups(
       const source = active ? await props.workshop.api.block(active.block_id) : null;
       return { sessions, active, source };
     };
-    const [history, { refetch, mutate }] = createResource(() => props.workshop.changeSequence(), load);
+    const [history, { refetch, mutate }] = createResource(() => props.workshop.changed('tasks'), load);
     const [shown, setShown] = createSignal<WorkHistory>();
     createEffect(() => {
       if (!history.error) {

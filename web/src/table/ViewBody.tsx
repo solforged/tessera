@@ -47,7 +47,7 @@ export function ViewBody(props: ViewBodyProps) {
   const history: PageDocument[] = [],
     undone: PageDocument[] = [];
   const [fields] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('fields'),
     () => props.workshop.api.fields(),
   );
   const definitions = createMemo(() => [
@@ -126,7 +126,7 @@ export function ViewBody(props: ViewBodyProps) {
   const positionById = createMemo(() => new Map(positions().map(row => [row.block.block.id, row])));
   const subjects = createMemo(() => [...new Set(positions().map(row => row.subject_id))]);
   const [subjectResults] = createResource(
-    () => (positionLayout() ? `${subjects().join(',')}:${props.workshop.changeSequence()}` : false),
+    () => (positionLayout() ? `${subjects().join(',')}:${props.workshop.changed('inquiry')}` : false),
     () =>
       Promise.all(subjects().map(async subject => [subject, await props.workshop.api.positions({ subject })] as const)),
   );

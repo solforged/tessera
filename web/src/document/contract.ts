@@ -30,6 +30,7 @@ import type {
   SourceRecord,
   SourceState,
   TaskState,
+  Topic,
   WorkSession,
 } from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
@@ -557,10 +558,18 @@ export interface WorkshopClient {
    */
   rejectedText(): string;
   dismissRejected(): void;
-  /** Last committed change sequence this window has observed (own or remote). Reactive. */
+  /**
+   * Last committed change sequence this window has observed (own or remote). Reactive. Advances on every
+   * commit, typing included: key a workshop-wide list on `changed(topic)` instead.
+   */
   changeSequence(): number;
   /** Latest observed change; catch-up events combine affected view IDs. */
   lastChange(): ChangeEvent | null;
+  /**
+   * Advances once for each change that altered the topic's workshop-wide data, and for every topic when a
+   * change does not say what it altered or this window reloads after missing changes. Reactive.
+   */
+  changed(topic: Topic): number;
   /**
    * Type pages this window's own edits derived, newest last: a `#tag` or Add type whose title named no page.
    * Reactive; the outline reads it to offer a template on a tag's first use.

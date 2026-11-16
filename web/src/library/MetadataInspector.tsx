@@ -305,7 +305,7 @@ export function MetadataInspector(props: {
     ),
   );
   const [definitions] = createResource(
-    () => [props.workshop, props.workshop.changeSequence()] as const,
+    () => [props.workshop, props.workshop.changed('fields')] as const,
     ([workshop]) => workshop.api.fields(),
   );
   const evidenceKey = createMemo(

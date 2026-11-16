@@ -25,7 +25,7 @@ export function HeldReadings(props: {
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [fields] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('fields'),
     () => props.workshop.api.fields(),
   );
   const names = createMemo(() => new Map((fields()?.fields ?? []).map(field => [field.id, field.name])));
@@ -155,7 +155,7 @@ export function HeldReadings(props: {
                   </Button>
                   <IncomingRelations
                     target={reading.row.block.block.id}
-                    version={props.workshop.changeSequence()}
+                    version={props.workshop.changed('inquiry')}
                     workshop={props.workshop}
                     onOpen={props.onOpen}
                   />

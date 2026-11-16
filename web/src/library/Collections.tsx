@@ -193,7 +193,7 @@ export function CollectionPicker(props: {
   onDismiss(): void;
 }) {
   const [collections] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('pages'),
     () => collectionPages(props.workshop.api),
   );
   const [query, setQuery] = createSignal('');
@@ -265,7 +265,7 @@ export function CollectionPicker(props: {
 /** Ordinary field values, edited immediately as one undoable action per add or remove. */
 export function SourceCollections(props: { workshop: WorkshopClient; sourceId: string; actions: CollectionActions }) {
   const [data] = createResource(
-    () => [props.sourceId, props.workshop.changeSequence()] as const,
+    () => [props.sourceId, props.workshop.changed('pages'), props.workshop.changed('library')] as const,
     async ([id]) => {
       const [pages, ids] = await Promise.all([
         collectionPages(props.workshop.api),

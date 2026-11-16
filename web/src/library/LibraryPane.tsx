@@ -265,7 +265,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const collectionActions = createCollectionActions();
   const collectionsIndex = createMemo(() => tab() === 'collections' && !view().collection);
   const [collections] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('pages'),
     async () => {
       const result = await collectionPages(props.workshop.api);
       cache.collections = result;
@@ -277,7 +277,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [collectionCards] = createResource(
     () =>
       collectionsIndex() &&
-      collections.latest && { pages: collections.latest, sequence: props.workshop.changeSequence() },
+      collections.latest && { pages: collections.latest, library: props.workshop.changed('library') },
     async ({ pages }) => {
       const result = await Promise.all(
         pages.map(async page => {
@@ -516,7 +516,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           target().tags,
           highlightSource(),
           highlightChapter(),
-          props.workshop.changeSequence(),
+          props.workshop.changed('library'),
           refresh(),
         ])
       : false,
@@ -588,6 +588,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [readingError, setReadingError] = createSignal('');
   createEffect(() => {
     if (!preferencesReady()) return;
+    // Reading progress is written outside commits, so no topic names it; any change refreshes these cards.
     props.workshop.changeSequence();
     refresh();
     const includeInbox = coverLayout();
@@ -1195,8 +1196,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     };
   }
   createEffect(() => {
-    props.workshop.changeSequence();
-    props.workshop.lastChange();
+    props.workshop.changed('library');
     refresh();
     const controller = new AbortController();
     void props.workshop.api
@@ -1220,7 +1220,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     onCleanup(() => controller.abort());
   });
   createEffect(() => {
-    props.workshop.changeSequence();
+    props.workshop.changed('library');
     refresh();
     const controller = new AbortController();
     void Promise.all([
@@ -1249,6 +1249,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const key = targetKey();
     const state = untrack(target);
     const query = untrack(() => queryOf(state));
+    // Rows carry reading progress, which is written outside commits; any change refreshes them.
     props.workshop.changeSequence();
     refresh();
     const controller = new AbortController();
@@ -1296,7 +1297,7 @@ export function LibraryPane(props: LibraryPaneProps) {
 
   createEffect(() => {
     jobsRefresh();
-    props.workshop.changeSequence();
+    props.workshop.changed('library');
     const controller = new AbortController();
     let timer: number | undefined;
     const poll = async () => {

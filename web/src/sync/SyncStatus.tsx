@@ -123,7 +123,7 @@ export function SyncLifecycle(props: {
   });
   createEffect(
     on(
-      () => props.workshop.changeSequence(),
+      () => props.workshop.changed('sync'),
       () => {
         if (!DEMO) void sync.refresh();
       },

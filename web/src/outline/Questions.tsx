@@ -69,7 +69,7 @@ export function QuestionParentPicker(props: {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [questions] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('inquiry'),
     () => props.workshop.api.questions({}),
   );
   const matches = createMemo(() => {

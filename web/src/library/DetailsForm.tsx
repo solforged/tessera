@@ -55,7 +55,7 @@ export function DetailsForm(props: {
   const patchCreator = (index: number, change: Partial<ExtractedCreator>) =>
     setCreators(previous => previous.map((row, at) => (at === index ? { ...row, ...change } : row)));
   const [definitions] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('fields'),
     () => props.workshop.api.fields(),
   );
   const [people] = createResource(

@@ -167,7 +167,7 @@ function Pane(props: OutlinePaneProps) {
   const [positionQuestions] = createResource(
     () =>
       !creatingRoot() && doc.root()?.kind === 'page'
-        ? ([readingSubjects(), props.workshop.changeSequence(), props.workshop.connection() === 'live'] as const)
+        ? ([readingSubjects(), props.workshop.changed('inquiry'), props.workshop.connection() === 'live'] as const)
         : false,
     async ([subjects]) => {
       const results = await Promise.all(subjects.split(',').map(subject => props.workshop.api.positions({ subject })));
@@ -327,7 +327,7 @@ function Pane(props: OutlinePaneProps) {
     anchor: HTMLElement;
   }>();
   const [tagRegistry] = createResource(
-    () => [props.workshop.changeSequence(), props.workshop.connection()] as const,
+    () => [props.workshop.changed('pages'), props.workshop.connection()] as const,
     () => readTagRegistry(props.workshop),
   );
   const titleCollision = createMemo(() => {
@@ -382,7 +382,7 @@ function Pane(props: OutlinePaneProps) {
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
   const live = createMemo(() => props.workshop.connection() === 'live');
   const [fields] = createResource(
-    () => [props.workshop.changeSequence(), live()] as const,
+    () => [props.workshop.changed('fields'), live()] as const,
     () => api.fields(),
   );
   const definitions = createMemo(
@@ -445,7 +445,7 @@ function Pane(props: OutlinePaneProps) {
   const [type] = createResource(
     () =>
       !creatingRoot() && doc.root()?.kind === 'page'
-        ? ([props.pageId, props.workshop.changeSequence(), live()] as const)
+        ? ([props.pageId, props.workshop.changed('types'), live()] as const)
         : false,
     ([pageId]) => api.type(pageId),
   );
@@ -461,7 +461,7 @@ function Pane(props: OutlinePaneProps) {
             ),
           ]
         : [];
-      return names.length ? ([names.join('\u0000'), props.workshop.changeSequence()] as const) : false;
+      return names.length ? ([names.join('\u0000'), props.workshop.changed('pages')] as const) : false;
     },
     async ([names]) =>
       new Map(
@@ -488,7 +488,7 @@ function Pane(props: OutlinePaneProps) {
   const [receiptType] = createResource(
     () => {
       const target = tagTemplate();
-      return target ? ([target.id, props.workshop.changeSequence(), live()] as const) : false;
+      return target ? ([target.id, props.workshop.changed('types'), live()] as const) : false;
     },
     ([id]) => api.type(id),
   );
@@ -995,7 +995,7 @@ function Pane(props: OutlinePaneProps) {
   );
   const [branches] = createResource(
     () =>
-      !creatingRoot() && doc.root()?.question ? ([props.pageId, props.workshop.changeSequence()] as const) : false,
+      !creatingRoot() && doc.root()?.question ? ([props.pageId, props.workshop.changed('inquiry')] as const) : false,
     ([parent]) => props.workshop.api.questions({ parent }),
   );
   // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
@@ -1035,7 +1035,7 @@ function Pane(props: OutlinePaneProps) {
   const [sourceHighlights] = createResource(
     () =>
       !creatingRoot() && doc.root()?.source && !zoom()
-        ? ([props.pageId, props.workshop.changeSequence(), live()] as const)
+        ? ([props.pageId, props.workshop.changed('library'), live()] as const)
         : false,
     ([source_id]) => props.workshop.api.highlights({ source_id, limit: 100000 }),
   );
@@ -1045,7 +1045,7 @@ function Pane(props: OutlinePaneProps) {
   const isNote = () =>
     !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   const [noteKinds] = createResource(
-    () => (!creatingRoot() && isNote() ? ([props.pageId, props.workshop.changeSequence(), live()] as const) : false),
+    () => (!creatingRoot() && isNote() ? ([props.pageId, props.workshop.changed('pages'), live()] as const) : false),
     ([id]) => api.noteKinds(id),
   );
   createEffect(() => {

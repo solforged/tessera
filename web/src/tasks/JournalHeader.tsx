@@ -44,13 +44,14 @@ export function JournalHeader(props: {
   const [reading, setReading] = createSignal<
     { row: LibraryRow; source: SourceView; highlights: { at: number; color: Citation['color'] }[] } | null | undefined
   >(undefined, { equals: sameData });
+  // Reading progress is written outside commits, so no topic names it.
   const readingChanges = createSettledChanges(props.workshop);
   const [readingError, setReadingError] = createSignal('');
   createEffect(() => {
     const date = props.date;
     if (!today()) return;
-    props.workshop.changeSequence();
-    props.workshop.lastChange();
+    props.workshop.changed('tasks');
+    props.workshop.changed('cards');
     const controller = new AbortController();
     setDeskError('');
     void Promise.all([

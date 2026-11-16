@@ -78,7 +78,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [mappings, setMappings] = createSignal<InterpretationMap>({});
   const [impact, setImpact] = createSignal<FieldImpact>();
   const [register] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('fields'),
     () => props.workshop.api.fields(),
   );
   const [lastChange, setLastChange] = createSignal<DocumentChange>();
@@ -107,7 +107,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   );
   createEffect(
     on(
-      () => props.workshop.changeSequence(),
+      () => props.workshop.changed('fields'),
       () => {
         const timer = setTimeout(() => setVersion(value => value + 1), 150);
         onCleanup(() => clearTimeout(timer));

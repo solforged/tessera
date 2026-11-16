@@ -72,7 +72,7 @@ export function TemplateEditor(props: {
   const byId = createMemo(() => new Map(props.fields.map(field => [field.id, field])));
   // The type page has no register of its own; it reads usage once its template is open.
   const [ownSummaries] = createResource(
-    () => !props.register && open() && props.workshop.changeSequence(),
+    () => !props.register && open() && { fields: props.workshop.changed('fields') },
     () => props.workshop.api.fields(),
   );
   const summaries = createMemo(

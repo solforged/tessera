@@ -569,7 +569,7 @@ function ReferenceCard(props: {
     ([id]) => referenceSource(props.workshop, id),
   );
   const [fieldList] = createResource(
-    () => (doc()?.status() === 'ready' ? props.workshop.changeSequence() : false),
+    () => (doc()?.status() === 'ready' ? props.workshop.changed('fields') : false),
     () => props.workshop.api.fields(),
   );
   const gloss = createMemo(() => {

@@ -92,12 +92,14 @@ export const shelves: readonly (readonly [Shelf, string])[] = [
   ['loose', 'Loose'],
 ];
 
-/** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale, except while the workshop is offline, when the last one stays. */
+/** What the note index counts: pages and kinds, types and their templates, tasks and cards. */
+export const noteIndexTopics = ['pages', 'types', 'tasks', 'cards'] as const;
+
+/** The sidebar index, refreshed after changes to what it counts. A failed read hides it rather than going stale, except while the workshop is offline, when the last one stays. */
 export function noteIndex(workshop: WorkshopClient): Accessor<NoteIndex | undefined> {
   const [index, setIndex] = createSignal<NoteIndex>();
   createEffect(() => {
-    workshop.changeSequence();
-    workshop.lastChange();
+    for (const topic of noteIndexTopics) workshop.changed(topic);
     workshop.connection();
     const controller = new AbortController();
     const timer = setTimeout(() => {

@@ -13,7 +13,7 @@ export function createMonthPlanningMarks(workshop: Accessor<WorkshopClient>, ini
   createEffect(() => {
     const currentWorkshop = workshop();
     const currentMonth = month();
-    currentWorkshop.changeSequence();
+    currentWorkshop.changed('tasks');
     let current = true;
     setMarks(cachedMonthPlanningMarks(currentWorkshop, currentMonth) ?? {});
     setLoading(true);
