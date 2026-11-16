@@ -254,8 +254,37 @@ sent. These are stage 8 work after this pass.
 
 Re-anchoring landed in the core instead of the client: a move or insert whose
 `after` sibling is gone is placed under the named parent and the receipt tells
-the sender to reload the page, which also covers agents and replicas. Neither
-spike has been rerun since.
+the sender to reload the page, which also covers agents and replicas.
+
+## Concurrent saves, 2026-11-15
+
+The write queue spike 4 called for turned out to be unnecessary. Timing the
+writer in the same three-minute Chromium run showed a batch waited 8 ms for it
+and held it 11 ms at p95, while the window measured 174 ms. The rest was spent
+waiting in the browser: every committed change, a keystroke included, made
+each window fetch about eight workshop-wide lists again (fields, types, the
+note index, deleted pages, desk counts, sync state and more), 35 reads per
+saved batch, so a save waited for one of the browser's six connections to the
+service.
+
+Each change names the workshop-wide data it altered, and a window fetches
+a list again only when its topic changes ([architecture](architecture.md#service)).
+The change stream's catch-up and the remaining reads moved off the writer too.
+
+| Measure, Chromium, three minutes                   | Budget | Before                | After             |
+| -------------------------------------------------- | ------ | --------------------- | ----------------- |
+| Small batch commit p95                             | 50 ms  | 153, 174, 162, 162 ms | 19, 17, 20, 16 ms |
+| Reads per saved batch                              | none   | 34.9                  | 1.5               |
+| `/api/changes` requests while the stream was open  | 0      | 4 and 5               | 0 in every run    |
+| Acknowledged edits lost                            | 0      | 0                     | 0                 |
+
+Propagation still misses. Probes arrive within budget until a window that
+shares the probed page comes back from its offline cycle; from then on every
+probe reaches it in about 2.1 s, as on main, where the October run saw the
+same 2.3 s mode on a tenth of probes. With this change the run continues past
+the reconnect that main fails, then one probe stalls past the harness's 15 s
+limit, with the stream's catch-up on the writer or a reader alike. Patching
+restructured pages under local edits is the next spike 4 item.
 
 ## Spike 5 result: soak, 2026-10-23
 
