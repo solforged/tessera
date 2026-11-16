@@ -582,12 +582,11 @@ impl Workshop {
         }
         let mut sections = self.conn.prepare_cached(
             "SELECT MIN(p.ordinal), json_extract(e.value, '$.title')
-             FROM snapshots s, json_each(s.toc) e
-             JOIN passages p ON p.snapshot_id = s.id
+             FROM json_each(?2) e
+             JOIN passages p ON p.snapshot_id = ?1
                  AND (p.id = json_extract(e.value, '$.locator')
                      OR p.locator = json_extract(e.value, '$.locator')
                      OR p.anchor = json_extract(e.value, '$.locator'))
-             WHERE s.id = ?1
              GROUP BY e.key
              ORDER BY MIN(p.ordinal), CAST(e.key AS INTEGER)",
         )?;
@@ -677,8 +676,10 @@ impl Workshop {
                     earlier = true;
                 }
                 if snapshot.as_ref() != Some(&citation.snapshot_id) {
+                    let toc =
+                        crate::library_reads::effective_toc(&self.conn, &citation.snapshot_id)?;
                     contents = sections
-                        .query_map([&citation.snapshot_id], |row| {
+                        .query_map(rusqlite::params![&citation.snapshot_id, toc], |row| {
                             Ok((row.get(0)?, row.get(1)?))
                         })?
                         .collect::<rusqlite::Result<_>>()?;

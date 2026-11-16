@@ -2627,7 +2627,7 @@ fn resurfacing_prioritizes_never_shown_then_oldest_and_shuffles_by_date() {
 }
 
 #[test]
-fn sparse_epub_navigation_backfills_without_changing_passage_ids() {
+fn sparse_epub_navigation_rebuilds_on_read_without_changing_passage_ids() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Workshop::open(dir.path()).unwrap();
     let mut doc = document();
@@ -2688,6 +2688,13 @@ fn sparse_epub_navigation_backfills_without_changing_passage_ids() {
             .collect::<Vec<_>>(),
         ids
     );
+    // A query-only reader refuses writes, so the rebuild must not store anything.
+    let read = n
+        .reader()
+        .unwrap()
+        .read(|reader| reader.source(&source))
+        .unwrap();
+    assert_eq!(read.toc.len(), 3);
 }
 
 #[test]
