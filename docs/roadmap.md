@@ -19,9 +19,9 @@ exceeds the cost of a missing feature.
    cursor, add restore from Settings › Backups, and record history for every
    change, not only agents'. The leftovers of stage 8. History, restore, the
    cursor, both harnesses and both spike runs landed on 2026-10-22 and 23; what
-   is left is a full eight-hour soak under the revised heap criteria and two
-   spike 4 findings (a write queue, and patching restructured pages under local
-   edits). Moves and inserts now re-anchor in the core.
+   is left is a full eight-hour soak under the revised heap criteria and
+   patching restructured pages under local edits (spike 4), which holds
+   propagation at about 2.1 s. Moves and inserts now re-anchor in the core.
 3. Close the open stages. Stage 10: filling the Form field from lookup and
    ingestion and exporting it, and State grouping. Stage 7: assessments that
    cite positions and passages. Stage 4: cards from field entries. Each has a
@@ -245,8 +245,9 @@ with their origin. Launch reads changes since a persisted cursor, and
 
 Spike 4 ran and was recorded in
 [performance](performance.md#spike-4-result-runtime-and-concurrency-2026-10-22):
-nothing acknowledged was lost, but four concurrent writers miss the commit and
-propagation budgets and concurrent moves can be refused.
+nothing acknowledged was lost, and since
+[2026-11-15](performance.md#concurrent-saves-2026-11-15) four concurrent writers
+meet the commit budget, but they miss the propagation budget.
 
 Spike 5 ran five of eight hours
 ([performance](performance.md#spike-5-result-soak-2026-10-23)): nothing
