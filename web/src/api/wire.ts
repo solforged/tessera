@@ -365,6 +365,11 @@ export type ChangeEvent = {
   decks?: Array<string>,
   task_views?: Array<string>,
   library_views?: Array<string>,
+  /**
+   * The receipt's `topics`; `None` means any workshop-wide data may have
+   * changed.
+   */
+  topics?: Array<Topic>,
 };
 
 export type Citation = {
@@ -446,6 +451,12 @@ export type Committed = {
   decks?: Array<Revision>,
   task_views?: Array<Revision>,
   library_views?: Array<Revision>,
+  /**
+   * Workshop-wide data the batch changed. `None` where a commit did not
+   * record them: receipts stored before they were, synced changes and
+   * the browser build. A client then assumes any of it may have changed.
+   */
+  topics?: Array<Topic>,
   /**
    * True when this is the stored result of an earlier identical batch.
    */
@@ -2789,6 +2800,22 @@ export type TocEntry = {
    */
   start?: number,
 };
+
+/**
+ * Workshop-wide data that a change can alter. A client keys each list it
+ * fetches on the topics that list reads.
+ */
+export type Topic =
+  | "fields"
+  | "types"
+  | "pages"
+  | "inquiry"
+  | "tasks"
+  | "cards"
+  | "library"
+  | "revisits"
+  | "views"
+  | "sync";
 
 export type TurnEvent = {
   n: number,

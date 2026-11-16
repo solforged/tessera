@@ -179,6 +179,7 @@ impl Workshop {
             decks: Vec::new(),
             task_views: Vec::new(),
             library_views: Vec::new(),
+            topics: None,
             replayed: false,
         };
         tx.execute(
