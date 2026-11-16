@@ -101,14 +101,16 @@ pub(crate) fn passage(conn: &Connection, id: &str) -> Result<Passage> {
         .ok_or_else(|| not_found_as("passage", id))
 }
 
-fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
-    // Old EPUB imports may have saved the NCX's lone "Start" entry. The
-    // embedded HTML contents survived as linked passage text; repair only
-    // derived navigation, keeping snapshot, passage and citation identities.
-    let sparse: bool = conn.query_row(
-        "SELECT format = 'epub' AND json_array_length(toc) < 3 FROM snapshots WHERE id = ?1",
+/// The snapshot's navigation as stored, or rebuilt in memory for an old EPUB
+/// import that saved only the NCX's lone "Start" entry. The embedded HTML
+/// contents survived as linked passage text. Only derived navigation is
+/// rebuilt, so snapshot, passage and citation identities are kept, and a read
+/// writes nothing, as reads on a `query_only` connection must not.
+pub(crate) fn effective_toc(conn: &Connection, snapshot: &str) -> Result<String> {
+    let (stored, sparse): (String, bool) = conn.query_row(
+        "SELECT toc, format = 'epub' AND json_array_length(toc) < 3 FROM snapshots WHERE id = ?1",
         [snapshot],
-        |r| r.get(0),
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
     if sparse {
         let mut candidates = conn.prepare_cached(
@@ -154,14 +156,15 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
                 })
                 .collect();
             if entries.len() >= 3 {
-                conn.execute(
-                    "UPDATE snapshots SET toc = ?2 WHERE id = ?1",
-                    params![snapshot, json(&entries)],
-                )?;
-                break;
+                return Ok(json(&entries));
             }
         }
     }
+    Ok(stored)
+}
+
+fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
+    let entries = effective_toc(conn, snapshot)?;
     // Each entry finds its passage by locator or ID through their indexes, and
     // by element anchor in one pass over the passages that have one. An OR
     // across the three columns scanned every passage once per entry.
@@ -170,8 +173,7 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
              SELECT CAST(e.key AS INTEGER) AS k, json_extract(e.value, '$.title') AS title,
                     json_extract(e.value, '$.locator') AS locator,
                     json_extract(e.value, '$.level') AS level
-             FROM snapshots s, json_each(s.toc) e
-             WHERE s.id = ?1
+             FROM json_each(?2) e
          ), hits AS (
              SELECT e.k, p.ordinal, p.start
              FROM e JOIN passages p ON p.snapshot_id = ?1 AND p.locator = e.locator
@@ -189,7 +191,7 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
          ORDER BY e.k",
     )?;
     Ok(statement
-        .query_map([snapshot], |r| {
+        .query_map(params![snapshot, entries], |r| {
             Ok(TocEntry {
                 title: r.get(0)?,
                 locator: r.get(1)?,

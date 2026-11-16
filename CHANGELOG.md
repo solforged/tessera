@@ -314,6 +314,10 @@ back.
 
 ### Fixed
 
+- Rebuilt the contents of an old EPUB import that saved only the NCX's "Start"
+  entry on every read instead of saving the rebuilt list. Saving it during a
+  read failed on the read-only connections, so a page that cited such a book
+  could fail to open until a write had repaired it.
 - Kept a page created offline in the sidebar after a reload while still
   offline. Every window shares one cached page list, so another window could
   save it without the new page, which stayed missing until the service answered.
