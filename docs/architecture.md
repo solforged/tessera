@@ -145,6 +145,17 @@ replicated `changes.seq`. `GET /api/changes/head` reads it without loading
 payloads. A cold window reads the head before settings, roots or pages, then
 catches up and subscribes from that floor.
 
+Each commit also names the workshop-wide data it changed, as `topics` on its
+receipt and change event (`tessera-core/src/topics.rs`): fields, types, pages,
+inquiry, tasks, cards, library, revisits, views and sync. A session records the
+commit's net row changes, so a derived row rewritten unchanged leaves no trace,
+and a `blocks` row counts only when it is a page, a field definition, or a
+task, position, citation or entry whose text or place changed. Plain typing
+names no topic. A window keys each workshop-wide list on `changed(topic)`, so it
+reads the field register, types, note index and desk counts again only when
+they can differ. A change without topics, such as a synced one or one stored before
+topics existed, counts for all of them.
+
 Page snapshots store their replay floor with the cached page in one IndexedDB
 record. An acknowledgment cannot advance it past unseen changes from other
 writers:

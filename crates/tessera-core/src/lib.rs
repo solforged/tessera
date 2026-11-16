@@ -63,6 +63,7 @@ pub mod sync_devices;
 mod sync_library;
 mod task_query;
 mod task_store;
+mod topics;
 mod unlogged;
 mod work_store;
 
@@ -123,3 +124,4 @@ pub use review_store::{ReviewForecastDay, ReviewStats};
 pub use revisit_store::{NoteState, RevisitAction, RevisitEvent, RevisitRow, RevisitSnapshot};
 pub use spreads::{Spread, SpreadColumn, SpreadField, SpreadReference, SpreadValue};
 pub use streams::{BatchSubtree, BatchSubtrees, StreamArrival};
+pub use topics::Topic;

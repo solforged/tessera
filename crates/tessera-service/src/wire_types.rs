@@ -368,6 +368,7 @@ fn declarations() -> String {
         tessera_core::TaskView,
         tessera_core::TextRewrite,
         tessera_core::library::TocEntry,
+        tessera_core::Topic,
         tessera_core::TypeInfo,
         tessera_core::UnlinkedMentions,
         tessera_core::View,

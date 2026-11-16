@@ -10,7 +10,7 @@ use crate::capabilities::{
 };
 use crate::library::{PassagePoint, SourceState};
 use crate::scheduler::Grade;
-use crate::{AssessmentState, QuestionState, RelationKind};
+use crate::{AssessmentState, QuestionState, RelationKind, Topic};
 
 /// What a block is. Pages and journal days are roots; everything else has a
 /// parent.
@@ -615,6 +615,12 @@ pub struct Committed {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub library_views: Vec<Revision>,
+    /// Workshop-wide data the batch changed. `None` where a commit did not
+    /// record them: receipts stored before they were, synced changes and
+    /// the browser build. A client then assumes any of it may have changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub topics: Option<Vec<Topic>>,
     /// True when this is the stored result of an earlier identical batch.
     pub replayed: bool,
 }
@@ -737,6 +743,11 @@ pub struct ChangeEvent {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub library_views: Vec<String>,
+    /// The receipt's `topics`; `None` means any workshop-wide data may have
+    /// changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub topics: Option<Vec<Topic>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]

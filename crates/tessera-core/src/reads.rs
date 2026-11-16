@@ -679,6 +679,7 @@ impl Workshop {
                     .into_iter()
                     .map(|view| view.id)
                     .collect(),
+                topics: committed.topics,
             });
             let mut revisions = blocks.query([&receipt])?;
             let change = changes.last_mut().expect("change exists");
@@ -740,7 +741,7 @@ pub(crate) fn record_editor_event(
         "INSERT INTO editor_events(seq, change_id, actor, reason, created_at, committed, restructured_pages, views)
          SELECT MAX(?1, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'editor_events'), 0) + 1),
                 change_id, CASE WHEN ?2 THEN '{\"kind\":\"client\",\"name\":\"sync\"}' ELSE actor END,
-                reason, created_at, committed,
+                reason, created_at, CASE WHEN ?2 THEN json_remove(committed, '$.topics') ELSE committed END,
                 CASE WHEN ?2 THEN
                   (SELECT json_group_array(page) FROM (
                     SELECT value AS page FROM json_each(changes.restructured_pages)
