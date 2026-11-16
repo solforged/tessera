@@ -108,7 +108,7 @@ pub(crate) async fn subtrees(
     body: Result<Json<SubtreesRead>, JsonRejection>,
 ) -> Result<Json<tessera_core::BatchSubtrees>, ApiError> {
     let Json(body) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
+    read(&state, move |workshop| {
         workshop.subtrees(&body.ids, body.per_id, body.total)
     })
     .await

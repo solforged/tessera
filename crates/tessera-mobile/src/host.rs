@@ -266,6 +266,7 @@ async fn deliver(host: &'static Host, after: i64, channel: Channel<String>) -> R
     tessera_api::follow_changes(
         &host.handles.changes,
         host.handles.workshop.clone(),
+        None,
         after,
         100,
         || true,

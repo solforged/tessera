@@ -157,7 +157,7 @@ async fn jobs(
     query: Result<Query<crate::limits::Limit>, QueryRejection>,
 ) -> Result<Json<Vec<IngestJob>>, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
-    run(&state.workshop, move |n| n.ingest_jobs(q.limit))
+    read(&state, move |n| n.ingest_jobs(q.limit))
         .await
         .map(Json)
 }
@@ -182,7 +182,7 @@ async fn query(
     body: Result<Json<LibraryQuery>, JsonRejection>,
 ) -> Result<Json<LibraryResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |n| n.library(&q)).await.map(Json)
+    read(&state, move |n| n.library(&q)).await.map(Json)
 }
 async fn views(State(state): State<WorkshopState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
     read(&state, move |n| n.library_views()).await.map(Json)
@@ -192,7 +192,7 @@ async fn collection_values(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::Block>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.workshop, move |n| n.collection_values(&id))
+    read(&state, move |n| n.collection_values(&id))
         .await
         .map(Json)
 }
@@ -330,9 +330,7 @@ async fn highlights(
     body: Result<Json<HighlightQuery>, JsonRejection>,
 ) -> Result<Json<HighlightResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |n| n.highlights(&q))
-        .await
-        .map(Json)
+    read(&state, move |n| n.highlights(&q)).await.map(Json)
 }
 #[derive(Deserialize)]
 struct ResurfaceQuery {
@@ -404,10 +402,7 @@ async fn export_query(
     body: Result<Json<ExportBody>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     let Json(body) = body.map_err(ApiError::from)?;
-    let output = run(&state.workshop, move |n| {
-        n.export_query(&body.query, body.format)
-    })
-    .await?;
+    let output = read(&state, move |n| n.export_query(&body.query, body.format)).await?;
     Ok(export_response(body.format, output))
 }
 fn export_response(format: ExportFormat, output: String) -> Response {

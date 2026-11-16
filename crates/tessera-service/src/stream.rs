@@ -49,6 +49,7 @@ async fn stream_socket(socket: axum::extract::ws::WebSocket, state: AppState, af
     let _ = tessera_api::follow_changes(
         &state.changes,
         state.workshop.clone(),
+        state.readers.clone(),
         after,
         tessera_api::CHANGES_PAGE_SIZE,
         || true,

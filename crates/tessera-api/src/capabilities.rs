@@ -15,7 +15,7 @@ use tessera_core::{QuestionQuery, QuestionRow};
 use tessera_core::{RelationQuery, RelationRow};
 
 use crate::error::ApiError;
-use crate::run::{read, run};
+use crate::run::read;
 use crate::state::WorkshopState;
 
 pub(crate) async fn block(
@@ -33,11 +33,9 @@ pub(crate) async fn task_occurrences(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<TaskOccurrence>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
-        workshop.task_occurrences(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |workshop| workshop.task_occurrences(&id))
+        .await
+        .map(Json)
 }
 
 pub(crate) async fn work_sessions(
@@ -45,7 +43,7 @@ pub(crate) async fn work_sessions(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<WorkSession>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| workshop.work_sessions(&id))
+    read(&state, move |workshop| workshop.work_sessions(&id))
         .await
         .map(Json)
 }
@@ -53,7 +51,7 @@ pub(crate) async fn work_sessions(
 pub(crate) async fn active_work_session(
     State(state): State<WorkshopState>,
 ) -> Result<Json<Option<WorkSession>>, ApiError> {
-    run(&state.workshop, |workshop| workshop.active_work_session())
+    read(&state, |workshop| workshop.active_work_session())
         .await
         .map(Json)
 }
@@ -116,11 +114,9 @@ pub(crate) async fn revisit_events(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::RevisitEvent>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
-        workshop.revisit_events(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |workshop| workshop.revisit_events(&id))
+        .await
+        .map(Json)
 }
 
 pub(crate) async fn task_query(
@@ -128,7 +124,7 @@ pub(crate) async fn task_query(
     body: Result<Json<TaskQuery>, JsonRejection>,
 ) -> Result<Json<TaskQueryResult>, ApiError> {
     let Json(query) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| workshop.task_query(&query))
+    read(&state, move |workshop| workshop.task_query(&query))
         .await
         .map(Json)
 }
@@ -196,7 +192,7 @@ pub(crate) async fn card_query(
     body: Result<Json<CardQuery>, JsonRejection>,
 ) -> Result<Json<CardQueryResult>, ApiError> {
     let Json(query) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
+    read(&state, move |workshop| {
         workshop.card_query(&query, now_ms())
     })
     .await
@@ -261,9 +257,7 @@ pub(crate) async fn review_session(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<ReviewSession>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
-        workshop.review_session(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |workshop| workshop.review_session(&id))
+        .await
+        .map(Json)
 }

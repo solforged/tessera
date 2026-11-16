@@ -43,11 +43,9 @@ pub(crate) async fn review_session_events(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::ReviewEvent>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
-        workshop.review_session_events(&id)
-    })
-    .await
-    .map(Json)
+    read(&state, move |workshop| workshop.review_session_events(&id))
+        .await
+        .map(Json)
 }
 #[derive(Deserialize)]
 pub(crate) struct TextQuery {
@@ -184,7 +182,7 @@ pub(crate) async fn card_template_forecast(
 ) -> Result<Json<tessera_core::CardTemplateForecast>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| {
+    read(&state, move |workshop| {
         workshop.card_template_forecast(&id, query.days.unwrap_or(14), tessera_core::now_ms())
     })
     .await
@@ -211,7 +209,7 @@ pub(crate) async fn spread(
     body: Result<Json<Vec<String>>, JsonRejection>,
 ) -> Result<Json<tessera_core::Spread>, ApiError> {
     let Json(ids) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| workshop.spread(&ids))
+    read(&state, move |workshop| workshop.spread(&ids))
         .await
         .map(Json)
 }
@@ -229,7 +227,7 @@ pub(crate) async fn query(
     body: Result<Json<tessera_core::Query>, JsonRejection>,
 ) -> Result<Json<QueryResult>, ApiError> {
     let Json(query) = body.map_err(ApiError::from)?;
-    run(&state.workshop, move |workshop| workshop.query(&query))
+    read(&state, move |workshop| workshop.query(&query))
         .await
         .map(Json)
 }
