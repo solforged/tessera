@@ -46,7 +46,7 @@ export function DeskPane(props: TablePaneProps) {
   const [history, setHistory] = createSignal<{ before?: View; after: View; undone: boolean }>();
   let region!: HTMLDivElement;
   const [fields] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('fields'),
     () => api.fields(),
   );
   const [saved, { mutate: setSaved }] = createResource(

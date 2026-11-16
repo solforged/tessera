@@ -56,7 +56,7 @@ export function SourceHeader(props: {
   onFieldsVisible(visible: boolean): void;
 }) {
   const [source] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('library'),
     () => props.workshop.api.source(props.doc.pageId),
   );
   const [menu, setMenu] = createSignal<{

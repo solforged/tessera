@@ -53,6 +53,7 @@ test('a cell commit keeps edits and resolves names added while the first lookup 
   const lookedUp: string[] = [];
   const workshop = {
     changeSequence: () => 0,
+    changed: () => 0,
     api: {
       resolveName: async (name: string) => {
         lookedUp.push(name);
@@ -72,6 +73,7 @@ test('a cell commit preserves deletion of a reference while its name is resolvin
   let draft = '[[Anacyclosis]]';
   const workshop = {
     changeSequence: () => 0,
+    changed: () => 0,
     api: {
       resolveName: async () => {
         draft = 'replacement';

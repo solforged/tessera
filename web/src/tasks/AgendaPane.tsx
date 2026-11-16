@@ -326,7 +326,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const currentMode = mode();
     const currentDate = date();
     const value = copyTaskQuery(query());
-    props.workshop.changeSequence();
+    props.workshop.changed('tasks');
     refresh();
     let current = true;
     setError('');
@@ -391,7 +391,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const through =
       lookaheadThrough && (!stripThrough || lookaheadThrough > stripThrough) ? lookaheadThrough : stripThrough;
     const appointments = mode() === 'week' && narrowWeek();
-    props.workshop.changeSequence();
+    props.workshop.changed('tasks');
     refresh();
     const controller = new AbortController();
     setWeekError('');
@@ -450,7 +450,8 @@ export function AgendaPane(props: AgendaPaneProps) {
     onCleanup(() => controller.abort());
   });
   createEffect(() => {
-    props.workshop.changeSequence();
+    props.workshop.changed('fields');
+    props.workshop.changed('tasks');
     refresh();
     let current = true;
     setMetadataLoading(true);
@@ -474,8 +475,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     });
   });
   createEffect(() => {
-    props.workshop.changeSequence();
-    props.workshop.lastChange();
+    props.workshop.changed('tasks');
     refresh();
     let current = true;
     setViewsLoading(true);
@@ -500,8 +500,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   });
   createEffect(() => {
     const id = viewId();
-    props.workshop.changeSequence();
-    props.workshop.lastChange();
+    props.workshop.changed('tasks');
     refresh();
     let current = true;
     setSavedError('');

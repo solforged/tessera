@@ -414,7 +414,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           deckId(),
           sessionId(),
           selection(),
-          props.workshop.changeSequence(),
+          props.workshop.changed('cards'),
           props.workshop.todayDate(),
           commandState(),
           retry(),
@@ -2441,7 +2441,7 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolea
   const [retry, setRetry] = createSignal(0);
   createEffect(() => {
     if (!open()) return;
-    props.workshop.changeSequence();
+    props.workshop.changed('cards');
     retry();
     let cancelled = false;
     setLoading(true);

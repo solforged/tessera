@@ -34,6 +34,7 @@ export function ReadingCard(props: {
   const [error, setError] = createSignal('');
   createEffect(() => {
     const id = props.row.page.id;
+    // Reading progress is written outside commits, so no topic names it.
     props.workshop.changeSequence();
     const controller = new AbortController();
     void Promise.all([

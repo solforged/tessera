@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { NoteState, RevisitAction } from '../api/types';
 import type { DocumentChange, WorkshopClient } from '../document/contract';
 import { DatePicker } from '../tasks/DatePicker';
@@ -19,9 +19,17 @@ export function NoteRevisit(props: { id: string; workshop: WorkshopClient }) {
   const [error, setError] = createSignal('');
   const [history, setHistory] = createSignal<DocumentChange>();
   const [undone, setUndone] = createSignal(false);
+  // "Changed after resolution" follows the note's own text, so while a resolved note reads unchanged, a change to
+  // this page counts too. Otherwise typing on the page would refetch on every save.
+  const pageChanges = createMemo((count: number) => {
+    const pages = props.workshop.lastChange()?.pages;
+    if (!note().resolved_at || changed()) return count;
+    return !pages || pages.includes(props.id) ? count + 1 : count;
+  }, 0);
   createEffect(() => {
     const id = props.id;
-    props.workshop.changeSequence();
+    props.workshop.changed('revisits');
+    pageChanges();
     props.workshop.connection();
     // A newly created page is editable before the service has acknowledged its root.
     if (props.workshop.lookup(id)()?.revision === 0) return;

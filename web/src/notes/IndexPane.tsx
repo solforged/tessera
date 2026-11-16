@@ -63,6 +63,7 @@ import {
   kindPlural,
   kindTally,
   noteKindIcon,
+  noteIndexTopics,
   startableKinds,
   tagOnly,
 } from './kinds';
@@ -148,7 +149,7 @@ export function IndexPane(props: IndexPaneProps) {
 
 /** A single register lists note kinds and tag-only types in the sidebar's order. */
 export function IndexDirectory(props: IndexPaneProps) {
-  const changes = createSettledChanges(props.workshop);
+  const changes = createSettledChanges(props.workshop, noteIndexTopics);
   const cached = directoryReads.get(props.workshop);
   const [index] = createResource(
     changes,
@@ -288,6 +289,10 @@ const joinEtAl = (name: string) => name.replace(/\bet al\./g, 'et\u00A0al.');
 /** Finding aids share one batched read; Unfiled is a queue, Sources a bibliography. */
 function KindIndexPane(props: IndexPaneProps) {
   const changes = createSettledChanges(props.workshop);
+  // Finding-aid rows quote each note's own prose, so ordinary text changes them.
+  const typeChanges = createSettledChanges(props.workshop, ['types']);
+  const libraryChanges = createSettledChanges(props.workshop, ['library']);
+  const fieldChanges = createSettledChanges(props.workshop, ['fields']);
   // Filing and merging refresh at once rather than after the settle delay.
   const [version, setVersion] = createSignal(0);
   const [letter, setLetter] = createSignal('');
@@ -324,20 +329,20 @@ function KindIndexPane(props: IndexPaneProps) {
   );
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(
-    () => (typeId() ? ([typeId()!, changes(), version()] as const) : false),
+    () => (typeId() ? ([typeId()!, typeChanges(), version()] as const) : false),
     ([id]) => props.workshop.api.type(id),
   );
   const isCollection = createMemo(() => titleKey(props.kind?.name ?? type()?.page.text ?? '') === 'collection');
   // The bibliography uses the same current-snapshot predicate as Library source menus.
   const [readableSources] = createResource(
-    () => (props.kindKey === 'source' ? ([changes(), version()] as const) : false),
+    () => (props.kindKey === 'source' ? ([libraryChanges(), version()] as const) : false),
     async () => {
       const result = await props.workshop.api.library({ limit: null });
       return new Set(result.rows.filter(row => row.source.current_snapshot_id).map(row => row.page.id));
     },
   );
   const [collectionCounts] = createResource(
-    () => (isCollection() && index.latest ? ([index.latest.notes, changes(), version()] as const) : false),
+    () => (isCollection() && index.latest ? ([index.latest.notes, libraryChanges(), version()] as const) : false),
     async ([notes]) =>
       new Map(
         await Promise.all(
@@ -377,7 +382,7 @@ function KindIndexPane(props: IndexPaneProps) {
     report(value);
   };
   const [definitions] = createResource(
-    () => (noteMode() ? [changes()] : false),
+    () => (noteMode() ? [fieldChanges()] : false),
     () => props.workshop.api.fields(),
   );
   // Notes lacking a required field: the type counts tagged blocks too, which this index does not list.

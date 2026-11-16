@@ -29,7 +29,7 @@ function AgentText(props: {
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [resolved] = createResource(
-    () => [props.text, props.workshop.changeSequence()] as const,
+    () => [props.text, props.workshop.changed('pages')] as const,
     async ([text]) => {
       const names = [
         ...new Set(

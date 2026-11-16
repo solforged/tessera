@@ -155,11 +155,11 @@ describe('page names', () => {
     expect(foldName('Lab #[[project]]')).toBe('lab');
   });
 
-  test('shares folded resolutions until the workshop change sequence advances', async () => {
+  test('shares folded resolutions until page titles, aliases or kinds change', async () => {
     let sequence = 0;
     const requests: string[] = [];
     const workshop = {
-      changeSequence: () => sequence,
+      changed: () => sequence,
       api: {
         resolveName: async (name: string) => {
           requests.push(name);
@@ -178,7 +178,7 @@ describe('page names', () => {
   test('failed lookups can be retried within the same sequence', async () => {
     let calls = 0;
     const workshop = {
-      changeSequence: () => 0,
+      changed: () => 0,
       api: {
         resolveName: async () => {
           if (++calls === 1) throw new Error('Offline');
@@ -196,7 +196,7 @@ describe('page names', () => {
       source = page('source', 'ʿAbd al-Raḥmān');
     const alias = { page: person, alias: 'ʿAbd al-Raḥmān' };
     const workshop = {
-      changeSequence: () => 0,
+      changed: () => 0,
       roots: () => [person, source],
       api: {
         resolveName: async () => [alias, { page: source, alias: null }],

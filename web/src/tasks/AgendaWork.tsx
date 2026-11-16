@@ -30,7 +30,7 @@ export function AgendaWork(props: {
     ]);
     return { sessions, active };
   };
-  const [history, { refetch }] = createResource(() => props.workshop.changeSequence(), load);
+  const [history, { refetch }] = createResource(() => props.workshop.changed('tasks'), load);
   const [shown, setShown] = createSignal<WorkHistory>();
   createEffect(() => {
     if (!history.error) {

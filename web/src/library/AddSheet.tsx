@@ -78,7 +78,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
     } else props.onDraft(query().trim() ? { query: query(), editing: null } : null);
   });
   const [sources] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('library'),
     async () => {
       try {
         return { rows: (await props.workshop.api.library({ limit: Number.MAX_SAFE_INTEGER })).rows, error: false };

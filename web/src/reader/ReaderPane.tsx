@@ -623,7 +623,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   createEffect(() => {
     const sourceId = props.target.sourceId;
-    props.workshop.changeSequence();
+    props.workshop.changed('library');
     const controller = new AbortController();
     setHighlightsLoading(true);
     setHighlightsError('');
@@ -1481,7 +1481,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   createEffect(
     on(
-      () => props.workshop.changeSequence(),
+      () => props.workshop.changed('library'),
       () => {
         for (const from of pages.keys())
           void loadPage(from, true).catch(reason => {

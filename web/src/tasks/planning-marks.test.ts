@@ -70,7 +70,7 @@ function workshopFixture(initialRows: TaskRow[] = [], query?: (value: TaskQuery)
         return query ? query(value) : Promise.resolve(queryRows(rows, value));
       },
     },
-    changeSequence() {
+    changed() {
       return sequence;
     },
   };

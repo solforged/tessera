@@ -70,9 +70,9 @@ interface Resolutions {
 }
 const resolutions = new WeakMap<WorkshopClient, Resolutions>();
 
-/** Share one request per folded name until an acknowledged local or remote change. */
+/** Share one request per folded name until a change to page titles, aliases or kinds. */
 export function resolveName(workshop: WorkshopClient, name: string): Promise<NameMatch[]> {
-  const sequence = workshop.changeSequence();
+  const sequence = workshop.changed('pages');
   let cache = resolutions.get(workshop);
   if (!cache || cache.sequence !== sequence) {
     cache = { sequence, names: new Map() };

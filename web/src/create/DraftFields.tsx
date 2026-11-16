@@ -42,7 +42,7 @@ export function DraftFields(props: {
   const [editing, setEditing] = createSignal<Editing>();
   const [error, setError] = createSignal('');
   const [register] = createResource(
-    () => (props.kind.startsWith('type:') && props.fieldIds.length ? props.workshop.changeSequence() : false),
+    () => (props.kind.startsWith('type:') && props.fieldIds.length ? props.workshop.changed('fields') : false),
     () => props.workshop.api.fields(),
   );
   const [page] = createResource(
@@ -388,7 +388,7 @@ function HolderPicker(props: {
 }) {
   const [query, setQuery] = createSignal('');
   const [choices] = createResource(
-    () => [query(), props.workshop.changeSequence()] as const,
+    () => [query(), props.workshop.changed('types'), props.workshop.changed('pages')] as const,
     ([text]) => holderChoices(props.workshop, text),
   );
   return (

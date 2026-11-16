@@ -100,7 +100,7 @@ function TokenText(props: Props) {
     ),
   ]);
   const [matches] = createResource(
-    () => (names().length ? ([names().join('\u0000'), props.workshop.changeSequence()] as const) : false),
+    () => (names().length ? ([names().join('\u0000'), props.workshop.changed('pages')] as const) : false),
     async ([value]) =>
       new Map(
         await Promise.all(
@@ -109,7 +109,7 @@ function TokenText(props: Props) {
       ),
   );
   const [views] = createResource(
-    () => (textTokens(props.text).some(isViewReference) ? props.workshop.changeSequence() : false),
+    () => (textTokens(props.text).some(isViewReference) ? props.workshop.changed('views') : false),
     () => props.workshop.api.views(),
   );
   // Card syntax reads the same everywhere text is shown; mapped literals keep caret positions exact around it.

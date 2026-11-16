@@ -62,6 +62,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
   const [refresh, setRefresh] = createSignal(0);
   const [pending, setPending] = createSignal(false);
   const [failed, setFailed] = createSignal<{ row: Surfacing; action: SurfacingAction }>();
+  // Surfacings are written outside commits, so no topic names them.
   const changes = createSettledChanges(props.workshop);
   let generation = 0;
   let loadedDate: string | undefined;

@@ -22,7 +22,7 @@ export function ViewPicker(props: {
 }) {
   const [query, setQuery] = createSignal('');
   const [views] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('views'),
     () => props.workshop.api.views(),
   );
   const choices = createMemo(() =>

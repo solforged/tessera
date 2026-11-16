@@ -142,7 +142,8 @@ export function PageMergePicker(props: {
   const [target, setTarget] = createSignal<Block>();
   const [pages] = createResource(
     () => {
-      props.workshop.changeSequence();
+      props.workshop.changed('pages');
+      props.workshop.changed('library');
       return props.workshop
         .roots()
         .filter(

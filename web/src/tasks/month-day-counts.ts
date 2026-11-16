@@ -45,7 +45,7 @@ async function loadMonthDayCounts(
   signal: AbortSignal,
 ): Promise<DayCounts> {
   const range = monthGridRange(month);
-  const sequence = workshop.changeSequence();
+  const sequence = workshop.changed('tasks');
   const months = cache.get(workshop) ?? new Map();
   cache.set(workshop, months);
   const kept = months.get(range.from);
@@ -70,7 +70,7 @@ export function createMonthDayCounts(workshop: Accessor<WorkshopClient>, initial
     const current = workshop(),
       visible = month(),
       now = today();
-    current.changeSequence();
+    current.changed('tasks');
     const controller = new AbortController();
     setLoading(true);
     setError('');

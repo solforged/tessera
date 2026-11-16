@@ -21,7 +21,7 @@ export function LinksToPopup(props: {
 }) {
   const [draft, setDraft] = createSignal([...props.targets]);
   const [types] = createResource(
-    () => props.workshop.changeSequence(),
+    () => props.workshop.changed('types'),
     () => props.workshop.api.types(),
   );
   const choices = createMemo(() => {

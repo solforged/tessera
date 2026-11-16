@@ -27,7 +27,7 @@ export function createFieldMenu(
   const { doc, props, fields, definitionsById, setMenu, setMessage, apply } = context;
   const [definitionDocument, setDefinitionDocument] = createSignal<PageDocument>();
   const [types] = createResource(
-    () => [props.workshop.changeSequence(), props.workshop.connection() === 'live'] as const,
+    () => [props.workshop.changed('types'), props.workshop.connection() === 'live'] as const,
     () => props.workshop.api.types(),
   );
   createEffect(() => {

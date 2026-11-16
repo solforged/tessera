@@ -29,7 +29,7 @@ export function taskProject(
 
 export function createTaskProjects(doc: PageDocument, workshop: WorkshopClient) {
   const [metadata] = createResource(
-    () => [workshop.changeSequence(), workshop.connection() === 'live'] as const,
+    () => [workshop.changed('fields'), workshop.changed('tasks'), workshop.connection() === 'live'] as const,
     async () => {
       const [fields, projects] = await Promise.all([workshop.api.fields(), workshop.api.projects()]);
       return { fields: fields.fields, projects };
