@@ -1,7 +1,6 @@
 [workspace]
 resolver = "3"
 members = ["crates/tessera-core", "crates/tessera-ingest", "crates/tessera-api", "crates/tessera-service", "crates/tessera-web", "crates/tessera-cli", "crates/tessera-desktop", "crates/tessera-mobile", "crates/tessera-bench"]
-exclude = ["vendor/sqlite-wasm-vfs"]
 
 [workspace.package]
 version = "0.5.1"
@@ -24,7 +23,7 @@ clap = { version = "4", features = ["derive", "env"] }
 dirs = "7"
 futures-util = { version = "0.3", features = ["sink"] }
 imagesize = "0.14"
-rusqlite = { version = "0.40", features = ["bundled", "backup"] }
+rusqlite = { version = "0.41", features = ["bundled", "backup"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
 serde = { version = "1", features = ["derive"] }
@@ -44,9 +43,3 @@ webpki-roots = "1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
-
-# sqlite-wasm-vfs 0.2 never rolls back a hot journal; vendor/sqlite-wasm-vfs carries the
-# one-line fix. Drop it for sqlite-wasm-vfs 0.3 once a rusqlite release accepts
-# sqlite-wasm-rs 0.6.
-[patch.crates-io]
-sqlite-wasm-vfs = { path = "vendor/sqlite-wasm-vfs" }

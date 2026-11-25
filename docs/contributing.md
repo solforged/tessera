@@ -195,9 +195,7 @@ ts-demo-test
 This runs the engine's wasm tests in headless Chrome for Testing, since they
 need the browser's private storage in a real worker. It uses Playwright's Chrome
 for Testing build unless `CHROME_PATH` names another Chrome. devenv supplies a
-matching `chromedriver`. The storage layer is a patched copy of `sqlite-wasm-vfs`
-in [`vendor/sqlite-wasm-vfs`](../vendor/sqlite-wasm-vfs). The root `Cargo.toml`
-says when it can go.
+matching `chromedriver`.
 
 ## Building the app
 

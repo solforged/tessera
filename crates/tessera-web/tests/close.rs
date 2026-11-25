@@ -2,6 +2,7 @@
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use serde_json::{Value, json};
+use sqlite_wasm_rs::vfs::VfsFilesManager;
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
 use tessera_web::{close, handle, open};
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
@@ -33,8 +34,8 @@ async fn close_releases_handles_and_reopen_keeps_the_last_write() {
         .await
         .unwrap();
     assert!(!second.is_paused());
-    assert!(second.exists("/demo/notebook.db").unwrap());
-    second.pause_vfs().unwrap();
+    assert!(second.contains("/demo/notebook.db").unwrap());
+    second.pause().unwrap();
 
     let reopened: Value = serde_json::from_str(&open().await.unwrap()).unwrap();
     assert_eq!(reopened["id"], info["id"]);

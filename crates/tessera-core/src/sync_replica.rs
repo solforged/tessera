@@ -228,7 +228,7 @@ impl Workshop {
                 Err(error) => return Err(error.into()),
             }
         };
-        self.conn.backup("main", &previous, None)?;
+        self.conn.backup("main", &previous, None::<fn(_)>)?;
         super::prune_recovery_copies(&self.dir, suffix, &previous)?;
         cloned.execute(
             "ATTACH DATABASE ?1 AS previous",

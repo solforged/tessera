@@ -2,7 +2,7 @@
 # Bump the workspace version and prepend a changelog draft
 # Usage: ts-release-prepare <version>, such as 0.4.0
 #
-# Edits Cargo.toml, Cargo.lock and CHANGELOG.md. It does not commit or tag.
+# Edits Cargo.toml, Cargo.lock, web/package.json and CHANGELOG.md. It does not commit or tag.
 # Edit the draft, delete its marker, then run ts-release-cut.
 set -euo pipefail
 
@@ -42,6 +42,13 @@ awk -v version="$version" '
 ' Cargo.toml >"$tmp"
 mv "$tmp" Cargo.toml
 cargo update -w --offline
+
+tmp=$(mktemp)
+awk -v version="$version" '
+  !done && /"version": "/ { sub(/"version": "[^"]*"/, "\"version\": \"" version "\""); done = 1 }
+  { print }
+' web/package.json >"$tmp"
+mv "$tmp" web/package.json
 
 draft=$(mktemp)
 scripts/release/notes "$version" >"$draft"
