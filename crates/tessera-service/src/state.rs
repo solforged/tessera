@@ -33,6 +33,7 @@ pub(crate) struct AppState {
     pub(crate) sync_health: Arc<Mutex<std::collections::HashMap<String, sync::DeviceHealth>>>,
     pub(crate) switcher: Option<Arc<notebooks::Switcher>>,
     pub(crate) agent: Arc<agent::Runtime>,
+    pub(crate) shutdown: tokio::sync::watch::Receiver<bool>,
 }
 
 pub(crate) fn hub_objects() -> tessera_api::ObjectReader {

@@ -437,6 +437,7 @@ mod tests {
                 sync_health: Arc::default(),
                 switcher: None,
                 agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+                shutdown: tokio::sync::watch::channel(false).1,
             });
         let guard = backup.clone().try_lock_owned().unwrap();
         let response = app
@@ -514,6 +515,7 @@ mod tests {
             sync_health: Arc::default(),
             switcher: None,
             agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+            shutdown: tokio::sync::watch::channel(false).1,
         });
         let listed = json(&app, "GET").await;
         assert_eq!(
@@ -551,6 +553,7 @@ mod tests {
             sync_health: Arc::default(),
             switcher: None,
             agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+            shutdown: tokio::sync::watch::channel(false).1,
         });
         for created_at in 1..=4 {
             let path = backup_directory(&info.path.parent().unwrap().join("backups"), &info)

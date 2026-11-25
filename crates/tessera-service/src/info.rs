@@ -119,6 +119,7 @@ mod tests {
                 sync_health: Arc::default(),
                 switcher: None,
                 agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+                shutdown: tokio::sync::watch::channel(false).1,
             });
         async fn size(app: &Router) -> u64 {
             let response = app

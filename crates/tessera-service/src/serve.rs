@@ -79,6 +79,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     let switcher = config
         .registry
         .map(|registry| notebooks::Switcher::new(registry, config.follows_registry, switch));
+    let (stop, stopped) = tokio::sync::watch::channel(false);
     let (app, sync_app, state) = routers(
         workshop,
         port,
@@ -88,13 +89,13 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
         switcher,
         agent_path,
         config.backup_store,
+        stopped.clone(),
     )
     .map_err(anyhow::Error::msg)?;
     let daily_backup = daily_backup::start(&state);
     tracing::info!(url = %format_args!("http://127.0.0.1:{port}"), "service listening");
     tracing::info!(url = %format_args!("http://127.0.0.1:{sync_port}"), "sync listening");
     tracing::info!(path = %path.display(), "workshop opened");
-    let (stop, stopped) = tokio::sync::watch::channel(false);
     let mut editor_stopped = stopped.clone();
     let mut sync_stopped = stopped;
     let servers = async {

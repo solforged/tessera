@@ -68,6 +68,7 @@ fn embedded_router_inner(
         sync_health: Arc::default(),
         switcher: None,
         agent: Arc::new(agent::Runtime::new(agent_path)?),
+        shutdown: tokio::sync::watch::channel(false).1,
     };
     let handles = EmbeddedHandles {
         workshop: state.workshop.clone(),
