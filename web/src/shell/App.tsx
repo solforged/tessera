@@ -223,20 +223,17 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       return cachedIdentity;
     }
   });
-  const [views, { refetch: refetchViews }] = createResource(
-    () => workshop.connection() === 'live',
+  const [views] = createResource(
+    () => (workshop.connection() === 'live' ? workshop.changed('views') : false),
     async () => {
       try {
-        return await api.views();
+        return await workshop.api.views();
       } catch (reason) {
         reportError(reason);
         return [];
       }
     },
   );
-  createEffect(() => {
-    if ((workshop.lastChange()?.views ?? []).length) void refetchViews();
-  });
   const [sessions, setSessions] = createSignal<Record<PaneId, PaneSession>>({ main: emptySession() });
   /** The panes left to right; the first is 'main' until it closes. */
   const [order, setOrder] = createSignal<PaneId[]>(['main']);

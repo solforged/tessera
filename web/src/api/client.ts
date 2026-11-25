@@ -680,7 +680,9 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
       get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
     resourceUrl,
     resource: (snapshotId: string, href: string, signal?: AbortSignal) =>
-      send<Blob>(resourceUrl(snapshotId, href), { method: 'GET', signal }, response => response.blob()),
+      send<Blob>(resourceUrl(snapshotId, href), { method: 'GET', signal, headers: workshopHeaders(base) }, response =>
+        response.blob(),
+      ),
     readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) =>
       send<ReadingProgress>(`${base}/api/snapshots/${segment(snapshotId)}/position`, {
         method: 'POST',
@@ -700,7 +702,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     exportSources: (format: ExportFormat, ids: readonly string[], signal?: AbortSignal) =>
       send<Blob>(
         `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
-        { method: 'GET', signal },
+        { method: 'GET', signal, headers: workshopHeaders(base) },
         response => response.blob(),
       ),
     exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) =>
@@ -709,7 +711,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
         {
           method: 'POST',
           signal,
-          headers: { 'Content-Type': 'application/json' },
+          headers: workshopHeaders(base, { 'Content-Type': 'application/json' }),
           body: JSON.stringify({ format, query }),
         },
         response => response.blob(),

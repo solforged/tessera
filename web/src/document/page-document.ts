@@ -178,7 +178,19 @@ export class Document implements PageDocument {
   private conflicts = new Set<string>();
   private lastTextEditAt = 0;
   private closed = false;
-  private syncGeneration = 0;
+  private inFlightReload?: Promise<void>;
+  private reloadQueued: { conflicts: boolean } | null = null;
+  private reloadLog: {
+    acknowledged: {
+      command: Command;
+      revisions: Map<string, number>;
+      rewrites: readonly TextRewrite[];
+      receipt?: Committed;
+    }[];
+    blocks: Block[];
+    capabilities: (readonly BlockCapabilities[])[];
+    missing: boolean;
+  } | null = null;
   holds = 0;
   status = this.loadStatus[0];
   statusMessage = this.loadMessage[0];
@@ -272,26 +284,122 @@ export class Document implements PageDocument {
   release() {
     this.host.release(this);
   }
-  async reload(conflicts = true) {
+  reload(conflicts = true) {
+    if (this.inFlightReload) {
+      this.reloadQueued = { conflicts: (this.reloadQueued?.conflicts ?? false) || conflicts };
+      return this.inFlightReload;
+    }
+    const work = this.runReload(conflicts).finally(() => {
+      if (this.inFlightReload === work) this.inFlightReload = undefined;
+    });
+    this.inFlightReload = work;
+    return work;
+  }
+  private async runReload(initialConflicts: boolean) {
+    let conflicts = initialConflicts;
+    let structuralRetries = 0;
     try {
       while (!this.closed) {
-        const generation = this.syncGeneration;
-        const view = await this.host.loadPage(this.pageId);
-        if (this.closed) return;
-        if (generation !== this.syncGeneration) continue;
+        this.reloadQueued = null;
+        const log: NonNullable<Document['reloadLog']> = {
+          acknowledged: [],
+          blocks: [],
+          capabilities: [],
+          missing: false,
+        };
+        this.reloadLog = log;
+        let view: PageView;
+        try {
+          view = await this.host.loadPage(this.pageId);
+        } finally {
+          if (this.reloadLog === log) this.reloadLog = null;
+        }
+        if (this.closed || log.missing) return;
+        if (this.reconcileReloadLog(view, log) === 'retry' && structuralRetries < 2) {
+          structuralRetries++;
+          continue;
+        }
         this.merge(view, conflicts);
-        return;
+        for (const values of log.capabilities) this.receiveCapabilities(values);
+        const next = this.reloadQueued as { conflicts: boolean } | null;
+        if (!next) return;
+        conflicts = next.conflicts;
+        structuralRetries = 0;
       }
     } catch (error) {
       if (!this.closed && (this.status() !== 'ready' || (error instanceof ApiError && error.status === 404)))
         this.fail(error);
     }
   }
+  private reconcileReloadLog(view: PageView, log: NonNullable<Document['reloadLog']>): 'ok' | 'retry' {
+    const byId = new Map<string, Block>([
+      [view.root.id, view.root],
+      ...view.rows.map(row => [row.block.id, row.block] as const),
+    ]);
+    for (const entry of log.acknowledged) {
+      const deleted = new Set([...(entry.command.deleted ?? []), ...(entry.receipt?.removed ?? [])]);
+      let covered = true;
+      for (const id of deleted) if (byId.has(id)) covered = false;
+      if (covered)
+        for (const [id, revision] of entry.revisions) {
+          if (deleted.has(id)) continue;
+          const incoming = byId.get(id);
+          if (incoming && incoming.revision < revision) {
+            covered = false;
+            break;
+          }
+          if (
+            !incoming &&
+            entry.command.actions.some(
+              action => (action.kind === 'insert' || action.kind === 'split') && action.block.id === id,
+            )
+          ) {
+            covered = false;
+            break;
+          }
+        }
+      if (covered) continue;
+      if (
+        entry.command.actions.some(action =>
+          ['insert', 'split', 'merge', 'move', 'delete', 'restore', 'addType', 'removeType'].includes(action.kind),
+        )
+      )
+        return 'retry';
+      for (const action of entry.command.actions) {
+        const incoming = 'id' in action ? byId.get(action.id) : undefined;
+        if (!incoming) continue;
+        const acknowledgedRevision = entry.revisions.get(incoming.id);
+        if (acknowledgedRevision !== undefined && incoming.revision >= acknowledgedRevision) continue;
+        if (action.kind === 'text') incoming.text = action.text;
+        else if (action.kind === 'heading') incoming.heading = action.heading;
+        else if (action.kind === 'archive') incoming.archived = action.archived;
+        else if (action.kind === 'settleSyncCopy') incoming.kept_copy = action.settled ? null : action.copy;
+      }
+      for (const rewrite of entry.rewrites) {
+        const incoming = byId.get(rewrite.id);
+        if (incoming && incoming.revision <= rewrite.revision) {
+          incoming.text = rewrite.after;
+          incoming.revision = rewrite.revision;
+        }
+      }
+      for (const [id, revision] of entry.revisions) {
+        const incoming = byId.get(id);
+        if (incoming && incoming.revision < revision) incoming.revision = revision;
+      }
+      if (entry.receipt?.capabilities?.length) log.capabilities.push(entry.receipt.capabilities);
+    }
+    for (const block of log.blocks) {
+      const incoming = byId.get(block.id);
+      if (!incoming) return 'retry';
+      if (incoming.revision < block.revision) Object.assign(incoming, block);
+    }
+    return 'ok';
+  }
   close() {
     this.closed = true;
   }
   markMissing(message = 'This atom has been deleted.') {
-    this.syncGeneration++;
+    if (this.reloadLog) this.reloadLog.missing = true;
     batch(() => {
       const ids = [...this.cells.keys()];
       this.cells.clear();
@@ -534,11 +642,11 @@ export class Document implements PageDocument {
       }
   }
   receiveCapabilities(values: readonly BlockCapabilities[]) {
+    if (this.reloadLog && values.length) this.reloadLog.capabilities.push(values);
     const received = new Set<string>();
     for (const value of values) {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
-      this.syncGeneration++;
       this.cells.get(value.block_id)?.set({
         task: value.task,
         project: value.project,
@@ -1107,7 +1215,6 @@ export class Document implements PageDocument {
   }
   merge(view: PageView, detectConflicts = true) {
     if (this.closed) return;
-    this.syncGeneration++;
     this.host.cachePage(view);
     const conflicts = new Map<string, BlockState['conflict']>();
     const pendingText = this.pendingText();
@@ -1234,10 +1341,10 @@ export class Document implements PageDocument {
     return this.conflicts.size > 0;
   }
   receive(block: Block) {
+    if (this.reloadLog) this.reloadLog.blocks.push({ ...block });
     const previous = this.baseBlocks.get(block.id);
     const cell = this.cells.get(block.id);
     if (!previous && !cell) {
-      this.syncGeneration++;
       return;
     }
     if (previous && block.revision <= previous.revision) {
@@ -1245,7 +1352,6 @@ export class Document implements PageDocument {
       return;
     }
     this.baseBlocks.set(block.id, { ...block });
-    this.syncGeneration++;
     if (!cell) return;
     const commands = this.host.commands(this.pageId);
     const pending = commands.some(command =>
@@ -1395,6 +1501,13 @@ export class Document implements PageDocument {
     rewrites: readonly TextRewrite[],
     receipt?: Committed,
   ) {
+    if (this.reloadLog)
+      this.reloadLog.acknowledged.push({
+        command,
+        revisions: new Map(revisions),
+        rewrites: [...rewrites],
+        receipt,
+      });
     const previousRevisions = new Map([...revisions.keys()].map(id => [id, this.baseBlocks.get(id)?.revision ?? 0]));
     const sentRevisions = new Map<string, number>();
     const sent: Batch | undefined = command.frozen ? JSON.parse(command.frozen) : undefined;
@@ -1407,7 +1520,6 @@ export class Document implements PageDocument {
       )
         sentRevisions.set(operation.id, operation.base_revision);
     batch(() => {
-      this.syncGeneration++;
       for (const action of command.actions) {
         const id = action.kind === 'insert' ? action.block.id : action.id;
         const acknowledgedRevision = revisions.get(id);

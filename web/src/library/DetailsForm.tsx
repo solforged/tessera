@@ -59,7 +59,11 @@ export function DetailsForm(props: {
     () => props.workshop.api.fields(),
   );
   const [people] = createResource(
-    () => ({ definitions: definitions(), sequence: props.workshop.changeSequence() }),
+    () => ({
+      definitions: definitions(),
+      pages: props.workshop.changed('pages'),
+      types: props.workshop.changed('types'),
+    }),
     async ({ definitions }) => {
       const index = await props.workshop.api.noteIndex();
       const defaults = index.kinds

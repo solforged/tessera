@@ -292,8 +292,8 @@ function TableContent(props: TablePaneProps) {
   let savedController: AbortController | undefined;
   onCleanup(() => savedController?.abort());
   createEffect(() => {
-    const change = props.workshop.lastChange();
-    if (change?.views?.length) setSavedRevision(change.seq);
+    const version = props.workshop.changed('views');
+    if (version) setSavedRevision(version);
   });
   const [saved, { refetch: refetchSaved, mutate: setSaved }] = createResource(
     () => ({ id: deleting() || deleted()?.id === viewId() ? undefined : viewId(), revision: savedRevision() }),
@@ -793,11 +793,7 @@ function TableContent(props: TablePaneProps) {
     clearTimeout(deletedTimer);
   });
   const submit = async (operation: Operation) => {
-    await api.submit({
-      actor: { kind: 'client', name: 'tessera-web-table' },
-      idempotency_key: ulid(),
-      operations: [operation],
-    });
+    await props.workshop.commit([operation]);
   };
   const withDocument = async (pageId: string, action: (doc: PageDocument) => void | Promise<void>) => {
     let doc = documents.get(pageId);

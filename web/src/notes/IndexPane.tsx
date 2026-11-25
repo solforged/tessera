@@ -538,11 +538,9 @@ function KindIndexPane(props: IndexPaneProps) {
     setError('');
     try {
       const id = ulid();
-      await props.workshop.api.submit({
-        idempotency_key: ulid(),
-        actor: { kind: 'client', name: 'tessera-web-index' },
-        operations: [{ op: 'save_view', id, base_revision: null, name: viewName().trim(), query: copyQuery(query()) }],
-      });
+      await props.workshop.commit([
+        { op: 'save_view', id, base_revision: null, name: viewName().trim(), query: copyQuery(query()) },
+      ]);
       setSaveAnchor(undefined);
       props.onOpen({ kind: 'index', key: props.kindKey, viewId: id, query: copyQuery(query()) }, false);
     } catch (reason) {
