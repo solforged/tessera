@@ -56,9 +56,11 @@ impl RequestPolicy {
             };
             origin == self.origins[index] || self.dev_origin.as_deref() == Some(origin)
         } else {
-            // CLI requests omit Origin; cross-site browser resource loads must not
-            // gain that privilege just because their method omits the header.
-            single_header(headers, "sec-fetch-site") != Some("cross-site")
+            // CLI requests omit Origin; cross-site or cross-port browser resource
+            // loads must not gain that privilege unless dev_origin is configured.
+            let site = single_header(headers, "sec-fetch-site");
+            matches!(site, None | Some("same-origin" | "none"))
+                || (self.dev_origin.is_some() && site == Some("same-site"))
         }
     }
 }
@@ -104,11 +106,11 @@ pub(crate) async fn protect(
         .into_response()
     };
     let headers = response.headers_mut();
-    // Only successful static asset responses opt into immutable caching.
-    if !headers
-        .get(header::CACHE_CONTROL)
-        .is_some_and(|value| value == "public, max-age=31536000, immutable")
-    {
+    // Static assets and content-addressed workshop images opt into immutable caching.
+    if !headers.get(header::CACHE_CONTROL).is_some_and(|value| {
+        value == "public, max-age=31536000, immutable"
+            || value == "private, max-age=31536000, immutable"
+    }) {
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     }
     headers.insert(

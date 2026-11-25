@@ -456,6 +456,7 @@ mod tests {
             sync_health: Arc::default(),
             switcher: None,
             agent: Arc::new(crate::agent::Runtime::new(Some(dir.join("agent.json"))).unwrap()),
+            shutdown: tokio::sync::watch::channel(false).1,
         };
         let app = crate::sync::routes()
             .layer(middleware::from_fn_with_state(

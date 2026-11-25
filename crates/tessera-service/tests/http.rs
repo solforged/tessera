@@ -82,6 +82,8 @@ async fn rejects_foreign_origins_and_hosts() {
         &[("host", "evil.example:4318")],
         // A cross-site resource load without an Origin header.
         &[("host", "127.0.0.1:4318"), ("sec-fetch-site", "cross-site")],
+        // Another loopback port making a no-cors GET when dev_origin is not configured.
+        &[("host", "127.0.0.1:4318"), ("sec-fetch-site", "same-site")],
         // The Vite origin is only allowed when configured.
         &[
             ("host", "127.0.0.1:4318"),
@@ -107,6 +109,36 @@ async fn configured_dev_origin_is_allowed() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+    let (status, _) = send(
+        app(dir.path(), None, Some("http://127.0.0.1:5173")),
+        "/api/notebook",
+        &[("host", "127.0.0.1:4318"), ("sec-fetch-site", "same-site")],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn uploaded_images_keep_private_immutable_cache_headers() {
+    let dir = tempfile::tempdir().unwrap();
+    let workshop = Workshop::open(dir.path().join("nb")).unwrap();
+    let bytes = b"GIF89a\x01\0\x01\0\x80\0\0\0\0\0\xff\xff\xff!\xf9\x04\x01\0\0\0\0,\0\0\0\0\x01\0\x01\0\0\x02\x02D\x01\0;";
+    let image = workshop.put_image(bytes).unwrap();
+    let app = tessera_service::router(workshop, PORT, None, None, None).unwrap();
+    let response = app
+        .oneshot(
+            Request::get(format!("/api/images/{}", image.sha256))
+                .header("host", "127.0.0.1:4318")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers()["cache-control"],
+        "private, max-age=31536000, immutable"
+    );
 }
 
 #[tokio::test]

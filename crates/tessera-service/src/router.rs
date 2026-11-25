@@ -45,6 +45,7 @@ pub fn router(
         None,
         None,
         backup_store,
+        tokio::sync::watch::channel(false).1,
     )?
     .0)
 }
@@ -59,6 +60,7 @@ pub(crate) fn routers(
     switcher: Option<Arc<notebooks::Switcher>>,
     agent_path: Option<PathBuf>,
     backup_store: Option<PathBuf>,
+    shutdown: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(Router, Router, AppState), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
     let readers = tessera_api::Readers::open(&workshop).map_err(|error| error.to_string())?;
@@ -83,6 +85,7 @@ pub(crate) fn routers(
         sync_health: Arc::default(),
         switcher,
         agent: Arc::new(agent::Runtime::new(agent_path)?),
+        shutdown,
     };
     replica::start(
         state.workshop.clone(),
@@ -230,6 +233,7 @@ mod tests {
             None,
             Some(dir.path().join("agent.json")),
             None,
+            tokio::sync::watch::channel(false).1,
         )
         .unwrap();
         // Hold the writer as a long save or sync apply would.
