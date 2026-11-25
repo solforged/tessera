@@ -70,6 +70,8 @@ import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from
 import type { FindingAidSnapshot } from './finding-aid';
 import { lazy as solidLazy } from 'solid-js';
 import { kindNoun } from '../create/kinds';
+import { createTopicQuery } from '../ui/loading';
+import { SavedViewNamePopup } from '../workflows/saved-views';
 import '../ui/chips.css';
 import './notes.css';
 import '../fields/fields.css';
@@ -369,7 +371,6 @@ function KindIndexPane(props: IndexPaneProps) {
   const [saveAnchor, setSaveAnchor] = createSignal<HTMLElement>();
   const [optionsAnchor, setOptionsAnchor] = createSignal<HTMLElement>();
   const [selecting, setSelecting] = createSignal(false);
-  const [viewName, setViewName] = createSignal('');
   const [picked, setPicked] = createSignal<string[]>([]);
   let pickAnchor: string | undefined;
   const noteMode = () => props.kindKey !== 'unfiled';
@@ -446,20 +447,23 @@ function KindIndexPane(props: IndexPaneProps) {
       (await props.workshop.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields,
   );
   const savedViewId = createMemo(() => props.view.viewId);
-  const [saved, { mutate: setSaved }] = createResource(
-    () => (savedViewId() ? ([savedViewId()!, changes()] as const) : false),
-    ([id]) => props.workshop.api.view(id),
-  );
   let observedSaved: View | undefined;
-  createEffect(() => {
-    const next = saved();
-    if (!next) return;
-    untrack(() => {
-      const previous = observedSaved?.query ?? props.view.noteQuery;
-      if ((!previous || queriesEqual(query(), previous)) && !queriesEqual(query(), next.query)) updateQuery(next.query);
-      observedSaved = next;
-    });
+  const savedQuery = createTopicQuery<string, View>({
+    workshop: props.workshop,
+    topics: ['views'],
+    key: () => savedViewId() ?? false,
+    fetcher: (id, signal) => props.workshop.api.view(id, signal),
+    onSuccess: next => {
+      untrack(() => {
+        const previous = observedSaved?.query ?? props.view.noteQuery;
+        if ((!previous || queriesEqual(query(), previous)) && !queriesEqual(query(), next.query))
+          updateQuery(next.query);
+        observedSaved = next;
+      });
+    },
   });
+  const saved = savedQuery.data;
+  const setSaved = savedQuery.mutate;
   const removeMissingField = async (id: string) => {
     if (busy()) return;
     setBusy(true);
@@ -529,19 +533,20 @@ function KindIndexPane(props: IndexPaneProps) {
       { kind: 'table', typeId: query().type, viewId: props.view.viewId ?? null, query: noteTableQuery(query()) },
       opensBeside(event),
     );
-  const saveView = async () => {
-    if (!viewName().trim() || busy()) return;
+  const saveView = async (name: string) => {
+    if (!name.trim() || busy()) return;
     setBusy(true);
     setError('');
     try {
       const id = ulid();
       await props.workshop.commit([
-        { op: 'save_view', id, base_revision: null, name: viewName().trim(), query: copyQuery(query()) },
+        { op: 'save_view', id, base_revision: null, name: name.trim(), query: copyQuery(query()) },
       ]);
       setSaveAnchor(undefined);
       props.onOpen({ kind: 'index', key: props.kindKey, viewId: id, query: copyQuery(query()) }, false);
     } catch (reason) {
       setError(String(reason));
+      throw reason;
     } finally {
       setBusy(false);
     }
@@ -795,40 +800,14 @@ function KindIndexPane(props: IndexPaneProps) {
       </Show>
       <Show when={saveAnchor()}>
         {anchor => (
-          <Popup
+          <SavedViewNamePopup
             anchor={anchor()}
             placement={cover() ? 'sheet' : 'anchor'}
             label="Save as view…"
-            dirty={() => viewName().trim() !== ''}
+            busy={busy()}
             onDismiss={() => setSaveAnchor(undefined)}
-          >
-            <form
-              onSubmit={event => {
-                event.preventDefault();
-                void saveView();
-              }}
-            >
-              <input
-                class="input"
-                aria-label="View name"
-                placeholder="View name"
-                value={viewName()}
-                onInput={event => setViewName(event.currentTarget.value)}
-                maxlength={120}
-              />
-              <Show when={error()}>
-                <p class="error" role="alert">
-                  {error()}
-                </p>
-              </Show>
-              <div class="popup-actions">
-                <Button onClick={() => setSaveAnchor(undefined)}>Cancel</Button>
-                <Button type="submit" class="bordered" disabled={busy() || !viewName().trim()}>
-                  Save
-                </Button>
-              </div>
-            </form>
-          </Popup>
+            onSave={saveView}
+          />
         )}
       </Show>
     </>
@@ -938,13 +917,7 @@ function KindIndexPane(props: IndexPaneProps) {
             <Button class="bordered index-desktop-control" onClick={event => setFilterMenu(event.currentTarget)}>
               Filters
             </Button>
-            <Button
-              class="bordered index-desktop-control"
-              onClick={event => {
-                setViewName('');
-                setSaveAnchor(event.currentTarget);
-              }}
-            >
+            <Button class="bordered index-desktop-control" onClick={event => setSaveAnchor(event.currentTarget)}>
               Save as view…
             </Button>
             <Button
@@ -1544,14 +1517,7 @@ function KindIndexPane(props: IndexPaneProps) {
             <Button aria-haspopup="dialog" onClick={event => setFilterMenu(event.currentTarget)}>
               Filters <span class="faint">{query().filters.length || ''}</span>
             </Button>
-            <Button
-              onClick={event => {
-                setViewName('');
-                setSaveAnchor(event.currentTarget);
-              }}
-            >
-              Save as view…
-            </Button>
+            <Button onClick={event => setSaveAnchor(event.currentTarget)}>Save as view…</Button>
             <Button
               onClick={() => {
                 setSelecting(true);

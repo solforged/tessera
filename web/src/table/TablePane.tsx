@@ -97,6 +97,7 @@ import { TableGrid } from './TableGrid';
 import { columnEdge } from './edge';
 import { ViewBody } from './ViewBody';
 import { DeskPane } from '../desk/DeskPane';
+import { createSavedViewController, DeleteSavedViewPopup, SavedViewNamePopup } from '../workflows/saved-views';
 import '../ui/chips.css';
 import './table.css';
 import '../fields/fields.css';
@@ -199,9 +200,7 @@ function TableContent(props: TablePaneProps) {
   const [renaming, setRenaming] = createSignal<{ row: QueryRow; text: string } | null>(null);
   const [rowNotice, setRowNotice] = createSignal<{ id: string; title: string }>();
   const [rowUndo, setRowUndo] = createSignal(false);
-  const [deleted, setDeleted] = createSignal<View | null>(null);
-  const [deleting, setDeleting] = createSignal(false);
-  const [savedRevision, setSavedRevision] = createSignal(0);
+  const [deletingRow, setDeletingRow] = createSignal(false);
   const [savingView, setSavingView] = createSignal(false);
   const [viewUndo, setViewUndo] = createSignal(false);
   const [replaying, setReplaying] = createSignal(false);
@@ -291,39 +290,31 @@ function TableContent(props: TablePaneProps) {
   let columnFrame = 0;
   onCleanup(() => cancelAnimationFrame(columnFrame));
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
-  let deletedTimer: ReturnType<typeof setTimeout> | undefined;
   let restoredScroll = false;
   const message = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
   const viewId = createMemo(() => props.target.viewId);
-  let savedController: AbortController | undefined;
-  onCleanup(() => savedController?.abort());
-  createEffect(() => {
-    const version = props.workshop.changed('views');
-    if (version) setSavedRevision(version);
+  const savedViews = createSavedViewController<View, Query>({
+    workshop: props.workshop,
+    topic: 'views',
+    viewId,
+    list: signal => props.workshop.api.views(signal),
+    get: (id, signal) => props.workshop.api.view(id, signal),
+    saveOperation: ({ id, baseRevision, name, query }) => ({
+      op: 'save_view',
+      id,
+      base_revision: baseRevision,
+      name,
+      query,
+    }),
+    deleteOperation: ({ id, baseRevision }) => ({
+      op: 'delete_view',
+      id,
+      base_revision: baseRevision,
+    }),
+    onError: setError,
   });
-  const [saved, { refetch: refetchSaved, mutate: setSaved }] = createResource(
-    () => ({ id: deleting() || deleted()?.id === viewId() ? undefined : viewId(), revision: savedRevision() }),
-    async ({ id }) => {
-      savedController?.abort();
-      if (!id) return undefined;
-      const controller = new AbortController();
-      savedController = controller;
-      try {
-        return await props.workshop.api.view(id, controller.signal);
-      } catch (reason) {
-        if (!controller.signal.aborted) message(reason);
-        return undefined;
-      }
-    },
-  );
-  const [views, { refetch: refetchViews }] = createResource(savedRevision, async () => {
-    try {
-      return await props.workshop.api.views();
-    } catch (reason) {
-      message(reason);
-      return [];
-    }
-  });
+  const { views, refetchViews, saved, setSaved, refetchSaved, deleted } = savedViews;
+  const deleting = () => savedViews.deleting() || deletingRow();
   const fields = createMemo(() => {
     const combined = new Map<string, FieldDefinition>((definitions()?.fields ?? []).map(field => [field.id, field]));
     for (const field of result()?.fields ?? []) if (!combined.has(field.id)) combined.set(field.id, field);
@@ -796,7 +787,6 @@ function TableContent(props: TablePaneProps) {
   };
   onCleanup(() => {
     clearTimeout(searchTimer);
-    clearTimeout(deletedTimer);
   });
   const submit = async (operation: Operation) => {
     await props.workshop.commit([operation]);
@@ -865,32 +855,17 @@ function TableContent(props: TablePaneProps) {
     if (saved()) await saveChanges();
   };
   const deleteView = async (value: View) => {
-    if (deleting()) return;
-    setDeleting(true);
     setError('');
-    try {
-      await submit({ op: 'delete_view', id: value.id, base_revision: value.revision });
-      setDeleted(value);
-      setSaved(undefined);
+    if (await savedViews.remove(value)) {
       setPopup(null);
       props.onTargetChange({ kind: 'table', typeId: query().type, viewId: null, query: copyQuery(query()) });
-      clearTimeout(deletedTimer);
-      deletedTimer = setTimeout(() => setDeleted(null), 10000);
-      await refetchViews();
-    } catch (reason) {
-      message(reason);
-    } finally {
-      setDeleting(false);
     }
   };
   const undoDelete = async () => {
-    const value = deleted();
-    if (!value) return;
-    await submit({ op: 'save_view', id: value.id, base_revision: null, name: value.name, query: value.query });
-    setDeleted(null);
-    props.onTargetChange({ kind: 'table', typeId: query().type, viewId: value.id, query: copyQuery(query()) });
-    await refetchSaved();
-    await refetchViews();
+    const restored = await savedViews.undoDelete();
+    if (!restored) return;
+    props.onTargetChange({ kind: 'table', typeId: query().type, viewId: restored.id, query: copyQuery(query()) });
+    refetchSaved();
   };
   const createField = async (name: string, addColumn: boolean) => {
     const all = await props.workshop.api.fields();
@@ -1283,7 +1258,7 @@ function TableContent(props: TablePaneProps) {
   };
   const deleteRow = async (row: QueryRow) => {
     if (deleting()) return;
-    setDeleting(true);
+    setDeletingRow(true);
     setError('');
     setRowNotice(undefined);
     const block = row.block.block;
@@ -1307,7 +1282,7 @@ function TableContent(props: TablePaneProps) {
     } catch (reason) {
       message(reason);
     } finally {
-      setDeleting(false);
+      setDeletingRow(false);
     }
   };
   const rowItems = (row: QueryRow, anchor: HTMLElement): MenuItem[] => [
@@ -2317,9 +2292,15 @@ function TableContent(props: TablePaneProps) {
             />
           )}
           {state.kind === 'name' && (
-            <NamePopup
+            <SavedViewNamePopup
               anchor={state.anchor}
-              action={state.action}
+              label={
+                state.action === 'field' ? 'New field…' : state.action === 'rename' ? 'Rename view…' : 'Save as view…'
+              }
+              inputLabel={state.action === 'field' ? 'Field name' : 'View name'}
+              emptyMessage={state.action === 'field' ? 'Name the field.' : 'Name the view.'}
+              maxLength={state.action === 'field' ? null : 120}
+              width={320}
               name={state.action === 'rename' ? (saved()?.name ?? '') : ''}
               onDismiss={() => setPopup(null)}
               onSave={async name => {
@@ -2338,28 +2319,16 @@ function TableContent(props: TablePaneProps) {
             />
           )}
           {state.kind === 'delete' && (
-            <Popup
+            <DeleteSavedViewPopup
               anchor={state.anchor}
               label="Delete table view?"
-              onDismiss={() => {
-                if (!deleting()) setPopup(null);
-              }}
-            >
-              <p>Delete “{state.view.name}”? Rows are not deleted.</p>
-              <Show when={error()}>
-                <p class="error" role="alert">
-                  {error()}
-                </p>
-              </Show>
-              <div class="popup-actions">
-                <Button disabled={deleting()} onClick={() => setPopup(null)}>
-                  Cancel
-                </Button>
-                <Button class="bordered danger" disabled={deleting()} onClick={() => void deleteView(state.view)}>
-                  Delete view
-                </Button>
-              </div>
-            </Popup>
+              name={state.view.name}
+              keptNoun="Rows"
+              busy={deleting()}
+              error={error()}
+              onDismiss={() => setPopup(null)}
+              onConfirm={() => void deleteView(state.view)}
+            />
           )}
           {state.kind === 'columns' && (
             <Popup
@@ -3418,72 +3387,5 @@ function TableCellText(props: { children: (expanded: boolean) => JSX.Element }) 
         </Button>
       </Show>
     </>
-  );
-}
-
-function NamePopup(props: {
-  anchor: HTMLElement;
-  action: 'save' | 'rename' | 'field';
-  name: string;
-  onDismiss(): void;
-  onSave(name: string): Promise<void>;
-}) {
-  const [name, setName] = createSignal(props.name);
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal('');
-  const submit = async () => {
-    if (busy()) return;
-    if (!name().trim()) {
-      setError(props.action === 'field' ? 'Name the field.' : 'Name the view.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      await props.onSave(name());
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Popup
-      anchor={props.anchor}
-      label={props.action === 'field' ? 'New field…' : props.action === 'rename' ? 'Rename view…' : 'Save as view…'}
-      dirty={() => name() !== props.name}
-      onDismiss={props.onDismiss}
-      width={320}
-    >
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <input
-          class="input"
-          placeholder={props.action === 'field' ? 'Field name' : 'View name'}
-          aria-label={props.action === 'field' ? 'Field name' : 'View name'}
-          value={name()}
-          onInput={event => {
-            setName(event.currentTarget.value);
-            setError('');
-          }}
-          maxlength={props.action === 'field' ? undefined : 120}
-        />
-        <Show when={error()}>
-          <p class="error" role="alert">
-            {error()}
-          </p>
-        </Show>
-        <div class="popup-actions">
-          <Button onClick={props.onDismiss}>Cancel</Button>
-          <Button type="submit" class="bordered" disabled={busy()}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Popup>
   );
 }
