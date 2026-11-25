@@ -267,8 +267,7 @@ impl Workshop {
         let now = stamp.at;
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let recording = crate::sync::begin(&tx, batch, extras)?;
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        let watch = crate::topics::watch(&tx)?;
+        let watch = crate::topics::watch(&tx, batch)?;
         tx.execute(
             "INSERT INTO changes(actor, reason, created_at, idempotency_key, operations_hash, operations, committed, change_id, origin)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', ?7, ?8)",
@@ -459,9 +458,10 @@ impl Workshop {
             }
         }
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        let topics = Some(watch.finish(&tx, recording.is_some())?);
+        let synced = recording.is_some();
         #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        let topics = None;
+        let synced = false;
+        let topics = Some(watch.finish(&tx, synced)?);
         let committed = Committed {
             seq,
             revisions: engine.revisions,

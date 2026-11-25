@@ -97,6 +97,8 @@ pub use error::{Error, Result};
 pub use fields::SOURCE_TARGET;
 pub use history::{HistoryEntry, UndoReceipt};
 pub use image_store::image_type;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub use library_store::{object_path_in, put_object_in, read_object_in};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
