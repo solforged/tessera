@@ -42,7 +42,8 @@ import { openContextMenu } from '../ui/context-menu';
 import { isPhone } from '../ui/phone';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
-import { createSlowFlag } from '../ui/loading';
+import { createSlowFlag, createTopicQuery } from '../ui/loading';
+import { createSavedViewController, DeleteSavedViewPopup, SavedViewNamePopup } from '../workflows/saved-views';
 import { crossfade, glide } from '../ui/pane-motion';
 import {
   formatProgress,
@@ -304,8 +305,50 @@ export function LibraryPane(props: LibraryPaneProps) {
   const filtered = createMemo(() => Object.values(filters()).some(values => values.length > 0));
   const [tagQuery, setTagQuery] = createSignal('');
   const [browseQuery, setBrowseQuery] = createSignal('');
-  const [views, setViews] = createSignal<LibraryView[]>(cache.views ?? []);
-  const [viewsError, setViewsError] = createSignal('');
+  const [refresh, setRefresh] = createSignal(0);
+  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'> {
+    return {
+      tab: query.collection_id ? 'collections' : query.states?.length === 1 ? query.states[0]! : 'all',
+      collection: query.collection_id ?? null,
+      text: query.text ?? '',
+      sort: query.sort ?? 'added',
+      filters: {
+        people: query.people ?? [],
+        decades: query.decades ?? [],
+        years: query.years ?? [],
+        publishers: query.publishers ?? [],
+        languages: query.languages ?? [],
+      },
+    };
+  }
+  const savedViews = createSavedViewController<LibraryView, LibraryQuery>({
+    workshop: props.workshop,
+    topic: 'library',
+    viewId: () => target().view,
+    initialViews: cache.views ?? [],
+    list: signal => props.workshop.api.libraryViews(signal),
+    saveOperation: ({ id, baseRevision, name, query }) => ({
+      op: 'save_library_view',
+      id,
+      base_revision: baseRevision,
+      name,
+      query,
+    }),
+    deleteOperation: ({ id, baseRevision }) => ({
+      op: 'delete_library_view',
+      id,
+      base_revision: baseRevision,
+    }),
+    onViewsLoaded: result => {
+      cache.views = result;
+      const id = target().view;
+      if (!id) return;
+      const found = result.find(value => value.id === id);
+      if (found) update(viewFields(found.query));
+      else update({ view: null });
+    },
+  });
+  const { views, viewsError, deleted } = savedViews;
   const queryOf = (state: LibraryViewState) =>
     views().find(value => value.id === state.view)?.query ??
     libraryQuery({
@@ -317,9 +360,6 @@ export function LibraryPane(props: LibraryPaneProps) {
     });
   const keyOf = (state: LibraryViewState) =>
     JSON.stringify([state.view, state.tab, queryOf(state), state.unprocessedOnly, state.colors, state.tags]);
-  const [deleted, setDeleted] = createSignal<LibraryView | null>(null);
-  let deletedTimer: ReturnType<typeof setTimeout> | undefined;
-  onCleanup(() => clearTimeout(deletedTimer));
   const currentQuery = createMemo(() => queryOf(view()));
   const queryKey = createMemo(() => keyOf(view()));
   const targetKey = createMemo(() => keyOf(target()));
@@ -366,9 +406,27 @@ export function LibraryPane(props: LibraryPaneProps) {
     initialRead?.library && tab() !== 'highlights' ? initialRead.library.rows : undefined,
   );
   const [highlights, setHighlights] = createSignal<HighlightResult | undefined>(initialRead?.highlights);
-  const [unprocessedCount, setUnprocessedCount] = createSignal<number | undefined>(cache.unprocessedCount);
-  const [highlightCount, setHighlightCount] = createSignal<number | undefined>(cache.highlightCount);
-  const [countError, setCountError] = createSignal('');
+  const highlightCounts = createTopicQuery({
+    workshop: props.workshop,
+    topics: ['library'],
+    key: () => refresh() + 1,
+    initial:
+      cache.unprocessedCount !== undefined && cache.highlightCount !== undefined
+        ? { unprocessed: cache.unprocessedCount, total: cache.highlightCount }
+        : undefined,
+    fetcher: async (_, signal) => {
+      const [unprocessed, all] = await Promise.all([
+        props.workshop.api.highlights({ unprocessed: true, limit: 0 }, signal),
+        props.workshop.api.highlights({ limit: 0 }, signal),
+      ]);
+      cache.unprocessedCount = unprocessed.total;
+      cache.highlightCount = all.total;
+      return { unprocessed: unprocessed.total, total: all.total };
+    },
+  });
+  const unprocessedCount = () => highlightCounts.data()?.unprocessed;
+  const highlightCount = () => highlightCounts.data()?.total;
+  const countError = highlightCounts.error;
   const highlightGroups = createMemo(() => {
     const groups = new Map<string, { sourceId: string; title: string; rows: HighlightRow[] }>();
     for (const row of highlights()?.rows ?? []) {
@@ -512,7 +570,6 @@ export function LibraryPane(props: LibraryPaneProps) {
   let requestedText = initialView.text;
   const [commandError, setCommandError] = createSignal('');
   const [saving, setSaving] = createSignal(false);
-  const [refresh, setRefresh] = createSignal(0);
   // Color facets ignore the selected colors but retain the other filters, so a zero-match choice never hides the alternatives.
   const highlightFacetKey = createMemo(() =>
     target().tab === 'highlights'
@@ -1185,70 +1242,6 @@ export function LibraryPane(props: LibraryPaneProps) {
     ),
   );
 
-  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'> {
-    return {
-      tab: query.collection_id ? 'collections' : query.states?.length === 1 ? query.states[0]! : 'all',
-      collection: query.collection_id ?? null,
-      text: query.text ?? '',
-      sort: query.sort ?? 'added',
-      filters: {
-        people: query.people ?? [],
-        decades: query.decades ?? [],
-        years: query.years ?? [],
-        publishers: query.publishers ?? [],
-        languages: query.languages ?? [],
-      },
-    };
-  }
-  createEffect(() => {
-    props.workshop.changed('library');
-    refresh();
-    const controller = new AbortController();
-    void props.workshop.api
-      .libraryViews(controller.signal)
-      .then(result => {
-        if (controller.signal.aborted) return;
-        cache.views = result;
-        batch(() => {
-          setViews(result);
-          setViewsError('');
-          const id = target().view;
-          if (!id) return;
-          const value = result.find(value => value.id === id);
-          if (value) update(viewFields(value.query));
-          else update({ view: null });
-        });
-      })
-      .catch(reason => {
-        if (!controller.signal.aborted) setViewsError(reason instanceof Error ? reason.message : String(reason));
-      });
-    onCleanup(() => controller.abort());
-  });
-  createEffect(() => {
-    props.workshop.changed('library');
-    refresh();
-    const controller = new AbortController();
-    void Promise.all([
-      props.workshop.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
-      props.workshop.api.highlights({ limit: 0 }, controller.signal),
-    ])
-      .then(([unprocessed, all]) => {
-        if (!controller.signal.aborted) {
-          cache.unprocessedCount = unprocessed.total;
-          cache.highlightCount = all.total;
-          batch(() => {
-            setUnprocessedCount(unprocessed.total);
-            setHighlightCount(all.total);
-            setCountError('');
-          });
-        }
-      })
-      .catch(reason => {
-        if (!controller.signal.aborted) setCountError(reason instanceof Error ? reason.message : String(reason));
-      });
-    onCleanup(() => controller.abort());
-  });
-
   createEffect(() => {
     if (!preferencesReady()) return;
     const key = targetKey();
@@ -1516,22 +1509,17 @@ export function LibraryPane(props: LibraryPaneProps) {
     update({ view: value.id, ...viewFields(value.query), scroll: 0 });
   }
   async function saveView(name: string, id: string, previous: LibraryView | null) {
-    if (saving()) return;
+    if (saving() || savedViews.busy()) return;
     setSaving(true);
     setCommandError('');
     try {
-      await props.workshop.commit(
-        [
-          {
-            op: 'save_library_view',
-            id,
-            base_revision: previous?.revision ?? null,
-            name: name.trim(),
-            query: previous?.query ?? currentQuery(),
-          },
-        ],
-        previous ? 'Rename library view' : 'Save library view',
-      );
+      await savedViews.save({
+        id,
+        baseRevision: previous?.revision ?? null,
+        name,
+        query: previous?.query ?? currentQuery(),
+        reason: previous ? 'Rename library view' : 'Save library view',
+      });
       if (!disposed) {
         update({ view: id });
         setPopup(null);
@@ -1542,45 +1530,35 @@ export function LibraryPane(props: LibraryPaneProps) {
     }
   }
   async function deleteView(value: LibraryView) {
-    if (saving()) return;
+    if (saving() || savedViews.busy()) return;
     setSaving(true);
     setCommandError('');
     try {
-      await props.workshop.commit(
-        [{ op: 'delete_library_view', id: value.id, base_revision: value.revision }],
-        'Delete library view',
-      );
-      if (!disposed) {
-        setDeleted(value);
-        clearTimeout(deletedTimer);
-        deletedTimer = setTimeout(() => setDeleted(null), 10000);
-        if (target().view === value.id) update({ view: null });
-        setPopup(null);
-        setRefresh(value => value + 1);
+      if (await savedViews.remove(value, 'Delete library view')) {
+        if (!disposed) {
+          if (target().view === value.id) update({ view: null });
+          setPopup(null);
+          setRefresh(value => value + 1);
+        }
+      } else if (!disposed) {
+        setCommandError(savedViews.error());
       }
-    } catch (reason) {
-      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       if (!disposed) setSaving(false);
     }
   }
   async function undoDelete() {
-    const value = deleted();
-    if (!value || saving()) return;
+    if (saving() || savedViews.busy()) return;
     setSaving(true);
     setCommandError('');
     try {
-      await props.workshop.commit(
-        [{ op: 'save_library_view', id: value.id, base_revision: null, name: value.name, query: value.query }],
-        'Restore library view',
-      );
-      if (!disposed) {
-        setDeleted(null);
-        chooseView(value);
+      const restored = await savedViews.undoDelete('Restore library view');
+      if (!disposed && restored) {
+        chooseView(restored);
         setRefresh(value => value + 1);
+      } else if (!disposed && savedViews.error()) {
+        setCommandError(savedViews.error());
       }
-    } catch (reason) {
-      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       if (!disposed) setSaving(false);
     }
@@ -3836,38 +3814,33 @@ export function LibraryPane(props: LibraryPaneProps) {
           }
           if (state.kind === 'name')
             return (
-              <LibraryViewNamePopup
+              <SavedViewNamePopup
                 anchor={state.anchor}
-                saved={state.saved}
-                busy={saving()}
+                label={state.saved ? 'Rename library view' : 'Save library view'}
+                inputLabel="Library view name"
+                placeholder="View name"
+                name={state.saved?.name ?? ''}
+                busy={saving() || savedViews.busy()}
+                errorClass="library-error"
                 onDismiss={dismiss}
                 onSave={name => saveView(name, state.id, state.saved)}
               />
             );
           if (state.kind === 'delete')
             return (
-              <Popup anchor={state.anchor} label="Delete library view?" onDismiss={dismiss}>
-                <p>Delete “{state.saved.name}”? Sources are not deleted.</p>
-                <Show when={commandError()}>
-                  <p class="library-error" role="alert">
-                    {commandError()}
-                  </p>
-                </Show>
-                <div class="popup-actions">
-                  <Button disabled={saving()} onClick={dismiss}>
-                    Cancel
-                  </Button>
-                  <Button
-                    class="bordered danger"
-                    disabled={saving()}
-                    onClick={() => {
-                      void deleteView(state.saved);
-                    }}
-                  >
-                    Delete view
-                  </Button>
-                </div>
-              </Popup>
+              <DeleteSavedViewPopup
+                anchor={state.anchor}
+                label="Delete library view?"
+                name={state.saved.name}
+                keptNoun="Sources"
+                busy={saving() || savedViews.busy()}
+                error={commandError()}
+                errorClass="library-error"
+                onDismiss={dismiss}
+                onConfirm={() => {
+                  void deleteView(state.saved);
+                }}
+              />
             );
           if (state.kind === 'delete-sources')
             return (
@@ -3924,63 +3897,5 @@ export function LibraryPane(props: LibraryPaneProps) {
       </Show>
       <highlightActions.Popups />
     </div>
-  );
-}
-
-function LibraryViewNamePopup(props: {
-  anchor: HTMLElement;
-  saved: LibraryView | null;
-  busy: boolean;
-  onDismiss(): void;
-  onSave(name: string): Promise<void>;
-}) {
-  const [name, setName] = createSignal(props.saved?.name ?? '');
-  const [error, setError] = createSignal('');
-  const submit = async () => {
-    if (props.busy || !name().trim()) return;
-    setError('');
-    try {
-      await props.onSave(name());
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    }
-  };
-  return (
-    <Popup
-      anchor={props.anchor}
-      label={props.saved ? 'Rename library view' : 'Save library view'}
-      dirty={() => name().trim() !== (props.saved?.name ?? '').trim()}
-      onDismiss={props.onDismiss}
-    >
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <input
-          class="input"
-          aria-label="Library view name"
-          placeholder="View name"
-          value={name()}
-          maxlength={120}
-          disabled={props.busy}
-          onInput={event => setName(event.currentTarget.value)}
-        />
-        <Show when={error()}>
-          <p class="library-error" role="alert">
-            {error()}
-          </p>
-        </Show>
-        <div class="popup-actions">
-          <Button disabled={props.busy} onClick={props.onDismiss}>
-            Cancel
-          </Button>
-          <Button type="submit" class="bordered" disabled={props.busy || !name().trim()}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Popup>
   );
 }

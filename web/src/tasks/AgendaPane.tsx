@@ -1,14 +1,6 @@
 import { For, Index, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { ulid } from 'ulid';
-import type {
-  Agenda,
-  FieldDefinition,
-  ProjectRecord,
-  TaskQuery,
-  TaskQueryResult,
-  TaskRow,
-  TaskView,
-} from '../api/types';
+import type { Agenda, TaskQuery, TaskQueryResult, TaskRow, TaskView } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import { plainText } from '../outline/names';
 import { Calendar } from './Calendar';
@@ -18,8 +10,8 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
-import { Popup } from '../ui/Popup';
-import { createSlowFlag, sameData } from '../ui/loading';
+import { createSlowFlag, createTopicQuery, sameData } from '../ui/loading';
+import { createSavedViewController, DeleteSavedViewPopup, SavedViewNamePopup } from '../workflows/saved-views';
 import { AgendaDayStrip, AgendaWeekStrip } from './AgendaWeekStrip';
 import { journalBarTitle, journalWeek, spokenJournalDate } from './journal-date';
 import { daysBetween, weekRangeProse, weekRangeTitle } from './relative-date';
@@ -147,28 +139,31 @@ export function AgendaPane(props: AgendaPaneProps) {
   const upcomingRows = (date: string) => dayGroups().upcoming.find(day => day.date === date)?.rows ?? [];
   const [showUnplanned, setShowUnplanned] = createSignal(false);
   const [showDone, setShowDone] = createSignal(false);
-  const [fields, setFields] = createSignal<FieldDefinition[]>([]);
-  const [projects, setProjects] = createSignal<ProjectRecord[]>([]);
-  const [metadataLoading, setMetadataLoading] = createSignal(true);
-  const [metadataError, setMetadataError] = createSignal('');
-  const [views, setViews] = createSignal<TaskView[]>([]);
-  const [viewsLoading, setViewsLoading] = createSignal(true);
-  const [viewsError, setViewsError] = createSignal('');
   const [saved, setSaved] = createSignal<TaskView | null>(null);
-  const [latestSaved, setLatestSaved] = createSignal<TaskView | null>(null);
-  const [savedLoading, setSavedLoading] = createSignal(false);
-  const [savedError, setSavedError] = createSignal('');
   const [popup, setPopup] = createSignal<AgendaPopup | null>(null);
   const [pickerSearch, setPickerSearch] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [commandError, setCommandError] = createSignal('');
-  const [deleted, setDeleted] = createSignal<TaskView | null>(null);
-  let deletedTimer: ReturnType<typeof setTimeout> | undefined;
-  onCleanup(() => clearTimeout(deletedTimer));
   const [recentInput, setRecentInput] = createSignal(String(query().filter.recent_days));
   const [limitInput, setLimitInput] = createSignal(query().limit === null ? '' : String(query().limit));
   const [queryLineDirty, setQueryLineDirty] = createSignal(false);
   const [queryLineError, setQueryLineError] = createSignal('');
+  const metadata = createTopicQuery({
+    workshop: props.workshop,
+    topics: ['fields', 'tasks'],
+    key: () => refresh() + 1,
+    fetcher: async (_, signal) => {
+      const [definitions, records] = await Promise.all([
+        props.workshop.api.fields(signal),
+        props.workshop.api.projects(signal),
+      ]);
+      return { fields: definitions.fields, projects: records };
+    },
+  });
+  const fields = () => metadata.data()?.fields ?? [];
+  const projects = () => metadata.data()?.projects ?? [];
+  const metadataLoading = metadata.loading;
+  const metadataError = metadata.error;
   const typeTitles = createMemo(
     () =>
       new Map(
@@ -248,6 +243,35 @@ export function AgendaPane(props: AgendaPaneProps) {
     resize.observe(scroll);
     onCleanup(() => resize.disconnect());
   });
+  const savedViews = createSavedViewController<TaskView, TaskQuery>({
+    workshop: props.workshop,
+    topic: 'tasks',
+    viewId,
+    list: signal => props.workshop.api.taskViews(signal),
+    get: (id, signal) => props.workshop.api.taskView(id, signal),
+    saveOperation: ({ id, baseRevision, name, query }) => ({
+      op: 'save_task_view',
+      id,
+      base_revision: baseRevision,
+      name,
+      query,
+    }),
+    deleteOperation: ({ id, baseRevision }) => ({
+      op: 'delete_task_view',
+      id,
+      base_revision: baseRevision,
+    }),
+    onSavedLoaded: next => {
+      const previous = saved();
+      const value = hasInputDraft() ? copyTaskQuery(query()) : refreshedTaskQuery(query(), previous, next);
+      // Keep a dirty draft's original revision: a later save must not silently overwrite a remote edit.
+      if (!previous || previous.id !== next.id || (!hasInputDraft() && taskQueriesEqual(query(), previous.query)))
+        setSaved(next);
+      if (!taskQueriesEqual(value, query())) update({ query: value });
+    },
+  });
+  const { views, viewsLoading, viewsError, savedLoading, savedError, deleted } = savedViews;
+  const latestSaved = () => savedViews.saved() ?? null;
   let restoredScroll = false;
   let requested: { mode: AgendaViewState['mode']; date: string; query: TaskQuery } | null = null;
   createEffect(
@@ -263,7 +287,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         ) {
           if (next.viewId !== previous.viewId) {
             setSaved(null);
-            setLatestSaved(null);
+            savedViews.setSaved(undefined);
           }
           if (next.date !== previous.date || next.mode !== previous.mode)
             setStripStart(stripStartFor(next.mode, next.date));
@@ -449,101 +473,13 @@ export function AgendaPane(props: AgendaPaneProps) {
       });
     onCleanup(() => controller.abort());
   });
-  createEffect(() => {
-    props.workshop.changed('fields');
-    props.workshop.changed('tasks');
-    refresh();
-    let current = true;
-    setMetadataLoading(true);
-    setMetadataError('');
-    void Promise.all([props.workshop.api.fields(), props.workshop.api.projects()])
-      .then(([definitions, records]) => {
-        if (current) {
-          setFields(definitions.fields);
-          setProjects(records);
-          setMetadataLoading(false);
-        }
-      })
-      .catch(reason => {
-        if (current) {
-          setMetadataError(reason instanceof Error ? reason.message : String(reason));
-          setMetadataLoading(false);
-        }
-      });
-    onCleanup(() => {
-      current = false;
-    });
-  });
-  createEffect(() => {
-    props.workshop.changed('tasks');
-    refresh();
-    let current = true;
-    setViewsLoading(true);
-    setViewsError('');
-    void props.workshop.api
-      .taskViews()
-      .then(result => {
-        if (current) {
-          setViews(result);
-          setViewsLoading(false);
-        }
-      })
-      .catch(reason => {
-        if (current) {
-          setViewsError(reason instanceof Error ? reason.message : String(reason));
-          setViewsLoading(false);
-        }
-      });
-    onCleanup(() => {
-      current = false;
-    });
-  });
-  createEffect(() => {
-    const id = viewId();
-    props.workshop.changed('tasks');
-    refresh();
-    let current = true;
-    setSavedError('');
-    if (!id) {
-      setSaved(null);
-      setLatestSaved(null);
-      setSavedLoading(false);
-      return;
-    }
-    setSavedLoading(true);
-    void props.workshop.api
-      .taskView(id)
-      .then(next => {
-        if (!current) return;
-        const previous = saved();
-        const value = hasInputDraft() ? copyTaskQuery(query()) : refreshedTaskQuery(query(), previous, next);
-        batch(() => {
-          setLatestSaved(next);
-          // Keep a dirty draft's original revision: a later save must not silently overwrite a remote edit.
-          if (!previous || previous.id !== next.id || (!hasInputDraft() && taskQueriesEqual(query(), previous.query)))
-            setSaved(next);
-          if (!taskQueriesEqual(value, query())) update({ query: value });
-          setSavedLoading(false);
-        });
-      })
-      .catch(reason => {
-        if (current) {
-          setLatestSaved(null);
-          setSavedError(reason instanceof Error ? reason.message : String(reason));
-          setSavedLoading(false);
-        }
-      });
-    onCleanup(() => {
-      current = false;
-    });
-  });
   const viewChoices = createMemo(() =>
     views().filter(value => value.name.toLocaleLowerCase().includes(pickerSearch().trim().toLocaleLowerCase())),
   );
   const selectView = (value: TaskView | null) => {
     batch(() => {
       setSaved(value);
-      setLatestSaved(value);
+      savedViews.setSaved(value ?? undefined);
       setPopup(null);
       const next = value ? copyTaskQuery(value.query) : createTaskQuery(today());
       update({ viewId: value?.id ?? null, query: next, mode: 'tasks', scroll: 0 });
@@ -561,19 +497,22 @@ export function AgendaPane(props: AgendaPaneProps) {
     }
   };
   const saveView = async (name: string, id: string, previous: TaskView | null, rename: boolean) => {
-    if (busy()) return;
+    if (busy() || savedViews.busy()) return;
     if (!rename && filterError()) throw new Error(filterError());
     setBusy(true);
     setCommandError('');
     const value = copyTaskQuery(rename ? previous!.query : query());
     try {
-      await props.workshop.commit(
-        [{ op: 'save_task_view', id, base_revision: previous?.revision ?? null, name: name.trim(), query: value }],
-        rename ? 'Rename task view' : 'Save task view',
-      );
+      await savedViews.save({
+        id,
+        baseRevision: previous?.revision ?? null,
+        name,
+        query: value,
+        reason: rename ? 'Rename task view' : 'Save task view',
+      });
       batch(() => {
         setSaved(null);
-        setLatestSaved(null);
+        savedViews.setSaved(undefined);
         setPopup(null);
         update({ viewId: id });
         setRefresh(value => value + 1);
@@ -586,45 +525,36 @@ export function AgendaPane(props: AgendaPaneProps) {
     }
   };
   const deleteView = async (value: TaskView) => {
-    if (busy()) return;
+    if (busy() || savedViews.busy()) return;
     setBusy(true);
     setCommandError('');
     try {
-      await props.workshop.commit(
-        [{ op: 'delete_task_view', id: value.id, base_revision: value.revision }],
-        'Delete task view',
-      );
-      setDeleted(value);
-      clearTimeout(deletedTimer);
-      deletedTimer = setTimeout(() => setDeleted(null), 10000);
-      batch(() => {
-        setSaved(null);
-        setLatestSaved(null);
-        update({ viewId: null });
-        setPopup(null);
-        setRefresh(value => value + 1);
-      });
-    } catch (reason) {
-      setCommandError(reason instanceof Error ? reason.message : String(reason));
+      if (await savedViews.remove(value, 'Delete task view')) {
+        batch(() => {
+          setSaved(null);
+          update({ viewId: null });
+          setPopup(null);
+          setRefresh(value => value + 1);
+        });
+      } else {
+        setCommandError(savedViews.error());
+      }
     } finally {
       setBusy(false);
     }
   };
   const undoDelete = async () => {
-    const value = deleted();
-    if (!value || busy()) return;
+    if (busy() || savedViews.busy()) return;
     setBusy(true);
     setCommandError('');
     try {
-      await props.workshop.commit(
-        [{ op: 'save_task_view', id: value.id, base_revision: null, name: value.name, query: value.query }],
-        'Restore task view',
-      );
-      setDeleted(null);
-      selectView(value);
-      setRefresh(value => value + 1);
-    } catch (reason) {
-      setCommandError(reason instanceof Error ? reason.message : String(reason));
+      const restored = await savedViews.undoDelete('Restore task view');
+      if (restored) {
+        selectView(restored);
+        setRefresh(value => value + 1);
+      } else if (savedViews.error()) {
+        setCommandError(savedViews.error());
+      }
     } finally {
       setBusy(false);
     }
@@ -1554,39 +1484,31 @@ export function AgendaPane(props: AgendaPaneProps) {
               );
             if (state.kind === 'name')
               return (
-                <TaskViewNamePopup
+                <SavedViewNamePopup
                   anchor={state.anchor}
+                  label={state.action === 'rename' ? 'Rename task view' : 'Save as task view'}
+                  inputLabel="Task view name"
+                  placeholder="View name"
                   name={state.saved?.name ?? ''}
-                  rename={state.action === 'rename'}
-                  busy={busy()}
+                  busy={busy() || savedViews.busy()}
                   onDismiss={dismiss}
                   onSave={name => saveView(name, state.id, state.saved, state.action === 'rename')}
                 />
               );
             if (state.kind === 'delete')
               return (
-                <Popup anchor={state.anchor} label="Delete task view?" onDismiss={dismiss}>
-                  <p>Delete “{state.saved.name}”? Tasks are not deleted.</p>
-                  <Show when={commandError()}>
-                    <p class="error" role="alert">
-                      {commandError()}
-                    </p>
-                  </Show>
-                  <div class="popup-actions">
-                    <Button disabled={busy()} onClick={dismiss}>
-                      Cancel
-                    </Button>
-                    <Button
-                      class="bordered danger"
-                      disabled={busy()}
-                      onClick={() => {
-                        void deleteView(state.saved);
-                      }}
-                    >
-                      Delete view
-                    </Button>
-                  </div>
-                </Popup>
+                <DeleteSavedViewPopup
+                  anchor={state.anchor}
+                  label="Delete task view?"
+                  name={state.saved.name}
+                  keptNoun="Tasks"
+                  busy={busy() || savedViews.busy()}
+                  error={commandError()}
+                  onDismiss={dismiss}
+                  onConfirm={() => {
+                    void deleteView(state.saved);
+                  }}
+                />
               );
             if (state.kind === 'move') {
               const count = dayGroups().overdue.length;
@@ -1660,63 +1582,5 @@ export function AgendaPane(props: AgendaPaneProps) {
         </Show>
       </div>
     </div>
-  );
-}
-
-function TaskViewNamePopup(props: {
-  anchor: HTMLElement;
-  name: string;
-  rename: boolean;
-  busy: boolean;
-  onDismiss(): void;
-  onSave(name: string): Promise<void>;
-}) {
-  const [name, setName] = createSignal(props.name);
-  const [error, setError] = createSignal('');
-  const submit = async () => {
-    if (props.busy || !name().trim()) return;
-    setError('');
-    try {
-      await props.onSave(name());
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-    }
-  };
-  return (
-    <Popup
-      anchor={props.anchor}
-      label={props.rename ? 'Rename task view' : 'Save as task view'}
-      onDismiss={props.onDismiss}
-    >
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <input
-          class="input"
-          aria-label="Task view name"
-          placeholder="View name"
-          value={name()}
-          maxlength={120}
-          disabled={props.busy}
-          onInput={event => setName(event.currentTarget.value)}
-        />
-        <Show when={error()}>
-          <p class="error" role="alert">
-            {error()}
-          </p>
-        </Show>
-        <div class="popup-actions">
-          <Button disabled={props.busy} onClick={props.onDismiss}>
-            Cancel
-          </Button>
-          <Button type="submit" class="bordered" disabled={props.busy || !name().trim()}>
-            Save
-          </Button>
-        </div>
-      </form>
-    </Popup>
   );
 }
