@@ -537,6 +537,9 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
             credentials.as_ref(),
         )?;
         n.sync_mark_synced()?;
+        if let Some(readers) = &state.readers {
+            readers.flush();
+        }
         let _ = state.changes.send(i64::MAX);
         drop(n);
         std::fs::remove_file(path)?;

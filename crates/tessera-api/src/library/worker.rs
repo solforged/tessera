@@ -24,7 +24,7 @@ impl Library {
         extractor: Extractor,
     ) -> Result<Self, String> {
         workshop.lock().resume_ingest().map_err(|e| e.to_string())?;
-        let client = reqwest::Client::builder()
+        let client = crate::tls_client_builder()?
             .timeout(Duration::from_secs(30))
             .redirect(reqwest::redirect::Policy::limited(5))
             .user_agent(concat!("Tessera/", env!("CARGO_PKG_VERSION")))

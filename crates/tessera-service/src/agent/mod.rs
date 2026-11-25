@@ -39,7 +39,7 @@ impl Runtime {
         Ok(Self {
             store: Mutex::new(Store::new(path)),
             turns: Mutex::default(),
-            client: reqwest::Client::builder()
+            client: tessera_api::tls_client_builder()?
                 .redirect(reqwest::redirect::Policy::none())
                 .connect_timeout(Duration::from_secs(30))
                 .build()

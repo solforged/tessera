@@ -21,7 +21,9 @@ ts-rs.workspace = true
 [target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
 axum.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 tokio.workspace = true
+webpki-roots.workspace = true
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 # Cargo cannot inherit these under another name, and the workspace axum/tokio

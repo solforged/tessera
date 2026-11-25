@@ -18,16 +18,16 @@ use tessera_api::images;
 
 pub struct EmbeddedHandles {
     pub workshop: Arc<Mutex<Workshop>>,
+    pub readers: tessera_api::Readers,
     pub changes: broadcast::Sender<i64>,
     pub replica: Arc<replica::ReplicaRuntime>,
     _daily_backup: Option<daily_backup::Task>,
 }
 
-/// Build the workshop and library API for a host that runs the workshop in its own process,
-/// such as the browser worker or the Android app. It has no socket, so it omits the host and
-/// origin policy, static assets, service details and the WebSocket change stream;
-/// hosts deliver changes from [`EmbeddedHandles`]. Backups require an explicit store.
-/// The browser worker ingests queued uploads before this returns.
+/// Build the workshop and library API for a native host that runs the workshop in its own process,
+/// such as the phone app. It has no socket, so it omits the host and origin policy, static assets,
+/// service details and the WebSocket change stream; hosts deliver changes from [`EmbeddedHandles`].
+/// Backups require an explicit store.
 pub fn embedded_router(workshop: Workshop) -> Result<(Router, EmbeddedHandles), String> {
     embedded_router_inner(workshop, None, None)
 }
@@ -46,12 +46,13 @@ fn embedded_router_inner(
     agent_path: Option<PathBuf>,
     backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
+    let readers = tessera_api::Readers::open(&workshop).map_err(|error| error.to_string())?;
     let workshop = Arc::new(Mutex::new(workshop));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(workshop.clone(), changes.clone(), library::extract)?;
     let replica = Arc::default();
     let state = AppState {
-        readers: None,
+        readers: Some(readers.clone()),
         workshop,
         assets: None,
         changes,
@@ -70,6 +71,7 @@ fn embedded_router_inner(
     };
     let handles = EmbeddedHandles {
         workshop: state.workshop.clone(),
+        readers,
         changes: state.changes.clone(),
         replica: state.replica.clone(),
         _daily_backup: daily_backup::start(&state),

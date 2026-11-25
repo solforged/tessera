@@ -26,6 +26,7 @@ futures-util = { version = "0.3", features = ["sink"] }
 imagesize = "0.14"
 rusqlite = { version = "0.40", features = ["bundled", "backup"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
@@ -39,6 +40,7 @@ tracing = "0.1"
 ts-rs = { version = "12", features = ["serde-json-impl", "no-serde-warnings"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = "3"
+webpki-roots = "1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

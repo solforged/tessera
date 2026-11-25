@@ -403,7 +403,6 @@ type NativeMethod =
   | 'workshops'
   | 'openWorkshop'
   | 'forgetWorkshop'
-  | 'queueUrl'
   | 'syncDevices'
   | 'setSharing'
   | 'forgetDevice'
@@ -434,6 +433,10 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
             new ApiError('The workshop lives in this page, which has no folder to measure.', 400, 'unsupported'),
           )
         : get<WorkshopSize>('/notebook/size', signal),
+    queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) =>
+      DEMO
+        ? Promise.reject(new ApiError('Web articles require the Tessera app or local service.', 400, 'unsupported'))
+        : request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
     ...(!EMBEDDED
       ? {
           service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
@@ -450,8 +453,6 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
             request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
           forgetWorkshop: (path: string, signal?: AbortSignal) =>
             request<KnownWorkshops>(base, 'POST', '/notebooks/forget', { path }, signal),
-          queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) =>
-            request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
           syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
           setSharing: (on: boolean, signal?: AbortSignal) =>
             request<SyncSharing>(base, 'POST', '/sync/sharing', { on }, signal),

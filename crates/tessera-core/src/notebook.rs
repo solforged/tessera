@@ -133,6 +133,11 @@ impl Reader {
         drop(snapshot);
         result
     }
+
+    /// Clear cached statements after an in-place clone replacement.
+    pub fn flush(&mut self) {
+        self.0.conn.flush_prepared_statement_cache();
+    }
 }
 
 /// The current Unix time in milliseconds, using the browser clock on wasm.
