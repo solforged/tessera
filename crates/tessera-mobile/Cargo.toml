@@ -1,6 +1,6 @@
 [package]
 name = "tessera-mobile"
-description = "Android and iOS app that runs a Tessera notebook in its own process"
+description = "Android and iOS app that runs a Tessera workshop in its own process"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

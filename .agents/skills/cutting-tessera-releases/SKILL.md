@@ -33,8 +33,9 @@ protected-main rulesets, required CI checks and landing workflow. See also
    owned release source at the explicit intended `origin/main` commit through
    the shared lifecycle. Do not mutate the dirty shared tree to obtain the
    release base.
-2. `mise run release:prepare -- X.Y.Z`. It bumps the workspace version, rewrites
-   `Cargo.lock`, and prepends a changelog draft.
+2. `mise run release:prepare -- X.Y.Z`. It bumps the workspace and
+   `web/package.json` versions, rewrites `Cargo.lock`, and prepends a changelog
+   draft.
 3. Edit `CHANGELOG.md` as below. Delete the `<!-- draft: ... -->` line.
 4. `mise run release:cut -- X.Y.Z --push` (run async; ~15 min). It lands the
    version commit with `mise run land -- omp/release-X.Y.Z --wait`, then pushes

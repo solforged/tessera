@@ -1,6 +1,6 @@
 [package]
 name = "tessera-core"
-description = "Domain model, migrations and transactional operations for Tessera notebooks"
+description = "Domain model, migrations and transactional operations for Tessera workshops"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

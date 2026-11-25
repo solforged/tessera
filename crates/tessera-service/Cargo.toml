@@ -1,6 +1,6 @@
 [package]
 name = "tessera-service"
-description = "Loopback HTTP service that owns a Tessera notebook"
+description = "Loopback HTTP service that owns a Tessera workshop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
