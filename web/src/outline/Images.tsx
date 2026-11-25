@@ -36,6 +36,12 @@ export function ImageViewer(props: {
           event.preventDefault();
           props.onClose();
         }}
+        onKeyDown={event => {
+          if (event.key === 'Escape' && !event.defaultPrevented) {
+            event.preventDefault();
+            props.onClose();
+          }
+        }}
         onClick={event => {
           if (
             event.target === event.currentTarget ||

@@ -229,6 +229,12 @@ export function CriteriaCellEditor(props: {
                   role="option"
                   aria-selected={index() === at()}
                   classList={{ selected: index() === at() }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void choose(at());
+                    }
+                  }}
                   onClick={() => void choose(at())}
                 >
                   <span class="picker-text">

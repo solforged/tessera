@@ -236,10 +236,6 @@ export function ReviewCard(props: ReviewCardProps) {
       grade(choice.grade);
     }
   }
-  onMount(() => {
-    region.addEventListener('keydown', keydown);
-    onCleanup(() => region.removeEventListener('keydown', keydown));
-  });
   // A phone grades by dragging the card sideways: right is Good, left is Again. The capsules stay the visible path.
   onMount(() => {
     onCleanup(
@@ -300,6 +296,7 @@ export function ReviewCard(props: ReviewCardProps) {
       aria-label="Review card"
       aria-busy={locked()}
       tabIndex={0}
+      onKeyDown={keydown}
       onClick={event => {
         if (
           (event.target as Element).closest('button, a, summary, input, textarea, [role="button"]') ||

@@ -471,6 +471,12 @@ export function CaptureField(props: CaptureFieldProps) {
                     onMouseMove={() => {
                       if (index() !== row()) setIndex(row());
                     }}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void choose(choice);
+                      }
+                    }}
                     onClick={() => {
                       void choose(choice);
                     }}

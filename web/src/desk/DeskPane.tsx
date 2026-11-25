@@ -540,6 +540,16 @@ export function DeskPane(props: TablePaneProps) {
                           tabIndex={selection()[selectionKey[column]] === row.block.block.id ? 0 : -1}
                           aria-selected={selection()[selectionKey[column]] === row.block.block.id}
                           data-desk-row={row.block.block.id}
+                          onKeyDown={event => {
+                            if (event.key === ' ') {
+                              event.preventDefault();
+                              select(
+                                column,
+                                row,
+                                getComputedStyle(region.querySelector('.desk-breadcrumb')!).display !== 'none',
+                              );
+                            }
+                          }}
                           onClick={event => {
                             if (opensBeside(event)) {
                               openRow(row, true);
