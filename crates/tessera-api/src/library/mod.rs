@@ -110,6 +110,23 @@ async fn upload(
         .decode_utf8()
         .map_err(|_| invalid("The filename is not valid UTF-8."))?
         .into_owned();
+    #[cfg(native)]
+    let job = {
+        let dir = read(&state, |n| Ok(n.info()?.path)).await?;
+        let sha = tokio::task::spawn_blocking(move || tessera_core::put_object_in(&dir, &body))
+            .await
+            .map_err(ApiError::internal)??;
+        run(&state.workshop, move |n| {
+            n.queue_ingest(
+                IngestInput::File,
+                &sha,
+                &filename,
+                query.target_source.as_deref(),
+            )
+        })
+        .await?
+    };
+    #[cfg(browser)]
     let job = run(&state.workshop, move |n| {
         let sha = n.put_object(&body)?;
         n.queue_ingest(
@@ -446,24 +463,17 @@ pub fn extract(
     result.map_err(|e| format!("The source could not be extracted: {e}."))
 }
 
-/// Store an extracted document's resources, stage its snapshot, apply the
+/// Stage an extracted document whose object files are already stored, apply the
 /// source plan and finish the job, all under one workshop lock.
-fn commit(
+fn commit_staged(
     n: &mut Workshop,
     job: &IngestJob,
     doc: &ExtractedDocument,
     sha: &str,
-    mut resources: Vec<(String, String, String)>,
+    resources: &[(String, String, String)],
     changes: &broadcast::Sender<i64>,
 ) -> tessera_core::Result<()> {
-    for resource in &doc.resources {
-        resources.push((
-            resource.href.clone(),
-            n.put_object(&resource.bytes)?,
-            resource.media_type.clone(),
-        ));
-    }
-    let snapshot = n.stage_snapshot(doc, sha, &resources)?;
+    let snapshot = n.stage_snapshot(doc, sha, resources)?;
     let plan = n.plan_ingest(&snapshot.id, job.target_source.as_deref(), Some(&job.name))?;
     if !plan.unchanged {
         let committed = n.apply(&Batch {
@@ -479,6 +489,27 @@ fn commit(
         }
     }
     n.finish_ingest(&job.id, &plan.source_id, &snapshot.id)
+}
+
+/// Store an extracted document's resources, stage its snapshot, apply the
+/// source plan and finish the job, all under one workshop lock.
+#[cfg(browser)]
+fn commit(
+    n: &mut Workshop,
+    job: &IngestJob,
+    doc: &ExtractedDocument,
+    sha: &str,
+    mut resources: Vec<(String, String, String)>,
+    changes: &broadcast::Sender<i64>,
+) -> tessera_core::Result<()> {
+    for resource in &doc.resources {
+        resources.push((
+            resource.href.clone(),
+            n.put_object(&resource.bytes)?,
+            resource.media_type.clone(),
+        ));
+    }
+    commit_staged(n, job, doc, sha, &resources, changes)
 }
 
 #[cfg(browser)]
@@ -1055,6 +1086,41 @@ mod resurface_tests {
         assert!(matches!(
             events.try_recv(),
             Err(broadcast::error::TryRecvError::Empty)
+        ));
+    }
+
+    #[cfg(native)]
+    #[test]
+    fn public_and_uploaded_articles_reject_private_and_loopback_image_hosts() {
+        use super::allow_article_image;
+
+        for blocked in [
+            "http://127.0.0.1:4318/api/service",
+            "http://localhost:8080/fig.png",
+            "http://169.254.169.254/latest/meta-data",
+            "http://10.0.0.12/internal.png",
+            "http://192.168.1.5/router.png",
+            "http://100.80.1.2/tailnet.png",
+            "http://[::1]:4318/fig.png",
+            "http://[::ffff:127.0.0.1]/fig.png",
+        ] {
+            assert!(!allow_article_image(
+                blocked,
+                Some("https://example.com/post")
+            ));
+            assert!(!allow_article_image(blocked, None));
+            assert!(!allow_article_image(
+                blocked,
+                Some("http://127.0.0.1:59999/article.html"),
+            ));
+        }
+        assert!(allow_article_image(
+            "https://cdn.example.com/fig.png",
+            Some("https://example.com/post"),
+        ));
+        assert!(allow_article_image(
+            "http://127.0.0.1:59999/fig.png",
+            Some("http://127.0.0.1:59999/article.html"),
         ));
     }
 }

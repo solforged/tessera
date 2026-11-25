@@ -37,7 +37,7 @@ fn member(archive: &mut Archive<'_>, path: &str) -> Result<Vec<u8>> {
     if file.size() > ENTRY_LIMIT {
         return Err(malformed("entry exceeds 64 MiB"));
     }
-    let mut bytes = Vec::with_capacity(file.size() as usize);
+    let mut bytes = Vec::with_capacity(file.size().min(256 * 1024) as usize);
     file.take(ENTRY_LIMIT + 1)
         .read_to_end(&mut bytes)
         .map_err(malformed)?;
@@ -188,7 +188,7 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
         let document = Html::parse_document(&contents);
         let guide_base = Base::Book(path);
         let entries: Vec<_> = document
-            .select(&selector("a[href]"))
+            .select(selector("a[href]"))
             .filter_map(|link| {
                 let Target::Internal(target) = guide_base.resolve(link.value().attr("href")?)?
                 else {
@@ -225,7 +225,7 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
         let contents = member_text(&mut archive, &item.path)?;
         let document = Html::parse_document(&contents);
         let body = document
-            .select(&selector("body"))
+            .select(selector("body"))
             .next()
             .unwrap_or_else(|| document.root_element());
         passages.read(body, &Base::Book(item.path.clone()));
@@ -508,7 +508,7 @@ fn metadata(root: Node<'_, '_>) -> ExtractedMetadata {
 
 fn nav_entries(contents: &str, path: &str) -> Vec<Navigation> {
     let document = Html::parse_document(contents);
-    let Some(nav) = document.select(&selector("nav")).find(|nav| {
+    let Some(nav) = document.select(selector("nav")).find(|nav| {
         nav.value()
             .attr("epub:type")
             .is_some_and(|value| value.split_whitespace().any(|value| value == "toc"))
@@ -517,7 +517,7 @@ fn nav_entries(contents: &str, path: &str) -> Vec<Navigation> {
         return Vec::new();
     };
     let base = Base::Book(path.to_owned());
-    nav.select(&selector("a[href]"))
+    nav.select(selector("a[href]"))
         .filter_map(|link| {
             let Target::Internal(target) = base.resolve(link.value().attr("href")?)? else {
                 return None;

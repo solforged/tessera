@@ -64,33 +64,48 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
 
 /// Content-addressed source bytes live in `objects/` beside the database.
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub fn object_path_in(dir: &std::path::Path, sha: &str) -> Result<PathBuf> {
+    validate_sha(sha)?;
+    Ok(dir.join("objects").join(&sha[..2]).join(&sha[2..]))
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub fn read_object_in(dir: &std::path::Path, sha: &str) -> Result<Vec<u8>> {
+    Ok(std::fs::read(object_path_in(dir, sha)?)?)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub fn put_object_in(dir: &std::path::Path, bytes: &[u8]) -> Result<String> {
+    let sha = sha256_hex(bytes);
+    let path = object_path_in(dir, &sha)?;
+    if path.try_exists()? {
+        return Ok(sha);
+    }
+    let directory = path.parent().expect("object parent");
+    std::fs::create_dir_all(directory)?;
+    let mut temp = tempfile::NamedTempFile::new_in(directory)?;
+    temp.write_all(bytes)?;
+    temp.as_file().sync_all()?;
+    match temp.persist_noclobber(&path) {
+        Ok(_) => (),
+        Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => (),
+        Err(error) => return Err(error.error.into()),
+    }
+    std::fs::File::open(directory)?.sync_all()?;
+    std::fs::File::open(dir.join("objects"))?.sync_all()?;
+    Ok(sha)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Workshop {
     pub fn object_path(&self, sha: &str) -> Result<PathBuf> {
-        validate_sha(sha)?;
-        Ok(self.dir.join("objects").join(&sha[..2]).join(&sha[2..]))
+        object_path_in(&self.dir, sha)
     }
     pub fn read_object(&self, sha: &str) -> Result<Vec<u8>> {
-        Ok(std::fs::read(self.object_path(sha)?)?)
+        read_object_in(&self.dir, sha)
     }
     pub fn put_object(&self, bytes: &[u8]) -> Result<String> {
-        let sha = sha256_hex(bytes);
-        let path = self.object_path(&sha)?;
-        if path.try_exists()? {
-            return Ok(sha);
-        }
-        let directory = path.parent().expect("object parent");
-        std::fs::create_dir_all(directory)?;
-        let mut temp = tempfile::NamedTempFile::new_in(directory)?;
-        temp.write_all(bytes)?;
-        temp.as_file().sync_all()?;
-        match temp.persist_noclobber(&path) {
-            Ok(_) => (),
-            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => (),
-            Err(error) => return Err(error.error.into()),
-        }
-        std::fs::File::open(directory)?.sync_all()?;
-        std::fs::File::open(self.dir.join("objects"))?.sync_all()?;
-        Ok(sha)
+        put_object_in(&self.dir, bytes)
     }
 }
 

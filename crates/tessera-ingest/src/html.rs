@@ -1,12 +1,20 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
 
 use scraper::{ElementRef, Html, Selector};
 use tessera_core::library::{ExtractedPassage, Mark, MarkKind, PassageKind};
 
 use crate::location::{Base, Target, normalize};
 
-pub(crate) fn selector(value: &str) -> Selector {
-    Selector::parse(value).expect("static HTML selector")
+pub(crate) fn selector(value: &'static str) -> &'static Selector {
+    static CACHE: LazyLock<Mutex<HashMap<&'static str, &'static Selector>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    let mut cache = CACHE.lock().expect("selector cache poisoned");
+    cache.entry(value).or_insert_with(|| {
+        Box::leak(Box::new(
+            Selector::parse(value).expect("static HTML selector"),
+        ))
+    })
 }
 
 pub(crate) fn plain(value: &str) -> String {
@@ -207,7 +215,7 @@ impl Passages {
             return;
         }
         if tag == "svg" {
-            for image in element.select(&selector("image")) {
+            for image in element.select(selector("image")) {
                 if let Some(id) = image.value().attr("id") {
                     self.target(id, base, self.passages.len());
                 }
@@ -448,7 +456,7 @@ impl Passages {
                         svg.value()
                             .attr("aria-label")
                             .map(normalize)
-                            .or_else(|| svg.select(&selector("title")).next().map(text))
+                            .or_else(|| svg.select(selector("title")).next().map(text))
                     })
             })
             .unwrap_or_default();

@@ -52,7 +52,7 @@ pub(crate) fn extract(contents: &str, address: Option<&str>) -> Result<Extracted
     let mut passages = Passages::default();
     passages.read(root, &base);
     // Some themes put the endnotes immediately after the article container.
-    for note in document.select(&selector("section, aside, div, ol")) {
+    for note in document.select(selector("section, aside, div, ol")) {
         if is_note(note)
             && !note.ancestors().any(|node| node.id() == root.id())
             && !note.ancestors().filter_map(ElementRef::wrap).any(is_note)
@@ -91,76 +91,68 @@ pub(crate) fn extract(contents: &str, address: Option<&str>) -> Result<Extracted
 }
 
 fn content_root(document: &Html) -> ElementRef<'_> {
+    let mut scores = std::collections::HashMap::new();
+    score_tree(
+        document.root_element(),
+        &|element| element.id(),
+        &mut scores,
+    );
     let semantic = document
-        .select(&selector("article, main, [role=main]"))
-        .filter(|element| {
-            !element
-                .ancestors()
-                .filter_map(ElementRef::wrap)
-                .any(|ancestor| noise(ancestor, true))
-                && !noise(*element, true)
-        })
-        .max_by_key(|element| score(*element));
-    if let Some(root) = semantic.filter(|root| score(*root) > 0) {
+        .select(selector("article, main, [role=main]"))
+        .filter(|element| scores.contains_key(&element.id()))
+        .max_by_key(|element| scores[&element.id()]);
+    if let Some(root) = semantic.filter(|root| scores[&root.id()] > 0) {
         return root;
     }
     document
-        .select(&selector("body, section, div"))
-        .filter(|element| {
-            !noise(*element, true)
-                && !element
-                    .ancestors()
-                    .filter_map(ElementRef::wrap)
-                    .any(|ancestor| noise(ancestor, true))
-        })
-        .max_by_key(|element| score(*element))
+        .select(selector("body, section, div"))
+        .filter(|element| scores.contains_key(&element.id()))
+        .max_by_key(|element| scores[&element.id()])
         .unwrap_or_else(|| document.root_element())
 }
 
-fn score(root: ElementRef<'_>) -> usize {
+/// Bottom-up single-pass prose density score for every non-noise element.
+/// Returns `(characters, linked_characters_under_child_anchor, paragraphs, elements)`.
+fn score_tree<K: Eq + std::hash::Hash>(
+    element: ElementRef<'_>,
+    id_of: &impl Fn(ElementRef<'_>) -> K,
+    scores: &mut std::collections::HashMap<K, usize>,
+) -> Option<(usize, usize, usize, usize)> {
+    if noise(element, true) {
+        return None;
+    }
     let mut characters = 0usize;
     let mut linked = 0usize;
-    let mut paragraphs = 0usize;
-    let mut elements = 0usize;
-    for node in root.descendants() {
-        if node
-            .ancestors()
-            .take_while(|ancestor| ancestor.id() != root.id())
-            .filter_map(ElementRef::wrap)
-            .any(|ancestor| noise(ancestor, true))
+    let mut paragraphs = usize::from(element.value().name() == "p");
+    let mut elements = 1usize;
+    for child in element.children() {
+        if let Some(value) = child.value().as_text() {
+            characters += value.trim().chars().count();
+        } else if let Some(child_element) = ElementRef::wrap(child)
+            && let Some((c_chars, c_linked, c_paragraphs, c_elements)) =
+                score_tree(child_element, id_of, scores)
         {
-            continue;
-        }
-        if let Some(value) = node.value().as_text() {
-            let length = value.trim().chars().count();
-            characters += length;
-            if node
-                .ancestors()
-                .take_while(|ancestor| ancestor.id() != root.id())
-                .filter_map(ElementRef::wrap)
-                .any(|ancestor| ancestor.value().name() == "a")
-            {
-                linked += length;
-            }
-        } else if let Some(element) = ElementRef::wrap(node) {
-            if noise(element, true) {
-                continue;
-            }
-            elements += 1;
-            if element.value().name() == "p" {
-                paragraphs += 1;
-            }
+            characters += c_chars;
+            linked += if child_element.value().name() == "a" {
+                c_chars
+            } else {
+                c_linked
+            };
+            paragraphs += c_paragraphs;
+            elements += c_elements;
         }
     }
     let readable = characters.saturating_sub(linked);
     // Prefer sustained prose over link farms and deeply wrapped page chrome.
-    (readable + paragraphs * 80) * 100 / (elements + 20)
+    let score = (readable + paragraphs * 80) * 100 / (elements + 20);
+    scores.insert(id_of(element), score);
+    Some((characters, linked, paragraphs, elements))
 }
 
 /// Every `meta` value named `key`, in document order.
 fn metas<'a>(document: &'a Html, key: &str) -> Vec<&'a str> {
     document
-        .select(&selector("meta[content]"))
+        .select(selector("meta[content]"))
         .filter(|element| {
             [
                 element.value().attr("name"),
@@ -511,7 +503,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
             .ok()
     };
     let json_values: Vec<Value> = document
-        .select(&selector("script[type='application/ld+json']"))
+        .select(selector("script[type='application/ld+json']"))
         .filter_map(|script| serde_json::from_str(&script.text().collect::<String>()).ok())
         .collect();
     let mut json = Vec::new();
@@ -536,7 +528,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
     let structured = structured_title.is_some();
     let mut title = structured_title
         .or_else(|| meta(document, "og:title"))
-        .or_else(|| document.select(&selector("title")).next().map(text));
+        .or_else(|| document.select(selector("title")).next().map(text));
     if let (Some(title), Some(site)) = (&mut title, &site) {
         for separator in [" | ", " - "] {
             if let Some((prefix, suffix)) = title.rsplit_once(separator)
@@ -566,7 +558,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
         }
     }
     // Catalogue records mark creators in RDFa with MARC relator roles, as Project Gutenberg does.
-    for element in document.select(&selector("[itemprop~=creator], [rel^='marcrel:']")) {
+    for element in document.select(selector("[itemprop~=creator], [rel^='marcrel:']")) {
         let relator = element.value().attr("rel").and_then(|rel| {
             rel.split_whitespace()
                 .find_map(|value| value.strip_prefix("marcrel:"))
@@ -577,7 +569,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
             Some("trl") => CreatorRole::Translator,
             Some(_) => continue,
         };
-        let name = element.select(&names).next().unwrap_or(element);
+        let name = element.select(names).next().unwrap_or(element);
         let name = name
             .value()
             .attr("content")
@@ -595,12 +587,12 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
         selector(".byline, .author, .post-author, .author-name, [rel=author], [itemprop=author]");
     let given_names = selector("[itemprop=givenName]");
     let family_names = selector("[itemprop=familyName]");
-    for byline in document.select(&bylines) {
+    for byline in document.select(bylines) {
         // Prefer the named child to a wrapper that also includes a publication date.
-        if byline.select(&bylines).next().is_none() {
-            let name = byline.select(&names).next().unwrap_or(byline);
-            let given = byline.select(&given_names).next();
-            let family = byline.select(&family_names).next();
+        if byline.select(bylines).next().is_none() {
+            let name = byline.select(names).next().unwrap_or(byline);
+            let given = byline.select(given_names).next();
+            let family = byline.select(family_names).next();
             let kind = byline_kind(byline)
                 .or_else(|| (given.is_some() || family.is_some()).then_some(CreatorKind::Person));
             if name == byline && (given.is_some() || family.is_some()) {
@@ -633,12 +625,12 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
             })
         })
         .or_else(|| {
-            root.select(&selector("time[datetime]"))
+            root.select(selector("time[datetime]"))
                 .find_map(|time| time.value().attr("datetime").and_then(date))
         })
         .or_else(|| url.and_then(path_date));
     let canonical = document
-        .select(&selector("link[href]"))
+        .select(selector("link[href]"))
         .find(|link| {
             link.value().attr("rel").is_some_and(|value| {
                 value
@@ -651,7 +643,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
         .or_else(|| meta(document, "og:url").and_then(|href| address(&href)))
         .or_else(|| url.cloned());
     let identifiers = document
-        .select(&selector("meta[content]"))
+        .select(selector("meta[content]"))
         .filter(|element| {
             [
                 element.value().attr("name"),
@@ -678,7 +670,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> Extract
             .or_else(|| meta(document, "description"))
             .map(|value| plain(&value)),
         language: document
-            .select(&selector("html[lang]"))
+            .select(selector("html[lang]"))
             .next()
             .and_then(|html| html.value().attr("lang"))
             .map(str::to_owned),

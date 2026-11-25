@@ -1,68 +1,20 @@
 use std::collections::BTreeSet;
 
+use rusqlite::Connection;
 use rusqlite::fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::hooks::Action;
 use rusqlite::session::{ChangesetItem, Session};
 use rusqlite::types::ValueRef;
-use rusqlite::{Connection, OptionalExtension, params};
 
-use super::Topic::{self, *};
-use crate::Result;
-
-/// The data topics: all but `Sync`, which follows the workshop's role.
-const DATA: &[Topic] = &[
-    Fields, Types, Pages, Inquiry, Tasks, Cards, Library, Revisits, Views,
-];
-
-/// Tables whose net row changes alter a topic, beside `blocks`, which is
-/// classified per row.
-const TABLES: &[(&str, &[Topic])] = &[
-    ("links", &[Fields, Tasks]),
-    ("memberships", &[Types, Pages, Library, Tasks]),
-    ("deletion_events", &[Pages]),
-    ("provisional_pages", &[Pages]),
-    ("fields", &[Fields, Types]),
-    ("field_targets", &[Fields, Types]),
-    ("type_fields", &[Fields, Types]),
-    ("type_presentation", &[Types, Pages]),
-    ("subject_criteria", &[Inquiry]),
-    ("field_values", &[Pages, Library]),
-    ("views", &[Views]),
-    ("tasks", &[Tasks, Fields]),
-    ("projects", &[Tasks, Fields, Pages]),
-    ("task_occurrences", &[Tasks]),
-    ("work_sessions", &[Tasks]),
-    ("task_views", &[Tasks]),
-    ("positions", &[Inquiry]),
-    ("relations", &[Inquiry]),
-    ("questions", &[Inquiry, Pages]),
-    ("assessments", &[Inquiry]),
-    ("card_units", &[Cards]),
-    ("card_templates", &[Cards, Types]),
-    ("decks", &[Cards]),
-    ("review_sessions", &[Cards]),
-    ("review_events", &[Cards]),
-    ("review_undos", &[Cards]),
-    ("note_states", &[Revisits, Pages]),
-    ("revisit_events", &[Revisits]),
-    ("sources", &[Library, Pages]),
-    ("source_snapshots", &[Library]),
-    ("citations", &[Library]),
-    ("library_views", &[Library]),
-    ("id_aliases", &[Pages]),
-    ("spreads", &[Pages]),
-];
-
-/// What a page's title, kind, move or deletion can alter: every list that
-/// names pages.
-const ROOT: &[Topic] = &[Fields, Types, Pages, Inquiry, Tasks, Library, Revisits];
+use super::{BlockChange, TABLES, Topic, classify};
+use crate::{Batch, Result};
 
 /// Records a commit's net row changes from before its first write.
 pub(crate) struct Watch<'conn> {
     session: Session<'conn>,
 }
 
-pub(crate) fn watch(conn: &Connection) -> Result<Watch<'_>> {
+pub(crate) fn watch<'conn>(conn: &'conn Connection, _batch: &Batch) -> Result<Watch<'conn>> {
     let mut session = Session::new(conn)?;
     session.attach(Some("blocks"))?;
     for (table, _) in TABLES {
@@ -108,19 +60,6 @@ impl Columns {
     }
 }
 
-/// One changed `blocks` row. An insert or delete carries every column; an
-/// update carries its key and the columns it changed.
-struct BlockChange {
-    id: String,
-    root: Option<bool>,
-    page_id: Option<String>,
-    whole: bool,
-    text: bool,
-    archived: bool,
-    deleted: bool,
-    moved: bool,
-}
-
 fn owned(value: ValueRef<'_>) -> Option<String> {
     value.as_str().ok().map(str::to_owned)
 }
@@ -159,7 +98,7 @@ impl Watch<'_> {
     pub(crate) fn finish(mut self, conn: &Connection, synced: bool) -> Result<Vec<Topic>> {
         let mut topics = BTreeSet::new();
         if synced {
-            topics.insert(Sync);
+            topics.insert(Topic::Sync);
         }
         if self.session.is_empty() {
             return Ok(topics.into_iter().collect());
@@ -187,83 +126,4 @@ impl Watch<'_> {
         }
         Ok(topics.into_iter().collect())
     }
-}
-
-fn classify(conn: &Connection, blocks: &[BlockChange], topics: &mut BTreeSet<Topic>) -> Result<()> {
-    let fields_page: Option<String> = conn
-        .query_row(
-            "SELECT id FROM blocks
-             WHERE parent_id IS NULL AND kind = 'page' AND title_key = 'fields'",
-            [],
-            |row| row.get(0),
-        )
-        .optional()?;
-    let mut place =
-        conn.prepare_cached("SELECT parent_id IS NULL, page_id FROM blocks WHERE id = ?1")?;
-    let mut roles = conn.prepare_cached(
-        "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = ?1)
-                    OR EXISTS(SELECT 1 FROM projects WHERE block_id = ?1),
-                EXISTS(SELECT 1 FROM positions WHERE block_id = ?1)
-                    OR EXISTS(SELECT 1 FROM questions WHERE block_id = ?1),
-                EXISTS(SELECT 1 FROM citations WHERE block_id = ?1),
-                EXISTS(SELECT 1 FROM links l JOIN blocks d ON d.id = l.target_id
-                       WHERE l.source_id = ?1 AND d.page_id = ?2),
-                EXISTS(SELECT 1 FROM field_values WHERE value_id = ?1)",
-    )?;
-    for block in blocks {
-        // Archiving hides a whole subtree without touching its other rows.
-        if block.archived {
-            topics.extend(DATA.iter().copied());
-            continue;
-        }
-        let (root, page_id) = match (block.root, &block.page_id) {
-            (Some(root), Some(page)) => (root, Some(page.clone())),
-            _ => place
-                .query_row([&block.id], |row| Ok((row.get::<_, bool>(0)?, row.get(1)?)))
-                .optional()?
-                .unwrap_or((block.root.unwrap_or(true), block.page_id.clone())),
-        };
-        let structural = block.whole || block.deleted || block.moved;
-        if !(structural || block.text) {
-            continue;
-        }
-        if root {
-            topics.extend(ROOT.iter().copied());
-            continue;
-        }
-        // The note index counts the field definitions.
-        if fields_page.is_some() && page_id == fields_page {
-            topics.extend([Fields, Types, Pages]);
-            continue;
-        }
-        let (task, inquiry, citation, entry, value): (bool, bool, bool, bool, bool) = roles
-            .query_row(params![block.id, fields_page], |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                ))
-            })?;
-        if task {
-            topics.insert(Tasks);
-        }
-        if inquiry {
-            topics.insert(Inquiry);
-        }
-        if citation {
-            topics.insert(Library);
-        }
-        // A value's text is metadata, an alias or a required field's content;
-        // its `field_values` row names only the block, so it does not change.
-        if value {
-            topics.extend([Library, Types, Pages]);
-        }
-        // An entry counts toward its field while it and its owner are live.
-        if (task || entry) && structural {
-            topics.insert(Fields);
-        }
-    }
-    Ok(())
 }
