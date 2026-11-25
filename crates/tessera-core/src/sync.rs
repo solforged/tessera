@@ -358,6 +358,24 @@ fn role(conn: &Connection) -> Result<Option<Role>> {
     })
 }
 
+/// Whether [`prune`] has any expired replicas to retire or applied patches to release.
+pub(crate) fn needs_prune(conn: &Connection, now: i64) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sync_replicas
+             WHERE retired_at IS NULL AND seen_at < ?1 - ?2
+         ) OR EXISTS(
+             SELECT 1 FROM change_patches
+             WHERE seq <= COALESCE(
+                 (SELECT MIN(cursor) FROM sync_replicas WHERE retired_at IS NULL),
+                 (SELECT MAX(seq) FROM change_patches)
+             )
+         )",
+        params![now, RETIRE_AFTER_MS],
+        |row| row.get(0),
+    )?)
+}
+
 /// Retire replicas the hub has not heard from in [`RETIRE_AFTER_MS`], then
 /// forget the patches every remaining replica has applied.
 pub(crate) fn prune(conn: &Connection, now: i64) -> Result<()> {

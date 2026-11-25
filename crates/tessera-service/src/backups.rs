@@ -10,7 +10,7 @@ use serde::Serialize;
 use tessera_core::WorkshopInfo;
 
 use crate::error::ApiError;
-use crate::state::{AppState, read, run};
+use crate::state::AppState;
 
 pub(crate) fn backup_routes() -> Router<AppState> {
     Router::new()
@@ -196,7 +196,7 @@ fn list_backups(store: &std::path::Path, info: &WorkshopInfo) -> Result<Backups,
 async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiError> {
     let store = backup_store(&state)?;
     let guard = state.backup.clone().lock_owned().await;
-    let info = read(&state, |workshop| workshop.info()).await?;
+    let info = state.info.read().clone();
     tokio::task::spawn_blocking(move || {
         let failure = guard.clone();
         list_backups(&store, &info).map(|backups| {
@@ -229,7 +229,7 @@ async fn delete_backup(
     let Path(name) = name.map_err(ApiError::from)?;
     validate_backup_name(&name)?;
     let guard = state.backup.clone().lock_owned().await;
-    let info = run(&state, |workshop| workshop.info()).await?;
+    let info = state.info.read().clone();
     tokio::task::spawn_blocking(move || {
         let backups = list_backups(&store, &info)?.backups;
         let index = backups
@@ -289,7 +289,7 @@ async fn restore_backup(
         return Err(conflict());
     }
     let store = backup_store(&state)?;
-    let info = run(&state, |workshop| workshop.info()).await?;
+    let info = state.info.read().clone();
     tokio::task::spawn_blocking(move || {
         // Both guards outlive cancellation, including publishing the restart request.
         let (_guard, _transition) = (guard, transition);
@@ -335,7 +335,7 @@ async fn delete_other_backups(
         ));
     }
     let guard = state.backup.clone().lock_owned().await;
-    let info = run(&state, |workshop| workshop.info()).await?;
+    let info = state.info.read().clone();
     if info.id == id {
         return Err(ApiError::new(
             axum::http::StatusCode::CONFLICT,
@@ -370,7 +370,7 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
             "A backup is already running.",
         )
     })?;
-    let info = run(&state, |workshop| workshop.info()).await?;
+    let info = state.info.read().clone();
     tokio::task::spawn_blocking(move || {
         // Keep the guard here so cancelling the HTTP request cannot release it early.
         let mut guard = guard;
@@ -418,22 +418,24 @@ mod tests {
         let library =
             library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
         let backup = Arc::new(tokio::sync::Mutex::new(None));
+        let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let app = Router::new()
             .route("/api/backups", post(create_backup))
             .with_state(AppState {
                 readers: None,
+                info: Arc::new(parking_lot::RwLock::new(info.clone())),
                 workshop,
                 assets: None,
                 changes,
                 library,
-                objects: hub_objects(),
+                objects: hub_objects(replica.clone()),
                 port: 4396,
                 backup: backup.clone(),
                 backup_store: Some(dir.path().join("backups")),
                 sync_port: 4501,
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
-                replica: Arc::default(),
+                replica,
                 sync_health: Arc::default(),
                 switcher: None,
                 agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
@@ -491,6 +493,7 @@ mod tests {
         let workshop = Arc::new(Mutex::new(
             Workshop::open(dir.path().join("notebook")).unwrap(),
         ));
+        let info = workshop.lock().info().unwrap();
         let changes = broadcast::channel(32).0;
         let library =
             library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
@@ -498,20 +501,22 @@ mod tests {
             at: 7,
             message: "disk full".into(),
         })));
+        let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let app = backup_routes().with_state(AppState {
             readers: None,
+            info: Arc::new(parking_lot::RwLock::new(info)),
             workshop,
             assets: None,
             changes,
             library,
-            objects: hub_objects(),
+            objects: hub_objects(replica.clone()),
             port: 4396,
             backup,
             backup_store: Some(dir.path().join("backups")),
             sync_port: 4501,
             pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
-            replica: Arc::default(),
+            replica,
             sync_health: Arc::default(),
             switcher: None,
             agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
@@ -536,20 +541,22 @@ mod tests {
         let changes = broadcast::channel(32).0;
         let library =
             library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
+        let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let app = backup_routes().with_state(AppState {
             readers: None,
+            info: Arc::new(parking_lot::RwLock::new(info.clone())),
             workshop,
             assets: None,
             changes,
             library,
-            objects: hub_objects(),
+            objects: hub_objects(replica.clone()),
             port: 4561,
             backup: Arc::new(tokio::sync::Mutex::new(None)),
             backup_store: Some(dir.path().join("backups")),
             sync_port: 4562,
             pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
-            replica: Arc::default(),
+            replica,
             sync_health: Arc::default(),
             switcher: None,
             agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),

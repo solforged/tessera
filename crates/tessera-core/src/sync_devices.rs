@@ -96,8 +96,15 @@ impl Workshop {
         )?)
     }
 
-    pub fn sync_devices(&mut self) -> Result<Vec<DeviceInfo>> {
-        crate::sync::prune(&self.conn, now_ms())?;
+    pub fn sync_has_peers(&self) -> Result<bool> {
+        Ok(self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sync_devices) OR EXISTS(SELECT 1 FROM sync_replicas)",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
+    fn query_sync_devices(&self) -> Result<Vec<DeviceInfo>> {
         Ok(self
             .conn
             .prepare(
@@ -126,6 +133,23 @@ impl Workshop {
                 })
             })?
             .collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Read paired devices and retained patch counts without writing when no
+    /// replica needs retirement and no patches are waiting to be pruned.
+    pub fn sync_devices_if_clean(&self) -> Result<Option<(Vec<DeviceInfo>, RetainedPatches)>> {
+        if crate::sync::needs_prune(&self.conn, now_ms())? {
+            return Ok(None);
+        }
+        Ok(Some((
+            self.query_sync_devices()?,
+            self.sync_retained_patches()?,
+        )))
+    }
+
+    pub fn sync_devices(&mut self) -> Result<Vec<DeviceInfo>> {
+        crate::sync::prune(&self.conn, now_ms())?;
+        self.query_sync_devices()
     }
 
     pub fn sync_retained_patches(&self) -> Result<RetainedPatches> {

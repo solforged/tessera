@@ -1,14 +1,14 @@
 use axum::{Json, extract::State};
 
 use crate::error::ApiError;
-use crate::run::run;
+use crate::run::{read, run};
 use crate::state::WorkshopState;
 use tessera_core::CheckReport;
 
 pub(crate) async fn check_workshop(
     State(state): State<WorkshopState>,
 ) -> Result<Json<CheckReport>, ApiError> {
-    run(&state.workshop, |workshop| workshop.check(false))
+    read(&state, |workshop| workshop.check_snapshot())
         .await
         .map(Json)
 }

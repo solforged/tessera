@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use parking_lot::Mutex;
-use tessera_core::Workshop;
+use parking_lot::{Mutex, RwLock};
+use tessera_core::{Workshop, WorkshopInfo};
 use tokio::sync::broadcast;
 
 use crate::agent;
@@ -17,6 +17,8 @@ use crate::sync;
 #[derive(Clone)]
 pub(crate) struct AppState {
     pub(crate) workshop: Arc<Mutex<Workshop>>,
+    /// Cached workshop identity and directory, refreshed when a clone replaces the database.
+    pub(crate) info: Arc<RwLock<WorkshopInfo>>,
     /// Read-only connections, so reads do not queue behind saves.
     pub(crate) readers: Option<tessera_api::Readers>,
     pub(crate) assets: Option<Arc<PathBuf>>,
@@ -36,8 +38,11 @@ pub(crate) struct AppState {
     pub(crate) shutdown: tokio::sync::watch::Receiver<bool>,
 }
 
-pub(crate) fn hub_objects() -> tessera_api::ObjectReader {
-    Arc::new(|workshop, readers, sha| Box::pin(sync::object_or_fetch(workshop, readers, sha)))
+pub(crate) fn hub_objects(replica: Arc<replica::ReplicaRuntime>) -> tessera_api::ObjectReader {
+    Arc::new(move |workshop, readers, sha| {
+        let replica = replica.clone();
+        Box::pin(sync::object_or_fetch(workshop, readers, replica, sha))
+    })
 }
 
 impl axum::extract::FromRef<AppState> for tessera_api::WorkshopState {

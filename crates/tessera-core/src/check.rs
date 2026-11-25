@@ -246,6 +246,29 @@ const GUARDED: &[&str] = &[
 const SEARCH_INDEXES: &[&str] = &["blocks_fts", "passages_fts"];
 
 impl Workshop {
+    /// Run a read-only check against an isolated in-memory snapshot of this
+    /// connection, so `GET /api/check` can run on a `query_only` reader beside
+    /// the writer without holding the workshop mutex.
+    pub fn check_snapshot(&self) -> Result<CheckReport> {
+        let live_quick = quick_check(&self.conn)?;
+        let mut scratch = Connection::open_in_memory()?;
+        {
+            let backup = rusqlite::backup::Backup::new(&self.conn, &mut scratch)?;
+            backup.step(-1)?;
+        }
+        scratch.pragma_update(None, "foreign_keys", true)?;
+        let mut copy = Self {
+            dir: self.dir.clone(),
+            conn: scratch,
+        };
+        let mut report = copy.check(false)?;
+        if !live_quick.is_empty() {
+            report.quick_check = live_quick;
+            report.ok = false;
+        }
+        Ok(report)
+    }
+
     /// Check the database file, the derived tables and the model's
     /// invariants, and hash every replicated table. With `repair`, replace the
     /// derived tables with freshly derived rows in one change by the `check`

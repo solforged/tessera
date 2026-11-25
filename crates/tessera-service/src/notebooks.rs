@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tessera_core::{DATABASE_FILE, Workshop, WorkshopOwnership};
 use tokio::sync::watch;
 
-use crate::{AppState, error::ApiError, paths, run};
+use crate::{AppState, error::ApiError, paths};
 
 /// The registry file and the workshop a service opens when none was named.
 #[derive(Clone, Debug)]
@@ -190,8 +190,8 @@ fn switcher(state: &AppState) -> Result<Arc<Switcher>, ApiError> {
     })
 }
 
-async fn current_path(state: &AppState) -> Result<PathBuf, ApiError> {
-    run(state, |workshop| workshop.info().map(|info| info.path)).await
+fn current_path(state: &AppState) -> PathBuf {
+    state.info.read().path.clone()
 }
 
 /// Paths are compared canonically; a missing folder keeps its spelling.
@@ -254,7 +254,7 @@ fn listing(registry: &Registry, current: &Path) -> io::Result<Workshops> {
 
 async fn list(State(state): State<AppState>) -> Result<Json<Workshops>, ApiError> {
     let switcher = switcher(&state)?;
-    let current = current_path(&state).await?;
+    let current = current_path(&state);
     tokio::task::spawn_blocking(move || listing(&switcher.registry, &current))
         .await
         .map_err(ApiError::internal)?
@@ -356,7 +356,7 @@ async fn open(
         ));
     }
     let target = expand(&request.path)?;
-    let current = current_path(&state).await?;
+    let current = current_path(&state);
     let worker = Arc::clone(&switcher);
     let path = tokio::task::spawn_blocking(move || {
         // A cancelled request must not let another transition overtake this one.
@@ -388,7 +388,7 @@ async fn forget(
 ) -> Result<Json<Workshops>, ApiError> {
     let Json(request) = body.map_err(ApiError::from)?;
     let switcher = switcher(&state)?;
-    let current = current_path(&state).await?;
+    let current = current_path(&state);
     tokio::task::spawn_blocking(move || {
         let registry = &switcher.registry;
         let path = canonical(&request.path);
