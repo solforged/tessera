@@ -18,21 +18,16 @@ export async function relationMembers(workshop: WorkshopClient, targets: readonl
   const blocks = new Map<string, BlockInPage>();
   await Promise.all(
     targets.map(async type => {
-      let offset = 0;
-      while (true) {
-        const result = await workshop.api.query(
-          type === SOURCE_TARGET
-            ? { type: null, note_kind: SOURCE_TARGET, text: null, filters: [], sort: [], limit: 2000, offset }
-            : { type, text: null, filters: [], sort: [], limit: 2000, offset },
-        );
-        for (const row of result.rows) {
-          const block = row.block.block;
-          if (block.archived) continue;
-          if (block.kind === 'page') pages.set(block.id, block);
-          else blocks.set(block.id, row.block);
-        }
-        offset += result.rows.length;
-        if (!result.rows.length || offset >= result.total) break;
+      const result = await workshop.api.query(
+        type === SOURCE_TARGET
+          ? { type: null, note_kind: SOURCE_TARGET, text: null, filters: [], sort: [], limit: 2000, offset: 0 }
+          : { type, text: null, filters: [], sort: [], limit: 2000, offset: 0 },
+      );
+      for (const row of result.rows) {
+        const block = row.block.block;
+        if (block.archived) continue;
+        if (block.kind === 'page') pages.set(block.id, block);
+        else blocks.set(block.id, row.block);
       }
     }),
   );

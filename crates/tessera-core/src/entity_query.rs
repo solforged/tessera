@@ -142,9 +142,15 @@ fn optional(attrs: &mut Attributes, key: &str, value: Option<String>) {
         text(attrs, key, value);
     }
 }
-fn instance(attrs: &mut Attributes, key: &str, id: &str, titles: &HashMap<String, String>) {
+fn instance(
+    attrs: &mut Attributes,
+    key: &str,
+    id: &str,
+    titles: &HashMap<String, String>,
+    labels: &mut crate::fields::ReadingContext<'_>,
+) {
     if let Some(title) = titles.get(id) {
-        let label = crate::fields::target_label(title, &mut |id| titles.get(id).cloned());
+        let label = labels.target_label(title);
         push(attrs, key, ReadingValue::Text(label), Some(id.into()));
     }
 }
@@ -273,9 +279,9 @@ impl Workshop {
         if source == QuerySource::Notes {
             return Ok(None);
         }
-        let titles = self.query_titles()?;
+        let mut labels = crate::fields::ReadingContext::new(&self.conn);
         let mut entities = Entities::new();
-        match source {
+        let titles = match source {
             QuerySource::Notes => unreachable!(),
             QuerySource::Positions => {
                 let positions = crate::position_store::derive(&self.conn, None)?;
@@ -286,27 +292,64 @@ impl Workshop {
                     .collect();
                 let roots: Vec<_> = positions.keys().cloned().collect();
                 let mut cited = references(&self.conn, &roots, true)?;
+                let relations = crate::relation_store::derive(&self.conn, None)?;
+                let mut needed: HashSet<&str> = HashSet::new();
+                for (id, position) in &positions {
+                    needed.insert(id);
+                    if let Some(holder) = position.holder_id.as_deref() {
+                        needed.insert(holder);
+                    }
+                    needed.insert(&position.subject_id);
+                }
+                for row in &questions {
+                    needed.insert(&row.block.block.id);
+                    if let Some(parent) = row.info.parent_id.as_deref() {
+                        needed.insert(parent);
+                    }
+                }
+                for source in cited.values().flatten() {
+                    needed.insert(source);
+                }
+                for (id, relation) in &relations {
+                    needed.insert(id);
+                    if let Some(target) = relation.target_id.as_deref() {
+                        needed.insert(target);
+                        if let Some(holder) = positions
+                            .get(target)
+                            .and_then(|position| position.holder_id.as_deref())
+                        {
+                            needed.insert(holder);
+                        }
+                    }
+                }
+                let titles = self.visible_titles_for(&needed)?;
                 for (id, position) in &positions {
                     let attrs = entities.entry(id.clone()).or_default();
                     if let Some(holder) = &position.holder_id {
-                        instance(attrs, "@holder", holder, &titles);
+                        instance(attrs, "@holder", holder, &titles, &mut labels);
                     }
-                    instance(attrs, "@subject", &position.subject_id, &titles);
+                    instance(
+                        attrs,
+                        "@subject",
+                        &position.subject_id,
+                        &titles,
+                        &mut labels,
+                    );
                     let mut question = position.subject_id.as_str();
                     let mut seen = HashSet::new();
                     while let Some(parent) = parents.get(question) {
                         if !seen.insert(question) {
                             break;
                         }
-                        instance(attrs, "@question", question, &titles);
+                        instance(attrs, "@question", question, &titles, &mut labels);
                         let Some(parent) = parent else { break };
                         question = parent;
                     }
                     for source in cited.remove(id).unwrap_or_default() {
-                        instance(attrs, "@cites", &source, &titles);
+                        instance(attrs, "@cites", &source, &titles, &mut labels);
                     }
                 }
-                for (id, relation) in crate::relation_store::derive(&self.conn, None)? {
+                for (id, relation) in relations {
                     if !titles.contains_key(&id) {
                         continue;
                     }
@@ -319,12 +362,21 @@ impl Workshop {
                             .get(target)
                             .and_then(|position| position.holder_id.as_deref())
                             .unwrap_or(target);
-                        instance(attrs, "@target_holder", holder, &titles);
+                        instance(attrs, "@target_holder", holder, &titles, &mut labels);
                     }
                 }
+                titles
             }
             QuerySource::Questions => {
                 let questions = self.questions(&crate::QuestionQuery::default())?;
+                let mut needed: HashSet<&str> = HashSet::new();
+                for row in &questions {
+                    needed.insert(&row.block.block.id);
+                    if let Some(parent) = row.info.parent_id.as_deref() {
+                        needed.insert(parent);
+                    }
+                }
+                let titles = self.visible_titles_for(&needed)?;
                 let parents: HashMap<_, _> = questions
                     .iter()
                     .map(|row| (row.block.block.id.as_str(), row.info.parent_id.as_deref()))
@@ -355,7 +407,7 @@ impl Workshop {
                     };
                     text(attrs, "@state", state);
                     if let Some(parent) = &row.info.parent_id {
-                        instance(attrs, "@parent", parent, &titles);
+                        instance(attrs, "@parent", parent, &titles, &mut labels);
                     }
                     let mut program = id.as_str();
                     let mut seen = HashSet::new();
@@ -365,7 +417,7 @@ impl Workshop {
                             None => break,
                         }
                     }
-                    instance(attrs, "@program", program, &titles);
+                    instance(attrs, "@program", program, &titles, &mut labels);
                     push(
                         attrs,
                         "@readings",
@@ -386,36 +438,63 @@ impl Workshop {
                         None,
                     );
                 }
+                titles
             }
             QuerySource::Tasks => {
                 let mut projects = crate::task_query::project_memberships(&self.conn)?;
-                for row in
-                    crate::task_query::visible_tasks(&self.conn, None, crate::TaskProjectVia::Both)?
-                {
-                    // Appointments carry planning state but do not belong to the Tasks kind.
-                    if row.task.status.is_none() {
-                        continue;
+                let visible: Vec<_> = crate::task_query::visible_tasks(
+                    &self.conn,
+                    None,
+                    crate::TaskProjectVia::Both,
+                )?
+                .into_iter()
+                .filter(|row| row.task.status.is_some())
+                .collect();
+                let mut needed: HashSet<&str> = HashSet::new();
+                for row in &visible {
+                    needed.insert(&row.source.block.id);
+                    if let Some(memberships) = projects.get(&row.source.block.id) {
+                        for id in memberships {
+                            needed.insert(id);
+                        }
                     }
+                }
+                let titles = self.visible_titles_for(&needed)?;
+                for row in visible {
                     let memberships = projects.remove(&row.source.block.id).unwrap_or_default();
                     let attrs = entities.entry(row.source.block.id).or_default();
                     task_attributes(attrs, &row.task);
                     for id in memberships {
-                        instance(attrs, "@project", &id, &titles);
+                        instance(attrs, "@project", &id, &titles, &mut labels);
                     }
                 }
+                titles
             }
             QuerySource::Highlights => {
-                for row in self
+                let rows = self
                     .highlights(&crate::library::HighlightQuery {
                         limit: Some(usize::MAX),
                         ..Default::default()
                     })?
-                    .rows
-                {
+                    .rows;
+                let mut needed: HashSet<&str> = HashSet::new();
+                for row in &rows {
+                    needed.insert(&row.block.block.id);
+                    needed.insert(&row.citation.source_id);
+                }
+                let titles = self.visible_titles_for(&needed)?;
+                for row in rows {
                     let attrs = entities.entry(row.block.block.id).or_default();
-                    instance(attrs, "@source", &row.citation.source_id, &titles);
+                    instance(
+                        attrs,
+                        "@source",
+                        &row.citation.source_id,
+                        &titles,
+                        &mut labels,
+                    );
                     optional(attrs, "@color", row.color);
                 }
+                titles
             }
             QuerySource::Sources => {
                 let positions = crate::position_store::derive(&self.conn, None)?;
@@ -433,31 +512,11 @@ impl Workshop {
                         .or_default()
                         .insert(row.block.block.id);
                 }
-                let mut statement = self.conn.prepare_cached(
-                    "SELECT block_id, citation_key FROM sources WHERE active = 1",
-                )?;
-                for row in statement.query_map([], |r| {
-                    Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
-                })? {
-                    let (id, key) = row?;
-                    let attrs = entities.entry(id.clone()).or_default();
-                    optional(attrs, "@citation_key", key);
-                    let blocks = citing.remove(&id).unwrap_or_default();
-                    let count = blocks
-                        .iter()
-                        .filter(|id| positions.contains_key(*id))
-                        .count();
-                    for block in blocks {
-                        instance(attrs, "@cited_in", &block, &titles);
-                    }
-                    push(attrs, "@cited_by", ReadingValue::Number(count as f64), None);
-                    push(
-                        attrs,
-                        "@highlights",
-                        ReadingValue::Number(highlights.get(&id).map_or(0, HashSet::len) as f64),
-                        None,
-                    );
-                }
+                let source_rows: Vec<(String, Option<String>)> = self
+                    .conn
+                    .prepare_cached("SELECT block_id, citation_key FROM sources WHERE active = 1")?
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                    .collect::<rusqlite::Result<_>>()?;
                 // Creators by what their fields count as: author first, then the workshop's own creator
                 // fields, and editors only for works with neither. Contributors such as translators follow.
                 let definitions = crate::fields::definitions(&self.conn)?;
@@ -471,15 +530,53 @@ impl Workshop {
                     .collect();
                 let ids = serde_json::to_string(&tiers.keys().collect::<Vec<_>>())
                     .expect("IDs serialize");
-                let mut statement = self.conn.prepare_cached(concat!(
-                    hidden_blocks!(),
-                    "SELECT fv.owner_id, fv.field_id, v.text FROM field_values fv
-                    JOIN blocks v ON v.id = fv.value_id
-                    WHERE fv.field_id IN (SELECT value FROM json_each(?1))
-                    AND v.deletion_id IS NULL
-                    AND v.rowid NOT IN (SELECT rowid FROM hidden)
-                    ORDER BY fv.owner_id, fv.ordinal, v.id"
-                ))?;
+                let creator_rows: Vec<(String, String, String)> = self
+                    .conn
+                    .prepare_cached(concat!(
+                        hidden_blocks!(),
+                        "SELECT fv.owner_id, fv.field_id, v.text FROM field_values fv
+                        JOIN blocks v ON v.id = fv.value_id
+                        WHERE fv.field_id IN (SELECT value FROM json_each(?1))
+                        AND v.deletion_id IS NULL
+                        AND v.rowid NOT IN (SELECT rowid FROM hidden)
+                        ORDER BY fv.owner_id, fv.ordinal, v.id"
+                    ))?
+                    .query_map([&ids], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+                    .collect::<rusqlite::Result<_>>()?;
+                let mut needed: HashSet<&str> = HashSet::new();
+                for (id, _) in &source_rows {
+                    needed.insert(id);
+                    if let Some(blocks) = citing.get(id) {
+                        for block in blocks {
+                            needed.insert(block);
+                        }
+                    }
+                }
+                for (_, _, raw) in &creator_rows {
+                    if let Some(target) = crate::fields::reference(raw) {
+                        needed.insert(target);
+                    }
+                }
+                let titles = self.visible_titles_for(&needed)?;
+                for (id, key) in source_rows {
+                    let attrs = entities.entry(id.clone()).or_default();
+                    optional(attrs, "@citation_key", key);
+                    let blocks = citing.remove(&id).unwrap_or_default();
+                    let count = blocks
+                        .iter()
+                        .filter(|id| positions.contains_key(*id))
+                        .count();
+                    for block in blocks {
+                        instance(attrs, "@cited_in", &block, &titles, &mut labels);
+                    }
+                    push(attrs, "@cited_by", ReadingValue::Number(count as f64), None);
+                    push(
+                        attrs,
+                        "@highlights",
+                        ReadingValue::Number(highlights.get(&id).map_or(0, HashSet::len) as f64),
+                        None,
+                    );
+                }
                 enum CreatorRef {
                     Target(String),
                     Plain(String),
@@ -488,14 +585,7 @@ impl Workshop {
                     String,
                     Vec<(crate::built_in::CreatorTier, usize, CreatorRef)>,
                 > = HashMap::new();
-                for row in statement.query_map([&ids], |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                    ))
-                })? {
-                    let (owner, field, raw) = row?;
+                for (owner, field, raw) in creator_rows {
                     let Some(&(tier, rank)) = tiers.get(field.as_str()) else {
                         continue;
                     };
@@ -527,13 +617,16 @@ impl Workshop {
                             crate::built_in::CreatorTier::Contributor => "@contributor",
                         };
                         match creator {
-                            CreatorRef::Target(target) => instance(attrs, key, &target, &titles),
+                            CreatorRef::Target(target) => {
+                                instance(attrs, key, &target, &titles, &mut labels);
+                            }
                             CreatorRef::Plain(name) => text(attrs, key, name),
                         }
                     }
                 }
+                titles
             }
-        }
+        };
         entities.retain(|id, _| titles.contains_key(id));
         for attrs in entities.values_mut() {
             for key in [
@@ -551,11 +644,27 @@ impl Workshop {
         Ok(Some(entities))
     }
 
-    fn query_titles(&self) -> Result<HashMap<String, String>> {
-        Ok(self.conn.prepare_cached(concat!(hidden_blocks!(),
+    fn visible_titles_for(&self, ids: &HashSet<&str>) -> Result<HashMap<String, String>> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let mut titles = HashMap::with_capacity(ids.len());
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
             "SELECT b.id, b.text FROM blocks b JOIN blocks p ON p.id = b.page_id
-            WHERE b.deletion_id IS NULL AND p.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden)"))?
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?)
+             WHERE b.id IN (SELECT value FROM json_each(?1))
+             AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+             AND b.rowid NOT IN (SELECT rowid FROM hidden)"
+        ))?;
+        let all: Vec<&str> = ids.iter().copied().collect();
+        for chunk in all.chunks(500) {
+            let json = serde_json::to_string(chunk).expect("IDs serialize");
+            for row in statement.query_map([&json], |r| Ok((r.get(0)?, r.get(1)?)))? {
+                let (id, text) = row?;
+                titles.insert(id, text);
+            }
+        }
+        Ok(titles)
     }
 
     pub(crate) fn hydrate_query_attributes(
@@ -563,6 +672,9 @@ impl Workshop {
         source: QuerySource,
         rows: &mut [QueryRow],
     ) -> Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
         let zone = crate::settings::time_zone(&self.conn)?;
         let metadata = attributes(source);
         let kinds = if source == QuerySource::Notes {
@@ -596,8 +708,15 @@ impl Workshop {
         let titles = if projects.is_empty() {
             HashMap::new()
         } else {
-            self.query_titles()?
+            let needed: HashSet<&str> = rows
+                .iter()
+                .filter_map(|row| projects.get(&row.block.block.id))
+                .flatten()
+                .map(String::as_str)
+                .collect();
+            self.visible_titles_for(&needed)?
         };
+        let mut labels = crate::fields::ReadingContext::new(&self.conn);
         for row in rows {
             let attrs = &mut row.attributes;
             let task = notes
@@ -611,7 +730,7 @@ impl Workshop {
             {
                 task_attributes(attrs, task);
                 for project in projects.remove(&row.block.block.id).unwrap_or_default() {
-                    instance(attrs, "@project", &project, &titles);
+                    instance(attrs, "@project", &project, &titles, &mut labels);
                 }
             }
             for (id, key) in &task_fields {

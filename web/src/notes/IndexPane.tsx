@@ -435,11 +435,6 @@ function KindIndexPane(props: IndexPaneProps) {
         : false,
     async ([value]) => {
       const result = await props.workshop.api.query({ ...value, offset: 0, limit: 2000 });
-      while (result.rows.length < result.total) {
-        const next = await props.workshop.api.query({ ...value, offset: result.rows.length, limit: 2000 });
-        if (!next.rows.length) break;
-        result.rows.push(...next.rows);
-      }
       return { query: value, result };
     },
   );

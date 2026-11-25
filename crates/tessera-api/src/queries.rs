@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::error::ApiError;
 use crate::history::editor_receipt;
-use crate::limits::{Limit, default_limit};
+use crate::limits::{Limit, clamp_limit, default_limit};
 use crate::run::{read, run};
 use crate::state::WorkshopState;
 use tessera_core::{
@@ -50,7 +50,7 @@ pub(crate) async fn review_session_events(
 #[derive(Deserialize)]
 pub(crate) struct TextQuery {
     q: String,
-    #[serde(default = "default_limit")]
+    #[serde(default = "default_limit", deserialize_with = "clamp_limit")]
     limit: usize,
 }
 pub(crate) async fn backlinks(
