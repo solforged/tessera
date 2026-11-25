@@ -2,6 +2,7 @@
 #![cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 
 use serde_json::{Value, json};
+use sqlite_wasm_rs::vfs::{VfsFilesManager, transfer::DbTransfer};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
 use tessera_core::Workshop;
 use tessera_web::{handle, open};
@@ -46,5 +47,5 @@ async fn opening_discards_an_invalid_stage_and_keeps_the_live_workshop() {
     assert_eq!(response.status(), 200);
     let body: Value = serde_json::from_slice(&response.body().to_vec()).unwrap();
     assert_eq!(body["root"]["text"], "Original page");
-    assert_eq!(pool.list(), vec!["/demo/notebook.db"]);
+    assert_eq!(pool.names().unwrap(), vec!["/demo/notebook.db"]);
 }

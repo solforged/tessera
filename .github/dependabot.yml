@@ -7,9 +7,11 @@ updates:
     schedule:
       interval: "weekly"
     # wasm-bindgen-cli must match the crate version pinned by mise; keep
-    # those two moving together by hand.
+    # those two moving together by hand. caseless stays pinned so stored
+    # title_key values never drift across Unicode case-folding tables.
     ignore:
       - dependency-name: "wasm-bindgen"
+      - dependency-name: "caseless"
     commit-message:
       prefix: "chore(deps)"
 

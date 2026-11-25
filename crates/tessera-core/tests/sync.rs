@@ -150,11 +150,7 @@ fn state(dir: &Path) -> Vec<(String, Vec<String>)> {
             continue;
         }
         let mut statement = conn.prepare(&format!("SELECT * FROM {table}")).unwrap();
-        let columns: Vec<String> = statement
-            .column_names()
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
+        let columns: Vec<String> = statement.column_names().map(str::to_owned).collect();
         let mut rows: Vec<String> = statement
             .query_map([], |row| {
                 Ok(columns

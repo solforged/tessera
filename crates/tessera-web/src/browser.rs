@@ -8,6 +8,7 @@ use axum::{
 use futures_util::future::{AbortHandle, Abortable};
 use js_sys::{Function, JsString, Uint8Array};
 use rusqlite::{Connection, OpenFlags};
+use sqlite_wasm_rs::vfs::{VfsFilesManager, transfer::DbTransfer};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHError, OpfsSAHPoolCfg, OpfsSAHPoolUtil};
 use tessera_api::EmbeddedHandles;
 use tessera_core::{SCHEMA_VERSION, Workshop};
@@ -59,8 +60,18 @@ fn internal(error: impl std::fmt::Display) -> JsValue {
 
 fn pool_error(error: OpfsSAHError) -> JsValue {
     let code = match &error {
-        OpfsSAHError::NotSupported | OpfsSAHError::GetDirHandle(_) => "unsupported",
-        OpfsSAHError::CreateSyncAccessHandle(_) => "locked",
+        OpfsSAHError::NotSupported
+        | OpfsSAHError::Opfs {
+            operation: "get OPFS root" | "get directory" | "get pool directory",
+            ..
+        } => "unsupported",
+        OpfsSAHError::Opfs {
+            operation: "acquire sync access handle",
+            ..
+        }
+        | OpfsSAHError::DirectoryInUse(_)
+        | OpfsSAHError::FileInUse(_)
+        | OpfsSAHError::FilesInUse => "locked",
         _ => "internal",
     };
     js_sys::Error::new(&format!("{code}: {error}")).into()
@@ -109,7 +120,7 @@ pub fn close() -> Result<(), JsValue> {
     close_app();
     RUNTIME.with(|runtime| {
         if let Some(pool) = &runtime.borrow().pool {
-            pool.pause_vfs().map_err(pool_error)?;
+            pool.pause().map_err(pool_error)?;
         }
         Ok(())
     })
@@ -117,7 +128,7 @@ pub fn close() -> Result<(), JsValue> {
 
 fn delete_workshop(pool: &OpfsSAHPoolUtil, database: &str) -> Result<(), JsValue> {
     for suffix in ["-journal", "-wal", "-shm", ""] {
-        pool.delete_db(&format!("{database}{suffix}"))
+        pool.remove(&format!("{database}{suffix}"))
             .map_err(pool_error)?;
     }
     Ok(())
@@ -232,7 +243,7 @@ fn replace_with_staged() -> Result<(), JsValue> {
 }
 
 fn recover_restore() -> Result<(), JsValue> {
-    if !with_pool(|pool| pool.exists(STAGED_DB).map_err(pool_error))? {
+    if !with_pool(|pool| pool.contains(STAGED_DB).map_err(pool_error))? {
         return Ok(());
     }
     if validate_staged().is_err() {
@@ -241,23 +252,27 @@ fn recover_restore() -> Result<(), JsValue> {
     replace_with_staged()
 }
 
-fn upgrade_file(pool: &OpfsSAHPoolUtil) -> Option<(String, u32, i64, usize)> {
-    pool.list().into_iter().find_map(|filename| {
-        let (version, metadata) = filename
-            .strip_prefix(UPGRADE_PREFIX)?
-            .strip_suffix(".db")?
-            .split_once('-')?;
-        let version = version.parse().ok()?;
-        let (created_at, size) = metadata.split_once('-')?;
-        let created_at = created_at.parse().ok()?;
-        let size = size.parse().ok()?;
-        Some((filename, version, created_at, size))
-    })
+fn upgrade_file(pool: &OpfsSAHPoolUtil) -> Result<Option<(String, u32, i64, usize)>, JsValue> {
+    Ok(pool
+        .names()
+        .map_err(pool_error)?
+        .into_iter()
+        .find_map(|filename| {
+            let (version, metadata) = filename
+                .strip_prefix(UPGRADE_PREFIX)?
+                .strip_suffix(".db")?
+                .split_once('-')?;
+            let version = version.parse().ok()?;
+            let (created_at, size) = metadata.split_once('-')?;
+            let created_at = created_at.parse().ok()?;
+            let size = size.parse().ok()?;
+            Some((filename, version, created_at, size))
+        }))
 }
 
 fn save_upgrade_copy() -> Result<(), JsValue> {
     with_pool(|pool| {
-        if !pool.exists(LIVE_DB).map_err(pool_error)? {
+        if !pool.contains(LIVE_DB).map_err(pool_error)? {
             return Ok(());
         }
         // Opening and reading may roll back a hot journal, but cannot migrate.
@@ -266,7 +281,7 @@ fn save_upgrade_copy() -> Result<(), JsValue> {
             return Ok(());
         }
         let bytes = pool.export_db(LIVE_DB).map_err(pool_error)?;
-        if let Some((filename, _, _, _)) = upgrade_file(pool) {
+        if let Some((filename, _, _, _)) = upgrade_file(pool)? {
             delete_workshop(pool, &filename)?;
         }
         let created_at = js_sys::Date::now() as i64;
@@ -308,11 +323,11 @@ pub async fn open() -> Result<String, JsValue> {
         .map_err(pool_error)?;
         // Live and staged databases can each need a journal; flushing the
         // upgrade copy can also need one.
-        pool.reserve_minimum_capacity(6).await.map_err(pool_error)?;
+        pool.ensure_capacity(6).await.map_err(pool_error)?;
         RUNTIME.with(|runtime| runtime.borrow_mut().pool = Some(pool));
     } else {
         let pool = RUNTIME.with(|runtime| runtime.borrow_mut().pool.take().unwrap());
-        let result = pool.unpause_vfs().await.map_err(pool_error);
+        let result = pool.resume().await.map_err(pool_error);
         RUNTIME.with(|runtime| runtime.borrow_mut().pool = Some(pool));
         result?;
     }
@@ -359,7 +374,7 @@ pub async fn restore_notebook(bytes: Vec<u8>) -> Result<String, JsValue> {
         let staged = pool
             .import_db(STAGED_DB, &bytes)
             .map_err(|error| match error {
-                OpfsSAHError::ImportDb(_) => invalid(NOT_TESSERA),
+                OpfsSAHError::Transfer(_) => invalid(NOT_TESSERA),
                 other => pool_error(other),
             })
             .and_then(|()| validate_staged());
@@ -378,7 +393,7 @@ pub async fn restore_notebook(bytes: Vec<u8>) -> Result<String, JsValue> {
 #[wasm_bindgen]
 pub fn upgrade_copy() -> Result<Option<String>, JsValue> {
     with_pool(|pool| {
-        let Some((_, schema_version, created_at, size)) = upgrade_file(pool) else {
+        let Some((_, schema_version, created_at, size)) = upgrade_file(pool)? else {
             return Ok(None);
         };
         Ok(Some(
@@ -397,7 +412,7 @@ pub fn upgrade_copy() -> Result<Option<String>, JsValue> {
 pub fn export_upgrade_copy() -> Result<Uint8Array, JsValue> {
     with_pool(|pool| {
         let (filename, _, _, _) =
-            upgrade_file(pool).ok_or_else(|| internal("There is no upgrade copy."))?;
+            upgrade_file(pool)?.ok_or_else(|| internal("There is no upgrade copy."))?;
         let bytes = pool.export_db(&filename).map_err(pool_error)?;
         Ok(Uint8Array::from(bytes.as_slice()))
     })
@@ -408,7 +423,7 @@ pub fn export_upgrade_copy() -> Result<Uint8Array, JsValue> {
 pub async fn restore_upgrade_copy() -> Result<String, JsValue> {
     let bytes = with_pool(|pool| {
         let (filename, _, _, _) =
-            upgrade_file(pool).ok_or_else(|| internal("There is no upgrade copy."))?;
+            upgrade_file(pool)?.ok_or_else(|| internal("There is no upgrade copy."))?;
         pool.export_db(&filename).map_err(pool_error)
     })?;
     restore_notebook(bytes).await
@@ -582,10 +597,7 @@ pub async fn reset() -> Result<(), JsValue> {
     close_app();
     with_pool(|pool| {
         // This dedicated pool belongs to the browser workshop.
-        for filename in pool.list() {
-            pool.delete_db(&filename).map_err(pool_error)?;
-        }
-        Ok(())
+        pool.clear().map_err(pool_error)
     })?;
     reopen()?;
     Ok(())

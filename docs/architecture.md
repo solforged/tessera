@@ -419,8 +419,7 @@ see [sync](sync.md).
   A restore writes the file to a staging workshop, validates and migrates it
   there, and only then replaces the live database; opening finishes a restore
   that was cut off. Before a schema upgrade, opening keeps one copy of the old
-  workshop. `sqlite-wasm-vfs` is vendored with a fix that lets SQLite roll back
-  a hot journal left by a browser killed mid-save.
+  workshop.
 
   On macOS, build with `AR_wasm32_unknown_unknown` pointing at rustup's
   `llvm-ar`; Apple's `ar` cannot index the bundled SQLite.

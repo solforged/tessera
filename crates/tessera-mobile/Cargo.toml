@@ -12,7 +12,7 @@ name = "tessera_mobile"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.7.1", features = [] }
+tauri-build = { version = "2.7.2", features = [] }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri = { version = "2.12.1", features = [] }
