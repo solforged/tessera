@@ -120,7 +120,7 @@ impl Workshop {
 }
 
 /// A read-only connection beside a workshop's writer, from
-/// [`Notebook::reader`].
+/// [`Workshop::reader`].
 pub struct Reader(Workshop);
 
 impl Reader {

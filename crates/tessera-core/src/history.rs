@@ -28,10 +28,10 @@ pub struct HistoryEntry {
     /// The change this entry undid.
     pub undoes: Option<i64>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
 pub struct UndoReceipt {
     /// The undo's own change in the history log: pass it to
-    /// [`Notebook::undo_change`] to redo. Editor routes rewrite
+    /// [`Workshop::undo_change`] to redo. Editor routes rewrite
     /// `committed.seq` to their arrival cursor; this stays the log's number.
     pub seq: i64,
     pub undone: i64,

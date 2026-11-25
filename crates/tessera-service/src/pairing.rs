@@ -14,6 +14,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use serde_json::json;
 use tessera_core::sync_devices::{DeviceInfo, PairedDevice, RetainedPatches};
 
@@ -278,7 +279,19 @@ async fn pair(
         })())
     })
     .await??;
-    Ok(Json(json!({"key":response.0,"device":response.1,"hub":{"name":sharing::hub_name().await,"notebook_id":response.2,"schema_version":tessera_core::SCHEMA_VERSION}})).into_response())
+    Ok(Json(crate::sync_client::Pairing {
+        key: response.0,
+        device: crate::sync_client::PairedDevice {
+            id: response.1.id,
+            name: response.1.name,
+        },
+        hub: crate::sync_client::PairedHub {
+            name: sharing::hub_name().await,
+            workshop_id: response.2,
+            schema_version: tessera_core::SCHEMA_VERSION,
+        },
+    })
+    .into_response())
 }
 
 /// A paired device as the Mac lists it: its pairing, whether it syncs, and how its last attempts went.

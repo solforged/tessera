@@ -17,7 +17,7 @@ use axum::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use tokio::sync::watch;
 use ulid::Ulid;
 
@@ -227,7 +227,7 @@ async fn save_providers(
 async fn test_provider(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<ProviderTestResult>, ApiError> {
     let provider = access_store(&state, move |store| store.get(&id)).await?;
     tokio::time::timeout(
         Duration::from_secs(60),
@@ -250,7 +250,12 @@ async fn test_provider(
         )
     })?
     .map_err(provider::Failure::api)?;
-    Ok(Json(json!({"ok":true})))
+    Ok(Json(ProviderTestResult { ok: true }))
+}
+
+#[derive(Serialize, ts_rs::TS)]
+pub(crate) struct ProviderTestResult {
+    ok: bool,
 }
 
 #[derive(Serialize, ts_rs::TS)]

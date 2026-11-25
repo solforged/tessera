@@ -849,6 +849,16 @@ export type HistoryEntry = {
   undoes: number | null,
 };
 
+export type HistoryResponse = {
+  entries: Array<HistoryEntry>,
+};
+
+export type HubPairing = {
+  key: string,
+  device: PairedDeviceIdentity,
+  hub: PairedHub,
+};
+
 export type ImageRef = {
   sha256: string,
   media_type: string,
@@ -1097,6 +1107,11 @@ export type LibraryView = {
   updated_at: number,
 };
 
+export type LinkPreview = {
+  title: string | null,
+  site: string | null,
+};
+
 export type LookupPreview = {
   metadata: ExtractedMetadata,
   cover_url: string | null,
@@ -1224,7 +1239,7 @@ export type NoteSummary = {
 export type NoteView = {
   layout: NoteLayout,
   /**
-   * letter, source, link, created, or field:<definition id>.
+   * `letter`, `source`, `link`, `created`, or `field:<definition id>`.
    */
   grouping: string,
 };
@@ -1257,6 +1272,10 @@ export type OcclusionMode = "hide_one" | "hide_all";
 export type OfflineFiles = {
   books: number,
   bytes: number,
+};
+
+export type OpeningWorkshop = {
+  path: string,
 };
 
 /**
@@ -1788,6 +1807,17 @@ export type PairedDevice = {
   attempts: Array<SyncAttempt>,
 };
 
+export type PairedDeviceIdentity = {
+  id: string,
+  name: string,
+};
+
+export type PairedHub = {
+  name: string,
+  notebook_id: string,
+  schema_version: number,
+};
+
 /**
  * The code a new device types or scans to join, and when it stops working.
  */
@@ -1879,6 +1909,12 @@ export type PositionInfo = {
   problem?: string | null,
 };
 
+export type PositionQuery = {
+  holder?: string,
+  subject?: string,
+  limit?: number,
+};
+
 export type PositionQueryResult = {
   rows: Array<PositionRow>,
   criteria: SubjectCriteria,
@@ -1923,6 +1959,10 @@ export type ProviderInput = {
 };
 
 export type ProviderProtocol = "anthropic" | "openai";
+
+export type ProviderTestResult = {
+  ok: boolean,
+};
 
 export type ProviderView = {
   id: string,
@@ -2857,6 +2897,22 @@ export type Type = {
    * Field names the built-in starting template would add to an empty template; empty otherwise.
    */
   starting: Array<string>,
+};
+
+export type UndoReceipt = {
+  /**
+   * The undo's own change in the history log: pass it to
+   * [`Workshop::undo_change`] to redo. Editor routes rewrite
+   * `committed.seq` to their arrival cursor; this stays the log's number.
+   */
+  seq: number,
+  undone: number,
+  /**
+   * Pages the change created that were kept because they are now in use
+   * or were renamed.
+   */
+  kept_pages: Array<Block>,
+  committed: Committed,
 };
 
 export type UnlinkedMentions = {

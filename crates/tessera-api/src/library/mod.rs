@@ -13,7 +13,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-pub use lookup::Preview;
+pub use lookup::{LinkPreview, Preview};
 use parking_lot::Mutex;
 use serde::Deserialize;
 use std::sync::Arc;

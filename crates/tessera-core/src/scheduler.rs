@@ -1,7 +1,7 @@
 //! Deterministic FSRS-6, default weights and 90% desired retention.
 //!
 //! Memory equations follow the official py-fsrs implementation, pinned at
-//! https://github.com/open-spaced-repetition/py-fsrs/tree/9446cb06605c597a063aeee49f7d188d42e34dc2
+//! <https://github.com/open-spaced-repetition/py-fsrs/tree/9446cb06605c597a063aeee49f7d188d42e34dc2>
 //! (fsrs/scheduler.py). A small in-house port keeps the native and wasm paths
 //! identical without an optimizer, random source, clock or learning-step engine.
 //! Session requeueing belongs to the caller; scheduled intervals are whole days.

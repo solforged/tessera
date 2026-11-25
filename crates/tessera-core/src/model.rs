@@ -1035,7 +1035,7 @@ pub struct Query {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct NoteView {
     pub layout: NoteLayout,
-    /// letter, source, link, created, or field:<definition id>.
+    /// `letter`, `source`, `link`, `created`, or `field:<definition id>`.
     pub grouping: String,
 }
 

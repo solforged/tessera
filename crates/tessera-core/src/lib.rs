@@ -1,4 +1,4 @@
-//! Tessera's domain rules and storage. Clients use [`Notebook`]; nothing else
+//! Tessera's domain rules and storage. Clients use [`Workshop`]; nothing else
 //! writes to the database.
 
 mod agent;

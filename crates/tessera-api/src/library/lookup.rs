@@ -20,8 +20,8 @@ pub(super) struct LookupRequest {
 pub(super) struct LinkRequest {
     url: String,
 }
-#[derive(Serialize)]
-pub(super) struct LinkPreview {
+#[derive(Serialize, ts_rs::TS)]
+pub struct LinkPreview {
     title: Option<String>,
     site: Option<String>,
 }

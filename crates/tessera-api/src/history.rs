@@ -78,8 +78,8 @@ pub(crate) struct HistoryQuery {
     limit: usize,
     before: Option<i64>,
 }
-#[derive(serde::Serialize)]
-pub(crate) struct HistoryResponse {
+#[derive(serde::Serialize, ts_rs::TS)]
+pub struct HistoryResponse {
     entries: Vec<HistoryEntry>,
 }
 pub(crate) async fn history(

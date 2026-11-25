@@ -247,7 +247,7 @@ pub struct SyncConflict {
     pub change_seq: i64,
 }
 
-/// The hub as a replica reaches it. [`Notebook`] implements it for a hub in
+/// The hub as a replica reaches it. [`Workshop`] implements it for a hub in
 /// the same process; clients implement it over their transport.
 pub trait Hub {
     fn push(&mut self, device: &str, changes: &[PushedChange]) -> Result<Vec<PushReceipt>>;

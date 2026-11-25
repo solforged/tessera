@@ -285,10 +285,13 @@ pub struct RelationRow {
     pub problem: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionQuery {
+    #[ts(optional)]
     pub holder: Option<String>,
+    #[ts(optional)]
     pub subject: Option<String>,
+    #[ts(optional)]
     pub limit: Option<u32>,
 }
 

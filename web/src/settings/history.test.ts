@@ -65,6 +65,7 @@ test('history passes the last sequence as an exclusive before cursor', async () 
 
 test('undoChange attributes the undo to the workshop client window', async () => {
   const receipt = {
+    seq: 92,
     undone: 91,
     kept_pages: [],
     committed: { seq: 92, revisions: [], settings: [], deletions: [], replayed: false, text_rewrites: [] },

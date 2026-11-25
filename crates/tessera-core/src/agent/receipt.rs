@@ -19,7 +19,7 @@ impl Workshop {
         self.agent_edit_keyed(request, None)
     }
 
-    /// [`Notebook::agent_edit`] under an idempotency key, so a client that
+    /// [`Workshop::agent_edit`] under an idempotency key, so a client that
     /// lost the answer can send the request again. The same key with the same
     /// request returns the stored receipt and writes nothing; the same key
     /// with a different request is refused.

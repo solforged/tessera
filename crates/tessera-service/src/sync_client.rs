@@ -106,19 +106,21 @@ async fn checked(
     .into())
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(rename = "PairedDeviceIdentity")]
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
 pub struct PairedHub {
     pub name: String,
     #[serde(rename = "notebook_id")]
     pub workshop_id: String,
     pub schema_version: u32,
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(rename = "HubPairing")]
 pub struct Pairing {
     pub key: String,
     pub device: PairedDevice,

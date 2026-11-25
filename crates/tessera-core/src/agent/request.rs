@@ -164,11 +164,11 @@ pub struct AgentRequest {
     pub edit: AgentEdit,
 }
 
-/// The result of [`Notebook::agent_edit`]. A keyed request sent again returns
+/// The result of [`crate::Workshop::agent_edit`]. A keyed request sent again returns
 /// its first receipt with `committed.replayed` set.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AgentReceipt {
-    /// The change to pass to [`Notebook::undo_change`].
+    /// The change to pass to [`crate::Workshop::undo_change`].
     pub seq: i64,
     pub summary: String,
     /// The page or journal root the change landed on; `None` for deck edits

@@ -21,7 +21,8 @@ jobs:
   # steps are skipped rather than the jobs, because a skipped matrix job never
   # reports the expanded check names that the green ruleset requires. Rust
   # tests read web/src/fields/kinds.ts, web/src/core/hide.ts and
-  # web/src/api/wire.ts, so those files still count as Rust.
+  # web/src/api/wire.ts, and browser wasm builds read web/demo.html,
+  # web/tsconfig.demo.json and web/src/demo/, so those files still run them.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -40,7 +41,7 @@ jobs:
           rust=true
           if [ -n "$PR" ] && files=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only) && [ -n "$files" ] \
             && ! printf '%s\n' "$files" | grep -qvE '^(web/|docs/)|\.md$' \
-            && ! printf '%s\n' "$files" | grep -qE '^web/src/(fields/kinds|core/hide|api/wire)\.ts$'; then
+            && ! printf '%s\n' "$files" | grep -qE '^web/(demo\.html|tsconfig\.demo\.json|src/(demo/|fields/kinds\.ts|core/hide\.ts|api/wire\.ts)$)'; then
             rust=false
           fi
           echo "rust=$rust" | tee -a "$GITHUB_OUTPUT"
@@ -74,6 +75,12 @@ jobs:
         if: needs.changes.outputs.rust == 'true'
         run: mise run test
 
+      - name: Clippy for iOS
+        if: needs.changes.outputs.rust == 'true' && matrix.os == 'macos-latest'
+        run: |
+          mise run mobile:pages
+          cargo clippy -p tessera-mobile --target aarch64-apple-ios --locked -- -D warnings
+
   browser:
     name: browser wasm build
     needs: changes
@@ -94,6 +101,10 @@ jobs:
       - name: Clippy for the browser demo
         if: needs.changes.outputs.rust == 'true'
         run: mise run demo:lint
+
+      - name: Build the browser demo
+        if: needs.changes.outputs.rust == 'true'
+        run: mise run demo:build
 
       - name: Browser tests for the demo engine
         if: needs.changes.outputs.rust == 'true'
