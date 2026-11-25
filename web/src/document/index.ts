@@ -211,12 +211,19 @@ export class Workshop implements WorkshopClient, DocumentHost {
     });
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.online);
+      window.addEventListener('offline', this.offline);
       window.addEventListener('beforeunload', this.beforeUnload);
     }
   }
   private online = () => {
     this.retry();
   };
+  private offline = () => {
+    this.markOffline(true);
+  };
+  private markOffline(staleSocket = false) {
+    this.changes.markOffline(staleSocket);
+  }
   private beforeUnload = (event: BeforeUnloadEvent) => {
     if (this.queue.some(command => !this.persisted.has(command.id)) || (this.persistenceFailure && this.queue.length)) {
       event.preventDefault();
@@ -262,7 +269,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         /* IndexedDB, not session storage, owns drafts. */
       }
     } catch (error) {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
       try {
         workshopId ??= sessionStorage.getItem(key) ?? undefined;
       } catch {
@@ -285,7 +292,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.seedCursor();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     try {
       await this.refreshSettings();
@@ -312,7 +319,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.refreshRoots();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     // Loading recovered documents is chained after ready, avoiding a constructor cycle.
     queueMicrotask(() => {
@@ -433,7 +440,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
           this.cachedViews.add(cached.view);
           if (!provisional) {
             this.recoveryPages.set(id, cached.cursor);
-            this.connectionSignal[1]('offline');
+            this.markOffline();
             this.scheduleReconnect();
           }
           if (provisional) this.recoveryPages.delete(id);
@@ -449,15 +456,6 @@ export class Workshop implements WorkshopClient, DocumentHost {
   cachePage(view: PageView) {
     if (this.cachedViews.has(view)) return;
     this.cachedViews.add(view);
-    const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
-    void this.outbox
-      ?.capabilities(
-        [view.root, ...view.rows.map(row => row.block)].map(
-          block => capabilities.get(block.id) ?? emptyCapabilities(block.id),
-        ),
-        this.snapshotSequence.get(view) ?? 0,
-      )
-      .catch(() => undefined);
     void this.outbox
       ?.page(view, this.snapshotSequence.get(view) ?? 0, this.snapshotCursor.get(view))
       .catch(() => undefined);
@@ -2089,7 +2087,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         await this.reject(command, undefined, error.message);
         return true;
       }
-      this.connectionSignal[1]('offline');
+      this.markOffline();
       this.scheduleReconnect();
       this.touch();
       return false;
@@ -2156,6 +2154,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
       decks: (ack.decks ?? []).map(value => value.id),
       task_views: (ack.task_views ?? []).map(value => value.id),
       library_views: (ack.library_views ?? []).map(value => value.id),
+      views: (ack.topics ?? []).includes('views') ? ['*'] : [],
       topics: ack.topics,
     });
     this.noteTopics(ack.seq, ack.topics);
@@ -2349,7 +2348,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
                 (action.kind === 'text' && action.id === doc.pageId),
             )
           )
-            await this.refreshRoots().catch(() => this.connectionSignal[1]('offline'));
+            await this.refreshRoots().catch(() => this.markOffline());
           // Derived type pages alone appear as new roots in a text/Add type receipt. Ordinary page creation and
           // references to existing empty type pages do not seed templates; the route is a no-op without a schema.
           const derivedPages: DerivedType[] = [];
@@ -2374,7 +2373,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         } catch (error) {
           this.activeCommand = undefined;
           if (error instanceof ApiError && error.uncertain) {
-            this.connectionSignal[1]('offline');
+            this.markOffline();
             this.failure = '';
             this.scheduleReconnect();
           } else if (error instanceof ApiError && error.status === 409) {
@@ -2794,7 +2793,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.refreshSettings();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     return this.journal(this.todayDate(), signal);
   }
@@ -2817,7 +2816,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.refreshSettings();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     return revision;
   }
@@ -3043,6 +3042,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     this.changes.stop();
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this.online);
+      window.removeEventListener('offline', this.offline);
       window.removeEventListener('beforeunload', this.beforeUnload);
     }
     await this.outbox?.close();

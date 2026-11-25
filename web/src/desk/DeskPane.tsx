@@ -213,12 +213,7 @@ export function DeskPane(props: TablePaneProps) {
           : 'All questions';
   };
   const openRow = (row: QueryRow, beside: boolean) => props.onOpen(rowTarget(row), beside);
-  const submit = (operation: Operation) =>
-    api.submit({
-      actor: { kind: 'client', name: 'tessera-web-desk' },
-      idempotency_key: ulid(),
-      operations: [operation],
-    });
+  const submit = (operation: Operation) => props.workshop.commit([operation]);
   const failure = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
   const save = async (create: boolean) => {
     if (busy() || (create && !name().trim())) return;

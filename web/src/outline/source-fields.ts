@@ -253,8 +253,11 @@ export function createSourceFieldResets(options: {
 }) {
   const { doc } = options;
   const [extracted] = createResource(
-    () => (doc.root()?.source ? ([doc.pageId, options.workshop.changeSequence()] as const) : false),
-    ([pageId]) => api.extracted(pageId),
+    () =>
+      doc.root()?.source
+        ? ([doc.pageId, options.workshop.changed('library'), options.workshop.changed('fields')] as const)
+        : false,
+    ([pageId]) => options.workshop.api.extracted(pageId),
   );
   return (entryId?: string): MenuItem[] => {
     if (!doc.root()?.source || extracted.error) return [];

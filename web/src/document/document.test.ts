@@ -6103,3 +6103,107 @@ test('image mask edits undo atomically and clipboard keeps masks only with same-
   expect((await api.sourceCards(first)).filter(card => card.active)).toHaveLength(1);
   doc.release();
 }, 30000);
+
+test('in-flight reload reconciles local acknowledgements and coalesces concurrent callers without livelocking', async () => {
+  const instance = await client();
+  const { id, doc, first } = await page(instance, 'Initial');
+  const raw = doc as Document;
+  let pageReads = 0;
+  let releaseRead: (() => void) | undefined;
+  const originalPage = instance.api.page.bind(instance.api);
+  instance.api.page = async pageId => {
+    if (pageId !== id) return originalPage(pageId);
+    pageReads++;
+    const view = await originalPage(pageId);
+    if (pageReads === 1) {
+      await new Promise<void>(resolve => {
+        releaseRead = resolve;
+      });
+    }
+    return view;
+  };
+  try {
+    const firstReload = raw.reload(true);
+    await eventually(() => releaseRead !== undefined, 'reload did not start page read');
+    const coalescedReload = raw.reload(true);
+    expect(coalescedReload).toBe(firstReload);
+    success(doc.edit({ kind: 'text', id: first, text: 'Edited during reload' }));
+    await instance.flush();
+    releaseRead!();
+    await firstReload;
+    expect(pageReads).toBeLessThanOrEqual(2);
+    expect(doc.block(first)?.text).toBe('Edited during reload');
+  } finally {
+    instance.api.page = originalPage;
+    doc.release();
+  }
+});
+
+test('change stream replaces a half-open socket after an offline transition even when serviceReached runs first', async () => {
+  const { WorkshopChangeStream } = await import('./change-stream');
+  const { CHANGE_OPEN } = await import('../api/client');
+  let state = 'connecting' as 'connecting' | 'live' | 'offline';
+  let cursor = 12;
+  let seeded = true;
+  const sockets: Array<{ readyState: number; closed: boolean }> = [];
+  const stream = new WorkshopChangeStream({
+    api: {
+      changeHead: async () => 12,
+      changes: async () => [],
+      stream: () => {
+        const socket = {
+          readyState: CHANGE_OPEN,
+          closed: false,
+          onopen: null,
+          onmessage: null,
+          onerror: null,
+          onclose: null,
+          close() {
+            this.closed = true;
+            this.readyState = 3;
+          },
+        };
+        sockets.push(socket);
+        return socket;
+      },
+    },
+    ready: async () => undefined,
+    closed: () => false,
+    cursor: () => cursor,
+    setCursor: value => {
+      cursor = value;
+    },
+    seeded: () => seeded,
+    setSeeded: value => {
+      seeded = value;
+    },
+    recoveryPages: () => new Map(),
+    reloadOpenDocuments: async () => undefined,
+    refreshRoots: async () => undefined,
+    refreshSettings: async () => undefined,
+    refreshWork: async () => undefined,
+    reloadPage: () => undefined,
+    onChange: async () => undefined,
+    onCatchUp: async () => undefined,
+    connection: () => state,
+    setConnection: next => {
+      state = next;
+    },
+    retryLookups: () => undefined,
+    reloadReanchored: async () => undefined,
+    scheduleCommands: () => undefined,
+    setFailure: () => undefined,
+    touch: () => undefined,
+    setObservedSequence: () => undefined,
+  });
+  await stream.connect();
+  expect(sockets).toHaveLength(1);
+  stream.markOffline(true);
+  expect(state).toBe('offline');
+  // Simulate a REST receipt calling serviceReached() while the old loopback socket still reports CHANGE_OPEN.
+  stream.serviceReached();
+  await eventually(() => sockets.length === 2, 'stale socket was not replaced after offline cycle');
+  expect(sockets[0]?.closed).toBe(true);
+  expect(sockets[1]?.closed).toBe(false);
+  stream.stop();
+});
