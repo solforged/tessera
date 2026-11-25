@@ -278,6 +278,9 @@ impl Workshop {
         drop(backup);
         // Flush cached statements compiled against the old database schema.
         self.conn.flush_prepared_statement_cache();
+        self.backfill_library_creators()?;
+        self.backfill_citation_keys()?;
+        self.ensure_built_in_fields()?;
         Ok(previous)
     }
 }

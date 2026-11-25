@@ -1812,7 +1812,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
       decks: (ack.decks ?? []).map(value => value.id),
       task_views: (ack.task_views ?? []).map(value => value.id),
       library_views: (ack.library_views ?? []).map(value => value.id),
-      views: (ack.topics ?? []).includes('views') ? ['*'] : [],
+      views: ack.views?.length ? ack.views.map(value => value.id) : (ack.topics ?? []).includes('views') ? ['*'] : [],
       topics: ack.topics,
     });
     this.noteTopics(ack.seq, ack.topics);

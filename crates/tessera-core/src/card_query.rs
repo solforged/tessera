@@ -1,9 +1,10 @@
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, params};
 
 use crate::card_store::card_at;
+use crate::operations::views::{DECKS_SPEC, SavedViewRow, read_saved_view, read_saved_views};
 use crate::query::validate_source_query;
 use crate::review_store::{review_event_at, review_pacing};
-use crate::storage::{block_at, block_columns, not_found_as, validate_id, validation};
+use crate::storage::{block_at, block_columns, validation};
 use crate::{
     BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Query, Result, TagDeck,
     Workshop,
@@ -45,19 +46,15 @@ pub(crate) fn validate(conn: &Connection, query: &CardQuery) -> Result<()> {
     Ok(())
 }
 
-fn stored_deck(row: &rusqlite::Row<'_>) -> rusqlite::Result<Deck> {
-    let json: String = row.get(2)?;
-    let query = serde_json::from_str(&json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(error))
-    })?;
-    Ok(Deck {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        query,
-        revision: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
-    })
+fn build_deck(row: SavedViewRow<CardQuery>) -> Deck {
+    Deck {
+        id: row.id,
+        name: row.name,
+        query: row.query,
+        revision: row.revision,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
 }
 
 impl Workshop {
@@ -176,13 +173,7 @@ impl Workshop {
     }
 
     pub fn decks(&self) -> Result<Vec<Deck>> {
-        let mut decks = self
-            .conn
-            .prepare_cached("SELECT id, name, query, revision, created_at, updated_at FROM decks")?
-            .query_map([], stored_deck)?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        decks.sort_by_cached_key(|deck| (deck.name.to_lowercase(), deck.id.clone()));
-        Ok(decks)
+        read_saved_views(&self.conn, DECKS_SPEC.table, build_deck)
     }
 
     pub fn tag_decks(&self) -> Result<Vec<TagDeck>> {
@@ -217,11 +208,5 @@ impl Workshop {
 }
 
 pub(crate) fn deck_in(conn: &Connection, id: &str) -> Result<Deck> {
-    validate_id(id)?;
-    conn.prepare_cached(
-        "SELECT id, name, query, revision, created_at, updated_at FROM decks WHERE id = ?1",
-    )?
-    .query_row([id], stored_deck)
-    .optional()?
-    .ok_or_else(|| not_found_as("deck", id))
+    read_saved_view(conn, DECKS_SPEC.table, Some("deck"), id, build_deck)
 }

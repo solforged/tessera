@@ -369,19 +369,15 @@ pub(crate) fn migrate_instance_filters(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<View> {
-    let json: String = row.get(2)?;
-    let query = serde_json::from_str(&json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(error))
-    })?;
-    Ok(View {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        query,
-        revision: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
-    })
+fn build_view(row: crate::operations::views::SavedViewRow<Query>) -> View {
+    View {
+        id: row.id,
+        name: row.name,
+        query: row.query,
+        revision: row.revision,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
 }
 
 impl Workshop {
@@ -485,24 +481,21 @@ impl Workshop {
     }
 
     pub fn views(&self) -> Result<Vec<View>> {
-        let mut views = self
-            .conn
-            .prepare_cached("SELECT id, name, query, revision, created_at, updated_at FROM views")?
-            .query_map([], stored_view)?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        views.sort_by_cached_key(|view| (view.name.to_lowercase(), view.id.clone()));
-        Ok(views)
+        crate::operations::views::read_saved_views(
+            &self.conn,
+            crate::operations::views::VIEWS_SPEC.table,
+            build_view,
+        )
     }
 
     pub fn view(&self, id: &str) -> Result<View> {
-        validate_id(id)?;
-        self.conn
-            .prepare_cached(
-                "SELECT id, name, query, revision, created_at, updated_at FROM views WHERE id = ?1",
-            )?
-            .query_row([id], stored_view)
-            .optional()?
-            .ok_or_else(|| not_found(id))
+        crate::operations::views::read_saved_view(
+            &self.conn,
+            crate::operations::views::VIEWS_SPEC.table,
+            None,
+            id,
+            build_view,
+        )
     }
 
     pub fn query(&self, query: &Query) -> Result<QueryResult> {

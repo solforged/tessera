@@ -194,7 +194,7 @@ mod outline;
 mod review;
 mod sync;
 mod tasks;
-mod views;
+pub(crate) mod views;
 
 const GAP: i64 = 1024;
 
@@ -317,6 +317,7 @@ impl Workshop {
             cards: BTreeMap::new(),
             work_sessions: BTreeMap::new(),
             review_sessions: BTreeMap::new(),
+            views: BTreeMap::new(),
             decks: BTreeMap::new(),
             task_views: BTreeMap::new(),
             library_views: BTreeMap::new(),
@@ -476,6 +477,7 @@ impl Workshop {
             cards: engine.cards.into_values().collect(),
             work_sessions: engine.work_sessions.into_values().collect(),
             review_sessions: engine.review_sessions.into_values().collect(),
+            views: engine.views.into_values().collect(),
             decks: engine.decks.into_values().collect(),
             task_views: engine.task_views.into_values().collect(),
             library_views: engine.library_views.into_values().collect(),
@@ -513,13 +515,7 @@ impl Workshop {
             crate::sync::finish(&tx, recording, seq, &stamp, batch, extras)?;
         }
         tx.commit()?;
-        if local
-            && committed
-                .capabilities
-                .iter()
-                .any(|caps| caps.task.is_some())
-            && self.task_fields_need_ensure()?
-        {
+        if local && self.built_in_fields_need_ensure(&committed)? {
             self.ensure_built_in_fields()?;
         }
         Ok(committed)
@@ -626,9 +622,15 @@ fn indexed(error: Error, index: usize) -> Error {
         Error::Sqlite(rusqlite::Error::SqliteFailure(code, message))
             if code.code == rusqlite::ErrorCode::ConstraintViolation =>
         {
+            let message = match message {
+                Some(text) if text.contains("blocks.title_key") => {
+                    "page title already exists".into()
+                }
+                Some(text) => text,
+                None => "operation violates a uniqueness or integrity rule".into(),
+            };
             Error::Validation {
-                message: message
-                    .unwrap_or_else(|| "operation violates a uniqueness or integrity rule".into()),
+                message,
                 op_index: Some(index),
             }
         }
@@ -772,6 +774,7 @@ struct Engine<'a, 'conn> {
     cards: BTreeMap<String, Revision>,
     work_sessions: BTreeMap<String, WorkSession>,
     review_sessions: BTreeMap<String, ReviewSession>,
+    views: BTreeMap<String, Revision>,
     decks: BTreeMap<String, Revision>,
     task_views: BTreeMap<String, Revision>,
     library_views: BTreeMap<String, Revision>,
@@ -965,7 +968,7 @@ impl Engine<'_, '_> {
         }
         let mut ids: Vec<_> = self.capability_sources.drain().collect();
         ids.sort_unstable();
-        crate::task_store::capabilities_for(self.tx, &ids)
+        crate::capabilities::capabilities_for(self.tx, &ids)
     }
 
     fn record_text_rewrite(&mut self, id: &str, before: String, after: String, revision: i64) {
@@ -1165,20 +1168,19 @@ impl Engine<'_, '_> {
                 continue;
             }
             let mut after: Option<String> = None;
-            for &text in field.options {
-                let option = derived_id(&["field-option", &id, text]);
+            for option in crate::built_in::starting_options(field, &id) {
                 let ordinal = self.ordinal(&id, after.as_deref(), None)?;
                 self.create(NewBlock {
-                    id: &option,
+                    id: &option.id,
                     kind: BlockKind::Block,
                     parent: Some(&id),
                     page: &current.block.page_id,
                     ordinal,
-                    text,
+                    text: &option.text,
                     heading: None,
                 })?;
-                seeded.push(option.clone());
-                after = Some(option);
+                seeded.push(option.id.clone());
+                after = Some(option.id);
             }
         }
         Ok(seeded)

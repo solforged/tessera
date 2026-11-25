@@ -393,7 +393,7 @@ impl Workshop {
             .iter()
             .map(|(block, _, _)| block.block.id.clone())
             .collect();
-        let mut infos: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+        let mut infos: HashMap<_, _> = crate::capabilities::capabilities_for(&self.conn, &ids)?
             .into_iter()
             .filter_map(|cap| cap.question.map(|info| (cap.block_id, info)))
             .collect();

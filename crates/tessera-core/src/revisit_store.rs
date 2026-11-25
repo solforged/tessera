@@ -331,7 +331,7 @@ impl Workshop {
             .map(|(block, _, _)| block.block.id.clone())
             .collect();
         let mut capabilities: HashMap<_, _> =
-            crate::task_store::capabilities_for(&self.conn, &ids)?
+            crate::capabilities::capabilities_for(&self.conn, &ids)?
                 .into_iter()
                 .map(|c| (c.block_id.clone(), c))
                 .collect();
