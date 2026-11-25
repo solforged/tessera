@@ -706,7 +706,7 @@ fn record_change(
     )?;
     let seq = tx.last_insert_rowid();
     let capabilities =
-        crate::task_store::capabilities_for(tx, &blocks.iter().cloned().collect::<Vec<_>>())?;
+        crate::capabilities::capabilities_for(tx, &blocks.iter().cloned().collect::<Vec<_>>())?;
     let blocks = serde_json::to_string(blocks).expect("block IDs serialize");
     let revisions = tx.prepare(
         "SELECT id, revision FROM blocks WHERE id IN (SELECT value FROM json_each(?1)) ORDER BY id",
@@ -733,6 +733,7 @@ fn record_change(
         cards,
         work_sessions: Vec::new(),
         review_sessions: Vec::new(),
+        views: Vec::new(),
         decks: Vec::new(),
         task_views: Vec::new(),
         library_views: Vec::new(),

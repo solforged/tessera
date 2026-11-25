@@ -237,6 +237,7 @@ pub(crate) struct Planner<'a> {
     pub(crate) operations: Vec<Operation>,
     pages: HashMap<String, (String, i64)>,
     fields: HashMap<String, crate::FieldDefinition>,
+    created_fields: HashSet<String>,
     definition_after: Option<String>,
     fields_page: String,
     filed_creators: HashSet<String>,
@@ -266,6 +267,7 @@ impl<'a> Planner<'a> {
             operations: vec![],
             pages: HashMap::new(),
             fields,
+            created_fields: HashSet::new(),
             definition_after,
             fields_page,
             filed_creators: HashSet::new(),
@@ -294,84 +296,87 @@ impl<'a> Planner<'a> {
         if let Some(field) = self.fields.get(&key) {
             return field.id.clone();
         }
+        let built_in = crate::built_in::field_named(label);
         let id = if crate::built_in::task_field(label).is_some() {
             crate::notebook::derived_id(&["task-field", &self.fields_page, &key])
         } else {
             crate::notebook::new_ulid().to_string()
         };
+        let name = built_in.map_or(label, |field| field.name);
         self.operations.push(Operation::Insert {
             id: id.clone(),
             parent_id: self.fields_page.clone(),
             after: self.definition_after.clone(),
-            text: label.into(),
+            text: name.into(),
             heading: None,
         });
         self.definition_after = Some(id.clone());
-        self.operations.push(Operation::SetFieldKind {
-            id: id.clone(),
-            base_revision: 1,
-            kind,
-        });
-        // A built-in relation links to its types where those pages already exist; it never creates them.
-        let targets: Vec<String> = crate::built_in::field_named(label)
-            .filter(|_| kind == FieldKind::Instance)
-            .map_or(&[][..], |field| field.targets)
-            .iter()
-            .filter_map(|&title| {
-                if title == crate::fields::SOURCE_TARGET {
-                    return Some(title.to_owned());
-                }
-                self.pages
-                    .get(&crate::storage::title_key(title))
-                    .map(|page| page.0.clone())
-                    .or_else(|| {
-                        self.workshop
-                            .page_by_title(title)
-                            .ok()
-                            .flatten()
-                            .map(|page| page.id)
+        self.created_fields.insert(id.clone());
+        // Built-in definitions take their kind, role, targets and starting options from
+        // `Engine::settle_built_in_definitions` at commit time; custom fields set their kind explicitly.
+        let (kind, role, counts_as, targets, options, revision) = if let Some(field) = built_in {
+            let targets: Vec<String> = if field.kind == FieldKind::Instance {
+                field
+                    .targets
+                    .iter()
+                    .filter_map(|&title| {
+                        if title == crate::fields::SOURCE_TARGET {
+                            return Some(title.to_owned());
+                        }
+                        self.pages
+                            .get(&crate::storage::title_key(title))
+                            .map(|page| page.0.clone())
+                            .or_else(|| {
+                                self.workshop
+                                    .page_by_title(title)
+                                    .ok()
+                                    .flatten()
+                                    .map(|page| page.id)
+                            })
                     })
-            })
-            .collect();
-        if !targets.is_empty() {
-            self.operations.push(Operation::SetFieldTargets {
-                id: id.clone(),
-                base_revision: 2,
-                targets: targets.clone(),
-            });
-        }
-        let (seeds, options) = match crate::built_in::field_named(label) {
-            Some(field) if kind == FieldKind::Choice => {
+                    .collect()
+            } else {
+                vec![]
+            };
+            let options = if field.kind == FieldKind::Choice {
                 crate::built_in::starting_options(field, &id)
+            } else {
+                vec![]
+            };
+            (field.kind, field.role, field.counts_as, targets, options, 1)
+        } else {
+            let mut revision = 1;
+            if kind != FieldKind::Text {
+                self.operations.push(Operation::SetFieldKind {
+                    id: id.clone(),
+                    base_revision: 1,
+                    kind,
+                });
+                revision = 2;
             }
-            _ => (vec![], vec![]),
+            (
+                kind,
+                crate::FieldRole::Attribute,
+                None,
+                vec![],
+                vec![],
+                revision,
+            )
         };
-        self.operations.extend(seeds);
-        let mut revision = if targets.is_empty() { 2 } else { 3 };
-        let role = crate::built_in::field_named(label)
-            .map_or(crate::FieldRole::Attribute, |field| field.role);
-        if role != crate::FieldRole::Attribute {
-            self.operations.push(Operation::SetFieldRole {
-                id: id.clone(),
-                base_revision: revision,
-                role,
-            });
-            revision += 1;
-        }
         self.fields.insert(
             key,
             crate::FieldDefinition {
                 id: id.clone(),
-                name: label.into(),
+                name: name.into(),
                 kind,
                 hide: crate::FieldHide::Never,
                 role,
-                counts_as: crate::built_in::field_named(label).and_then(|field| field.counts_as),
+                counts_as,
                 archived: false,
                 revision,
                 options,
                 targets,
-                built_in: crate::built_in::field_named(label).is_some(),
+                built_in: built_in.is_some(),
             },
         );
         id
@@ -390,14 +395,20 @@ impl<'a> Planner<'a> {
             return Ok(());
         }
         let targets = self.creator_targets()?;
+        let created = self
+            .fields
+            .get(&key)
+            .is_some_and(|field| self.created_fields.contains(&field.id));
         let field = self.fields.get_mut(&key).expect("creator field exists");
-        self.operations.push(Operation::SetFieldTargets {
-            id: field.id.clone(),
-            base_revision: field.revision,
-            targets: targets.clone(),
-        });
+        if !created {
+            self.operations.push(Operation::SetFieldTargets {
+                id: field.id.clone(),
+                base_revision: field.revision,
+                targets: targets.clone(),
+            });
+            field.revision += 1;
+        }
         field.targets = targets;
-        field.revision += 1;
         Ok(())
     }
 

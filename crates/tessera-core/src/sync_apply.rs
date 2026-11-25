@@ -176,6 +176,7 @@ impl Workshop {
             cards: Vec::new(),
             work_sessions: Vec::new(),
             review_sessions: Vec::new(),
+            views: Vec::new(),
             decks: Vec::new(),
             task_views: Vec::new(),
             library_views: Vec::new(),

@@ -217,7 +217,7 @@ impl Workshop {
             root_manual_types: manual_types.remove(id).unwrap_or_default(),
             rows,
             targets,
-            capabilities: crate::task_store::page_capabilities(&self.conn, id)?,
+            capabilities: crate::capabilities::page_capabilities(&self.conn, id)?,
         })
     }
 
@@ -648,9 +648,6 @@ impl Workshop {
             let change = changes.last_mut().expect("change exists");
             while let Some(row) = revisions.next()? {
                 if let Some(id) = row.get::<_, Option<String>>(0)? {
-                    if change.views.contains(&id) {
-                        continue;
-                    }
                     if row.get::<_, Option<String>>(1)?.is_none()
                         || row.get::<_, Option<String>>(11)?.is_some()
                     {
@@ -673,7 +670,7 @@ impl Workshop {
         if !ids.is_empty() {
             let mut ids: Vec<_> = ids.into_iter().collect();
             ids.sort_unstable();
-            let current: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+            let current: HashMap<_, _> = crate::capabilities::capabilities_for(&self.conn, &ids)?
                 .into_iter()
                 .map(|capability| (capability.block_id.clone(), capability))
                 .collect();

@@ -46,7 +46,7 @@ interface Step {
   backward: Write;
 }
 const revision = (receipt: Committed, id: string) => {
-  const value = receipt.revisions.find(value => value.id === id);
+  const value = receipt.revisions.find(value => value.id === id) ?? receipt.views?.find(value => value.id === id);
   if (!value) throw new Error('The field change has no revision receipt.');
   return value.revision;
 };

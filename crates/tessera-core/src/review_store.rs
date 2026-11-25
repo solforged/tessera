@@ -812,49 +812,32 @@ pub(crate) fn apply(
             name,
             query,
         } => {
-            let found = deck_revision(conn, id)?;
-            if found != *base_revision {
-                return Err(Error::Conflict {
-                    op_index: index,
-                    what: "deck",
-                    id: id.clone(),
-                    expected: base_revision.unwrap_or(0),
-                    found,
-                });
-            }
-            let name = name.trim();
-            if name.is_empty() || name.chars().count() > 120 {
-                return Err(validation("deck name must contain 1 to 120 characters"));
-            }
-            crate::card_query::validate(conn, query)?;
-            let revision = next_revision(found.unwrap_or(0))?;
-            conn.execute(
-                "INSERT INTO decks(id, name, query, revision, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-                 ON CONFLICT(id) DO UPDATE SET name = excluded.name, query = excluded.query,
-                     revision = excluded.revision, updated_at = excluded.updated_at",
-                params![
-                    id,
-                    name,
-                    serde_json::to_string(query).expect("query serializes"),
-                    revision,
-                    now
-                ],
-            )?;
-            changes.decks.push(Revision {
-                id: id.clone(),
-                revision,
-            });
+            changes
+                .decks
+                .push(crate::operations::views::save_saved_view(
+                    conn,
+                    &crate::operations::views::DECKS_SPEC,
+                    crate::operations::views::SavedViewWrite {
+                        id,
+                        base_revision: *base_revision,
+                        name,
+                        query,
+                        now,
+                        index,
+                    },
+                    crate::card_query::validate,
+                )?);
         }
         Operation::DeleteDeck { id, base_revision } => {
-            let found = deck_revision(conn, id)?;
-            check_revision("deck", id, *base_revision, found, index)?;
-            let revision = next_revision(*base_revision)?;
-            conn.execute("DELETE FROM decks WHERE id = ?1", [id])?;
-            changes.decks.push(Revision {
-                id: id.clone(),
-                revision,
-            });
+            changes
+                .decks
+                .push(crate::operations::views::delete_saved_view(
+                    conn,
+                    &crate::operations::views::DECKS_SPEC,
+                    id,
+                    *base_revision,
+                    index,
+                )?);
         }
         _ => return Err(validation("operation is not a review or deck write")),
     }

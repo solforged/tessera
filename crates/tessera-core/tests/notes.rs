@@ -615,7 +615,8 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
             plural: plural.map(str::to_owned),
             icon: icon.map(str::to_owned),
         };
-    apply(&mut nb, vec![set(1, Some("  Volumes  "), Some("shelf"))]);
+    let rev = revision(&nb, 1);
+    apply(&mut nb, vec![set(rev, Some("  Volumes  "), Some("shelf"))]);
     let info = nb.type_info(&id(1)).unwrap();
     assert_eq!(info.plural.as_deref(), Some("Volumes"));
     assert_eq!(info.icon.as_deref(), Some("shelf"));
@@ -624,11 +625,11 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
     assert_eq!(kind.plural, "Volumes");
     assert_eq!(kind.icon.as_deref(), Some("shelf"));
     for operation in [
-        set(1, None, None),
-        set(2, Some(" "), None),
-        set(2, None, Some("")),
-        set(2, None, Some("not a token")),
-        set(2, None, Some(&"x".repeat(65))),
+        set(rev, None, None),
+        set(rev + 1, Some(" "), None),
+        set(rev + 1, None, Some("")),
+        set(rev + 1, None, Some("not a token")),
+        set(rev + 1, None, Some(&"x".repeat(65))),
         Operation::SetTypePresentation {
             type_id: id(3),
             base_revision: 1,
@@ -647,12 +648,12 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
         );
         assert_eq!(nb.type_info(&id(1)).unwrap(), info);
     }
-    apply(&mut nb, vec![set(2, None, Some("future-glyph"))]);
+    apply(&mut nb, vec![set(rev + 1, None, Some("future-glyph"))]);
     assert_eq!(
         nb.note_kinds(&id(2)).unwrap()[0].icon.as_deref(),
         Some("future-glyph")
     );
-    apply(&mut nb, vec![set(3, None, None)]);
+    apply(&mut nb, vec![set(rev + 2, None, None)]);
     let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
     assert_eq!(kind.plural, "Books");
     assert_eq!(kind.icon.as_deref(), Some("book"));

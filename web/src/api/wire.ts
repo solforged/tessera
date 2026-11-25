@@ -448,6 +448,7 @@ export type Committed = {
   cards?: Array<Revision>,
   work_sessions?: Array<WorkSession>,
   review_sessions?: Array<ReviewSession>,
+  views?: Array<Revision>,
   decks?: Array<Revision>,
   task_views?: Array<Revision>,
   library_views?: Array<Revision>,

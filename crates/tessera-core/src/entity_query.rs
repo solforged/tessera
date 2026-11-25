@@ -386,7 +386,7 @@ impl Workshop {
                      AND b.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden)"))?
                     .query_map([], |r| r.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
                 let mut last = HashMap::<String, String>::new();
-                for caps in crate::task_store::capabilities_for(&self.conn, &assessment_ids)? {
+                for caps in crate::capabilities::capabilities_for(&self.conn, &assessment_ids)? {
                     if let Some(assessment) = caps.assessment
                         && let Some(question) = assessment.question_id
                     {
@@ -683,7 +683,7 @@ impl Workshop {
             HashMap::new()
         };
         let ids: Vec<_> = rows.iter().map(|row| row.block.block.id.clone()).collect();
-        let notes: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+        let notes: HashMap<_, _> = crate::capabilities::capabilities_for(&self.conn, &ids)?
             .into_iter()
             .map(|caps| (caps.block_id.clone(), caps))
             .collect();

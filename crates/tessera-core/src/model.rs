@@ -608,6 +608,9 @@ pub struct Committed {
     pub review_sessions: Vec<ReviewSession>,
     #[serde(default)]
     #[ts(optional = nullable)]
+    pub views: Vec<Revision>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
     pub decks: Vec<Revision>,
     #[serde(default)]
     #[ts(optional = nullable)]
