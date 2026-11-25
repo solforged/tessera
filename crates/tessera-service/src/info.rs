@@ -4,7 +4,7 @@ use axum::{Json, extract::State};
 use serde::Serialize;
 
 use crate::error::ApiError;
-use crate::state::{AppState, read};
+use crate::state::AppState;
 use crate::{BUILD, VERSION, launch_agent_path};
 
 #[derive(Serialize, ts_rs::TS)]
@@ -16,8 +16,8 @@ pub(crate) struct WorkshopSize {
 pub(crate) async fn workshop_size(
     State(state): State<AppState>,
 ) -> Result<Json<WorkshopSize>, ApiError> {
-    let info = read(&state, |workshop| workshop.info()).await?;
-    tokio::task::spawn_blocking(move || crate::backups::backup_size(&info.path, false))
+    let path = state.info.read().path.clone();
+    tokio::task::spawn_blocking(move || crate::backups::backup_size(&path, false))
         .await
         .map_err(ApiError::internal)?
         .map(|size| Json(WorkshopSize { size }))
@@ -100,22 +100,24 @@ mod tests {
         let changes = broadcast::channel(32).0;
         let library =
             library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
+        let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let app = Router::new()
             .route("/api/notebook/size", get(workshop_size))
             .with_state(AppState {
                 readers: None,
+                info: Arc::new(parking_lot::RwLock::new(info.clone())),
                 workshop,
                 assets: None,
                 changes,
                 library,
-                objects: hub_objects(),
+                objects: hub_objects(replica.clone()),
                 port: 4561,
                 backup: Arc::new(tokio::sync::Mutex::new(None)),
                 backup_store: Some(dir.path().join("backups")),
                 sync_port: 4562,
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
-                replica: Arc::default(),
+                replica,
                 sync_health: Arc::default(),
                 switcher: None,
                 agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),

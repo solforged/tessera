@@ -478,46 +478,55 @@ async fn retire(
 pub(crate) async fn object_or_fetch(
     workshop: std::sync::Arc<parking_lot::Mutex<tessera_core::Workshop>>,
     readers: Option<tessera_api::Readers>,
+    replica: std::sync::Arc<crate::replica::ReplicaRuntime>,
     sha: String,
 ) -> Result<Vec<u8>, ApiError> {
-    use tessera_core::sync::Hub;
-    tokio::task::spawn_blocking(move || {
-        let stored = tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
-            Ok(match n.sync_object(&sha)? {
+    let lookup_workshop = workshop.clone();
+    let lookup_sha = sha.clone();
+    let stored = tokio::task::spawn_blocking(move || {
+        tessera_api::read_blocking(&lookup_workshop, readers.as_ref(), |n| {
+            Ok(match n.sync_object(&lookup_sha)? {
                 Some(bytes) => Ok(bytes),
                 None => Err((
                     n.sync_status()?.map(|status| status.hub_url),
                     n.sync_hub_credentials()?,
                 )),
             })
-        })?;
-        let (url, credentials) = match stored {
-            Ok(bytes) => return Ok(bytes),
-            Err((url, credentials)) => (url.ok_or_else(ApiError::not_found)?, credentials),
-        };
-        let unreachable = |error: anyhow::Error| {
-            ApiError::new(
-                StatusCode::BAD_GATEWAY,
-                "hub_unreachable",
-                format!("This file is on the hub, which did not answer: {error}"),
-            )
-        };
-        let mut hub = crate::sync_client::HttpHub::new(
-            &url,
-            credentials
-                .as_ref()
-                .and_then(|credentials| credentials.key.as_deref()),
-        )
-        .map_err(unreachable)?;
-        let bytes = hub
-            .object(&sha)
-            .map_err(|e| unreachable(e.into()))?
-            .ok_or_else(ApiError::not_found)?;
-        workshop.lock().sync_store_object(&sha, &bytes)?;
-        Ok(bytes)
+        })
     })
     .await
-    .map_err(ApiError::internal)?
+    .map_err(ApiError::internal)??;
+    let (url, credentials) = match stored {
+        Ok(bytes) => return Ok(bytes),
+        Err((url, credentials)) => (url.ok_or_else(ApiError::not_found)?, credentials),
+    };
+    let unreachable = |error: anyhow::Error| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "hub_unreachable",
+            format!("This file is on the hub, which did not answer: {error}"),
+        )
+    };
+    let client = replica
+        .client()
+        .map_err(|error| unreachable(anyhow::Error::msg(error)))?
+        .clone();
+    let bytes = crate::sync_client::fetch_object(
+        &client,
+        &url,
+        credentials
+            .as_ref()
+            .and_then(|credentials| credentials.key.as_deref()),
+        &sha,
+    )
+    .await
+    .map_err(unreachable)?
+    .ok_or_else(ApiError::not_found)?;
+    let store_bytes = bytes.clone();
+    tokio::task::spawn_blocking(move || workshop.lock().sync_store_object(&sha, &store_bytes))
+        .await
+        .map_err(ApiError::internal)??;
+    Ok(bytes)
 }
 
 #[cfg(test)]

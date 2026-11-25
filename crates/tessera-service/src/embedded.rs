@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{Router, extract::DefaultBodyLimit, middleware};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
@@ -46,18 +46,22 @@ fn embedded_router_inner(
     agent_path: Option<PathBuf>,
     backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
+    let info = Arc::new(RwLock::new(
+        workshop.info().map_err(|error| error.to_string())?,
+    ));
     let readers = tessera_api::Readers::open(&workshop).map_err(|error| error.to_string())?;
     let workshop = Arc::new(Mutex::new(workshop));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(workshop.clone(), changes.clone(), library::extract)?;
-    let replica = Arc::default();
+    let replica: Arc<replica::ReplicaRuntime> = Arc::default();
     let state = AppState {
         readers: Some(readers.clone()),
+        info,
         workshop,
         assets: None,
         changes,
         library,
-        objects: hub_objects(),
+        objects: hub_objects(replica.clone()),
         port: 0,
         backup: Arc::new(tokio::sync::Mutex::new(None)),
         backup_store,

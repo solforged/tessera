@@ -111,6 +111,15 @@ pub struct ReplicaRuntime {
     wake: Arc<Notify>,
     started: AtomicBool,
     abort: Mutex<Option<tokio::task::AbortHandle>>,
+    client: std::sync::OnceLock<Result<reqwest::Client, String>>,
+}
+impl ReplicaRuntime {
+    pub(crate) fn client(&self) -> Result<&reqwest::Client, String> {
+        self.client
+            .get_or_init(|| crate::sync_client::shared_client().map_err(|e| e.to_string()))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
 }
 impl Drop for ReplicaRuntime {
     fn drop(&mut self) {
@@ -163,12 +172,12 @@ async fn state_value(state: &AppState) -> Result<SyncState, LastError> {
     let readers = state.readers.clone();
     let runtime = state.replica.clone();
     tokio::task::spawn_blocking(move || {
-        // A replica's status is read beside the writer, in one snapshot.
-        let replica = tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
+        // Sync status is read beside the writer, in one snapshot.
+        let snapshot = tessera_api::read_blocking(&workshop, readers.as_ref(), |n| {
             let Some(status) = n.sync_status()? else {
-                return Ok(None);
+                return Ok(Err(n.sync_has_peers()?));
             };
-            Ok(Some((
+            Ok(Ok((
                 status,
                 n.sync_hub_credentials()?.expect("replica credentials row"),
                 n.sync_replica_conflicts()?,
@@ -176,19 +185,15 @@ async fn state_value(state: &AppState) -> Result<SyncState, LastError> {
             )))
         })?;
         let this_device = crate::SyncVersion::current();
-        let Some((status, credentials, conflicts, offline)) = replica else {
-            // Listing devices retires replicas that stopped syncing, so it writes.
-            let mut n = workshop.lock();
-            let role = if n.sync_devices()?.is_empty() && n.sync_replicas()?.is_empty() {
-                "none"
-            } else {
-                "hub"
-            };
-            return anyhow::Ok(SyncState {
-                this_device,
-                role,
-                replica: None,
-            });
+        let (status, credentials, conflicts, offline) = match snapshot {
+            Ok(replica) => replica,
+            Err(has_peers) => {
+                return anyhow::Ok(SyncState {
+                    this_device,
+                    role: if has_peers { "hub" } else { "none" },
+                    replica: None,
+                });
+            }
         };
         let memory = runtime.memory.lock();
         anyhow::Ok(SyncState {
@@ -475,9 +480,10 @@ async fn reclone(State(state): State<AppState>) -> Result<Json<SyncState>, LastE
 }
 
 fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> anyhow::Result<()> {
-    let (directory, old, credentials) = {
+    let directory = state.info.read().path.clone();
+    let (old, credentials) = {
         let n = state.workshop.lock();
-        (n.info()?.path, n.sync_status()?, n.sync_hub_credentials()?)
+        (n.sync_status()?, n.sync_hub_credentials()?)
     };
     let credentials = paired
         .map(|paired| tessera_core::sync_devices::HubCredentials {
@@ -537,6 +543,7 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
             credentials.as_ref(),
         )?;
         n.sync_mark_synced()?;
+        *state.info.write() = n.info()?;
         if let Some(readers) = &state.readers {
             readers.flush();
         }

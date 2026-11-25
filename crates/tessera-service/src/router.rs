@@ -8,7 +8,7 @@ use axum::{
     response::Response,
     routing::get,
 };
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use tessera_core::Workshop;
 use tokio::sync::broadcast;
 
@@ -20,7 +20,7 @@ use crate::notebooks;
 use crate::pairing;
 use crate::replica;
 use crate::security;
-use crate::state::{AppState, hub_objects, read};
+use crate::state::{AppState, hub_objects};
 use crate::stream::change_stream;
 use crate::sync;
 use crate::{backups, library};
@@ -63,25 +63,30 @@ pub(crate) fn routers(
     shutdown: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(Router, Router, AppState), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
+    let info = Arc::new(RwLock::new(
+        workshop.info().map_err(|error| error.to_string())?,
+    ));
     let readers = tessera_api::Readers::open(&workshop).map_err(|error| error.to_string())?;
     let workshop = Arc::new(Mutex::new(workshop));
     let notifications = broadcast::channel(256).0;
     let library =
         library::Library::start(workshop.clone(), notifications.clone(), library::extract)?;
+    let replica_runtime: Arc<replica::ReplicaRuntime> = Arc::default();
     let state = AppState {
         workshop,
+        info,
         readers: Some(readers),
         assets: assets.map(Arc::new),
         changes: notifications,
         library,
-        objects: hub_objects(),
+        objects: hub_objects(replica_runtime.clone()),
         port,
         backup: Arc::new(tokio::sync::Mutex::new(None)),
         backup_store,
         sync_port,
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         sharing: Arc::new(tokio::sync::Mutex::new(())),
-        replica: Arc::default(),
+        replica: replica_runtime,
         sync_health: Arc::default(),
         switcher,
         agent: Arc::new(agent::Runtime::new(agent_path)?),
@@ -162,17 +167,14 @@ pub(crate) async fn same_workshop(
         })
         .map(str::to_owned);
     if let Some(expected) = expected {
-        match read(&state, |workshop| workshop.info()).await {
-            Ok(info) if info.id != expected => {
-                return ApiError::new(
-                    axum::http::StatusCode::CONFLICT,
-                    "notebook_changed",
-                    format!("The service now has {} open.", info.path.display()),
-                )
-                .into_response();
-            }
-            Ok(_) => {}
-            Err(error) => return error.into_response(),
+        let info = state.info.read();
+        if info.id != expected {
+            return ApiError::new(
+                axum::http::StatusCode::CONFLICT,
+                "notebook_changed",
+                format!("The service now has {} open.", info.path.display()),
+            )
+            .into_response();
         }
     }
     next.run(request).await
