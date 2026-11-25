@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use std::str::Lines;
 
 use tessera_core::card_text::{CardParse, parse_card_text};
-use tessera_core::{NoteBlock, TaskState, TaskStatus};
+use tessera_core::{OutlineBlock, TaskState, TaskStatus, field_shorthand};
 
 /// The deepest an outline may nest, headings and list levels together. The
 /// service refuses a note nested much deeper as malformed JSON.
@@ -21,16 +21,13 @@ const TASKS: [(&str, TaskStatus); 6] = [
     ("[cancelled]", TaskStatus::Cancelled),
 ];
 
-/// Line breaks the editor's field shorthand refuses in a name or a value.
-const BREAKS: [char; 4] = ['\n', '\r', '\u{2028}', '\u{2029}'];
-
-/// Parse a Markdown outline into note blocks. Headings contain what follows
+/// Parse a Markdown outline into outline blocks. Headings contain what follows
 /// them until a heading of the same or a higher level; list items nest by
 /// indentation, and so do the values under a `Name::` line; indented lines
 /// under an item continue it, and every other line is a block of its own; a
 /// fenced code block stays one block. The escapes `tessera_read_page` writes
 /// read back as the text they stand for.
-pub fn outline(markdown: &str) -> anyhow::Result<Vec<NoteBlock>> {
+pub fn outline(markdown: &str) -> anyhow::Result<Vec<OutlineBlock>> {
     let markdown = markdown.strip_prefix('\u{feff}').unwrap_or(markdown);
     let mut parser = Parser::default();
     let mut lines = markdown.lines().peekable();
@@ -58,7 +55,7 @@ pub fn block_text(text: &str) -> String {
 
 #[derive(Default)]
 struct Parser {
-    blocks: Vec<NoteBlock>,
+    blocks: Vec<OutlineBlock>,
     /// Levels of the open headings as written, outermost first.
     headings: Vec<usize>,
     /// Columns of the open list levels below them, outermost first: an
@@ -148,7 +145,7 @@ impl Parser {
         push(
             &mut self.blocks,
             depth,
-            NoteBlock {
+            OutlineBlock {
                 heading: Some(level.min(3) as u8),
                 ..text_block(title)
             },
@@ -186,7 +183,7 @@ impl Parser {
         push(
             &mut self.blocks,
             depth,
-            NoteBlock {
+            OutlineBlock {
                 heading,
                 task: status.map(|status| TaskState {
                     status: Some(status),
@@ -230,32 +227,21 @@ fn depth(depth: usize) -> anyhow::Result<usize> {
 /// without `\`, backticks, brackets, `#`, `:` or line breaks that is not
 /// itself card syntax.
 pub fn shorthand_value(text: &str) -> Option<&str> {
-    let (name, value) = text.split_once("::")?;
-    if !(1..=60).contains(&name.encode_utf16().count())
-        || name.trim().is_empty()
-        || name.contains(['\\', '`', '[', ']', '#', ':'])
-        || name.contains(BREAKS)
-        || value.contains(BREAKS)
-    {
-        return None;
-    }
-    let card = parse_card_text(name.trim());
-    if !card.cards.is_empty() || !card.problems.is_empty() {
-        return None;
-    }
-    Some(value.strip_prefix(char::is_whitespace).unwrap_or(value))
+    field_shorthand(text).map(|(_, value)| value)
 }
 
-/// The [`text_problems`] of every block in a note. Field shorthand is
+/// The [`text_problems`] of every block in an outline. Field shorthand is
 /// checked by its value, the block that holds the card.
-pub fn note_problems(blocks: &[NoteBlock]) -> Vec<(String, String)> {
+pub fn block_problems(blocks: &[OutlineBlock]) -> Vec<(String, String)> {
     let mut problems = Vec::new();
     for block in blocks {
         problems.extend(text_problems(&block.text));
-        problems.extend(note_problems(&block.children));
+        problems.extend(block_problems(&block.children));
     }
     problems
 }
+
+pub use block_problems as note_problems;
 
 /// Problems in one block's text, each paired with the text it is about:
 /// card syntax that made no card, and field shorthand on one line of a
@@ -283,8 +269,8 @@ pub fn text_problems(text: &str) -> Vec<(String, String)> {
     found
 }
 
-fn text_block(text: String) -> NoteBlock {
-    NoteBlock {
+fn text_block(text: String) -> OutlineBlock {
+    OutlineBlock {
         text,
         heading: None,
         task: None,
@@ -293,7 +279,7 @@ fn text_block(text: String) -> NoteBlock {
 }
 
 /// Add a block `depth` levels down the last branch, or as deep as it goes.
-fn push(blocks: &mut Vec<NoteBlock>, depth: usize, block: NoteBlock) {
+fn push(blocks: &mut Vec<OutlineBlock>, depth: usize, block: OutlineBlock) {
     match blocks.last_mut() {
         Some(last) if depth > 0 => push(&mut last.children, depth - 1, block),
         _ => blocks.push(block),
@@ -302,7 +288,7 @@ fn push(blocks: &mut Vec<NoteBlock>, depth: usize, block: NoteBlock) {
 
 /// Continue the most recently added block on a new line. An empty block
 /// takes the line as its text.
-fn append(blocks: &mut [NoteBlock], line: &str) {
+fn append(blocks: &mut [OutlineBlock], line: &str) {
     let mut last = blocks.last_mut().expect("a continuation follows a block");
     while let Some(child) = last.children.last_mut() {
         last = child;
@@ -504,21 +490,19 @@ fn escaped(line: &str) -> bool {
             .chars()
             .all(|ch| MARKS.contains(&ch) || matches!(ch, ' ' | '\t'))
             && line.chars().filter(|ch| MARKS.contains(ch)).count() >= 2)
-        || line.split_once("::").is_some_and(|(name, _)| {
-            !name.trim().is_empty() && !name.contains(['\\', '`', '[', ']', '#', ':'])
-        })
+        || field_shorthand(line).is_some()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn parse(markdown: &str) -> Vec<NoteBlock> {
+    fn parse(markdown: &str) -> Vec<OutlineBlock> {
         outline(markdown).unwrap()
     }
 
-    fn shape(blocks: &[NoteBlock]) -> Vec<String> {
-        fn walk(blocks: &[NoteBlock], depth: usize, out: &mut Vec<String>) {
+    fn shape(blocks: &[OutlineBlock]) -> Vec<String> {
+        fn walk(blocks: &[OutlineBlock], depth: usize, out: &mut Vec<String>) {
             for block in blocks {
                 let heading = block.heading.map(|h| format!("h{h} ")).unwrap_or_default();
                 let task = match block.task.as_ref().and_then(|task| task.status) {
@@ -952,7 +936,7 @@ mod tests {
     #[test]
     fn a_choice_value_read_page_shows_by_name_reads_back_as_its_option() {
         use crate::agent_render::{Clock, Fields, PageContext, render};
-        use tessera_core::{Actor, AgentEdit, AgentRequest, NoteTarget, Workshop};
+        use tessera_core::{Actor, AgentEdit, AgentRequest, BlockTarget, Workshop};
 
         fn add(nb: &mut Workshop, title: &str, markdown: &str) -> String {
             nb.agent_edit(&AgentRequest {
@@ -960,8 +944,8 @@ mod tests {
                     name: "test".into(),
                 },
                 reason: None,
-                edit: AgentEdit::AddNote {
-                    target: NoteTarget::Page {
+                edit: AgentEdit::AddBlocks {
+                    target: BlockTarget::Page {
                         title: title.into(),
                     },
                     blocks: parse(markdown),

@@ -9,10 +9,9 @@ use tokio::sync::broadcast;
 use crate::agent;
 use crate::daily_backup;
 use crate::error::ApiError;
-use crate::pairing;
 use crate::replica;
 use crate::router::{same_workshop, workshop_routes};
-use crate::state::{AppState, hub_objects};
+use crate::state::AppState;
 use crate::{backups, library};
 use tessera_api::images;
 
@@ -54,26 +53,17 @@ fn embedded_router_inner(
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(workshop.clone(), changes.clone(), library::extract)?;
     let replica: Arc<replica::ReplicaRuntime> = Arc::default();
-    let state = AppState {
-        readers: Some(readers.clone()),
-        info,
+    let state = AppState::embedded(
         workshop,
-        assets: None,
+        info,
+        Some(readers.clone()),
         changes,
         library,
-        objects: hub_objects(replica.clone()),
-        port: 0,
-        backup: Arc::new(tokio::sync::Mutex::new(None)),
-        backup_store,
-        sync_port: 0,
-        pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-        sharing: Arc::new(tokio::sync::Mutex::new(())),
         replica,
-        sync_health: Arc::default(),
-        switcher: None,
-        agent: Arc::new(agent::Runtime::new(agent_path)?),
-        shutdown: tokio::sync::watch::channel(false).1,
-    };
+        Arc::new(tokio::sync::Mutex::new(None)),
+        backup_store,
+        Arc::new(agent::Runtime::new(agent_path)?),
+    );
     let handles = EmbeddedHandles {
         workshop: state.workshop.clone(),
         readers,

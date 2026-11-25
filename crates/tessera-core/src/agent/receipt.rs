@@ -47,8 +47,8 @@ impl Workshop {
         let mut plan = Plan::default();
         let on_page = |(id, summary): (String, String)| (Some(id), summary);
         let (page_id, summary) = match &request.edit {
-            AgentEdit::AddNote { target, blocks } => {
-                on_page(self.plan_note(&mut plan, target, blocks)?)
+            AgentEdit::AddBlocks { target, blocks } => {
+                on_page(self.plan_blocks_edit(&mut plan, target, blocks)?)
             }
             AgentEdit::EditBlock {
                 id,

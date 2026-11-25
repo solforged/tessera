@@ -12,39 +12,55 @@ mod agent;
 pub mod agent_outline;
 pub mod agent_render;
 pub mod agent_tools;
+#[cfg(feature = "hub")]
 mod assets;
 mod backups;
 mod daily_backup;
 mod embedded;
 mod error;
 mod info;
+#[cfg(feature = "hub")]
 pub mod migration;
+#[cfg(feature = "hub")]
 pub mod notebooks;
+#[cfg(feature = "hub")]
 mod pairing;
 mod replica;
 mod router;
+#[cfg(feature = "hub")]
 mod security;
+#[cfg(feature = "hub")]
 mod serve;
+#[cfg(feature = "hub")]
 mod sharing;
 pub(crate) mod state;
+#[cfg(feature = "hub")]
 mod stream;
+#[cfg(feature = "hub")]
 mod sync;
 pub mod sync_client;
-#[cfg(test)]
+#[cfg(all(test, feature = "hub"))]
 mod wire_types;
 
 pub use replica::start_sync_runner;
+#[cfg(feature = "hub")]
 pub use security::validate_dev_origin;
 pub(crate) use tessera_api::editor_receipt;
-pub use tessera_api::library;
+pub use tessera_api::{BLOCK_REVISION_HEADER, library};
 pub use tessera_core::paths;
 
 pub use embedded::{EmbeddedHandles, embedded_router, embedded_router_with_paths};
+#[cfg(feature = "hub")]
 pub use router::router;
+#[cfg(feature = "hub")]
 pub use serve::{Config, Restart, serve};
 
-pub(crate) use backups::{BackupFailure, BackupLock};
-pub(crate) use state::{AppState, read, run};
+pub(crate) use backups::BackupFailure;
+#[cfg(feature = "hub")]
+pub(crate) use backups::BackupLock;
+#[cfg(feature = "hub")]
+pub(crate) use state::run;
+pub(crate) use state::{AppState, read};
 
 use std::path::PathBuf;
 

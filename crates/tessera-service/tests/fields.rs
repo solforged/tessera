@@ -1,3 +1,5 @@
+#![cfg(feature = "hub")]
+
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -95,7 +97,8 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
     let save = json!({"actor":{"kind":"person"},"operations":[{"op":"save_view","id":id(500),"base_revision":null,"name":" Books since 1970 ","query":query}]});
     let (status, committed) = request(&app, "POST", "/api/batches", save.clone()).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(committed["revisions"], json!([{"id":id(500),"revision":1}]));
+    assert_eq!(committed["revisions"], json!([]));
+    assert_eq!(committed["views"], json!([{"id":id(500),"revision":1}]));
     let (status, views) = request(&app, "GET", "/api/views", Value::Null).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(views[0]["query"], query);
@@ -247,7 +250,9 @@ async fn types_list_only_visible_members_of_live_unarchived_type_pages() {
     assert_eq!(types.as_array().unwrap().len(), 1);
     assert_eq!(types[0]["page"]["id"], id(2));
     assert_eq!(types[0]["members"], 2);
-    assert_eq!(types[0]["fields"], json!([id(100)]));
+    assert_eq!(types[0]["fields"][0], id(100));
+    assert_eq!(types[0]["fields"].as_array().unwrap().len(), 2);
+    assert_eq!(types[0]["required"].as_array().unwrap().len(), 1);
     let (status, info) = request(&app, "GET", &format!("/api/types/{}", id(2)), Value::Null).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(types[0], info);

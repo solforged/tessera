@@ -2394,11 +2394,11 @@ fn keyed_agent_edit_survives_replica_rebase_and_replays_idempotently() {
             name: "test-agent".into(),
         },
         reason: Some("idempotent replica note".into()),
-        edit: tessera_core::AgentEdit::AddNote {
-            target: tessera_core::NoteTarget::Page {
+        edit: tessera_core::AgentEdit::AddBlocks {
+            target: tessera_core::BlockTarget::Page {
                 title: "Notes".into(),
             },
-            blocks: vec![tessera_core::NoteBlock {
+            blocks: vec![tessera_core::OutlineBlock {
                 text: "recorded once".into(),
                 heading: None,
                 task: None,

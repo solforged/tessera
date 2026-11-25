@@ -341,8 +341,9 @@ attributed revisit events and Revisits queue are built. Today lists Research to
 revisit; agents can read the queue and use its actions. The Form field exists as
 a built-in choice field with its starting options. A built-in kind's page cannot
 be renamed, deleted or merged, and note views take `is:resolved` and `revisit:`
-terms. Filling and exporting Form, State grouping and the agent API's rename to
-block terms remain.
+terms. The agent API uses `AddBlocks`, `BlockTarget` and `OutlineBlock`, keeping
+`add_note` as a request alias. Filling and exporting Form and State grouping
+remain.
 
 The [research desk](surfaces/desk.md) links three entity queries: questions,
 their positions and cited sources. Saved desks keep those queries in one view;

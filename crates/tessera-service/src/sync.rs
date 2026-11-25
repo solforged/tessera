@@ -16,52 +16,17 @@ use serde::{Deserialize, Serialize};
 use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows};
 use tessera_core::sync_devices::PairedDevice;
 
-use crate::{AppState, error::ApiError, read, run};
+use crate::{
+    AppState,
+    error::ApiError,
+    read,
+    replica::{Attempt, record_attempt},
+    run,
+};
 
-/// The schema version a replica runs; every sync request carries it.
-pub(crate) const SCHEMA_HEADER: &str = "x-tessera-schema";
-pub(crate) const VERSION_HEADER: &str = "x-tessera-version";
-pub(crate) const BUILD_HEADER: &str = "x-tessera-build";
-/// The clone ticket, beside the database bytes it describes.
-pub(crate) const TICKET_HEADER: &str = "x-tessera-clone";
-
-#[derive(Debug, Clone, Serialize, ts_rs::TS)]
-#[ts(rename = "SyncAttempt")]
-pub(crate) struct Attempt {
-    pub at: i64,
-    pub first_at: i64,
-    pub ok: bool,
-    pub code: Option<String>,
-    pub message: Option<String>,
-    pub count: u64,
-}
-
-pub(crate) fn record_attempt(
-    attempts: &mut std::collections::VecDeque<Attempt>,
-    at: i64,
-    ok: bool,
-    code: Option<&str>,
-    message: Option<&str>,
-) {
-    if let Some(latest) = attempts.front_mut()
-        && latest.ok == ok
-        && latest.code.as_deref() == code
-    {
-        latest.at = at;
-        latest.message = message.map(str::to_owned);
-        latest.count += 1;
-        return;
-    }
-    attempts.push_front(Attempt {
-        at,
-        first_at: at,
-        ok,
-        code: code.map(str::to_owned),
-        message: message.map(str::to_owned),
-        count: 1,
-    });
-    attempts.truncate(20);
-}
+pub(crate) use crate::sync_client::{
+    BUILD_HEADER, SCHEMA_HEADER, TICKET_HEADER, VERSION_HEADER, reported_version,
+};
 
 #[derive(Clone, Default, Serialize, ts_rs::TS)]
 pub(crate) struct DeviceHealth {
@@ -78,20 +43,6 @@ pub(crate) struct Refused {
     pub message: String,
     pub since: i64,
     pub attempts: u64,
-}
-
-pub(crate) fn reported_version(headers: &HeaderMap) -> Option<crate::SyncVersion> {
-    Some(crate::SyncVersion {
-        schema: headers.get(SCHEMA_HEADER)?.to_str().ok()?.parse().ok()?,
-        version: headers
-            .get(VERSION_HEADER)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned),
-        build: headers
-            .get(BUILD_HEADER)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned),
-    })
 }
 
 pub(crate) async fn version_headers(request: Request, next: Next) -> Response {
@@ -470,83 +421,4 @@ async fn retire(
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-/// A stored file. A replica that does not have it yet fetches it from its
-/// hub and keeps it, so opening a book brings its images. Only keeping a
-/// fetched file waits for the writer.
-pub(crate) async fn object_or_fetch(
-    workshop: std::sync::Arc<parking_lot::Mutex<tessera_core::Workshop>>,
-    readers: Option<tessera_api::Readers>,
-    replica: std::sync::Arc<crate::replica::ReplicaRuntime>,
-    sha: String,
-) -> Result<Vec<u8>, ApiError> {
-    let lookup_workshop = workshop.clone();
-    let lookup_sha = sha.clone();
-    let stored = tokio::task::spawn_blocking(move || {
-        tessera_api::read_blocking(&lookup_workshop, readers.as_ref(), |n| {
-            Ok(match n.sync_object(&lookup_sha)? {
-                Some(bytes) => Ok(bytes),
-                None => Err((
-                    n.sync_status()?.map(|status| status.hub_url),
-                    n.sync_hub_credentials()?,
-                )),
-            })
-        })
-    })
-    .await
-    .map_err(ApiError::internal)??;
-    let (url, credentials) = match stored {
-        Ok(bytes) => return Ok(bytes),
-        Err((url, credentials)) => (url.ok_or_else(ApiError::not_found)?, credentials),
-    };
-    let unreachable = |error: anyhow::Error| {
-        ApiError::new(
-            StatusCode::BAD_GATEWAY,
-            "hub_unreachable",
-            format!("This file is on the hub, which did not answer: {error}"),
-        )
-    };
-    let client = replica
-        .client()
-        .map_err(|error| unreachable(anyhow::Error::msg(error)))?
-        .clone();
-    let bytes = crate::sync_client::fetch_object(
-        &client,
-        &url,
-        credentials
-            .as_ref()
-            .and_then(|credentials| credentials.key.as_deref()),
-        &sha,
-    )
-    .await
-    .map_err(unreachable)?
-    .ok_or_else(ApiError::not_found)?;
-    let store_bytes = bytes.clone();
-    tokio::task::spawn_blocking(move || workshop.lock().sync_store_object(&sha, &store_bytes))
-        .await
-        .map_err(ApiError::internal)??;
-    Ok(bytes)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn attempts_keep_only_the_twenty_newest_outcomes() {
-        let mut attempts = std::collections::VecDeque::new();
-        for at in 0..30 {
-            record_attempt(&mut attempts, at, at % 2 == 0, None, None);
-        }
-        assert_eq!(attempts.len(), 20);
-        assert_eq!(attempts.front().unwrap().at, 29);
-        assert_eq!(attempts.back().unwrap().at, 10);
-        record_attempt(&mut attempts, 30, false, None, Some("latest"));
-        assert_eq!(attempts.len(), 20);
-        assert_eq!(attempts[0].count, 2);
-        assert_eq!(attempts[0].at, 30);
-        assert_eq!(attempts[0].first_at, 29);
-        assert_eq!(attempts[0].message.as_deref(), Some("latest"));
-    }
 }

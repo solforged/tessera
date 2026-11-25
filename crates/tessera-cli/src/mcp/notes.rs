@@ -5,16 +5,15 @@ use std::collections::HashSet;
 use anyhow::Context;
 use serde_json::Value;
 use tessera_core::{
-    Actor, AgentEdit, Block, BlockInPage, BlockKind, CardUnit, FieldsView, HistoryEntry, PageView,
+    Actor, Block, BlockInPage, BlockKind, CardUnit, FieldsView, HistoryEntry, PageView,
     SettingsView, UndoReceipt,
 };
-use tessera_service::agent_outline::{note_problems, outline, text_problems};
-use tessera_service::agent_tools::edits;
+use tessera_service::agent_tools::edits::{self, PageLookup};
 
 use super::cards::found;
 use super::render::{
-    Clock, Fields, PageContext, age, card_answer, card_front, card_label, kind_label, location,
-    one_line, quoted, render, snippet,
+    Clock, Fields, PageContext, TitleMap, age, card_answer, card_front, format_card_report,
+    kind_label, location, problem_report, quoted, render, unread_cards_report,
 };
 use super::{Api, Session, Titles, boolean, integer, limit, offset, segment, string};
 
@@ -98,26 +97,21 @@ impl Session<'_> {
 
     pub(super) async fn read_page(&self, arguments: &Value) -> anyhow::Result<String> {
         let api = self.api().await?;
-        let id = string(arguments, "id")?;
-        let root: Block = match (string(arguments, "title")?, string(arguments, "date")?, id) {
-            (Some(title), None, None) => {
-                let title = title.trim();
-                anyhow::ensure!(!title.is_empty(), "title must not be empty");
+        let (lookup, subtree) = edits::read_page_target(arguments)?;
+        let root: Block = match lookup {
+            PageLookup::Title(title) => {
                 // Another spelling or an alias also finds a page; a name
                 // several pages share is refused with the service's message.
                 found(&api, &format!("/api/pages/by-title/{}", segment(title)))
                     .await?
                     .with_context(|| format!("No atom is titled {title:?}"))?
             }
-            (None, Some(date), None) => api
+            PageLookup::Date(date) => api
                 .get(&format!("/api/journal/{}", segment(date)))
                 .await
                 .with_context(|| format!("No journal day {date}"))?,
-            (None, None, Some(id)) => api.get(&format!("/api/blocks/{}", segment(id))).await?,
-            _ => anyhow::bail!("Give exactly one of title, date or id."),
+            PageLookup::Block(id) => api.get(&format!("/api/blocks/{}", segment(id))).await?,
         };
-        let subtree = boolean(arguments, "subtree")?.unwrap_or(false);
-        anyhow::ensure!(!subtree || id.is_some(), "subtree needs id.");
         let page: PageView = api.get(&format!("/api/pages/{}", root.page_id)).await?;
         let cards = page_cards(&api, &page.root.id).await?;
         let fields = fields(&api).await?;
@@ -134,14 +128,8 @@ impl Session<'_> {
     }
 
     pub(super) async fn add_note(&self, arguments: &Value) -> anyhow::Result<String> {
-        let markdown = string(arguments, "markdown")?.context("markdown is required")?;
-        let blocks = outline(markdown)?;
-        anyhow::ensure!(!blocks.is_empty(), "Nothing to add: the text is empty.");
-        let target = edits::note_target(arguments)?;
-        let problems = note_problems(&blocks);
-        let receipt = self
-            .send(arguments, AgentEdit::AddNote { target, blocks })
-            .await?;
+        let prepared = edits::add_note(arguments)?;
+        let receipt = self.send(arguments, prepared.edit).await?;
         // The change is committed. What follows only reports on it, so a
         // failed read is a note in the result rather than an error that
         // would invite a retry.
@@ -157,25 +145,21 @@ impl Session<'_> {
                     .collect();
                 card_report(&api, &cards).await
             };
-            text.push_str(&report.await.unwrap_or_else(|error| unread(&error)));
+            text.push_str(
+                &report
+                    .await
+                    .unwrap_or_else(|error| unread_cards_report(&error, "tessera_read_page")),
+            );
         }
-        text.push_str(&problem_report(&problems));
+        text.push_str(&problem_report(&prepared.problems, "tessera_edit_block"));
         Ok(text)
     }
 
     pub(super) async fn edit_block(&self, arguments: &Value) -> anyhow::Result<String> {
-        let edit = edits::edit_block(arguments)?;
-        let AgentEdit::EditBlock { id, text, .. } = &edit else {
-            unreachable!("edit_block reads an EditBlock")
-        };
-        let (id, problems) = (
-            id.clone(),
-            text.as_deref().map(text_problems).unwrap_or_default(),
-        );
-        let edited = text.is_some();
-        let receipt = self.send(arguments, edit).await?;
+        let prepared = edits::edit_block_with_problems(arguments)?;
+        let receipt = self.send(arguments, prepared.edit).await?;
         let mut report = self.describe(&receipt).await;
-        if edited {
+        if let Some(id) = prepared.edited_id {
             let cards = async {
                 let api = self.api().await?;
                 let cards: Vec<CardUnit> = api
@@ -186,9 +170,13 @@ impl Session<'_> {
                     .collect();
                 card_report(&api, &cards).await
             };
-            report.push_str(&cards.await.unwrap_or_else(|error| unread(&error)));
+            report.push_str(
+                &cards
+                    .await
+                    .unwrap_or_else(|error| unread_cards_report(&error, "tessera_read_page")),
+            );
         }
-        report.push_str(&problem_report(&problems));
+        report.push_str(&problem_report(&prepared.problems, "tessera_edit_block"));
         Ok(report)
     }
 
@@ -320,49 +308,7 @@ async fn card_report(api: &Api, cards: &[CardUnit]) -> anyhow::Result<String> {
             .flat_map(|(front, answer)| [front.as_str(), answer.as_str()]),
     )
     .await;
-    let labels: Vec<_> = cards
-        .iter()
-        .zip(&sides)
-        .map(|(card, (front, answer))| {
-            format!(
-                "{} on block {} shows “{}” and asks for “{}”",
-                card_label(card, &clock),
-                card.source_block_id,
-                snippet(&titles.show(front)),
-                snippet(&titles.show(answer))
-            )
-        })
-        .collect();
-    Ok(format!(" Cards: {}.", labels.join("; ")))
-}
-
-/// ` …` for a committed write whose cards could not be read back.
-fn unread(error: &anyhow::Error) -> String {
-    let error = format!("{error:#}");
-    format!(
-        " The change is saved; only reading its cards back failed: {}. Do not repeat the call; \
-         tessera_read_page shows the cards.",
-        error.trim_end_matches('.')
-    )
-}
-
-/// ` Problems …` for card syntax that made no card and field lines that
-/// stayed text, quoting the whole block or line each is about.
-fn problem_report(problems: &[(String, String)]) -> String {
-    if problems.is_empty() {
-        return String::new();
-    }
-    let lines: Vec<_> = problems
-        .iter()
-        .map(|(text, message)| {
-            let message = message.trim_end_matches('.');
-            format!("“{}”: {message}", one_line(text))
-        })
-        .collect();
-    format!(
-        " Problems: {}. Fix them with tessera_edit_block.",
-        lines.join("; ")
-    )
+    Ok(format_card_report(cards, &clock, &TitleMap(titles.0)))
 }
 
 #[cfg(test)]
@@ -375,7 +321,7 @@ mod tests {
         let text = "What is 2 + 2? >> 4\nThe capital of France is {{c1::Paris}}.\n\
                     What is 3 + 3? >> 6 and a long tail that runs past sixty characters";
         assert_eq!(
-            problem_report(&text_problems(text)),
+            problem_report(&text_problems(text), "tessera_edit_block"),
             " Problems: “What is 2 + 2? >> 4 / The capital of France is {{c1::Paris}}. / \
              What is 3 + 3? >> 6 and a long tail that runs past sixty characters”: Use only \
              one card operator per atom; “What is 2 + 2? >> 4 / The capital of France is \

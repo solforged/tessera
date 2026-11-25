@@ -16,6 +16,7 @@ mod state;
 mod tls;
 mod workshop;
 
+pub use capabilities::BLOCK_REVISION_HEADER;
 pub use changes::{CHANGES_PAGE_SIZE, ChangeSink, FollowError, StreamStop, follow_changes};
 pub use error::{ApiError, ApiFailure, ConflictDetails};
 pub use history::{HistoryResponse, editor_receipt};

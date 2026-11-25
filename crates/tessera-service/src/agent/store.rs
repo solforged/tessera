@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::{error::ApiError, notebooks::Registry};
+use crate::{error::ApiError, paths};
 
 #[derive(Clone, Copy, Deserialize, Serialize, ts_rs::TS)]
 #[serde(rename_all = "snake_case")]
@@ -120,8 +120,10 @@ fn storage_error() -> ApiError {
 impl Store {
     pub fn new(path: Option<PathBuf>) -> Self {
         Self {
-            path: path
-                .or_else(|| Registry::platform().map(|r| r.path.with_file_name("agent.json"))),
+            path: path.or_else(|| {
+                paths::default_workshop()?;
+                Some(paths::registry_file()?.with_file_name("agent.json"))
+            }),
         }
     }
 

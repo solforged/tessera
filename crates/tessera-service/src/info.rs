@@ -1,3 +1,4 @@
+#[cfg(feature = "hub")]
 use std::path::PathBuf;
 
 use axum::{Json, extract::State};
@@ -5,6 +6,7 @@ use serde::Serialize;
 
 use crate::error::ApiError;
 use crate::state::AppState;
+#[cfg(feature = "hub")]
 use crate::{BUILD, VERSION, launch_agent_path};
 
 #[derive(Serialize, ts_rs::TS)]
@@ -23,12 +25,14 @@ pub(crate) async fn workshop_size(
         .map(|size| Json(WorkshopSize { size }))
 }
 
+#[cfg(feature = "hub")]
 #[derive(Serialize, ts_rs::TS)]
 pub(crate) struct LaunchAgentInfo {
     installed: bool,
     path: Option<PathBuf>,
 }
 
+#[cfg(feature = "hub")]
 #[derive(Serialize, ts_rs::TS)]
 pub(crate) struct ServiceInfo {
     version: &'static str,
@@ -40,6 +44,7 @@ pub(crate) struct ServiceInfo {
     launch_agent: LaunchAgentInfo,
 }
 
+#[cfg(feature = "hub")]
 pub(crate) async fn service_info(
     State(state): State<AppState>,
 ) -> Result<Json<ServiceInfo>, ApiError> {
@@ -87,8 +92,7 @@ mod tests {
 
     use crate::agent;
     use crate::library;
-    use crate::pairing;
-    use crate::state::{AppState, hub_objects};
+    use crate::state::AppState;
 
     #[tokio::test]
     async fn workshop_size_counts_every_file_in_the_workshop_folder() {
@@ -103,26 +107,17 @@ mod tests {
         let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let app = Router::new()
             .route("/api/notebook/size", get(workshop_size))
-            .with_state(AppState {
-                readers: None,
-                info: Arc::new(parking_lot::RwLock::new(info.clone())),
+            .with_state(AppState::embedded(
                 workshop,
-                assets: None,
+                Arc::new(parking_lot::RwLock::new(info.clone())),
+                None,
                 changes,
                 library,
-                objects: hub_objects(replica.clone()),
-                port: 4561,
-                backup: Arc::new(tokio::sync::Mutex::new(None)),
-                backup_store: Some(dir.path().join("backups")),
-                sync_port: 4562,
-                pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-                sharing: Arc::new(tokio::sync::Mutex::new(())),
                 replica,
-                sync_health: Arc::default(),
-                switcher: None,
-                agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
-                shutdown: tokio::sync::watch::channel(false).1,
-            });
+                Arc::new(tokio::sync::Mutex::new(None)),
+                Some(dir.path().join("backups")),
+                Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+            ));
         async fn size(app: &Router) -> u64 {
             let response = app
                 .clone()

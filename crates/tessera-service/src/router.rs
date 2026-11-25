@@ -1,31 +1,46 @@
+#[cfg(feature = "hub")]
 use std::path::PathBuf;
+#[cfg(feature = "hub")]
 use std::sync::Arc;
 
-use axum::{
-    Router,
-    extract::{DefaultBodyLimit, State},
-    middleware,
-    response::Response,
-    routing::get,
-};
+#[cfg(feature = "hub")]
+use axum::extract::DefaultBodyLimit;
+use axum::{Router, extract::State, middleware, response::Response, routing::get};
+#[cfg(feature = "hub")]
 use parking_lot::{Mutex, RwLock};
+#[cfg(feature = "hub")]
 use tessera_core::Workshop;
+#[cfg(feature = "hub")]
 use tokio::sync::broadcast;
 
+#[cfg(feature = "hub")]
 use crate::agent;
+#[cfg(feature = "hub")]
 use crate::assets;
 use crate::error::ApiError;
-use crate::info::{service_info, workshop_size};
+#[cfg(feature = "hub")]
+use crate::info::service_info;
+use crate::info::workshop_size;
+#[cfg(feature = "hub")]
 use crate::notebooks;
+#[cfg(feature = "hub")]
 use crate::pairing;
 use crate::replica;
+#[cfg(feature = "hub")]
 use crate::security;
-use crate::state::{AppState, hub_objects};
+use crate::state::AppState;
+#[cfg(feature = "hub")]
+use crate::state::hub_objects;
+#[cfg(feature = "hub")]
 use crate::stream::change_stream;
+#[cfg(feature = "hub")]
 use crate::sync;
+#[cfg(feature = "hub")]
 use crate::{backups, library};
+#[cfg(feature = "hub")]
 use tessera_api::images;
 
+#[cfg(feature = "hub")]
 pub fn router(
     workshop: Workshop,
     port: u16,
@@ -50,6 +65,7 @@ pub fn router(
     .0)
 }
 
+#[cfg(feature = "hub")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn routers(
     workshop: Workshop,
@@ -186,6 +202,7 @@ pub(crate) fn workshop_routes() -> Router<AppState> {
         .merge(replica::routes())
 }
 
+#[cfg(feature = "hub")]
 async fn refuse_while_switching(
     State(state): State<AppState>,
     request: axum::extract::Request,
@@ -212,7 +229,7 @@ async fn refuse_while_switching(
     next.run(request).await
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "hub"))]
 mod tests {
     use axum::{
         body::Body,

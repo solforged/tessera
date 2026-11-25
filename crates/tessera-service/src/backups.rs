@@ -261,64 +261,76 @@ async fn restore_backup(
 ) -> Result<(axum::http::StatusCode, Json<RestoringBackup>), ApiError> {
     let Path(name) = name.map_err(ApiError::from)?;
     validate_backup_name(&name)?;
-    let switcher = state.switcher.clone().ok_or_else(|| {
-        ApiError::new(
+    #[cfg(not(feature = "hub"))]
+    {
+        let _ = state;
+        Err(ApiError::new(
             axum::http::StatusCode::NOT_FOUND,
             "not_found",
             "This service cannot restore while serving a workshop by path.",
-        )
-    })?;
-    let conflict = || {
-        ApiError::new(
-            axum::http::StatusCode::CONFLICT,
-            "conflict",
-            "A backup or workshop switch is already running.",
-        )
-    };
-    let guard = state
-        .backup
-        .clone()
-        .try_lock_owned()
-        .map_err(|_| conflict())?;
-    let transition = switcher
-        .transition
-        .clone()
-        .try_lock_owned()
-        .map_err(|_| conflict())?;
-    if switcher.request.borrow().is_some() {
-        return Err(conflict());
-    }
-    let store = backup_store(&state)?;
-    let info = state.info.read().clone();
-    tokio::task::spawn_blocking(move || {
-        // Both guards outlive cancellation, including publishing the restart request.
-        let (_guard, _transition) = (guard, transition);
-        let backup = list_backups(&store, &info)?
-            .backups
-            .into_iter()
-            .find(|backup| backup.name == name)
-            .ok_or_else(ApiError::not_found)?;
-        let saved = tessera_core::backup_to_store_preserving(&info.path, &store, &backup.path)
-            .map_err(ApiError::internal)?;
-        let safety = if saved.created {
-            Some(backup_info(saved.path, saved.manifest)?)
-        } else {
-            None
-        };
-        let source = std::fs::canonicalize(&backup.path).map_err(ApiError::internal)?;
-        crate::serve::write_pending_restore(&info.path, source).map_err(ApiError::internal)?;
-        switcher.request.send_replace(Some(info.path));
-        Ok((
-            axum::http::StatusCode::ACCEPTED,
-            Json(RestoringBackup {
-                restoring: true,
-                backup,
-                safety,
-            }),
         ))
-    })
-    .await
-    .map_err(ApiError::internal)?
+    }
+    #[cfg(feature = "hub")]
+    {
+        let switcher = state.switcher.clone().ok_or_else(|| {
+            ApiError::new(
+                axum::http::StatusCode::NOT_FOUND,
+                "not_found",
+                "This service cannot restore while serving a workshop by path.",
+            )
+        })?;
+        let conflict = || {
+            ApiError::new(
+                axum::http::StatusCode::CONFLICT,
+                "conflict",
+                "A backup or workshop switch is already running.",
+            )
+        };
+        let guard = state
+            .backup
+            .clone()
+            .try_lock_owned()
+            .map_err(|_| conflict())?;
+        let transition = switcher
+            .transition
+            .clone()
+            .try_lock_owned()
+            .map_err(|_| conflict())?;
+        if switcher.request.borrow().is_some() {
+            return Err(conflict());
+        }
+        let store = backup_store(&state)?;
+        let info = state.info.read().clone();
+        tokio::task::spawn_blocking(move || {
+            // Both guards outlive cancellation, including publishing the restart request.
+            let (_guard, _transition) = (guard, transition);
+            let backup = list_backups(&store, &info)?
+                .backups
+                .into_iter()
+                .find(|backup| backup.name == name)
+                .ok_or_else(ApiError::not_found)?;
+            let saved = tessera_core::backup_to_store_preserving(&info.path, &store, &backup.path)
+                .map_err(ApiError::internal)?;
+            let safety = if saved.created {
+                Some(backup_info(saved.path, saved.manifest)?)
+            } else {
+                None
+            };
+            let source = std::fs::canonicalize(&backup.path).map_err(ApiError::internal)?;
+            crate::serve::write_pending_restore(&info.path, source).map_err(ApiError::internal)?;
+            switcher.request.send_replace(Some(info.path));
+            Ok((
+                axum::http::StatusCode::ACCEPTED,
+                Json(RestoringBackup {
+                    restoring: true,
+                    backup,
+                    safety,
+                }),
+            ))
+        })
+        .await
+        .map_err(ApiError::internal)?
+    }
 }
 
 async fn delete_other_backups(
@@ -404,8 +416,6 @@ mod tests {
 
     use crate::agent;
     use crate::library;
-    use crate::pairing;
-    use crate::state::hub_objects;
 
     #[tokio::test]
     async fn backup_rejects_concurrent_requests_and_releases_guard_after_failure() {
@@ -421,26 +431,17 @@ mod tests {
         let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let app = Router::new()
             .route("/api/backups", post(create_backup))
-            .with_state(AppState {
-                readers: None,
-                info: Arc::new(parking_lot::RwLock::new(info.clone())),
+            .with_state(AppState::embedded(
                 workshop,
-                assets: None,
+                Arc::new(parking_lot::RwLock::new(info.clone())),
+                None,
                 changes,
                 library,
-                objects: hub_objects(replica.clone()),
-                port: 4396,
-                backup: backup.clone(),
-                backup_store: Some(dir.path().join("backups")),
-                sync_port: 4501,
-                pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-                sharing: Arc::new(tokio::sync::Mutex::new(())),
                 replica,
-                sync_health: Arc::default(),
-                switcher: None,
-                agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
-                shutdown: tokio::sync::watch::channel(false).1,
-            });
+                backup.clone(),
+                Some(dir.path().join("backups")),
+                Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+            ));
         let guard = backup.clone().try_lock_owned().unwrap();
         let response = app
             .clone()
@@ -502,26 +503,17 @@ mod tests {
             message: "disk full".into(),
         })));
         let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
-        let app = backup_routes().with_state(AppState {
-            readers: None,
-            info: Arc::new(parking_lot::RwLock::new(info)),
+        let app = backup_routes().with_state(AppState::embedded(
             workshop,
-            assets: None,
+            Arc::new(parking_lot::RwLock::new(info)),
+            None,
             changes,
             library,
-            objects: hub_objects(replica.clone()),
-            port: 4396,
-            backup,
-            backup_store: Some(dir.path().join("backups")),
-            sync_port: 4501,
-            pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-            sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica,
-            sync_health: Arc::default(),
-            switcher: None,
-            agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
-            shutdown: tokio::sync::watch::channel(false).1,
-        });
+            backup,
+            Some(dir.path().join("backups")),
+            Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+        ));
         let listed = json(&app, "GET").await;
         assert_eq!(
             listed["automatic_failure"],
@@ -542,26 +534,17 @@ mod tests {
         let library =
             library::Library::start(workshop.clone(), changes.clone(), library::extract).unwrap();
         let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
-        let app = backup_routes().with_state(AppState {
-            readers: None,
-            info: Arc::new(parking_lot::RwLock::new(info.clone())),
+        let app = backup_routes().with_state(AppState::embedded(
             workshop,
-            assets: None,
+            Arc::new(parking_lot::RwLock::new(info.clone())),
+            None,
             changes,
             library,
-            objects: hub_objects(replica.clone()),
-            port: 4561,
-            backup: Arc::new(tokio::sync::Mutex::new(None)),
-            backup_store: Some(dir.path().join("backups")),
-            sync_port: 4562,
-            pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-            sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica,
-            sync_health: Arc::default(),
-            switcher: None,
-            agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
-            shutdown: tokio::sync::watch::channel(false).1,
-        });
+            Arc::new(tokio::sync::Mutex::new(None)),
+            Some(dir.path().join("backups")),
+            Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+        ));
         for created_at in 1..=4 {
             let path = backup_directory(&info.path.parent().unwrap().join("backups"), &info)
                 .ok()
