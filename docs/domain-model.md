@@ -1663,14 +1663,22 @@ across clients.
 ## Derived data
 
 Links, full-text search, type membership from text, card definitions and field
-readings are derived in the same transaction as the text that produces them.
-Definitions can be rebuilt from blocks while retaining their role identities.
-Card schedules, review evidence, task occurrences and work sessions are
+value identities are derived in the same transaction as the text that produces
+them. A derived `field_readings` sort index is planned for SQL-side filtering
+and sorting at scale without storing authoritative copies of text. Definitions
+can be rebuilt from blocks while retaining their role identities. Card
+schedules, review evidence, task occurrences and work sessions are
 authoritative history; rebuilding derived data never recreates or resets them.
 
 ## Open decisions
 
-- How much change history to keep, and whether old assessments become immutable.
+- Retention windows for tiered change history (keeping change headers and
+  evidence-referenced tombstones forever while aging out old receipts, payloads
+  and unreferenced tombstone text past active replicas and backups), and
+  whether old assessments become immutable.
+- Explicit schema versions on JSON state columns (`tasks`, `questions`,
+  `card_units`, `views` and `changes`) so `tessera check` can report rows
+  behind the current shape.
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.
 - How concept and taxonomy comparison is modeled: types, positions about a

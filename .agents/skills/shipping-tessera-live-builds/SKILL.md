@@ -72,9 +72,9 @@ changing peers' trees.
 
 The ruleset `reviewed` requires a pull request for main; only deploy keys bypass
 it, and only the fast-forward workflow holds the write key (`FAST_FORWARD_KEY`).
-The ruleset `green` requires signed commits, linear history and seven checks:
+The ruleset `green` requires signed commits, linear history and eight checks:
 `rust (ubuntu-latest)`, `rust (macos-latest)`, `browser wasm build`,
-`backend correctness and scaling`, `web`, `android app`,
+`backend correctness and scaling`, `web`, `prose`, `android app`,
 `embedded release assets`. Never push main or use a squash or rebase merge. See
 `docs/releasing.md`, "Land a change on main".
 

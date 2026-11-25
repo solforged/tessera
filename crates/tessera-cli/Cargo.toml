@@ -1,6 +1,6 @@
 [package]
 name = "tessera-cli"
-description = "Command line for Tessera notebooks"
+description = "Command line for Tessera workshops"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

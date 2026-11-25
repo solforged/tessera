@@ -23,9 +23,8 @@ exceeds the cost of a missing feature.
    patching restructured pages under local edits (spike 4), which holds
    propagation at about 2.1 s. Moves and inserts now re-anchor in the core.
 3. Close the open stages. Stage 10: filling the Form field from lookup and
-   ingestion and exporting it, and State grouping. Stage 7: assessments that
-   cite positions and passages. Stage 4: cards from field entries. Each has a
-   mock or a settled model already.
+   ingestion and exporting it, and State grouping. Stage 4: cards from field
+   entries. Each has a mock or a settled model already.
 4. Capture, stage 6. The browser extension first, then feeds and newsletters,
    then providers.
 5. Perspectives, stage 9. PDFs first, then idea breakdowns and agent-assisted
@@ -209,7 +208,8 @@ carry a review date and record aporia. Perspectives name a holder and subject
 with a gist and a source siglum, and a Compare pane sets them side by side. A
 subject owns ordered criteria, derived from its positions' fields until set,
 which Compare's Criteria tab sets out as a matrix with questions under the
-criterion they name. Assessments that cite positions and passages remain.
+criterion they name. Assessments cite positions and passages through links,
+citations and authored argument relations.
 
 ## 8. Trust
 
@@ -228,14 +228,16 @@ to the restored workshop.
 
 Through `tessera mcp` or `POST /api/agent-changes`, agents can:
 
-- Search and read pages, the agenda and task lists, cards, typed queries, the
-  library and sync state.
-- Add notes with cards, tasks and field entries.
-- Edit, move and delete blocks.
-- Set tasks with times, warnings and repeats.
-- Hold cards.
-- Save decks.
-- Cite passages.
+- Search blocks, list pages and read pages or subtrees.
+- Read the agenda and task lists, flashcards and deck statistics, typed
+  queries, authored relations, due revisits, the library, recent changes and
+  sync state.
+- Add notes with cards, tasks and field entries, and edit, move or delete
+  blocks.
+- Set tasks with times, warnings and repeats, set authored relations, and
+  record, move, resolve or reopen revisits.
+- Hold or release cards, save or delete decks, cite passages, run sync and undo
+  changes.
 
 Every local change, by a person, an agent or the service, is listed in the
 History pane with its actor and reason, and any change whose operations all have
@@ -374,6 +376,15 @@ an unpaired phone keeps its own workshop.
 - A writing typeface choice in Settings › Appearance that sets the workshop's
   own sentences in Piazzolla, as the reader's Typeface setting does for books.
   Plex stays the default.
+- Tiered history retention: keep change headers forever for attribution and
+  undo while aging out old receipts, operation payloads and unreferenced
+  tombstone text past active replicas and backups, and cap the `editor_events`
+  cursor journal.
+- Indexed field readings: a derived `field_readings` table storing sort keys,
+  numbers and target IDs so field filters and the primary sort key run in SQL
+  on large tables.
+- Versioned JSON state columns on `tasks`, `questions`, `card_units`, `views`
+  and `changes` so `tessera check` can report rows behind the current shape.
 
 ## Not planned
 

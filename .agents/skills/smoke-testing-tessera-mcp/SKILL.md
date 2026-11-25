@@ -1,14 +1,15 @@
 ---
 name: smoke-testing-tessera-mcp
-description: "Smoke-tests Tessera's MCP standard-I/O server (18 tools incl. tasks, cards, decks, query, library, cite, sync) or POST /api/agent-changes against a throwaway workshop when checking agent integrations."
+description: "Smoke-tests Tessera's MCP standard-I/O server (22 tools incl. tasks, cards, decks, query, relations, revisits, library, cite, history, undo, sync) or POST /api/agent-changes against a throwaway workshop when checking agent integrations."
 ---
 
 # Smoke-testing Tessera's MCP server
 
 The server lives in `crates/tessera-cli/src/mcp/` (mod.rs protocol + `Api`
-helper, tools.rs schemas and SYNTAX,
+helper, tools.rs MCP-only schemas,
 notes/tasks/cards/query/library/sync/relations/revisits.rs handlers, outline.rs
-parser). Writes go through `AgentEdit` in
+parser), sharing its core 7 tool schemas and argument parsers with
+`crates/tessera-service/src/agent_tools/`. Writes go through `AgentEdit` in
 `crates/tessera-core/src/agent/request.rs`; every new write kind needs a `Step`
 and an inverse in `crates/tessera-core/src/history.rs`, planned from
 `agent/plan.rs`, so undo works (non-block resources such as cards and decks

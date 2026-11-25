@@ -1,6 +1,6 @@
 [package]
 name = "tessera-web"
-description = "Browser worker bridge to the Tessera notebook API"
+description = "Browser worker bridge to the Tessera workshop API"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
