@@ -265,7 +265,7 @@ impl Workshop {
         let created_atoms: Vec<String> = inserted.iter().chain(&options).cloned().collect();
         let provisional = provisional_undo_targets(&self.conn, &steps)?;
         let mut built_receipt = None;
-        self.apply_with(
+        self.apply_without_capture(
             &Batch {
                 actor: request.actor.clone(),
                 reason: request.reason.clone(),
