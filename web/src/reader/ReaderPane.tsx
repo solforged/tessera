@@ -12,21 +12,18 @@ import {
   onCleanup,
   onMount,
 } from 'solid-js';
-import { Dynamic, Portal } from 'solid-js/web';
+import { Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
-import type { VirtualItem } from '@tanstack/solid-virtual';
 import { ulid } from 'ulid';
-import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
+import type { Citation, HighlightRow, Passage, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../core/contract';
-import { setSystemBarsHidden } from '../ui/system-bars';
 import { createRetained } from '../core/retained';
 import { crossfade } from '../ui/pane-motion';
 import { sourceMetadata } from '../library/details';
 import { formatProgress, highlightLocation } from '../library/query';
 import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
 import type { HighlightMenu, HighlightSection } from '../library/highlights';
-import { ResourceImage } from '../library/ResourceImage';
 import { BookMap } from './BookMap';
 import { bookChapters, chapterEntries } from './book-map';
 import { Button } from '../ui/Button';
@@ -37,15 +34,13 @@ import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { HighlightComposer } from './HighlightComposer';
 import type { HighlightNoteDraft } from './HighlightComposer';
-import { PassageText } from './PassageText';
 import { passageNode, selectionInPassages } from './passages';
 import type { PassageSelection } from './passages';
 import { extendSelection, followOn, leadIn, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
 import { ProgressCard } from './ProgressCard';
-import { chapterAt, pageChunk, timeLeft } from './paged';
-import type { PageChunk } from './paged';
+import { chapterAt, timeLeft } from './paged';
 import {
   absorbedPassages,
   bookKeys,
@@ -55,16 +50,25 @@ import {
   isProseExcerpt,
   repeatsBook,
   sectionLabel,
-  sectionName,
   titlePageWords,
 } from './openings';
-import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
 import { isPhone } from '../ui/phone';
-import { setThemeOverride } from '../ui/theme';
 import { Figures } from './Figures';
 import { hideEditMenu, nativeEditMenu, onEditMenu, showEditMenu } from './edit-menu';
+import { coarsePointer, createReaderChrome, deferred, touchOnly } from './createReaderChrome';
+import {
+  characterRect,
+  createPagedReader,
+  cssValue,
+  PagedFlow,
+  pageTurns,
+  passageText,
+  type PageAnchor,
+} from './PagedFlow';
+import { createReaderSearch, ReaderSearchPopup, ReaderTocRow } from './ReaderSearchPopup';
+import { ScrolledPassages, SectionLabel, type ReaderPassageView } from './ScrolledPassages';
 import './reader.css';
 
 export interface ReaderPaneProps {
@@ -84,38 +88,12 @@ export interface ReaderPaneProps {
 }
 
 const PAGE_SIZE = 200;
-const SEARCH_PAGE_SIZE = 40;
-/** The gutter between columns, and between one page and the next. */
-const PAGE_GAP = 48;
-const pageTurns: Record<string, 1 | -1> = { ArrowRight: 1, ArrowLeft: -1, PageDown: 1, PageUp: -1, ' ': 1 };
-/** A place in the paged flow: a passage and a character offset into its text. */
-type PageAnchor = { ordinal: number; offset: number };
 type ReaderPopup =
   | { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions' | 'progress'; anchor: HTMLElement }
   | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean; ordinal?: number; locator?: string }
   | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; rects: DOMRect[]; snapshotId: string };
-/** Touch screens write a new highlight's note beside the passage, not in the source page. */
-const coarsePointer = window.matchMedia('(pointer: coarse)');
-/** No hover and a coarse pointer: a phone or tablet without a keyboard and trackpad, as `kbd` hints assume in CSS. */
-const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
-/** The cover screen always reads in the reading layout; its chrome toggles with a centre tap, as in full screen. */
-const coverScreen = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
-/** In full screen the reading chrome fades after this long without the mouse moving. */
-const CHROME_IDLE = 2500;
 const prose: Partial<Record<Passage['kind'], true>> = { paragraph: true, quote: true, list_item: true };
-
-/** A resize callback that writes layout state runs a frame later: WebKit reports a resize caused inside its own observer cycle as an uncaught "ResizeObserver loop completed with undelivered notifications" error. */
-function deferred(run: () => void) {
-  let frame = 0;
-  return Object.assign(
-    () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(run);
-    },
-    { cancel: () => cancelAnimationFrame(frame) },
-  );
-}
 
 export function ReaderPane(props: ReaderPaneProps) {
   const api = props.workshop.api;
@@ -146,18 +124,13 @@ export function ReaderPane(props: ReaderPaneProps) {
     landing: number;
   } | null>(null);
   const [query, setQuery] = createSignal('');
-  const [hits, setHits] = createSignal<PassageHit[]>([]);
-  const [searching, setSearching] = createSignal(false);
-  const [searchError, setSearchError] = createSignal('');
-  const [morePassages, setMorePassages] = createSignal(false);
-  let searchRequest: {
-    text: string;
-    sourceId: string;
-    popup: ReaderPopup;
-    controller: AbortController;
-    offset: number;
-    pending: boolean;
-  } | null = null;
+  const { hits, searching, searchError, morePassages, loadSearchPage } = createReaderSearch({
+    api,
+    sourceId: () => props.target.sourceId,
+    open: () => popup()?.kind === 'find',
+    popupIdentity: popup,
+    query,
+  });
   const [selection, setSelection] = createSignal<SelectionToolbar | null>(null);
   const [cursor, setCursor] = createSignal<number | null>(null);
   const [keyboardRange, setKeyboardRange] = createSignal<{ first: number; last: number } | null>(null);
@@ -203,16 +176,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     inkTimer = window.setTimeout(() => setInk(null), cssValue('--motion-ink') + cssValue('--motion-ui'));
   }
   const paged = () => readerSettings().layout === 'pages';
-  const [chunk, setChunk] = createSignal<PageChunk | null>(null);
-  const [pageIndex, setPageIndex] = createSignal(0);
-  const [pageCount, setPageCount] = createSignal(1);
-  const [pageFrame, setPageFrame] = createSignal({ width: 0, columns: 1 });
   /** The text column's width when the contents margin fits beside it, else null. */
   const [textWidth, setTextWidth] = createSignal<number | null>(null);
-  const chunkOrdinals = createMemo(() => {
-    const value = chunk();
-    return value ? Array.from({ length: value.last - value.first + 1 }, (_, index) => value.first + index) : [];
-  });
   const sections = createMemo(() =>
     contents()
       .filter((entry): entry is HighlightSection => entry.ordinal !== null)
@@ -247,24 +212,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     }
     return quotes >= 12 && quotes > plain;
   });
-  let scroll!: HTMLDivElement,
-    probe!: HTMLDivElement,
-    header!: HTMLDivElement,
-    frame: HTMLDivElement | undefined,
-    flow: HTMLDivElement | undefined,
-    margin: HTMLElement | undefined;
-  let pointerStart: { x: number; y: number; touch: boolean } | null = null,
-    wheelTotal = 0,
-    lastWheel = 0,
-    lastTurn = 0,
-    countFrame = 0;
-  /** A finger dragging the page sideways in Pages: its offset and speed, once it has moved far enough to tell a swipe from a scroll. */
-  let drag: { axis: 'x' | 'y' | null; offset: number; time: number; velocity: number } | null = null;
-  /** A page sliding into place; `done` turns the frame to its page in the same frame the flow lets go. */
-  let slide: { animation: Animation; done(): void } | null = null;
-  // The character that relayouts keep on screen: set by turning, jumping and the cursor, never by a relayout itself.
-  // A passage alone is not enough: a long one spans pages, and returning to its start would walk back a page each time.
-  let pageAnchor: PageAnchor = { ordinal: 0, offset: 0 };
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, margin: HTMLElement | undefined;
   let disposed = false,
     restoring = true,
     generation = 0,
@@ -288,6 +236,86 @@ export function ReaderPane(props: ReaderPaneProps) {
     settingsFromPages = false,
     settingsVersion = 0;
   const requests = new AbortController();
+  let readerRoot!: HTMLDivElement;
+  /** The cover screen's navigation bar: the pane header, which the reader's title and controls live in. */
+  const navBar = () => readerRoot?.closest('.pane')?.querySelector<HTMLElement>(':scope > .pane-header') ?? null;
+
+  const pagedReader = createPagedReader({
+    pageSize: PAGE_SIZE,
+    paged,
+    version,
+    total,
+    sections,
+    editing,
+    disposed: () => disposed,
+    generation: () => generation,
+    nextJumpToken: () => ++jumpVersion,
+    jumpVersion: () => jumpVersion,
+    isRestoring: () => restoring,
+    setRestoring: value => {
+      restoring = value;
+    },
+    markUserTurn: () => {
+      userScroll = true;
+      suppressed = false;
+    },
+    clearSelectionAndCursor: () => {
+      setSelection(null);
+      setCursor(null);
+    },
+    dismissingTap: () => dismissingTap,
+    toggleChrome: () => chrome.toggleChrome(),
+    scroll: () => scroll,
+    probe: () => probe,
+    loadPage: from => loadPage(from),
+    report: () => report(),
+    schedulePosition: () => schedulePosition(),
+  });
+  const {
+    chunk,
+    setChunk,
+    pageIndex,
+    pageCount,
+    pageFrame,
+    chunkOrdinals,
+    nextFrame,
+    scheduleCount,
+    firstOnPage,
+    showPassage,
+    relayoutPages,
+    revealPassage,
+    turn,
+    readerPointerDown,
+    readerPointerMove,
+    readerPointerUp,
+    readerPointerCancel,
+    pageWheel,
+  } = pagedReader;
+
+  const chrome = createReaderChrome({
+    active: () => props.active,
+    immersive: () => props.immersive,
+    loading,
+    firstVisible,
+    pageIndex,
+    chunk,
+    popupKind: () => popup()?.kind ?? null,
+    closePopup: () => setPopup(null),
+    hasSelection: () => !!selection(),
+    header: () => header,
+    navBar,
+    onBack: () => props.onBack(),
+  });
+  const {
+    coverReading,
+    chromeHides,
+    chromeOverlays,
+    chromeHidden,
+    showChrome,
+    hideChrome,
+    onHeaderFocusIn,
+    pointerMoved,
+  } = chrome;
   /** What a phone's nav bar covers at the top of the page (the page's `scroll-padding-top`): text passes under it, but a jump lands, and the reading point is taken, just below it. */
   const [topInset, setTopInset] = createSignal(0);
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
@@ -473,111 +501,6 @@ export function ReaderPane(props: ReaderPaneProps) {
     );
     return result;
   });
-  /**
-   * Full screen and the cover screen read with the chrome out of the way: the nav bar, toolbar and book map fade
-   * after the mouse rests (full screen with a mouse) or on a centre tap (touch), and return on movement, focus, a
-   * popup or another tap. With a mouse they keep their room, so the text never reflows; the line under the map stays.
-   * On touch (the cover screen, or full screen on a touch screen) they lie over the page instead, so the page has the
-   * whole screen; they go once the book opens and whenever the reading moves on, so they never cover what comes next.
-   */
-  const [coverReading, setCoverReading] = createSignal(coverScreen.matches);
-  const chromeHides = () => props.immersive || coverReading();
-  const chromeOverlays = () => coverReading() || (props.immersive && coarsePointer.matches);
-  const [chromeHidden, setChromeHidden] = createSignal(false);
-  let chromeTimer = 0,
-    keyboardFocus = false;
-  function showChrome(idle: boolean) {
-    clearTimeout(chromeTimer);
-    setChromeHidden(false);
-    if (idle && props.immersive) chromeTimer = window.setTimeout(hideChrome, CHROME_IDLE);
-  }
-  /** Focus a click left on the toolbar goes with it; focus that arrived by keyboard keeps the toolbar up. */
-  function hideChrome() {
-    if (popup() || selection()) return;
-    const focused = document.activeElement;
-    if (focused instanceof HTMLElement && (header.contains(focused) || navBar()?.contains(focused))) {
-      if (keyboardFocus) return;
-      focused.blur();
-    }
-    setChromeHidden(true);
-  }
-  createEffect(() => {
-    if (!chromeHides() || popup()) showChrome(false);
-  });
-  createEffect(() => {
-    if (props.immersive && !coarsePointer.matches) showChrome(true);
-  });
-  // Android's status and navigation bars leave with the chrome and return with it.
-  createEffect(() => {
-    if (!props.active || !chromeHides() || !chromeHidden()) return;
-    setSystemBarsHidden(true);
-    onCleanup(() => setSystemBarsHidden(false));
-  });
-  // A book's own Day or Night holds the whole window while it reads on a phone (Appearance › Page); Auto follows the app.
-  createEffect(() => {
-    const page = readerSettings().page;
-    if (!props.active || !coverReading() || page === 'auto') return;
-    setThemeOverride(page === 'day' ? 'light' : 'dark');
-    onCleanup(() => setThemeOverride(null));
-  });
-  // On a phone the contents open on their first entry with the chapter being read inside the window; only a chapter lower down brings the list to it.
-  createEffect(
-    on(
-      () => popup()?.kind,
-      kind => {
-        if (kind !== 'contents' || !coverReading()) return;
-        const settle = () => {
-          const list = document.querySelector<HTMLElement>('.reader-picker .picker-list'),
-            row = list?.querySelector<HTMLElement>('[aria-current="true"]');
-          if (!list || !row) return;
-          const at = row.getBoundingClientRect(),
-            box = list.getBoundingClientRect();
-          if (at.bottom > box.bottom) list.scrollTop += at.top - box.top - (box.height - at.height) / 2;
-        };
-        requestAnimationFrame(() => requestAnimationFrame(settle));
-      },
-    ),
-  );
-  // On the cover screen the reader owns a history entry, so the system Back gesture (Android) closes an open sheet and
-  // then leaves the book as its back arrow does, rather than leaving the app. Leaving another way pops the entry.
-  createEffect(() => {
-    if (!props.active || !coverReading() || props.immersive) return;
-    const key = ulid();
-    let owned = true;
-    history.pushState({ ...history.state, tesseraReader: key }, '');
-    const moved = () => {
-      if (history.state?.tesseraReader === key) return;
-      if (popup()) {
-        setPopup(null);
-        history.pushState({ ...history.state, tesseraReader: key }, '');
-        return;
-      }
-      owned = false;
-      props.onBack();
-    };
-    window.addEventListener('popstate', moved);
-    onCleanup(() => {
-      window.removeEventListener('popstate', moved);
-      if (owned && history.state?.tesseraReader === key) history.back();
-    });
-  });
-  createEffect(
-    on(
-      [loading, firstVisible, pageIndex, chunk],
-      () => {
-        if (chromeOverlays() && !loading()) hideChrome();
-      },
-      { defer: true },
-    ),
-  );
-  // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
-  let lastPointer = '';
-  function pointerMoved(event: PointerEvent) {
-    const at = `${event.screenX},${event.screenY}`;
-    if (event.pointerType !== 'mouse' || !props.immersive || at === lastPointer) return;
-    lastPointer = at;
-    showChrome(true);
-  }
   const creators = createMemo(() => {
     const metadata = currentSnapshot()?.metadata,
       page = details();
@@ -649,7 +572,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       () => {
         if (!settingsViewport) {
           settingsFromPages = !!scroll?.classList.contains('reader-paged') && !!chunk();
-          const anchor = settingsFromPages ? (firstOnPage() ?? pageAnchor) : null;
+          const anchor = settingsFromPages ? (firstOnPage() ?? pagedReader.pageAnchor) : null;
           settingsViewport = anchor ? { ordinal: anchor.ordinal, offset: 0, character: anchor.offset } : visibleRange();
           settingsAtStart = !settingsFromPages && scroll?.scrollTop === 0;
         }
@@ -769,73 +692,6 @@ export function ReaderPane(props: ReaderPaneProps) {
     virtualizer.measure();
   }
 
-  const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-  const pageStride = () => pageFrame().width + PAGE_GAP;
-  /** A length token in px or a duration token in ms (minified CSS writes some in seconds); reduced motion sets the durations to zero. */
-  const cssValue = (name: string) => {
-    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim(),
-      number = parseFloat(value) || 0;
-    return /\ds$/.test(value) ? number * 1000 : number;
-  };
-  const motionEase = () =>
-    getComputedStyle(document.documentElement).getPropertyValue('--motion-ease').trim() || 'ease-out';
-
-  /** Ends a running slide at once, on its page. */
-  function endSlide() {
-    const value = slide;
-    if (!value) return;
-    slide = null;
-    value.animation.cancel();
-    value.done();
-  }
-
-  /**
-   * Moves an element sideways through `keyframes`, then runs `done` before the next paint. The flow carries a page
-   * within the frame; the frame itself moves where there is no page beside it to show, since a flow pushed past the
-   * last page would only shrink the frame's scroll range and stand still.
-   */
-  function slideFlow(element: HTMLElement | undefined, keyframes: Keyframe[], duration: number, done: () => void) {
-    endSlide();
-    if (flow) flow.style.transform = '';
-    if (frame) frame.style.transform = '';
-    if (!element || duration <= 0) {
-      done();
-      return;
-    }
-    const value = { animation: element.animate(keyframes, { duration, easing: motionEase(), fill: 'forwards' }), done };
-    slide = value;
-    value.animation.onfinish = () => {
-      if (slide === value) endSlide();
-    };
-  }
-
-  /** A drag that does not turn the page springs back. */
-  function settle(from: number, element = flow) {
-    if (from)
-      slideFlow(
-        element,
-        [{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }],
-        cssValue('--motion-ui'),
-        () => {},
-      );
-  }
-
-  /**
-   * One column per page, or two when the pane fits two of at least 22em; never wider than the measure allows.
-   * The frame takes a whole number of pixels no wider than the pane's fractional width, so pages are exactly
-   * one frame and gap apart; a clamped fractional frame would drift a fraction of a pixel per page.
-   */
-  function layoutPages() {
-    const style = getComputedStyle(scroll);
-    const available = Math.floor(
-      scroll.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
-    );
-    const em = parseFloat(getComputedStyle(probe).fontSize),
-      measure = probe.getBoundingClientRect().width;
-    const columns = available >= 2 * 22 * em + PAGE_GAP ? 2 : 1;
-    setPageFrame({ width: Math.floor(Math.min(available, columns * measure + (columns - 1) * PAGE_GAP)), columns });
-  }
-
   /** The contents margin takes `--apparatus-width` and a 48 px gap left of the text, inside the pane's padding; it shows only where both fit. */
   /** The width the text could take at most: the reading column inside the pane's padding. */
   function textRoom() {
@@ -868,363 +724,6 @@ export function ReaderPane(props: ReaderPaneProps) {
     }),
   );
 
-  function applyPage(index: number) {
-    endSlide();
-    if (!drag) {
-      if (flow) flow.style.transform = '';
-      if (frame) frame.style.transform = '';
-    }
-    setPageIndex(index);
-    if (frame) frame.scrollLeft = index * pageStride();
-  }
-
-  /** Overflowing columns run to the right of the frame, one page per frame width and gap. */
-  function countPages() {
-    if (!frame?.isConnected) return;
-    const count = Math.max(1, Math.round((frame.scrollWidth + PAGE_GAP) / pageStride()));
-    setPageCount(count);
-    applyPage(Math.min(pageIndex(), count - 1));
-  }
-  const scheduleCount = () => {
-    cancelAnimationFrame(countFrame);
-    countFrame = requestAnimationFrame(countPages);
-  };
-  // Highlights, notes and late images reflow the chunk.
-  createEffect(
-    on(
-      version,
-      () => {
-        if (paged()) scheduleCount();
-      },
-      { defer: true },
-    ),
-  );
-
-  /** Text nodes of a passage in reading order, each with its offset into the passage's text. */
-  function passageText(row: HTMLElement) {
-    const nodes: { node: Text; start: number }[] = [],
-      walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-    let start = 0;
-    // SHOW_TEXT yields only Text nodes.
-    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
-      if (node.length) nodes.push({ node, start });
-      start += node.length;
-    }
-    return nodes;
-  }
-  function characterRect(node: Text, index: number): DOMRect | undefined {
-    const range = document.createRange();
-    range.setStart(node, index);
-    range.setEnd(node, index + 1);
-    return range.getClientRects()[0];
-  }
-
-  /** The first character on the current page; characters run left to right across columns and pages. */
-  function firstOnPage(): PageAnchor | null {
-    if (!frame?.isConnected) return null;
-    const view = frame.getBoundingClientRect(),
-      past = (rect: DOMRect | undefined) => !!rect && rect.right > view.left + 1;
-    for (const row of frame.querySelectorAll<HTMLElement>('[data-passage-id]')) {
-      const rects = [...row.getClientRects()].filter(rect => rect.width);
-      if (!rects.some(rect => past(rect) && rect.left < view.right - 1)) continue;
-      const ordinal = Number(row.dataset.ordinal);
-      if (rects[0]!.left > view.left - 1) return { ordinal, offset: 0 };
-      for (const { node, start } of passageText(row)) {
-        if (!past(characterRect(node, node.length - 1))) continue;
-        let low = 0,
-          high = node.length - 1;
-        while (low < high) {
-          const middle = (low + high) >> 1;
-          if (past(characterRect(node, middle))) high = middle;
-          else low = middle + 1;
-        }
-        return { ordinal, offset: start + low };
-      }
-      return { ordinal, offset: 0 };
-    }
-    return null;
-  }
-
-  /** The page holding an anchor's character. A column starts every stride / columns; 8 px absorbs rounding, well under the gap. */
-  function pageOf(anchor: PageAnchor) {
-    const row = frame?.querySelector<HTMLElement>(`[data-ordinal="${anchor.ordinal}"]`);
-    if (!frame || !row) return 0;
-    let rect = row.getClientRects()[0];
-    if (anchor.offset)
-      for (const { node, start } of passageText(row)) {
-        if (anchor.offset < start + node.length) {
-          rect = characterRect(node, anchor.offset - start) ?? rect;
-          break;
-        }
-      }
-    if (!rect) return 0;
-    const { columns } = pageFrame(),
-      x = rect.left - frame.getBoundingClientRect().left + frame.scrollLeft;
-    return Math.max(0, Math.floor(Math.floor((x + 8) / (pageStride() / columns)) / columns));
-  }
-
-  /** Lay out the chunk holding an anchor, then turn to the anchor's page or the chunk's last page. */
-  async function showPassage(anchor: PageAnchor, stale: () => boolean, edge?: 'last') {
-    const target = pageChunk(sections(), total(), anchor.ordinal);
-    for (let from = Math.floor(target.first / PAGE_SIZE) * PAGE_SIZE; from <= target.last; from += PAGE_SIZE)
-      await loadPage(from);
-    await document.fonts.ready;
-    if (stale()) return;
-    layoutPages();
-    const current = chunk();
-    if (current?.first !== target.first || current.last !== target.last) setChunk(target);
-    await nextFrame();
-    await nextFrame();
-    if (stale() || !frame) return;
-    countPages();
-    applyPage(edge === 'last' ? pageCount() - 1 : Math.min(pageOf(anchor), pageCount() - 1));
-  }
-
-  /** Lay the pages out again around the anchor after the pane or the type changes. */
-  async function relayoutPages() {
-    const token = ++jumpVersion,
-      epoch = generation,
-      anchor = pageAnchor,
-      stale = () => disposed || epoch !== generation || token !== jumpVersion;
-    restoring = true;
-    await showPassage(anchor, stale);
-    if (stale()) return;
-    restoring = false;
-    report();
-  }
-
-  async function revealPassage(ordinal: number, offset = 0) {
-    pageAnchor = { ordinal, offset };
-    const value = chunk();
-    if (value && ordinal >= value.first && ordinal <= value.last) applyPage(pageOf(pageAnchor));
-    else await showPassage(pageAnchor, () => disposed);
-  }
-
-  /**
-   * Turn a page: the next one slides in from the side it lies on, from wherever a drag left the flow (`from`). Past a
-   * chunk's edge the neighbouring chunk is laid out while the page fades aside, and its page fades in from that side.
-   */
-  async function turn(direction: 1 | -1, from = 0) {
-    endSlide();
-    const value = chunk(),
-      next = pageIndex() + direction,
-      within = next >= 0 && next < pageCount();
-    if (!value || restoring || editing()) {
-      settle(from, within ? flow : frame);
-      return;
-    }
-    userScroll = true;
-    suppressed = false;
-    lastTurn = performance.now();
-    setSelection(null);
-    setCursor(null);
-    const turned = () => {
-      pageAnchor = firstOnPage() ?? pageAnchor;
-      report();
-      schedulePosition();
-    };
-    if (within) {
-      // The distance left sets the pace, so a page a drag has carried most of the way finishes sooner.
-      const to = -direction * pageStride(),
-        left = Math.abs(to - from) / pageStride();
-      slideFlow(
-        flow,
-        [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }],
-        cssValue('--motion-page') * Math.max(0.5, left),
-        () => {
-          applyPage(next);
-          turned();
-        },
-      );
-      return;
-    }
-    const ordinal = direction > 0 ? value.last + 1 : value.first - 1;
-    if (ordinal < 0 || ordinal >= total()) {
-      settle(from, frame);
-      return;
-    }
-    const token = ++jumpVersion,
-      epoch = generation,
-      shift = -direction * cssValue('--space-24'),
-      fade = cssValue('--motion-fast');
-    restoring = true;
-    if (frame) frame.style.transform = '';
-    const leaving =
-      frame && fade
-        ? frame.animate(
-            [
-              { transform: `translateX(${from}px)`, opacity: 1 },
-              { transform: `translateX(${from + shift}px)`, opacity: 0 },
-            ],
-            { duration: fade, easing: motionEase(), fill: 'forwards' },
-          )
-        : null;
-    // The next chapter's text loads while the page fades; it is laid out only once the page has gone, so it never shows half faded.
-    try {
-      await Promise.all([loadPage(ordinal), leaving?.finished.catch(() => undefined)]);
-      await showPassage(
-        { ordinal, offset: 0 },
-        () => disposed || epoch !== generation || token !== jumpVersion,
-        direction < 0 ? 'last' : undefined,
-      );
-    } finally {
-      if (token === jumpVersion) restoring = false;
-      leaving?.cancel();
-    }
-    if (disposed || token !== jumpVersion) return;
-    const arrive = cssValue('--motion-ui');
-    if (frame && arrive)
-      frame.animate(
-        [
-          { transform: `translateX(${-shift}px)`, opacity: 0 },
-          { transform: 'translateX(0)', opacity: 1 },
-        ],
-        { duration: arrive, easing: motionEase() },
-      );
-    turned();
-  }
-
-  function readerPointerDown(event: PointerEvent) {
-    userScroll = true;
-    drag = null;
-    if (dismissingTap) {
-      pointerStart = null;
-      return;
-    }
-    pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' };
-    if (pointerStart.touch && paged() && frame?.isConnected) {
-      endSlide();
-      drag = { axis: null, offset: 0, time: event.timeStamp, velocity: 0 };
-    }
-  }
-
-  /**
-   * In Pages a finger carries the page sideways: the neighbouring page follows it in, and at the book's first or last
-   * page, or a chapter not yet laid out, the page gives a little instead. A long press selects text as usual.
-   */
-  function readerPointerMove(event: PointerEvent) {
-    const value = drag,
-      start = pointerStart;
-    if (!value || !start || !flow || !frame) return;
-    const dx = event.clientX - start.x,
-      dy = event.clientY - start.y;
-    if (!value.axis) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      value.axis =
-        Math.abs(dx) > 1.5 * Math.abs(dy) && window.getSelection()?.isCollapsed !== false && !restoring && !editing()
-          ? 'x'
-          : 'y';
-    }
-    if (value.axis !== 'x') return;
-    if (window.getSelection()?.isCollapsed === false) {
-      drag = null;
-      settle(value.offset, flow.style.transform ? flow : frame);
-      return;
-    }
-    const next = pageIndex() + (dx < 0 ? 1 : -1),
-      within = next >= 0 && next < pageCount();
-    // Without a page beside it the page gives at most a gutter's width, easing off as the finger goes on.
-    const give = cssValue('--space-48');
-    const offset = within
-      ? Math.max(-pageStride(), Math.min(pageStride(), dx))
-      : Math.sign(dx) * give * (1 - Math.exp(-Math.abs(dx) / (2 * give)));
-    value.velocity = (offset - value.offset) / Math.max(1, event.timeStamp - value.time);
-    value.offset = offset;
-    value.time = event.timeStamp;
-    (within ? flow : frame).style.transform = `translateX(${offset}px)`;
-    (within ? frame : flow).style.transform = '';
-  }
-
-  /**
-   * Touch: in pages a swipe past a quarter of the page, or a flick, turns it, and so does a tap in the outer sixth of
-   * the page. Where the chrome can step aside (full screen, the cover screen), any other tap on the text shows or
-   * hides it.
-   */
-  function readerPointerUp(event: PointerEvent) {
-    const start = pointerStart,
-      value = drag;
-    pointerStart = null;
-    drag = null;
-    if (start && value?.axis === 'x') {
-      const dx = event.clientX - start.x,
-        flick = Math.abs(value.velocity) > 0.3 && Math.abs(dx) > 24 && Math.sign(value.velocity) === Math.sign(dx);
-      if (flick || Math.abs(dx) > pageStride() / 4) void turn(dx < 0 ? 1 : -1, value.offset);
-      else settle(value.offset, flow?.style.transform ? flow : frame);
-      return;
-    }
-    if (!start?.touch || window.getSelection()?.isCollapsed === false) return;
-    const sheet = paged() && frame?.isConnected ? frame : undefined;
-    const dx = event.clientX - start.x,
-      dy = event.clientY - start.y;
-    if (
-      Math.abs(dx) > 8 ||
-      Math.abs(dy) > 8 ||
-      (event.target instanceof Element && event.target.closest('button, a, .reader-highlight'))
-    )
-      return;
-    // The page clips its columns, but a note's fingertip target still reaches into the page gutter.
-    if (sheet) {
-      const bounds = sheet.getBoundingClientRect(),
-        target = cssValue('--touch-target');
-      const note = [...scroll.querySelectorAll<HTMLButtonElement>('.reader-highlight-note')].find(button => {
-        const rect = button.getBoundingClientRect();
-        if (
-          rect.right <= bounds.left ||
-          rect.left >= bounds.right ||
-          rect.bottom <= bounds.top ||
-          rect.top >= bounds.bottom
-        )
-          return false;
-        const x = Math.max(0, (target - rect.width) / 2),
-          y = Math.max(0, (target - rect.height) / 2);
-        return (
-          event.clientX >= rect.left - x &&
-          event.clientX <= rect.right + x &&
-          event.clientY >= rect.top - y &&
-          event.clientY <= rect.bottom + y
-        );
-      });
-      if (note) {
-        event.preventDefault();
-        note.click();
-        return;
-      }
-    }
-    if (sheet) {
-      const rect = sheet.getBoundingClientRect(),
-        x = event.clientX - rect.left;
-      if (x < rect.width / 6) {
-        void turn(-1);
-        return;
-      }
-      if (x > (rect.width * 5) / 6) {
-        void turn(1);
-        return;
-      }
-    }
-    if (chromeHides()) {
-      clearTimeout(chromeTimer);
-      setChromeHidden(value => !value);
-    }
-  }
-
-  function readerPointerCancel() {
-    pointerStart = null;
-    if (drag?.axis === 'x') settle(drag.offset, flow?.style.transform ? flow : frame);
-    drag = null;
-  }
-
-  function pageWheel(event: WheelEvent) {
-    const now = performance.now();
-    if (now - lastWheel > 300) wheelTotal = 0;
-    lastWheel = now;
-    wheelTotal += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    if (Math.abs(wheelTotal) < 40 || now - lastTurn < 400) return;
-    const direction = wheelTotal > 0 ? 1 : -1;
-    wheelTotal = 0;
-    void turn(direction);
-  }
-
   /** Resolves true once the passage is on screen, false when disposed or overtaken by another jump. */
   async function jump(
     ordinal: number,
@@ -1243,8 +742,9 @@ export function ReaderPane(props: ReaderPaneProps) {
     await loadPage(index);
     if (disposed || epoch !== generation || token !== jumpVersion || !total()) return false;
     if (paged()) {
-      pageAnchor = { ordinal: index, offset: options.character ?? 0 };
-      await showPassage(pageAnchor, () => disposed || epoch !== generation || token !== jumpVersion);
+      const anchor: PageAnchor = { ordinal: index, offset: options.character ?? 0 };
+      pagedReader.setPageAnchor(anchor);
+      await showPassage(anchor, () => disposed || epoch !== generation || token !== jumpVersion);
       if (disposed || epoch !== generation || token !== jumpVersion) return false;
       restoring = false;
       report();
@@ -1356,7 +856,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     setJumpReturn(null);
     try {
       if (paged() && back.page) {
-        pageAnchor = back.page;
+        pagedReader.setPageAnchor(back.page);
         await relayoutPages();
       } else if (!(await jump(back.ordinal, { offset: back.offset }))) return;
       userScroll = true;
@@ -1380,6 +880,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     )
       return null;
     if (scroll.classList.contains('reader-paged')) {
+      const frame = pagedReader.frame;
       if (!frame?.isConnected) return null;
       // The first passage that starts on the page. Restoring a passage turns to the page holding its start, so
       // reporting one begun on an earlier page would walk back a page at every reopen. A passage that fills the
@@ -1490,75 +991,6 @@ export function ReaderPane(props: ReaderPaneProps) {
       { defer: true },
     ),
   );
-  async function loadSearchPage() {
-    const request = searchRequest;
-    if (!request || request.pending) return;
-    const current = () =>
-      searchRequest === request &&
-      !request.controller.signal.aborted &&
-      popup() === request.popup &&
-      query().trim() === request.text &&
-      props.target.sourceId === request.sourceId;
-    if (!current()) return;
-    request.pending = true;
-    setSearching(true);
-    setSearchError('');
-    try {
-      const values = await api.searchPassages(
-        request.text,
-        request.sourceId,
-        SEARCH_PAGE_SIZE + 1,
-        request.offset,
-        request.controller.signal,
-      );
-      if (!current()) return;
-      const page = values.slice(0, SEARCH_PAGE_SIZE);
-      request.offset += page.length;
-      batch(() => {
-        setHits(previous => {
-          const keys = new Set(previous.map(hit => `${hit.snapshot_id}:${hit.passage.id}`));
-          return [
-            ...previous,
-            ...page.filter(hit => {
-              const key = `${hit.snapshot_id}:${hit.passage.id}`;
-              if (keys.has(key)) return false;
-              keys.add(key);
-              return true;
-            }),
-          ];
-        });
-        setMorePassages(values.length > SEARCH_PAGE_SIZE);
-      });
-    } catch (reason) {
-      if (current()) setSearchError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      request.pending = false;
-      if (current()) setSearching(false);
-    }
-  }
-  createEffect(() => {
-    const state = popup(),
-      text = query().trim(),
-      sourceId = props.target.sourceId;
-    searchRequest = null;
-    setHits([]);
-    setSearching(false);
-    setSearchError('');
-    setMorePassages(false);
-    if (state?.kind !== 'find' || !text) return;
-    const controller = new AbortController();
-    searchRequest = { text, sourceId, popup: state, controller, offset: 0, pending: false };
-    setSearching(true);
-    const timer = window.setTimeout(() => {
-      void loadSearchPage();
-    }, 180);
-    onCleanup(() => {
-      clearTimeout(timer);
-      controller.abort();
-      searchRequest = null;
-    });
-  });
-
   async function note(locator: string, anchor: HTMLElement) {
     const state: ReaderPopup = { kind: 'note', anchor, text: '', loading: true };
     setPopup(state);
@@ -1613,7 +1045,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (!back) return;
     try {
       if (paged() && back.page) {
-        pageAnchor = back.page;
+        pagedReader.setPageAnchor(back.page);
         await relayoutPages();
       } else if (!(await jump(back.ordinal, { offset: back.offset }))) return;
       setNoteReturn(null);
@@ -1971,9 +1403,6 @@ export function ReaderPane(props: ReaderPaneProps) {
     }
   }
 
-  let readerRoot!: HTMLDivElement;
-  /** The cover screen's navigation bar: the pane header, which the reader's title and controls live in. */
-  const navBar = () => readerRoot.closest('.pane')?.querySelector<HTMLElement>(':scope > .pane-header') ?? null;
   /** Full screen changes the whole window around the page; the page morphs between its two sizes instead of snapping. */
   const setImmersive = (value: boolean) => crossfade(readerRoot, () => props.onImmersive(value));
 
@@ -2463,12 +1892,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     onCleanup(() => {
       resizer.disconnect();
       cancelAnimationFrame(resizeFrame);
-      cancelAnimationFrame(countFrame);
-      clearTimeout(chromeTimer);
     });
-    const coverChanged = () => setCoverReading(coverScreen.matches);
-    coverScreen.addEventListener('change', coverChanged);
-    onCleanup(() => coverScreen.removeEventListener('change', coverChanged));
     const initialView = { ...props.view },
       target = { ...props.target };
     void (async () => {
@@ -2550,221 +1974,44 @@ export function ReaderPane(props: ReaderPaneProps) {
     ),
   );
 
-  function PassageContent(row: { ordinal: number; onImageLoad(): void }) {
-    const passage = createMemo(() => {
-      version();
-      return passages.get(row.ordinal);
-    });
-    return (
-      <>
-        <Show when={openings().get(row.ordinal)}>
-          {opening => (
-            <div class="reader-opening">
-              <Show when={opening().part}>{part => <p class="reader-opening-part">{part().text}</p>}</Show>
-              <Show when={opening().label}>
-                <p class="reader-opening-label">{opening().label}</p>
-              </Show>
-              <h2 class="reader-opening-title">{opening().title}</h2>
-              <span class="reader-opening-rule" aria-hidden="true" />
-            </div>
-          )}
-        </Show>
-        <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>
-          {value => (
-            <Dynamic
-              component={
-                value().kind === 'heading'
-                  ? `h${Math.min(3, Math.max(1, value().level ?? 1))}`
-                  : value().kind === 'quote' && !quotesAreText()
-                    ? 'blockquote'
-                    : value().kind === 'code'
-                      ? 'pre'
-                      : 'div'
-              }
-              class={`reader-passage reader-${value().kind === 'quote' && quotesAreText() ? 'paragraph' : value().kind}`}
-              classList={{
-                'reader-cursor': props.active && cursor() === row.ordinal,
-                'reader-absorbed': absorbed().hidden.has(row.ordinal),
-                'reader-first': absorbed().first.has(row.ordinal),
-              }}
-              aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
-              data-passage-id={value().id}
-              data-ordinal={value().ordinal}
-              style={{ '--level': Math.max(0, value().level ?? 0) }}
-            >
-              <Show
-                when={value().kind === 'image' && value().resource}
-                fallback={
-                  <PassageText
-                    passage={value()}
-                    citations={citations()}
-                    notes={highlightNotes()}
-                    ordinals={(() => {
-                      version();
-                      return ordinals;
-                    })()}
-                    flashId={flash()?.id ?? null}
-                    inkId={ink()}
-                    onLocate={at => {
-                      void jumpTo(at);
-                    }}
-                    onNote={(at, anchor) => {
-                      void note(at, anchor);
-                    }}
-                    onCitation={clickedCitation}
-                    onHighlightNote={row => {
-                      void openHighlightNote(row);
-                    }}
-                  />
-                }
-              >
-                <ResourceImage
-                  api={props.workshop.api}
-                  snapshotId={snapshot()}
-                  href={value().resource!}
-                  alt={value().text}
-                  onLoad={row.onImageLoad}
-                />
-              </Show>
-            </Dynamic>
-          )}
-        </Show>
-      </>
-    );
-  }
-
-  function PassageRow(row: { ordinal: number; item: () => VirtualItem }) {
-    let element!: HTMLDivElement;
-    onMount(() => virtualizer.measureElement(element));
-    return (
-      <div
-        ref={element}
-        class="reader-row"
-        classList={{ 'reader-row-absorbed': absorbed().hidden.has(row.ordinal) && !openings().has(row.ordinal) }}
-        data-index={row.ordinal}
-        style={{ transform: `translateY(${row.item().start}px)` }}
-      >
-        <PassageContent ordinal={row.ordinal} onImageLoad={() => virtualizer.measureElement(element)} />
-      </div>
-    );
-  }
-
-  function TitleBlock() {
-    let element!: HTMLDivElement;
-    onMount(() => {
-      const measure = () => setTitleHeight(element.getBoundingClientRect().height);
-      const later = deferred(measure);
-      const observer = new ResizeObserver(later);
-      measure();
-      observer.observe(element);
-      onCleanup(() => {
-        observer.disconnect();
-        later.cancel();
-        setTitleHeight(0);
-      });
-    });
-    return (
-      <div ref={element} class="reader-title-block">
-        <TitlePage />
-      </div>
-    );
-  }
-
-  /** The start of the book: a small cover beside the imprint, the title and subtitle, the author, the book's length and where its text begins. */
-  function TitlePage() {
-    const heading = createMemo(() => {
-      const value = title(),
-        colon = value.indexOf(':');
-      return colon > 0
-        ? { main: value.slice(0, colon), subtitle: value.slice(colon + 1).trim() }
-        : { main: value, subtitle: details().subtitle ?? currentSnapshot()?.metadata.subtitle ?? null };
-    });
-    const imprint = () => {
-      const metadata = currentSnapshot()?.metadata;
-      return [
-        source()?.source.siglum,
-        details().publisher ?? metadata?.publisher ?? (creators() ? null : metadata?.site),
-        year(),
-      ]
-        .filter(Boolean)
-        .join(' · ');
-    };
-    const facts = () => {
-      const chapters = new Set(
-          chapterEntries(sections())
-            .filter(entry => !isFrontMatter(entry.title))
-            .map(entry => entry.ordinal),
-        ).size,
-        length = currentSnapshot()?.text_length ?? 0;
-      return [chapters > 1 ? `${chapters} chapters` : '', length ? timeLeft(length) : ''].filter(Boolean).join(' · ');
-    };
-    // The first opening past the cover and front matter: the preface, or chapter one.
-    const begin = createMemo(() =>
-      [...openings().values()].reduce<Opening | null>(
-        (first, value) => (!first || value.ordinal < first.ordinal ? value : first),
-        null,
-      ),
-    );
-    return (
-      <div class="reader-title-page">
-        <Show when={titleCover()}>
-          {href => (
-            <ResourceImage
-              api={props.workshop.api}
-              class="reader-title-cover"
-              snapshotId={snapshot()}
-              href={href()}
-              alt=""
-            />
-          )}
-        </Show>
-        <div class="reader-title-text">
-          <Show when={imprint()}>
-            <p class="reader-title-imprint">{imprint()}</p>
-          </Show>
-          <h1>
-            {heading().main}
-            <Show when={heading().subtitle}>
-              <span class="reader-title-subtitle">{heading().subtitle}</span>
-            </Show>
-          </h1>
-          <Show when={creators()}>
-            <p class="reader-title-author">{creators()}</p>
-          </Show>
-          <span class="reader-title-rule" aria-hidden="true" />
-          <Show when={facts()}>
-            <p class="reader-title-facts">{facts()}</p>
-          </Show>
-          <Show when={begin()?.ordinal ? begin() : null}>
-            {value => (
-              <Button
-                class="reader-title-begin"
-                onClick={() => {
-                  const entry = contents().find(item => item.ordinal === value().ordinal);
-                  if (entry) void openSection(entry, true);
-                }}
-              >
-                Begin at {value().name}
-              </Button>
-            )}
-          </Show>
-        </div>
-      </div>
-    );
-  }
-
-  /** A section's numeral in mono, then its title in display italic, as the toolbar and the foot name it. */
-  function SectionLabel(props: { title: string }) {
-    const name = createMemo(() => sectionName(props.title));
-    return (
-      <>
-        <Show when={name().numeral}>
-          <b class="reader-section-numeral">{name().numeral}</b>
-        </Show>
-        <i class="reader-section-title">{name().title}</i>
-      </>
-    );
-  }
+  const passageView: ReaderPassageView = {
+    api: props.workshop.api,
+    active: () => props.active,
+    version,
+    snapshot,
+    source,
+    currentSnapshot,
+    details,
+    title,
+    titleCover,
+    creators,
+    year,
+    contents,
+    sections,
+    openings,
+    absorbed,
+    quotesAreText,
+    cursor,
+    citations,
+    highlightNotes,
+    ordinals,
+    passages,
+    flashId: () => flash()?.id ?? null,
+    inkId: ink,
+    onJumpTo: at => {
+      void jumpTo(at);
+    },
+    onNote: (at, anchor) => {
+      void note(at, anchor);
+    },
+    onCitation: clickedCitation,
+    onHighlightNote: row => {
+      void openHighlightNote(row);
+    },
+    onOpenSection: (entry, begin) => {
+      void openSection(entry, begin);
+    },
+  };
 
   /** The toolbar outlives the selection by one exit fade, showing the selection it last had. The iOS app has none: its system selection menu carries the colours and Annotate (edit-menu.ts). */
   const nativeMenu = nativeEditMenu();
@@ -2850,7 +2097,7 @@ export function ReaderPane(props: ReaderPaneProps) {
           });
           return;
         }
-        const measure = (paged() ? frame : scroll.querySelector('.reader-list'))?.getBoundingClientRect();
+        const measure = (paged() ? pagedReader.frame : scroll.querySelector('.reader-list'))?.getBoundingClientRect();
         const measureLeft = Math.max(left, measure?.left ?? left),
           measureRight = Math.min(right, measure?.right ?? right);
         const width = Math.max(0, Math.min(measureRight - measureLeft, probe.getBoundingClientRect().width));
@@ -3043,67 +2290,6 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   /** In Pages the toolbar and the foot span the spread; in Scroll they keep the reading measure. */
   const spreadWidth = () => (paged() && pageFrame().width ? `${pageFrame().width}px` : undefined);
-  /** A contents entry on the phone: its name in display type, a tick once it has been read through, and for the chapter being read its gilt name, time left and ring. */
-  function TocRow(row: { entry: TocEntry }) {
-    const now = () => row.entry === currentSection();
-    const span = () => tocSpans().get(row.entry);
-    const done = () => !now() && !!span() && span()!.subtree <= here();
-    const share = () => {
-      const value = span();
-      return value && now()
-        ? Math.round(
-            Math.max(0, Math.min(1, (here() - row.entry.start!) / Math.max(1, value.end - row.entry.start!))) * 100,
-          )
-        : null;
-    };
-    const left = () => {
-      const value = span();
-      return value && now() ? timeLeft(value.end - here()) : null;
-    };
-    return (
-      <span
-        class="reader-toc-entry"
-        classList={{ 'reader-toc-now': now() }}
-        aria-current={now() ? 'true' : undefined}
-        style={{ '--level': Math.max(0, row.entry.level - 1) }}
-      >
-        <span class="reader-toc-check">
-          <Show when={now()}>
-            <Icon name="check" />
-          </Show>
-        </span>
-        <span class="reader-toc-name">
-          <span>{contentsTitle(row.entry.title)}</span>
-          <Show when={coverReading() && left()}>
-            {time => (
-              <small>
-                <Figures text={`${time()} left`} />
-              </small>
-            )}
-          </Show>
-        </span>
-        <Show when={coverReading()}>
-          <Show
-            when={share() !== null}
-            fallback={
-              <Show when={done()}>
-                <span class="reader-toc-read">
-                  <Icon name="check" />
-                </span>
-              </Show>
-            }
-          >
-            <span class="reader-toc-progress">
-              <span>
-                <Figures text={`${share()}%`} />
-              </span>
-              <span class="reader-ring" style={{ '--p': share() ?? 0 }} />
-            </span>
-          </Show>
-        </Show>
-      </span>
-    );
-  }
   // Restoring the position waits on animation frames, which a held view transition never gives; so the reader marks
   // itself loading rather than pending, and the leaf turns to its nav bar while the text fades in where it lands.
   return (
@@ -3160,10 +2346,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         role="toolbar"
         aria-label="Reading tools"
         style={{ 'max-width': spreadWidth() }}
-        onFocusIn={event => {
-          keyboardFocus = (event.target as Element).matches(':focus-visible');
-          showChrome(true);
-        }}
+        onFocusIn={onHeaderFocusIn}
       >
         <Show when={coverReading() && jumpReturn()}>
           {back => (
@@ -3360,80 +2543,32 @@ export function ReaderPane(props: ReaderPaneProps) {
           <Show
             when={paged()}
             fallback={
-              <div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-                <Show when={title()}>
-                  <TitleBlock />
-                </Show>
-                <For each={[...items().keys()]}>
-                  {ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}
-                </For>
-              </div>
+              <ScrolledPassages
+                view={passageView}
+                totalSize={virtualizer.getTotalSize()}
+                items={items}
+                setTitleHeight={setTitleHeight}
+                measure={element => virtualizer.measureElement(element)}
+              />
             }
           >
-            {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. The title page, a chapter's opening page and a chapter still loading go without. */}
-            <div
-              class="reader-running-head"
-              classList={{
-                'reader-running-head-quiet':
-                  loading() ||
-                  (pageIndex() === 0 && (openings().has(chunk()?.first ?? -1) || (chunk()?.first === 0 && !!title()))),
-              }}
-              aria-hidden="true"
-              style={{
-                width: pageFrame().width ? `${pageFrame().width}px` : '100%',
-                'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`,
-                'column-gap': `${PAGE_GAP}px`,
-              }}
-            >
-              <Show when={pageFrame().columns === 2}>
-                <span>
-                  <i class="reader-section-title">{contentsTitle(title())}</i>
-                </span>
-              </Show>
-              <span>
-                <Show
-                  when={chapterName()}
-                  fallback={
-                    pageFrame().columns === 2 ? '' : <i class="reader-section-title">{contentsTitle(title())}</i>
-                  }
-                >
-                  <SectionLabel title={chapterEntry()!.title} />
-                </Show>
-              </span>
-            </div>
-            <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}>
-              <div
-                ref={flow}
-                class="reader-flow"
-                style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}
-              >
-                <Show when={chunk()?.first === 0 && title()}>
-                  <div class="reader-title-block reader-page-title">
-                    <TitlePage />
-                  </div>
-                </Show>
-                <For each={chunkOrdinals()}>
-                  {ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}
-                </For>
-              </div>
-            </div>
-            {/* With a mouse the page arrows sit at the page edges; on touch, taps at the edges turn the page. */}
-            <Button
-              class="reader-page-edge reader-page-edge-previous"
-              icon="left"
-              label="Previous page"
-              disabled={pageIndex() === 0 && !chunk()?.first}
-              onClick={() => {
-                void turn(-1);
-              }}
-            />
-            <Button
-              class="reader-page-edge reader-page-edge-next"
-              icon="right"
-              label="Next page"
-              disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1}
-              onClick={() => {
-                void turn(1);
+            <PagedFlow
+              view={passageView}
+              loading={loading()}
+              pageIndex={pageIndex()}
+              pageCount={pageCount()}
+              pageFrame={pageFrame()}
+              chunk={chunk()}
+              chunkOrdinals={chunkOrdinals()}
+              total={total()}
+              chapterName={chapterName()}
+              chapterTitle={chapterEntry()?.title}
+              bindFrame={element => pagedReader.bindFrame(element)}
+              bindFlow={element => pagedReader.bindFlow(element)}
+              onWheel={pageWheel}
+              onScheduleCount={scheduleCount}
+              onTurn={direction => {
+                void turn(direction);
               }}
             />
           </Show>
@@ -3551,7 +2686,15 @@ export function ReaderPane(props: ReaderPaneProps) {
                 items={toc()}
                 key={entry => entry.locator}
                 initial={coverReading() ? undefined : Math.max(0, toc().indexOf(currentSection()!))}
-                row={entry => <TocRow entry={entry} />}
+                row={entry => (
+                  <ReaderTocRow
+                    entry={entry}
+                    currentSection={currentSection()}
+                    span={tocSpans().get(entry)}
+                    here={here()}
+                    coverReading={coverReading()}
+                  />
+                )}
                 onPick={entry => {
                   void openSection(entry);
                 }}
@@ -3620,54 +2763,19 @@ export function ReaderPane(props: ReaderPaneProps) {
               />
             </Show>
             <Show when={state().kind === 'find'}>
-              <Picker
-                class="reader-picker"
+              <ReaderSearchPopup
                 anchor={state().anchor}
-                placement={coverReading() ? 'sheet' : 'anchor'}
-                label="Find in source"
-                title="Find in source"
-                prefix={coverReading() ? <Icon name="search" /> : undefined}
-                placeholder="Find in source"
+                coverReading={coverReading()}
                 query={query()}
                 onQuery={setQuery}
-                items={hits()}
-                key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
-                status={
-                  <div class="reader-find-status">
-                    <span role="status">
-                      {hits().length} passages{morePassages() ? ' shown' : ''}
-                    </span>
-                    <Show when={morePassages()}>
-                      {' '}
-                      <Button
-                        disabled={searching()}
-                        onClick={() => {
-                          void loadSearchPage();
-                        }}
-                      >
-                        Load more passages
-                      </Button>
-                    </Show>
-                  </div>
-                }
-                row={hit => (
-                  <span class="reader-search-entry">
-                    <span class="reader-search-snippet">
-                      <For each={hit.snippet_parts}>
-                        {part => (part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text)}
-                      </For>
-                    </span>
-                    <span class="reader-highlight-section">
-                      Passage {hit.passage.ordinal + 1}
-                      <Show when={sectionAt(hit.passage.ordinal)}>
-                        {entry => <> · {sectionLabel(entry().title)}</>}
-                      </Show>
-                    </span>
-                  </span>
-                )}
-                busy={searching() && !hits().length}
-                error={searchError()}
-                empty={query().trim() ? 'No passages found' : 'Search this source'}
+                hits={hits()}
+                searching={searching()}
+                searchError={searchError()}
+                morePassages={morePassages()}
+                onLoadMore={() => {
+                  void loadSearchPage();
+                }}
+                sectionAt={sectionAt}
                 onPick={hit => {
                   setPopup(null);
                   const back = hit.snapshot_id === snapshot() ? returnMark() : null;

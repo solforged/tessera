@@ -1090,6 +1090,18 @@ function KindIndexPane(props: IndexPaneProps) {
                                     selected: selectedNote()?.id === note.id,
                                     'filing-selected': filingSelection().has(note.id),
                                   }}
+                                  onKeyDown={event => {
+                                    if (
+                                      event.key.toLowerCase() === 'x' &&
+                                      !event.metaKey &&
+                                      !event.ctrlKey &&
+                                      !event.altKey &&
+                                      !(event.target instanceof HTMLInputElement)
+                                    ) {
+                                      event.preventDefault();
+                                      selectForFiling(note, event.shiftKey);
+                                    }
+                                  }}
                                   onClick={event => {
                                     if (
                                       !(event.metaKey || event.ctrlKey || event.shiftKey) ||

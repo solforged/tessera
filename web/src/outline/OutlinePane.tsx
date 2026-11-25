@@ -1,5 +1,4 @@
 import { opensBeside } from '../core/beside';
-import { CardSummary } from './CardSummary';
 import {
   For,
   Show,
@@ -14,15 +13,11 @@ import {
   onCleanup,
   onMount,
   untrack,
-  type Setter,
 } from 'solid-js';
-import { Portal } from 'solid-js/web';
-import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
-import type { Block, FieldDefinition, PositionQuestion } from '../api/types';
+import type { FieldDefinition, PositionQuestion } from '../api/types';
 import type { Edit, EditResult, PageDocument, TextRange } from '../document/contract';
-import { mapTextOffset } from '../document/text-patch';
 import { depthStops } from '../core/contract';
-import type { Caret, Depth, ViewState } from '../core/contract';
+import type { Caret, Depth } from '../core/contract';
 import type { OutlinePaneProps } from './contract';
 import { fieldEntryId } from '../core/field-entry';
 import { setLinkedCitation } from '../library/highlights';
@@ -34,24 +29,19 @@ import { isCatalogueField } from '../library/details';
 import { fieldHide } from '../core/hide';
 import { hasValueEditor } from '../fields/value-options';
 import { PersonWorks } from '../library/PersonWorks';
-import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
-import { JournalHeader } from '../tasks/JournalHeader';
 import { spokenJournalDate } from '../tasks/journal-date';
 import { JournalResurface } from '../tasks/JournalResurface';
-import { NoteRevisit } from '../review/NoteRevisit';
 import { ResearchToRevisit } from '../review/ResearchToRevisit';
-import { TaskStatusButton } from '../tasks/TaskControls';
 import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
 import { Menu } from '../ui/Menu';
 import { NoticeView, type NoticeAction } from '../ui/Notice';
 import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
-import { displayTitle, plainText, readableText, tagLabel } from './names';
+import { displayTitle, plainText, tagLabel } from './names';
 import { titleKey } from '../document/title-key';
 import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
@@ -62,16 +52,12 @@ import {
   hiddenFieldEntries,
   inlineFieldValues,
   selectionIds,
-  selectionRoots,
   survivingZoomPath,
   visibleIds,
 } from './visibility';
 import type { DepthFilter, HiddenFieldEntry } from './visibility';
-import { CitationChip, SourceHeader } from './SourceHeader';
-import { SourceDetails } from './SourceDetails';
-import { GLOSS_FIELD, glossEntry } from './gloss';
+import { glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
-import { Apparatus } from './Apparatus';
 import {
   createFieldEntryConversion,
   createSourceFieldResets,
@@ -104,34 +90,24 @@ import { createCapabilityPopups } from './CapabilityPopups';
 import { createRelationActions } from './RelationActions';
 import { createViewEmbedActions } from './ViewPicker';
 import { createMoveToPage } from './MoveToPage';
-import type { MenuState, OutlineContext, RowRange } from './context';
-import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
-import { readTagRegistry, TypePill } from './references';
+import type { MenuState, OutlineContext } from './context';
+import { PageMergeConfirmation } from './PageMerge';
+import { readTagRegistry } from './references';
 import { eyebrowNamesTag, noteKindIcon } from '../notes/kinds';
 import { aliasesInHeader } from '../notes/aliases';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { createCitationSources, createCitedSources, hasCitationDetail } from './source-reads';
 import { HeldReadings } from './HeldReadings';
-import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
-import {
-  isReadingSubject,
-  localPositionCount,
-  readingCounts,
-  readingDisagreementRows,
-  readingRegister,
-  readingSlipRows,
-} from './read-register';
+import { localPositionCount, readingDisagreementRows, readingRegister, readingSlipRows } from './read-register';
 import { typeTokenAt } from './type-completion';
+import { createOutlineHeaderActions, OutlineEditingBar, OutlineHeader } from './OutlineHeader';
+import { createOutlineSelection } from './selection';
+import { createOutlineViewport } from './viewport';
 import './outline.css';
 import './read-register.css';
 const ComparePane = lazy(() => import('../compare/ComparePane').then(module => ({ default: module.ComparePane })));
-const RecipeSection = lazy(() =>
-  import('../fields/CardTemplatesPane').then(module => ({ default: module.RecipeSection })),
-);
-
-const SpreadPane = lazy(() => import('../notes/SpreadPane').then(module => ({ default: module.SpreadPane })));
 
 const storedFolds = new Map<string, Set<string>>();
 
@@ -217,49 +193,75 @@ function Pane(props: OutlinePaneProps) {
   const [folds, setFolds] = createSignal(
     new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []),
   );
-  const [foldMotion, setFoldMotion] = createSignal<{
-    id: string;
-    opening: boolean;
-    afterIds: string[];
-    beforeSize: number;
-  }>();
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let foldChildren!: HTMLDivElement, foldFollowing!: HTMLDivElement, foldEditor!: HTMLDivElement;
-  let foldFrame = 0;
-  let foldAnimations: Animation[] = [];
-  let settleFold: (() => void) | undefined;
   const [showArchived, setShowArchived] = createSignal(initial.showArchived);
   const [depth, setDepth] = createSignal<Depth>(initial.depth ?? 'full');
-  // A parked caret belongs to the source text in which it was recorded, not a later normalized spelling.
-  const [rememberedCaret, setRememberedCaret] = createSignal({
-    at: initial.caret,
-    text: initial.caret ? doc.block(initial.caret.id)?.text : undefined,
+  let editingBar: HTMLDivElement | undefined;
+  let scroll!: HTMLDivElement;
+  let list!: HTMLDivElement;
+  let heading!: HTMLDivElement;
+  const hosts = new Map<string, HTMLElement>();
+  let editor: PaneEditor | undefined;
+  let restoring = true;
+  let disposed = false;
+  let focusEpoch = 0;
+  let focusRequest: { id: string; offset: number; insert: boolean; epoch: number; focus: boolean } | null = null;
+  /** A navigation open restores the caret without scrolling it into view. Cleared when the reader acts, or when an open names a row to reveal. */
+  let suppressCaretScroll = false;
+  /** While set, a browser or CodeMirror focus scroll is put back so a journal opens on its title. */
+  let holdOpeningScroll = false;
+  let focusRestoresPending = 0;
+  let reportingFrame = 0;
+
+  const selection = createOutlineSelection({
+    initialCaret: initial.caret,
+    doc,
+    ids: () => ids(),
+    indices: () => indices(),
+    disposed: () => disposed,
+    active: () => props.active,
+    vim: () => props.vim,
+    onVimMode: props.onVimMode,
+    editor: () => editor,
+    scroll: () => scroll,
+    bumpFocusEpoch: () => ++focusEpoch,
+    clearFocusRequest: () => {
+      focusRequest = null;
+    },
+    clearCompletion: () => setCompletion(null),
+    resetRowKey: () => resetRowKey(),
+    scheduleReport: () => scheduleReport(),
+    replaceSelection: (text, mode, range) => replaceSelection(text, mode, range),
   });
-  const caret = createMemo(() => {
-    const { at, text } = rememberedCaret();
-    const current = at ? doc.block(at.id)?.text : undefined;
-    return at && text !== undefined && current !== undefined && text !== current
-      ? { id: at.id, offset: mapTextOffset(text, current, at.offset) }
-      : at;
-  });
-  const setCaret: Setter<Caret | null> = value => {
-    const at = typeof value === 'function' ? value(caret()) : value;
-    setRememberedCaret({ at, text: at ? doc.block(at.id)?.text : undefined });
-    return at;
-  };
-  const [editing, setEditing] = createSignal<string | null>(initial.caret?.id ?? null);
-  const [editorFocused, setEditorFocused] = createSignal(false);
+  const {
+    caret,
+    setCaret,
+    editing,
+    setEditing,
+    editorFocused,
+    setEditorFocused,
+    selected,
+    setSelected,
+    rowRange,
+    setRowRange,
+    textRange,
+    setTextRange,
+    composition,
+    selectedIds,
+    selectedSet,
+    coveredSet,
+    roots,
+    selectSurvivor,
+    clearSelection,
+    activeRange,
+    restoreSelection,
+    composing,
+  } = selection;
   const editingBarVisible = () =>
     props.active &&
     editorFocused() &&
     !!editing() &&
     window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches &&
     viewport().height < screen.height * 0.7;
-  let editingBar: HTMLDivElement | undefined;
-  const [selected, setSelected] = createSignal<string | null>(initial.caret?.id ?? null);
-  const [rowRange, setRowRange] = createSignal<RowRange | null>(null);
-  const [textRange, setTextRange] = createSignal<TextRange | null>(null);
-  const [composition, setComposition] = createSignal(false);
   const [message, setMessage] = createSignal('');
   /** A change with its Undo, or an offer whose action stands in for Undo. */
   const [notice, setNotice] = createSignal<{
@@ -318,66 +320,12 @@ function Pane(props: OutlinePaneProps) {
     }
   }
   const [menu, setMenu] = createSignal<MenuState | null>(null);
-  const [renaming, setRenaming] = createSignal(false);
-  const [title, setTitle] = createSignal('');
-  const [mergeTarget, setMergeTarget] = createSignal<{
-    page: Block;
-    from: { id: string; text: string };
-    anchor: HTMLElement;
-  }>();
   const [tagRegistry] = createResource(
     () => [props.workshop.changed('pages'), props.workshop.connection()] as const,
     () => readTagRegistry(props.workshop),
   );
-  const titleCollision = createMemo(() => {
-    const value = titleKey(title().trim());
-    return renaming() && value
-      ? props.workshop
-          .roots()
-          .find(page => page.id !== props.pageId && page.kind === 'page' && titleKey(page.text) === value)
-      : undefined;
-  });
   const [conflicts, setConflicts] = createSignal(new Set<string>());
   const [editedConflicts, setEditedConflicts] = createSignal(new Set<string>());
-  const [margin, setMargin] = createSignal(0);
-  let scroll!: HTMLDivElement;
-  let list!: HTMLDivElement;
-  let heading!: HTMLDivElement;
-  let titleInput: HTMLInputElement | undefined;
-  const hosts = new Map<string, HTMLElement>();
-  let editor: PaneEditor | undefined;
-  let restoring = true;
-  let disposed = false;
-  let focusEpoch = 0;
-  let focusRequest: { id: string; offset: number; insert: boolean; epoch: number; focus: boolean } | null = null;
-  /** A navigation open restores the caret without scrolling it into view. Cleared when the reader acts, or when an open names a row to reveal. */
-  let suppressCaretScroll = false;
-  /** While set, a browser or CodeMirror focus scroll is put back so a journal opens on its title. */
-  let holdOpeningScroll = false;
-  let focusRestoresPending = 0;
-  let reportingFrame = 0;
-  let scrollSettle = 0;
-  const [pendingReadAnchor, setPendingReadAnchor] = createSignal<ViewState['scroll']>(null);
-  let revealTimer = 0;
-  let revealedReading: HTMLElement | null = null;
-  let anchorFrame = 0;
-  const [scrollAnchor, setScrollAnchor] = createSignal<ViewState['scroll']>(null);
-  let scrollReveal: { id: string; epoch: number; caret: boolean } | null = null;
-  let pendingOutlineReveal = initial.reveal;
-  let scrollingFrame = false;
-  let scrollStable = 0;
-  let previousScrollHeight = -1;
-  /** Set while a deletion settles: the page shortens, and the browser's scroll clamp is slid rather than snapped. */
-  let slideRemoval = false;
-  let compositionSelection: {
-    range: TextRange;
-    id: string;
-    original: string;
-    from: number;
-    to: number;
-    committed?: string;
-  } | null = null;
-  let compositionFrame = 0;
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
   const live = createMemo(() => props.workshop.connection() === 'live');
   const [fields] = createResource(
@@ -677,8 +625,6 @@ function Pane(props: OutlinePaneProps) {
 
   const [sourceFieldsVisible, setSourceFieldsVisible] = createSignal(initial.sourceFieldsVisible ?? false);
   const [sourceDetailsOpen, setSourceDetailsOpen] = createSignal(false);
-  /** The `···` button that opened the details, where focus returns when they close. */
-  let sourceDetailsOpener: HTMLElement | undefined;
   const [sourceColors, setSourceColors] = createSignal<string[]>([]);
   const [sourceGrouped, setSourceGrouped] = createSignal(true);
   const [revealedFields, setRevealedFields] = createSignal<ReadonlySet<string>>(new Set());
@@ -1122,101 +1068,6 @@ function Pane(props: OutlinePaneProps) {
     }
     return { fields, chapters };
   });
-  const selectedIds = createMemo(() => {
-    const range = rowRange();
-    if (!range) return selected() ? [selected()!] : [];
-    const a = indices().get(range.anchor) ?? -1;
-    const b = indices().get(range.head) ?? -1;
-    return a < 0 || b < 0 ? [] : ids().slice(Math.min(a, b), Math.max(a, b) + 1);
-  });
-  const selectedSet = createMemo(() => new Set(selectedIds()));
-  // Rows under a selected block move, copy and delete with it, so they read as selected too.
-  // Field values hang under hidden field entries, so walk every ancestor, not just the parent.
-  const coveredSet = createMemo(() => {
-    const covered = new Set<string>();
-    if (!rowRange()) return covered;
-    const selection = selectedSet();
-    for (const id of ids()) {
-      if (selection.has(id)) continue;
-      // parentOf returns the root for the root itself, so stop at that fixed point.
-      for (
-        let child = id, parent = doc.outline.parentOf(id);
-        parent !== child;
-        child = parent, parent = doc.outline.parentOf(parent)
-      ) {
-        if (selection.has(parent)) {
-          covered.add(id);
-          break;
-        }
-      }
-    }
-    return covered;
-  });
-  const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
-    get enabled() {
-      return !reading();
-    },
-    get count() {
-      return reading() ? 0 : ids().length;
-    },
-    getScrollElement: () => scroll,
-    // One unwrapped line, and constant: TanStack re-estimates every unmeasured row whenever any row resizes.
-    estimateSize: () => 28,
-    // A sheet moves between value rows in one edit. Sync reads must not reuse either row's old height.
-    measureElement: element => element.offsetHeight,
-    overscan: 8,
-    get scrollMargin() {
-      return margin();
-    },
-    get getItemKey() {
-      const rows = ids();
-      return (index: number) => rows[index]!;
-    },
-    get rangeExtractor() {
-      const pinned = [
-        editing(),
-        scrollAnchor()?.id,
-        capabilities.popup()?.id,
-        ...(foldMotion()?.afterIds ?? []),
-      ].flatMap(id => (id ? (indices().get(id) ?? []) : []));
-      return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
-        const result = defaultRangeExtractor(range);
-        for (const index of pinned) if (!result.includes(index)) result.push(index);
-        return result.sort((a, b) => a - b);
-      };
-    },
-  });
-  // Size changes and structural edits share the same anchor/reveal decision, never a second scroll writer.
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = item => {
-    if (!scrollingFrame) {
-      if (anchorFrame) scheduleScroll();
-      else if (scroll && item.start < scroll.scrollTop) restoreAnchor(currentAnchor());
-    }
-    return false;
-  };
-  const virtualItems = createMemo(() => new Map(virtualizer.getVirtualItems().map(item => [String(item.key), item])));
-  const [listHeight, setListHeight] = createSignal(virtualizer.getTotalSize());
-  createEffect(() => {
-    const height = virtualizer.getTotalSize();
-    // Removing a sheet-bearing row must not publish a temporarily shorter sizer and clamp the browser's scrollTop.
-    if (!anchorFrame && !scrollingFrame) setListHeight(height);
-  });
-
-  function currentAnchor(): ViewState['scroll'] {
-    if (!scroll || !list) return null;
-    const viewport = scroll.getBoundingClientRect();
-    let anchor: ViewState['scroll'] = null;
-    const rows = reading()
-      ? scroll.querySelectorAll<HTMLElement>('[data-reading-id], [data-block-id]')
-      : list.querySelectorAll<HTMLElement>('[data-block-id]');
-    for (const candidate of rows) {
-      const rect = candidate.getBoundingClientRect();
-      const offset = rect.top - viewport.top;
-      if (rect.bottom > viewport.top + 1 && (!anchor || offset < anchor.offset))
-        anchor = { id: candidate.dataset.readingId ?? candidate.dataset.blockId!, offset };
-    }
-    return anchor;
-  }
   function report() {
     if (restoring || disposed || props.projection === 'compare' || (reading() && pendingReadAnchor())) return;
     // A page left at its top reopens at its top: a row anchor would keep that row's offset under a page head whose
@@ -1239,180 +1090,65 @@ function Pane(props: OutlinePaneProps) {
     cancelAnimationFrame(reportingFrame);
     reportingFrame = requestAnimationFrame(report);
   }
-  /** Measuring the scroll anchor forces layout, so a scroll reports once it settles rather than every frame. */
-  const [sectionName, setSectionName] = createSignal('');
-  // The section line sits over the scroller's top space, so the current section is the one below it.
-  let navigator: HTMLDivElement | undefined;
-  const [longPage, setLongPage] = createSignal(false);
-  const [scrolledAway, setScrolledAway] = createSignal(false);
-  function scrolled() {
-    if (scroll && list) {
-      setLongPage(scroll.scrollHeight > scroll.clientHeight);
-      const viewportTop = scroll.getBoundingClientRect().top;
-      const titleBottom =
-        heading?.querySelector<HTMLElement>('.outline-title')?.getBoundingClientRect().bottom ??
-        heading?.querySelector('h1')?.getBoundingClientRect().bottom ??
-        viewportTop + 25;
-      // Reveal when the title leaves; retain the navigator until it returns 24px into view.
-      setScrolledAway(previous => (previous ? titleBottom <= viewportTop + 24 : titleBottom < viewportTop));
-      const top = viewportTop + (navigator?.offsetHeight ?? 0);
-      const rows = [...list.querySelectorAll<HTMLElement>('[data-block-id]')]
-        .map(row => ({ row, rect: row.getBoundingClientRect() }))
-        .filter(({ rect }) => rect.top <= top);
-      const row =
-        rows.find(({ rect }) => rect.bottom > top)?.row ?? rows.sort((a, b) => b.rect.top - a.rect.top)[0]?.row;
-      let id = row?.dataset.blockId;
-      let holder: string | undefined, section: string | undefined;
-      while (id && id !== props.pageId) {
-        const block = doc.block(id);
-        if (block?.position)
-          holder = block.position.holder_id ? props.workshop.lookup(block.position.holder_id)()?.text : 'Unattributed';
-        if (block?.heading && doc.outline.parentOf(id) === props.pageId)
-          section = plainText(block.text, target => props.workshop.lookup(target));
-        id = block?.parentId ?? undefined;
-      }
-      setSectionName([section ?? (holder ? 'Perspectives' : 'Opening'), holder].filter(Boolean).join(' · '));
-    }
-    clearTimeout(scrollSettle);
-    scrollSettle = window.setTimeout(scheduleReport, 150);
-  }
-  function scheduleScroll() {
-    if (disposed) return;
-    scrollStable = 0;
-    if (!anchorFrame) anchorFrame = requestAnimationFrame(settleScroll);
-  }
-  function cancelScroll() {
-    cancelAnimationFrame(anchorFrame);
-    anchorFrame = 0;
-    setScrollAnchor(null);
-    scrollReveal = null;
-    previousScrollHeight = -1;
-    setListHeight(virtualizer.getTotalSize());
-  }
-  function measureRows() {
-    scrollingFrame = true;
-    // Refresh both sides of a sheet transfer before publishing their combined list height.
-    batch(() => {
-      for (const row of list.querySelectorAll<HTMLDivElement>('[data-index]')) {
-        virtualizer.resizeItem(Number(row.dataset.index), row.offsetHeight);
-      }
-    });
-    setListHeight(virtualizer.getTotalSize());
-    scrollingFrame = false;
-  }
-  /** Moves everything in the pane from `distance` px away back to where it settled, over the interface duration. */
-  function slideContent(distance: number) {
-    if (reducedMotion.matches) return;
-    const style = getComputedStyle(scroll);
-    const time = style.getPropertyValue('--motion-ui').trim();
-    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
-    if (!duration) return;
-    const timing: KeyframeAnimationOptions = { duration, easing: style.getPropertyValue('--motion-ease').trim() };
-    for (const child of scroll.children)
-      child.animate([{ transform: `translateY(${distance}px)` }, { transform: 'translateY(0)' }], timing);
-  }
-  function settleScroll() {
-    cancelAnimationFrame(anchorFrame);
-    anchorFrame = 0;
-    if (disposed) return;
-    const before = scroll.scrollTop;
-    measureRows();
-    const bounds = scroll.getBoundingClientRect();
-    const anchor = scrollAnchor();
-    const row = anchor ? (reading() ? readingAnchor(anchor.id) : rowAnchor(anchor.id)) : null;
-    const maximum = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-    let offset = Math.max(
-      0,
-      Math.min(maximum, before + (row && anchor ? row.getBoundingClientRect().top - bounds.top - anchor.offset : 0)),
-    );
-    const request = scrollReveal;
-    const valid =
-      request &&
-      props.active &&
-      focusEpoch === request.epoch &&
-      (request.caret ? editing() : selected()) === request.id;
-    const target = valid
-      ? request.caret
-        ? editor?.id === request.id && hosts.get(request.id)?.contains(editor.view.dom)
-          ? editor.view.coordsAtPos(editor.view.state.selection.main.head)
-          : null
-        : rowAnchor(request.id)?.getBoundingClientRect()
-      : null;
-    if (target) {
-      // Test the caret against the viewport it would have after anchoring, then make only one scroll write.
-      const shift = offset - before;
-      const barTop = editingBar?.isConnected ? editingBar.getBoundingClientRect().top : viewport().bottom;
-      const lineClearance = editingBarVisible() ? parseFloat(getComputedStyle(scroll).lineHeight) : 0;
-      const bottom = Math.min(bounds.bottom, viewport().bottom, barTop) - lineClearance;
-      if (target.top - shift < bounds.top) offset += target.top - shift - bounds.top;
-      else if (target.bottom - shift > bottom)
-        offset += Math.min(target.bottom - shift - bottom, target.top - shift - bounds.top);
-      offset = Math.max(0, Math.min(maximum, offset));
-    }
-    if (Math.abs(offset - before) > 0.5) scroll.scrollTop = offset;
-    if (slideRemoval) {
-      slideRemoval = false;
-      // Deleting the last rows near the bottom shortens the page, so the browser clamps scrollTop and every row below
-      // the anchor would jump up in one frame. Start the content where it stood and let it settle, as a fold close does.
-      const clamped = before - scroll.scrollTop;
-      if (clamped > 1) slideContent(-clamped);
-    }
-    // Reveal wins. Later measurements retain this resulting position, not the pre-reveal anchor offset.
-    if (row && anchor) {
-      const position = row.getBoundingClientRect().top - bounds.top;
-      if (Math.abs(position - anchor.offset) > 0.5) setScrollAnchor({ id: anchor.id, offset: position });
-    }
-    scrollStable =
-      scroll.scrollTop === before && scroll.scrollHeight === previousScrollHeight && (!valid || target)
-        ? scrollStable + 1
-        : 0;
-    previousScrollHeight = scroll.scrollHeight;
-    if (scrollStable < 2) anchorFrame = requestAnimationFrame(settleScroll);
-    else {
-      if (pendingOutlineReveal && !reading() && rowAnchor(pendingOutlineReveal)) {
-        highlightReading(pendingOutlineReveal);
-        pendingOutlineReveal = undefined;
-      }
-      cancelScroll();
-      scheduleReport();
-    }
-  }
-  createEffect(
-    on(
-      [viewport, editingBarVisible],
-      () => {
-        const id = editing();
-        if (suppressCaretScroll || !id || !props.active || !editor?.view.hasFocus) return;
-        scrollReveal = { id, epoch: focusEpoch, caret: true };
-        scheduleScroll();
-      },
-      { defer: true },
-    ),
-  );
-  function restoreAnchor(anchor: ViewState['scroll']) {
-    if (!anchor || disposed || (!indices().has(anchor.id) && !(reading() && readingAnchor(anchor.id)))) return;
-    setScrollAnchor({ ...anchor });
-    scheduleScroll();
-  }
-  function restoreInitialAnchor() {
-    if (reading()) setPendingReadAnchor(initial.scroll);
-    else restoreAnchor(initial.scroll);
-  }
-  function highlightReading(id: string) {
-    clearTimeout(revealTimer);
-    revealedReading?.classList.remove('reading-reveal');
-    revealedReading = readingAnchor(id);
-    revealedReading?.classList.add('reading-reveal');
-    revealTimer = window.setTimeout(() => {
-      revealedReading?.classList.remove('reading-reveal');
-      revealedReading = null;
-    }, 1500);
-  }
-  function anchored(change: () => void) {
-    if (!scrollAnchor()) setScrollAnchor(currentAnchor());
-    scheduleScroll();
-    change();
-  }
+  const viewportController = createOutlineViewport({
+    pageId: props.pageId,
+    doc,
+    workshop: props.workshop,
+    active: () => props.active,
+    reading,
+    ids,
+    indices,
+    folds,
+    setFolds,
+    editing,
+    selected,
+    composition,
+    capabilitiesPopupId: () => capabilities.popup()?.id,
+    viewport,
+    editingBarVisible,
+    suppressCaretScroll: () => suppressCaretScroll,
+    focusEpoch: () => focusEpoch,
+    disposed: () => disposed,
+    initialReveal: initial.reveal,
+    initialScroll: initial.scroll,
+    hosts,
+    scroll: () => scroll,
+    list: () => list,
+    heading: () => heading,
+    editingBar: () => editingBar,
+    editor: () => editor,
+    rowAnchor,
+    readingAnchor,
+    rowFocus: id => rowFocus(id),
+    restoreFocus: () => restoreFocus(),
+    report,
+    scheduleReport,
+  });
+  const {
+    margin,
+    setMargin,
+    pendingReadAnchor,
+    setPendingReadAnchor,
+    foldMotion,
+    foldGroups,
+    sectionName,
+    longPage,
+    scrolledAway,
+    virtualizer,
+    virtualItems,
+    listHeight,
+    currentAnchor,
+    scrolled,
+    cancelScroll,
+    settleScroll,
+    restoreAnchor,
+    restoreInitialAnchor,
+    highlightReading,
+    anchored,
+    finishFoldMotion,
+    fold,
+  } = viewportController;
+
   function measure(label: 'typing' | 'structural', change: () => void) {
     const start = performance.now();
     change();
@@ -1456,7 +1192,7 @@ function Pane(props: OutlinePaneProps) {
     );
     if (same) followText(id);
     // Publishing the inserted row's height and revealing its caret must finish before the same paint.
-    if (anchorFrame) settleScroll();
+    if (viewportController.hasAnchorFrame()) settleScroll();
     else if (!reading()) virtualizer.measureElement(host.closest<HTMLDivElement>('[data-index]')!);
   }
   /**
@@ -1508,32 +1244,6 @@ function Pane(props: OutlinePaneProps) {
       });
     setDepth(editingDepth(doc, id, zoom(), folds(), showArchived(), depthFilter()));
   }
-  function visibleNeighbor(id: string, before: readonly string[]) {
-    const visible = indices();
-    if (visible.has(id)) return id;
-    const at = before.indexOf(id);
-    for (let index = at - 1; index >= 0; index--) if (visible.has(before[index]!)) return before[index]!;
-    for (let index = at + 1; index < before.length; index++) if (visible.has(before[index]!)) return before[index]!;
-    const current = selected();
-    return current && visible.has(current) ? current : (ids()[0] ?? null);
-  }
-  /** Hidden or deleted targets leave ownership on the outline, even when no rows remain. */
-  function selectSurvivor(id: string, before: readonly string[]) {
-    const next = visibleNeighbor(id, before);
-    focusEpoch++;
-    focusRequest = null;
-    batch(() => {
-      setCompletion(null);
-      setEditing(null);
-      setRowRange(null);
-      setTextRange(null);
-      setSelected(next);
-      setCaret(next ? { id: next, offset: 0 } : null);
-    });
-    props.onVimMode(props.vim ? 'outline' : null);
-    if (props.active) scroll.focus({ preventScroll: true });
-    scheduleReport();
-  }
   function restoreFocus() {
     if (disposed || !props.active || composition() || renaming()) return;
     const id = editing();
@@ -1564,10 +1274,7 @@ function Pane(props: OutlinePaneProps) {
     setRowRange(null);
     setCaret({ id, offset });
     focusRequest = { id, offset, insert, epoch: ++focusEpoch, focus };
-    if (reveal) {
-      scrollReveal = { id, epoch: focusEpoch, caret: true };
-      scheduleScroll();
-    }
+    if (reveal) viewportController.requestReveal(id, focusEpoch, true);
     setEditing(id);
     mountEditor(id);
     if (focusRequest) queueMicrotask(() => mountEditor(id));
@@ -1599,8 +1306,7 @@ function Pane(props: OutlinePaneProps) {
     if (caret()?.id !== id) setCaret({ id, offset: 0 });
     props.onVimMode(props.vim ? 'outline' : null);
     scroll.focus({ preventScroll: true });
-    scrollReveal = { id, epoch: focusEpoch, caret: false };
-    scheduleScroll();
+    viewportController.requestReveal(id, focusEpoch, false);
     scheduleReport();
   }
   function apply(intent: Edit, keepEditing = editing() !== null): EditResult | undefined {
@@ -1624,14 +1330,14 @@ function Pane(props: OutlinePaneProps) {
     const epoch = focusEpoch;
     let result: EditResult | undefined;
     focusRestoresPending++;
-    slideRemoval = intent.kind === 'delete';
+    viewportController.markSlideRemoval(intent.kind === 'delete');
     measure('structural', () =>
       anchored(() => {
         result = doc.edit(intent, previousCaret ? { ...previousCaret, selection } : null);
       }),
     );
     if (!result || !result.ok) {
-      slideRemoval = false;
+      viewportController.markSlideRemoval(false);
       focusRestoresPending--;
       setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.');
       return result;
@@ -1666,20 +1372,6 @@ function Pane(props: OutlinePaneProps) {
     }
     scheduleReport();
     return result;
-  }
-  function roots() {
-    return selectionRoots(doc, selectedIds());
-  }
-  function restoreSelection(range: TextRange) {
-    if (!editor || editor.id !== range.head.id) return;
-    const anchor =
-      range.anchor.id === range.head.id
-        ? range.anchor.offset
-        : doc.outline.indexOf(range.anchor.id) < doc.outline.indexOf(range.head.id)
-          ? 0
-          : editor.view.state.doc.length;
-    setTextRange(range.anchor.id === range.head.id ? null : range);
-    editor.view.dispatch({ selection: { anchor, head: range.head.offset } });
   }
   function undo(redo = false) {
     if (disposed || composition()) return;
@@ -1746,18 +1438,6 @@ function Pane(props: OutlinePaneProps) {
         }
       });
   }
-  function activeRange(): TextRange | null {
-    const across = textRange();
-    if (across) return across;
-    const id = editing() ?? selected();
-    if (!id || !doc.block(id)) return null;
-    if (editing() === id && editor?.id === id) {
-      const selection = editor.view.state.selection.main;
-      return { anchor: { id, offset: selection.anchor }, head: { id, offset: selection.head } };
-    }
-    const at = { id, offset: caret()?.id === id ? caret()!.offset : 0 };
-    return { anchor: at, head: at };
-  }
   function replaceSelection(
     text: string,
     mode: 'text' | 'paste' | 'split',
@@ -1785,126 +1465,6 @@ function Pane(props: OutlinePaneProps) {
   }
   function deleteTextRange() {
     if (textRange()) replaceSelection('', 'text');
-  }
-  function finishFoldMotion() {
-    cancelAnimationFrame(foldFrame);
-    const settle = settleFold;
-    settleFold = undefined;
-    for (const animation of foldAnimations) animation.cancel();
-    foldAnimations = [];
-    batch(() => {
-      settle?.();
-      setFoldMotion(undefined);
-    });
-  }
-  function fold(id = selected()) {
-    if (!id || composition()) return;
-    finishFoldMotion();
-    const active = editing() ?? selected();
-    if (!folds().has(id) && active && active !== id) {
-      const at = doc.outline.indexOf(id);
-      const child = doc.outline.indexOf(active);
-      if (child > at && child < doc.outline.subtreeEnd(at)) rowFocus(id);
-    }
-    restoreFocus();
-    const opening = folds().has(id);
-    const change = () =>
-      setFolds(previous => {
-        const next = new Set(previous);
-        opening ? next.delete(id) : next.add(id);
-        return next;
-      });
-    const style = getComputedStyle(scroll);
-    const time = style.getPropertyValue('--motion-ui').trim();
-    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
-    const parentIndex = indices().get(id);
-    if (reducedMotion.matches || !duration || parentIndex === undefined || !hosts.has(id)) {
-      anchored(change);
-      report();
-      scheduleReport();
-      return;
-    }
-    const rootIndex = doc.outline.indexOf(id),
-      subtreeEnd = doc.outline.subtreeEnd(rootIndex);
-    const afterIds = [...virtualItems().keys()].filter(key => {
-      const at = doc.outline.indexOf(key);
-      return (indices().get(key) ?? 0) > parentIndex && (at <= rootIndex || at >= subtreeEnd);
-    });
-    const state = { id, opening, afterIds, beforeSize: virtualizer.getTotalSize() };
-    const anchor = currentAnchor();
-    settleFold = () => {
-      if (!opening) change();
-      restoreAnchor(anchor);
-      report();
-      scheduleReport();
-    };
-    batch(() => {
-      setFoldMotion(state);
-      if (opening) change();
-    });
-    // Retain only the rendered trailing rows while the newly visible children are measured.
-    foldFrame = requestAnimationFrame(() => {
-      foldFrame = requestAnimationFrame(() => {
-        if (foldMotion() !== state || disposed) return;
-        const parent = virtualItems().get(id);
-        const children = foldGroups().children;
-        if (!parent || !children.length) {
-          finishFoldMotion();
-          return;
-        }
-        const top = parent.end - margin();
-        const next = foldGroups().after[0];
-        const bottom = next
-          ? virtualItems().get(next)!.start - margin()
-          : Math.max(...children.map(child => virtualItems().get(child)!.end - margin()));
-        const height = Math.max(0, bottom - top);
-        const size = virtualizer.getTotalSize();
-        const clipped = `inset(${top}px 0 ${Math.max(0, size - top)}px 0)`;
-        const revealed = `inset(${top}px 0 ${Math.max(0, size - top - height)}px 0)`;
-        const shift = opening ? size - state.beforeSize : height;
-        const timing: KeyframeAnimationOptions = {
-          duration,
-          easing: style.getPropertyValue('--motion-ease').trim(),
-          fill: 'both',
-        };
-        const following = opening
-          ? [{ transform: `translateY(${-shift}px)` }, { transform: 'translateY(0)' }]
-          : [{ transform: 'translateY(0)' }, { transform: `translateY(${-shift}px)` }];
-        foldAnimations = [
-          foldChildren.animate(
-            opening
-              ? [
-                  { clipPath: clipped, opacity: 0 },
-                  { clipPath: revealed, opacity: 1 },
-                ]
-              : [
-                  { clipPath: revealed, opacity: 1 },
-                  { clipPath: clipped, opacity: 0 },
-                ],
-            timing,
-          ),
-          foldFollowing.animate(following, timing),
-        ];
-        // The editor's row stays mounted outside the motion groups; below the subtree its own group moves with them.
-        const active = editing();
-        if (active && state.afterIds.includes(active)) foldAnimations.push(foldEditor.animate(following, timing));
-        // Closing near the end shortens the page, so the browser clamps scrollTop when the rows go. Slide the
-        // page down by that clamp during the motion, or the settled rows snap down a frame after it ends.
-        const clamp = opening
-          ? 0
-          : Math.max(0, scroll.scrollTop - Math.max(0, scroll.scrollHeight - shift - scroll.clientHeight));
-        if (clamp > 0)
-          for (const child of scroll.children)
-            foldAnimations.push(
-              child.animate([{ transform: 'translateY(0)' }, { transform: `translateY(${clamp}px)` }], timing),
-            );
-        foldAnimations[0]!.id = 'outline-fold-content';
-        foldAnimations[1]!.id = 'outline-fold-following';
-        foldAnimations[0]!.onfinish = () => {
-          if (foldMotion() === state) finishFoldMotion();
-        };
-      });
-    });
   }
   function zoomTo(id: string | null) {
     if (composition()) return;
@@ -1961,172 +1521,54 @@ function Pane(props: OutlinePaneProps) {
     perspectives: 'Show perspectives',
     full: 'Show the full atom',
   };
-  /** Edits the gloss, adding the entry as the page's first block when there is none. */
-  function addGloss() {
-    const existing = glossId();
-    if (existing) {
-      if (zoom()) zoomTo(null);
-      const value = doc.outline.children(existing)[0];
-      if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
-      return;
-    }
-    const before = caret();
-    const epoch = focusEpoch;
-    void (async () => {
-      try {
-        const field =
-          definitionsByName().get(GLOSS_FIELD.toLowerCase()) ??
-          (await ensureField(props.workshop, GLOSS_FIELD, 'text', 'standfirst'));
-        if (disposed) return;
-        setCreatedFields(previous =>
-          previous.some(existing => existing.id === field.id) ? previous : [...previous, field],
-        );
-        const result = doc.edit(
-          { kind: 'addFieldEntries', parentId: props.pageId, after: null, entries: [{ fieldId: field.id, value: '' }] },
-          before,
-        );
-        if (!result.ok) {
-          setMessage(result.reason);
-          return;
-        }
-        if (result.caret && props.active && focusEpoch === epoch)
-          editAt(result.caret.id, result.caret.offset, true, true, false);
-      } catch (error) {
-        if (!disposed) setMessage(error instanceof Error ? error.message : String(error));
-      }
-    })();
-  }
-  /** Aliases are ordinary field values; a new one always opens for editing. */
-  function addAlias() {
-    void (async () => {
-      try {
-        const field = definitionsByName().get('aliases') ?? (await ensureField(props.workshop, 'aliases'));
-        setCreatedFields(previous =>
-          previous.some(existing => existing.id === field.id) ? previous : [...previous, field],
-        );
-        if (disposed) return;
-        if (zoom()) zoomTo(null);
-        if (depth() !== 'full') setStop('full');
-        setAliasesVisible(true);
-        const entry = doc.outline
-          .children(props.pageId)
-          .find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === field.id);
-        if (entry)
-          setFolds(previous => {
-            const next = new Set(previous);
-            next.delete(entry);
-            return next;
-          });
-        const result = entry
-          ? doc.edit(
-              { kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text: '' },
-              caret(),
-            )
-          : doc.edit(
-              {
-                kind: 'addFieldEntries',
-                parentId: props.pageId,
-                after: glossId(),
-                entries: [{ fieldId: field.id, value: '' }],
-              },
-              caret(),
-            );
-        if (!result.ok) {
-          setMessage(result.reason);
-          return;
-        }
-        if (result.caret) editAt(result.caret.id, result.caret.offset, true);
-      } catch (error) {
-        if (!disposed) setMessage(error instanceof Error ? error.message : String(error));
-      }
-    })();
-  }
-  function clearSelection() {
-    focusEpoch++;
-    focusRequest = null;
-    setEditing(null);
-    setSelected(null);
-    setCaret(null);
-    setRowRange(null);
-    setTextRange(null);
-    resetRowKey();
-    scheduleReport();
-  }
-
-  function rename() {
-    if (doc.root()?.kind !== 'page') return;
-    setTitle(doc.root()!.text);
-    setRenaming(true);
-    queueMicrotask(() => {
-      titleInput?.focus();
-      titleInput?.select();
-    });
-  }
-  function closeTitle() {
-    focusEpoch++;
-    focusRequest = null;
-    batch(() => {
-      setRenaming(false);
-      setEditing(null);
-      setCompletion(null);
-      setTextRange(null);
-      setMessage('');
-    });
-    props.onVimMode(props.vim ? 'outline' : null);
-    if (props.active) scroll.focus({ preventScroll: true });
-    scheduleReport();
-  }
-  function commitTitle() {
-    const collision = titleCollision();
-    if (collision && titleInput) {
-      const reason = pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId));
-      if (reason) {
-        setMessage(reason);
-        return;
-      }
-      setMessage('');
-      setMergeTarget({ page: collision, from: { id: props.pageId, text: doc.root()!.text }, anchor: titleInput });
-      return;
-    }
-    const result = doc.rename(title());
-    if (result.ok) closeTitle();
-    else {
-      setMessage(result.reason);
-      titleInput?.focus();
-    }
-  }
-
-  function composing(active: boolean, committed?: string) {
-    if (active && textRange() && editor) {
-      const selection = editor.view.state.selection.main;
-      compositionSelection = {
-        range: textRange()!,
-        id: editor.id,
-        original: editor.view.state.doc.toString(),
-        from: selection.from,
-        to: selection.to,
-      };
-    }
-    setComposition(active);
-    if (!active && compositionSelection) {
-      const snapshot = compositionSelection;
-      snapshot.committed = committed;
-      cancelAnimationFrame(compositionFrame);
-      compositionFrame = requestAnimationFrame(() => {
-        if (disposed || compositionSelection !== snapshot || editor?.id !== snapshot.id) return;
-        const text = editor.view.state.doc.toString();
-        compositionSelection = null;
-        if (snapshot.committed || text !== snapshot.original) {
-          const suffix = snapshot.original.length - snapshot.to;
-          replaceSelection(
-            snapshot.committed || text.slice(snapshot.from, Math.max(snapshot.from, text.length - suffix)),
-            'text',
-            snapshot.range,
-          );
-        } else restoreSelection(snapshot.range);
-      });
-    }
-  }
+  const headerActions = createOutlineHeaderActions({
+    pageId: props.pageId,
+    doc,
+    workshop: props.workshop,
+    active: () => props.active,
+    vim: () => props.vim,
+    onVimMode: props.onVimMode,
+    disposed: () => disposed,
+    focusEpoch: () => focusEpoch,
+    bumpFocusEpoch: () => ++focusEpoch,
+    clearFocusRequest: () => {
+      focusRequest = null;
+    },
+    clearCompletion: () => setCompletion(null),
+    setEditing,
+    setTextRange,
+    setMessage,
+    caret,
+    glossId,
+    zoom,
+    zoomTo,
+    depth,
+    setStop,
+    setAliasesVisible,
+    setFolds,
+    definitionsByName,
+    onCreatedField: field =>
+      setCreatedFields(previous =>
+        previous.some(existing => existing.id === field.id) ? previous : [...previous, field],
+      ),
+    editAt,
+    scroll: () => scroll,
+    scheduleReport,
+  });
+  const {
+    renaming,
+    title,
+    setTitle,
+    mergeTarget,
+    setMergeTarget,
+    titleCollision,
+    rename,
+    closeTitle,
+    commitTitle,
+    abandonTitle,
+    addGloss,
+    addAlias,
+  } = headerActions;
 
   // Factories share the pane's owner. Keep signals callable and late-mounted state behind getters;
   // forwarding callbacks connect factories without reading another factory before it is initialized.
@@ -2247,7 +1689,7 @@ function Pane(props: OutlinePaneProps) {
     restoreSelection,
     selectedIds,
     get compositionSelection() {
-      return !!compositionSelection;
+      return selection.hasCompositionSelection;
     },
     baseDepth,
     positionSource,
@@ -2483,13 +1925,6 @@ function Pane(props: OutlinePaneProps) {
     scroll.addEventListener('mousedown', clearOutsideRows);
     onCleanup(() => scroll.removeEventListener('mousedown', clearOutsideRows));
     document.addEventListener('pointerdown', resetVerticalGoal, true);
-    // A rename is committed only by Enter or Save title; pressing anywhere else abandons it, as Escape does.
-    const abandonTitle = (event: PointerEvent) => {
-      if (!renaming() || mergeTarget()) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('.outline-title-row, [role="dialog"], [role="menu"]')) return;
-      closeTitle();
-    };
     document.addEventListener('pointerdown', abandonTitle, true);
     onCleanup(() => {
       document.removeEventListener('pointerdown', resetVerticalGoal, true);
@@ -2502,7 +1937,6 @@ function Pane(props: OutlinePaneProps) {
       scroll.removeEventListener('cut', cut, true);
       scroll.removeEventListener('paste', paste, true);
       scroll.removeEventListener('beforeinput', beforeInput, true);
-      cancelAnimationFrame(compositionFrame);
     });
     const releaseCaretHold = () => {
       suppressCaretScroll = false;
@@ -2599,7 +2033,7 @@ function Pane(props: OutlinePaneProps) {
       text: (text, at, group) =>
         measure('typing', () => {
           resetVerticalGoal();
-          if (compositionSelection) return;
+          if (selection.hasCompositionSelection) return;
           hints.typed();
           const heading = composition() ? null : headingPrefix(doc.block(at.id)?.text ?? '', text, at.offset);
           const task = heading ? null : taskPrefix(text, at);
@@ -2635,17 +2069,14 @@ function Pane(props: OutlinePaneProps) {
           updateTriggers(text, at);
         }),
       selection: at => {
-        if (compositionSelection || (textRange() && textRange()!.head.id !== at.id)) return;
+        if (selection.hasCompositionSelection || (textRange() && textRange()!.head.id !== at.id)) return;
         focusEpoch++;
         setCaret(at);
         setTextRange(previous =>
           previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous,
         );
         // A navigation restore reports the caret but must not reveal it. Create-and-edit and a later move still do.
-        if (!suppressCaretScroll) {
-          scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
-          scheduleScroll();
-        }
+        if (!suppressCaretScroll) viewportController.requestReveal(at.id, focusEpoch, true);
         if (editor) {
           const text = editor.view.state.doc.toString();
           doc.holdTag(at.id, pendingType(at.id) || !!typeTokenAt(text, at.offset));
@@ -2860,8 +2291,6 @@ function Pane(props: OutlinePaneProps) {
     storedFolds.set(`${props.pane}:${props.pageId}`, new Set(folds()));
   });
   onCleanup(() => {
-    finishFoldMotion();
-    reducedMotion.removeEventListener('change', finishFoldMotion);
     if (editing()) {
       doc.holdTag(editing()!, pendingType(editing()!));
       commitFieldEntry(editing()!, false);
@@ -2872,56 +2301,8 @@ function Pane(props: OutlinePaneProps) {
     doc.release();
     editor?.destroy();
     cancelAnimationFrame(reportingFrame);
-    clearTimeout(scrollSettle);
-    clearTimeout(revealTimer);
-    revealedReading?.classList.remove('reading-reveal');
-    cancelScroll();
   });
 
-  reducedMotion.addEventListener('change', finishFoldMotion);
-
-  // Only rendered static rows change groups; the active editor stays mounted.
-  const foldGroups = createMemo(() => {
-    const all = [...virtualItems().keys()].filter(id => id !== editing()),
-      state = foldMotion();
-    const groups = { before: [] as typeof all, children: [] as typeof all, after: [] as typeof all };
-    const start = state ? indices().get(state.id) : undefined;
-    if (!state || start === undefined) {
-      groups.before = all;
-      return groups;
-    }
-    const root = doc.outline.indexOf(state.id),
-      end = doc.outline.subtreeEnd(root);
-    for (const id of all) {
-      const index = indices().get(id) ?? 0;
-      const at = doc.outline.indexOf(id);
-      groups[index <= start ? 'before' : at > root && at < end ? 'children' : 'after'].push(id);
-    }
-    return groups;
-  });
-  /** The accessory bar's Link and Tag write the opening of a reference or a tag at the caret; the completions take it from there. */
-  function insertMark(mark: 'link' | 'tag') {
-    const view = editor?.view;
-    if (!view || composition()) return;
-    const { from, to } = view.state.selection.main;
-    if (mark === 'link') {
-      const insert = from === to ? '[[]]' : `[[${view.state.sliceDoc(from, to)}]]`;
-      view.dispatch({
-        changes: { from, to, insert },
-        selection: { anchor: from === to ? from + 2 : from + insert.length },
-        userEvent: 'input.type',
-      });
-    } else {
-      const before = view.state.sliceDoc(Math.max(0, to - 1), to);
-      const insert = `${before && !/\s/.test(before) ? ' ' : ''}#`;
-      view.dispatch({
-        changes: { from: to, insert },
-        selection: { anchor: to + insert.length },
-        userEvent: 'input.type',
-      });
-    }
-    view.focus();
-  }
   return (
     <>
       <div
@@ -2960,510 +2341,123 @@ function Pane(props: OutlinePaneProps) {
         }}
         onScroll={scrolled}
       >
-        <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}>
-          <div
-            ref={navigator}
-            class="section-navigator"
-            classList={{ 'section-navigator-shown': longPage() && scrolledAway() }}
-            onKeyDown={event => event.stopPropagation()}
-          >
-            <Button
-              aria-haspopup="menu"
-              onClick={event => {
-                const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(
-                  id =>
-                    !doc.isArchived(id) &&
-                    (doc.block(id)?.position || (doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId)),
-                );
-                setMenu({
-                  anchor: event.currentTarget,
-                  label: 'Sections and perspectives',
-                  items: [
-                    {
-                      label: 'Opening',
-                      action: () => {
-                        cancelScroll();
-                        scroll.scrollTop = 0;
-                        scrolled();
-                      },
-                    },
-                    ...sections.map(id => ({
-                      label: doc.block(id)?.position
-                        ? `Perspectives · ${doc.block(id)?.position?.holder_id ? (props.workshop.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…') : 'Unattributed'}`
-                        : plainText(doc.block(id)?.text ?? '', target => props.workshop.lookup(target)),
-                      action: () => {
-                        revealRow(id);
-                        if (!reading() && indices().has(id))
-                          virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
-                        requestAnimationFrame(() => {
-                          let row = rowAnchor(id);
-                          if (!row && reading()) {
-                            const start = doc.outline.indexOf(id),
-                              end = doc.outline.subtreeEnd(start);
-                            const child = ids().find(candidate => {
-                              const at = doc.outline.indexOf(candidate);
-                              return at > start && at < end;
-                            });
-                            if (child) row = rowAnchor(child);
-                          }
-                          if (row)
-                            scroll.scrollTop +=
-                              row.getBoundingClientRect().top -
-                              scroll.getBoundingClientRect().top -
-                              (navigator?.offsetHeight ?? 0);
-                          scrolled();
-                        });
-                      },
-                    })),
-                  ],
+        <OutlineHeader
+          pageId={props.pageId}
+          doc={doc}
+          workshop={props.workshop}
+          projection={props.projection}
+          onProjection={props.onProjection}
+          journalPeriod={journalPeriod}
+          onActivate={props.onActivate}
+          onOpen={props.onOpen}
+          onDelete={props.onDelete}
+          reading={reading()}
+          zoom={zoom()}
+          breadcrumbs={breadcrumbs()}
+          zoomTo={zoomTo}
+          rootTitle={rootTitle()}
+          isNote={isNote()}
+          noteKinds={noteKinds.error ? undefined : noteKinds.latest}
+          positionZoom={positionZoom()}
+          dossierFields={dossierFields()}
+          definitions={definitions()}
+          definitionsById={definitionsById()}
+          fields={fields}
+          type={type}
+          titleGlyphs={titleGlyphs()}
+          titlePills={titlePills()}
+          titleTagKind={titleTagKind}
+          renaming={renaming()}
+          title={title()}
+          setTitle={setTitle}
+          titleCollision={titleCollision()}
+          bindTitleInput={element => headerActions.bindTitleInput(element)}
+          rename={rename}
+          commitTitle={commitTitle}
+          closeTitle={closeTitle}
+          setMergeTarget={setMergeTarget}
+          emptyRootBlock={emptyRootBlock()}
+          isCollection={isCollection()}
+          related={related()}
+          openTable={openTable}
+          restoreFocus={restoreFocus}
+          setAliasesVisible={setAliasesVisible}
+          depth={depth()}
+          setStop={setStop}
+          editAt={editAt}
+          register={register()}
+          localPositions={localPositions()}
+          openRelation={openRelation}
+          RowRelations={RowRelations}
+          sourceDetailsOpen={sourceDetailsOpen()}
+          setSourceDetailsOpen={setSourceDetailsOpen}
+          sourceApparatusReady={sourceApparatusReady()}
+          pageReady={pageReady()}
+          setSourceHeaderReady={setSourceHeaderReady}
+          sourceResets={sourceResets}
+          sourceHighlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()}
+          sourceColors={sourceColors()}
+          setSourceColors={setSourceColors}
+          sourceGrouped={sourceGrouped()}
+          setSourceGrouped={setSourceGrouped}
+          sourceFieldsVisible={sourceFieldsVisible()}
+          setSourceFieldsVisible={setSourceFieldsVisible}
+          projectSummary={projectSummary}
+          capabilities={capabilities}
+          TaskSummary={TaskSummary}
+          QuestionSummary={QuestionSummary}
+          showArchived={showArchived()}
+          setShowArchived={setShowArchived}
+          message={message()}
+          setMessage={setMessage}
+          glossId={glossId()}
+          FieldSlots={fieldSheet.FieldSlots}
+          idsCount={ids().length}
+          branches={branches}
+          apply={apply}
+          apparatus={apparatus()}
+          holders={holders()}
+          linkedPages={linkedPages()}
+          holderRelations={holderRelations()}
+          siglumSources={siglumSources()}
+          sigla={sigla()}
+          longPage={longPage()}
+          scrolledAway={scrolledAway()}
+          sectionName={sectionName()}
+          bindNavigator={element => viewportController.bindNavigator(element)}
+          bindHeading={element => {
+            heading = element;
+          }}
+          setMenu={setMenu}
+          cancelScroll={cancelScroll}
+          scrollToTop={() => {
+            scroll.scrollTop = 0;
+          }}
+          scrolled={scrolled}
+          onJumpSection={id => {
+            revealRow(id);
+            if (!reading() && indices().has(id)) virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
+            requestAnimationFrame(() => {
+              let row = rowAnchor(id);
+              if (!row && reading()) {
+                const start = doc.outline.indexOf(id),
+                  end = doc.outline.subtreeEnd(start);
+                const child = ids().find(candidate => {
+                  const at = doc.outline.indexOf(candidate);
+                  return at > start && at < end;
                 });
-              }}
-            >
-              {sectionName() || 'Opening'}
-            </Button>
-          </div>
-        </Show>
-        <Show when={apparatus()}>
-          <Apparatus
-            workshop={props.workshop}
-            holders={holders()}
-            linked={linkedPages()}
-            relations={holderRelations()}
-            sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))}
-            onOpen={props.onOpen}
-          />
-        </Show>
-        <Show when={sourceDetailsOpen() && doc.root()?.source}>
-          <SourceDetails
-            workshop={props.workshop}
-            pageId={props.pageId}
-            onOpen={props.onOpen}
-            opener={sourceDetailsOpener}
-            onClose={() => setSourceDetailsOpen(false)}
-          />
-        </Show>
-        <div
-          ref={heading}
-          class="outline-heading"
-          style={{ visibility: doc.root()?.source && !sourceApparatusReady() ? 'hidden' : undefined }}
-        >
-          <Show when={zoom()}>
-            <nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs">
-              <button type="button" onClick={() => zoomTo(null)}>
-                {rootTitle()}
-              </button>
-              <For each={breadcrumbs()}>
-                {id => (
-                  <>
-                    <Icon name="right" />
-                    <button type="button" onClick={() => zoomTo(id)}>
-                      {readableText(
-                        doc.block(id)?.text ?? '',
-                        reference => props.workshop.lookup(reference),
-                        doc.block(id)?.position?.deleted_holder,
-                      ) || 'Empty atom'}
-                    </button>
-                  </>
-                )}
-              </For>
-            </nav>
-          </Show>
-          <Show when={isNote()}>
-            <NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} />
-          </Show>
-          <Show when={positionZoom()}>
-            {id => (
-              <div class="position-dossier">
-                <h1>
-                  <Show
-                    when={doc.block(id())?.position?.holder_id ?? doc.block(id())?.position?.deleted_holder?.id}
-                    fallback="Unattributed"
-                  >
-                    {holder => (
-                      <BlockText
-                        text={`[[${holder()}]]`}
-                        deletedHolder={doc.block(id())?.position?.deleted_holder}
-                        workshop={props.workshop}
-                        onOpen={props.onOpen}
-                      />
-                    )}
-                  </Show>
-                  <Show
-                    when={
-                      dossierFields().find(field => fieldRole(definitionsById().get(field.fieldId)) === 'standfirst')
-                        ?.value
-                    }
-                  >
-                    {gist => (
-                      <>
-                        {' '}
-                        · <BlockText text={gist()} workshop={props.workshop} onOpen={props.onOpen} />
-                      </>
-                    )}
-                  </Show>
-                </h1>
-                <Show when={dossierFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>
-                  {work => (
-                    <div class="dossier-work">
-                      <BlockText text={work()} workshop={props.workshop} onOpen={props.onOpen} />
-                    </div>
-                  )}
-                </Show>
-                <Show when={doc.block(id())?.position?.subject_id}>
-                  {subject => (
-                    <div class="dossier-subject">
-                      on{' '}
-                      <Button
-                        onClick={event => {
-                          const block = props.workshop.lookup(subject())();
-                          if (block)
-                            props.onOpen(
-                              {
-                                kind: 'page',
-                                pageId: block.page_id,
-                                ...(block.kind === 'block' ? { blockId: block.id } : {}),
-                              },
-                              opensBeside(event),
-                            );
-                        }}
-                      >
-                        <span>
-                          <BlockText
-                            text={props.workshop.lookup(subject())()?.text ?? 'Loading subject…'}
-                            workshop={props.workshop}
-                            interactive={false}
-                          />
-                        </span>
-                      </Button>
-                    </div>
-                  )}
-                </Show>
-              </div>
-            )}
-          </Show>
-          <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
-            <div class="outline-title-row">
-              <Show
-                when={renaming()}
-                fallback={
-                  <h1 classList={{ 'outline-title-tagged': titleGlyphs().length + titlePills().length > 0 }}>
-                    <For each={titleGlyphs()}>
-                      {token => <Show when={titleTagKind(token)}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>}
-                    </For>
-                    <button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>
-                      {rootTitle() || 'Loading…'}
-                    </button>
-                    <For each={titlePills()}>
-                      {token => (
-                        <TypePill
-                          id={token.id}
-                          title={token.alias || token.value}
-                          workshop={props.workshop}
-                          onOpen={props.onOpen}
-                          onRestoreFocus={restoreFocus}
-                        />
-                      )}
-                    </For>
-                  </h1>
-                }
-              >
-                <input
-                  ref={titleInput}
-                  class="title-input"
-                  aria-label="Atom title"
-                  value={title()}
-                  onInput={event => setTitle(event.currentTarget.value)}
-                  onKeyDown={event => {
-                    if (event.isComposing) return;
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      commitTitle();
-                    }
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      closeTitle();
-                    }
-                  }}
-                />
-                <Show
-                  when={titleCollision()}
-                  fallback={
-                    <Button class="bordered" onClick={commitTitle}>
-                      Save title
-                    </Button>
-                  }
-                >
-                  {page => (
-                    <Button
-                      class="bordered"
-                      disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))}
-                      title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))}
-                      onClick={event => {
-                        setMessage('');
-                        setMergeTarget({
-                          page: page(),
-                          from: { id: props.pageId, text: doc.root()!.text },
-                          anchor: event.currentTarget,
-                        });
-                      }}
-                    >
-                      Merge into “{displayTitle(page().text, id => props.workshop.lookup(id))}”
-                    </Button>
-                  )}
-                </Show>
-                <Button onClick={closeTitle}>Cancel</Button>
-              </Show>
-              <Show
-                when={
-                  !isPhone() &&
-                  doc.root()?.kind === 'page' &&
-                  !doc.root()?.source &&
-                  !fields.error &&
-                  fields() &&
-                  fields()?.page_id !== props.pageId
-                }
-              >
-                <div class="outline-header-actions">
-                  <Button
-                    class={emptyRootBlock() ? 'outline-table-quiet' : undefined}
-                    icon="table"
-                    label="Table"
-                    shortcut="⌘⇧T"
-                    onClick={event => openTable(opensBeside(event))}
-                  >
-                    Table
-                    <Show
-                      when={
-                        isCollection()
-                          ? related()?.collection?.total
-                          : !doc.root()?.project && !type.error && type()?.members
-                      }
-                    >
-                      {count => <span class="table-member-count">{count()}</span>}
-                    </Show>
-                  </Button>
-                </div>
-              </Show>
-            </div>
-          </Show>
-          <Show when={isNote()}>
-            <NoteAliases
-              doc={doc}
-              fields={definitions()}
-              onEdit={entry => {
-                setAliasesVisible(true);
-                if (depth() !== 'full') setStop('full');
-                const value = doc.outline.children(entry).find(id => !doc.isArchived(id));
-                if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
-              }}
-            />
-            <NoteLine pageId={props.pageId} workshop={props.workshop}>
-              <Show when={doc.status() === 'ready' && !doc.root()?.question}>
-                <NoteRevisit id={props.pageId} workshop={props.workshop} />
-              </Show>
-            </NoteLine>
-          </Show>
-          <Show when={isReadingSubject(doc) && !reading() && !zoom()}>
-            <div class="reading-register-actions">
-              <span class="reading-counts">{readingCounts(register().slips)}</span>
-              <Show when={localPositions() > 1}>
-                <Button onClick={() => props.onProjection?.('compare')}>Compare</Button>
-              </Show>
-              <Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>
-                Add perspective
-              </Button>
-            </div>
-          </Show>
-          <RowRelations id={zoom() ?? props.pageId} heading />
-          <Show
-            when={
-              !zoom() &&
-              doc.root()?.kind === 'page' &&
-              !doc.root()?.source &&
-              doc.root()?.text.toLowerCase() !== 'fields' &&
-              !type.error &&
-              type()
-            }
-          >
-            {value => (
-              <Show
-                when={value().members || value().fields.length || value().starting.length || value().card_templates}
-              >
-                <TemplateEditor
-                  type={value()}
-                  fields={definitions()}
-                  workshop={props.workshop}
-                  onError={setMessage}
-                  onOpen={props.onOpen}
-                />
-                <RecipeSection typeId={value().page.id} workshop={props.workshop} onOpen={props.onOpen} />
-              </Show>
-            )}
-          </Show>
-          <Show when={doc.root()?.source && !positionZoom()}>
-            <SourceHeader
-              doc={doc}
-              workshop={props.workshop}
-              resetItems={sourceResets}
-              onOpen={props.onOpen}
-              onError={setMessage}
-              onDelete={props.onDelete}
-              fields={definitions()}
-              compact={!!zoom()}
-              ready={pageReady() && sourceApparatusReady()}
-              onReady={setSourceHeaderReady}
-              onEditDetails={opener => {
-                sourceDetailsOpener = opener;
-                setSourceDetailsOpen(true);
-              }}
-              highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()}
-              colors={sourceColors()}
-              onColors={setSourceColors}
-              grouped={sourceGrouped()}
-              onGrouped={setSourceGrouped}
-              fieldsVisible={sourceFieldsVisible()}
-              onFieldsVisible={visible => {
-                setSourceFieldsVisible(visible);
-                scheduleReport();
-              }}
-            />
-          </Show>
-          <Show when={doc.root()?.templateCards}>
-            <CardSummary
-              blockId={props.pageId}
-              cards={[]}
-              templateCount={doc.root()?.templateCards ?? 0}
-              workshop={props.workshop}
-              onOpen={props.onOpen}
-            />
-          </Show>
-          <Show when={!zoom()}>
-            <projectSummary.Summary />
-          </Show>
-          <Show when={!zoom() && (doc.root()?.task || doc.root()?.question || doc.root()?.citations.length)}>
-            <div class="outline-root-capabilities outline-capability-metadata">
-              <Show when={doc.root()?.task}>
-                <TaskStatusButton
-                  task={doc.root()?.task ?? null}
-                  disabled={capabilities.busy(props.pageId)}
-                  onRestoreFocus={restoreFocus}
-                  onChange={status => capabilities.status(props.pageId, status)}
-                />
-                <TaskSummary id={props.pageId} />
-                <Button
-                  class="outline-planning"
-                  onClick={event => capabilities.open(props.pageId, 'work', event.currentTarget)}
-                >
-                  Work sessions
-                </Button>
-              </Show>
-              <QuestionSummary id={props.pageId} />
-              <For each={doc.root()?.citations}>
-                {citation => (
-                  <CitationChip
-                    citation={citation}
-                    pageId={props.pageId}
-                    workshop={props.workshop}
-                    onOpen={props.onOpen}
-                  />
-                )}
-              </For>
-            </div>
-          </Show>
-          <Show when={!zoom()}>
-            <QuestionParent
-              info={doc.root()?.question}
-              workshop={props.workshop}
-              onOpen={props.onOpen}
-              disabled={capabilities.busy(props.pageId)}
-              onChange={anchor => capabilities.open(props.pageId, 'question-parent', anchor)}
-              onRemove={() => {
-                const question = doc.root()?.question;
-                if (question) {
-                  const { parent: _, ...value } = question.state;
-                  capabilities.invoke(capabilities.edit(props.pageId, { kind: 'question', id: props.pageId, value }));
-                }
-              }}
-            />
-          </Show>
-          <For each={doc.root()?.citations}>
-            {citation => (
-              <Show when={doc.root()?.text.trim() !== citation.quote.trim()}>
-                <p class="outline-citation-quote" title={citation.quote}>
-                  {citation.quote}
-                </p>
-              </Show>
-            )}
-          </For>
-          <Show when={capabilities.error(props.pageId)}>
-            <p class="outline-capability-error" role="alert">
-              {capabilities.error(props.pageId)}
-            </p>
-          </Show>
-          <Show when={showArchived()}>
-            <p class="archive-notice">
-              Showing archived atoms{' '}
-              <button
-                type="button"
-                class="text-button"
-                onClick={() => {
-                  setShowArchived(false);
-                  scheduleReport();
-                }}
-              >
-                Hide archived
-              </button>
-            </p>
-          </Show>
-          <Show when={message()}>
-            <p class="outline-message" role="alert">
-              {message()}{' '}
-              <button class="text-button" type="button" onClick={() => setMessage('')}>
-                Dismiss
-              </button>
-            </p>
-          </Show>
-          <Show when={doc.status() === 'error' || doc.status() === 'missing'}>
-            <p role="alert">{doc.statusMessage()}</p>
-          </Show>
-          <Show when={doc.status() === 'ready' && depth() === 'gloss' && !zoom() && !glossId()}>
-            <p class="empty-state">No gloss yet. Choose Gloss in the atom menu to write a one-line summary.</p>
-          </Show>
-          <Show when={!zoom() && doc.root()?.kind === 'journal'}>
-            <JournalHeader
-              date={doc.root()!.text}
-              journalPeriod={journalPeriod}
-              workshop={props.workshop}
-              onOpen={props.onOpen}
-            />
-          </Show>
-          <fieldSheet.FieldSlots id={props.pageId} />
-          <Show when={!zoom() && doc.root()?.spread}>
-            <SpreadPane doc={doc} workshop={props.workshop} onActivate={props.onActivate} onOpen={props.onOpen} />
-          </Show>
-        </div>
-        <Show when={!zoom() && !ids().length && related()?.heldReadings.length}>
-          <HeldReadings rows={related()?.heldReadings ?? []} workshop={props.workshop} onOpen={props.onOpen} />
-        </Show>
-        <Show when={!zoom() && doc.root()?.question}>
-          <Show when={branches.error}>
-            <p class="error" role="alert">
-              Couldn't load branches · {String(branches.error)}
-            </p>
-          </Show>
-          <Show when={!branches.error}>
-            <QuestionBranches rows={branches() ?? []} workshop={props.workshop} onOpen={props.onOpen} />
-          </Show>
-          <AssessmentJournal
-            questionId={props.pageId}
-            doc={doc}
-            workshop={props.workshop}
-            onOpen={props.onOpen}
-            onWrite={() =>
-              apply({ kind: 'writeAssessment', parentId: props.pageId, assessedOn: props.workshop.todayDate() }, true)
-            }
-          />
-        </Show>
+                if (child) row = rowAnchor(child);
+              }
+              if (row)
+                scroll.scrollTop +=
+                  row.getBoundingClientRect().top -
+                  scroll.getBoundingClientRect().top -
+                  viewportController.navigatorHeight;
+              scrolled();
+            });
+          }}
+          scheduleReport={scheduleReport}
+        />
         <div ref={list} class="outline-list" style={{ height: reading() ? undefined : `${listHeight()}px` }}>
           <Show
             when={reading()}
@@ -3490,7 +2484,7 @@ function Pane(props: OutlinePaneProps) {
                   )}
                 </For>
                 <div
-                  ref={foldChildren}
+                  ref={element => viewportController.bindFoldChildren(element)}
                   class="outline-motion-group"
                   style={{ opacity: foldMotion()?.opening ? 0 : undefined }}
                 >
@@ -3505,7 +2499,7 @@ function Pane(props: OutlinePaneProps) {
                   </For>
                 </div>
                 <div
-                  ref={foldFollowing}
+                  ref={element => viewportController.bindFoldFollowing(element)}
                   class="outline-motion-group"
                   style={{
                     transform: foldMotion()?.opening
@@ -3524,7 +2518,7 @@ function Pane(props: OutlinePaneProps) {
                   </For>
                 </div>
                 <div
-                  ref={foldEditor}
+                  ref={element => viewportController.bindFoldEditor(element)}
                   class="outline-motion-group"
                   style={{
                     transform:
@@ -3798,56 +2792,21 @@ function Pane(props: OutlinePaneProps) {
         </div>
       </Show>
       <Show when={editingBarVisible()}>
-        <Portal>
-          <div
-            ref={editingBar}
-            class="outline-editing-bar"
-            role="toolbar"
-            aria-label="Outline editing"
-            style={{ top: `${viewport().bottom}px`, left: `${viewport().left}px`, width: `${viewport().width}px` }}
-            onPointerDown={event => event.preventDefault()}
-            onMouseDown={event => event.preventDefault()}
-          >
-            <div class="outline-editing-tools glass">
-              <Button
-                icon="outdent"
-                label="Outdent"
-                disabled={composition()}
-                onClick={() => apply({ kind: 'outdent', ids: roots() }, true)}
-              />
-              <Button
-                icon="indent"
-                label="Indent"
-                disabled={composition()}
-                onClick={() => apply({ kind: 'indent', ids: roots() }, true)}
-              />
-              <i class="outline-editing-divider" aria-hidden="true" />
-              <Button
-                icon="maketask"
-                label="Make task"
-                disabled={composition() || !!doc.block(editing() ?? '')?.task?.status}
-                onClick={() => {
-                  const id = editing();
-                  if (id) capabilities.invoke(capabilities.status(id, 'todo'));
-                }}
-              />
-              <Button icon="link" label="Link" disabled={composition()} onClick={() => insertMark('link')} />
-              <Button icon="tag" label="Tag" disabled={composition()} onClick={() => insertMark('tag')} />
-              <i class="outline-editing-divider" aria-hidden="true" />
-              <Button icon="undo" label="Undo" disabled={composition() || !doc.canUndo()} onClick={() => undo()} />
-            </div>
-            <Button
-              class="outline-editing-done"
-              icon="check"
-              label="Done"
-              onClick={() => {
-                const id = editing();
-                editor?.view.contentDOM.blur();
-                if (id) rowFocus(id, false, true);
-              }}
-            />
-          </div>
-        </Portal>
+        <OutlineEditingBar
+          bindRef={element => {
+            editingBar = element;
+          }}
+          viewport={viewport()}
+          composition={composition()}
+          editing={editing()}
+          doc={doc}
+          editor={() => editor}
+          capabilities={capabilities}
+          roots={roots}
+          apply={apply}
+          undo={undo}
+          rowFocus={rowFocus}
+        />
       </Show>
       <div class="outline-notices">
         <Show when={notice()}>

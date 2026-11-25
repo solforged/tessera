@@ -18,7 +18,12 @@
   "linter": {
     "rules": {
       "preset": "recommended",
-      "a11y": "off",
+      "a11y": {
+        "recommended": false,
+        "useKeyWithClickEvents": "error",
+        "useButtonType": "error",
+        "noSvgWithoutTitle": "error"
+      },
       "style": {
         "noNonNullAssertion": "off",
         "noDescendingSpecificity": "off"

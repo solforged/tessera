@@ -304,6 +304,24 @@ export function CriteriaMatrix(props: {
         <div
           ref={valueHost}
           class="criteria-value"
+          role={valueProps.editable ? 'button' : undefined}
+          tabIndex={valueProps.editable ? 0 : undefined}
+          onKeyDown={event => {
+            if (
+              valueProps.editable &&
+              event.target === event.currentTarget &&
+              (event.key === 'Enter' || event.key === ' ')
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              start(
+                row(),
+                valueProps.field,
+                valueProps.value,
+                valueHost.closest<HTMLElement>('.criteria-cell') ?? undefined,
+              );
+            }
+          }}
           onClick={event => {
             if (valueProps.editable && !(event.target as HTMLElement).closest('button,.outline-reference')) {
               event.stopPropagation();

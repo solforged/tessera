@@ -225,6 +225,12 @@ export function NoteFind(props: {
                       class="picker-row"
                       classList={{ selected: highlight() === index() }}
                       onPointerMove={() => setHighlight(index())}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          choose(item.id);
+                        }
+                      }}
                       onClick={() => choose(item.id)}
                     >
                       <span class="picker-text">
