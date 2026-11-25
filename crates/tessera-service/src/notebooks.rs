@@ -169,8 +169,9 @@ struct OpenRequest {
     create: bool,
 }
 
-#[derive(Serialize)]
-struct Opening {
+#[derive(Serialize, ts_rs::TS)]
+#[ts(rename = "OpeningWorkshop")]
+pub(crate) struct Opening {
     path: PathBuf,
 }
 

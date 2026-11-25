@@ -205,7 +205,7 @@ impl Workshop {
         self.apply_with(batch, |_, _| Ok(()))
     }
 
-    /// [`Notebook::apply`] under an identity chosen elsewhere, such as a change
+    /// [`Workshop::apply`] under an identity chosen elsewhere, such as a change
     /// another device made. The stamp's time becomes every timestamp the
     /// change writes, and IDs the change creates derive from its ID, so every
     /// device reaches the same state. A change ID that was already committed
@@ -214,7 +214,7 @@ impl Workshop {
         self.commit(batch, Some(stamp), &Extras::default(), |_, _| Ok(()))
     }
 
-    /// [`Notebook::apply`], running `record` in the same transaction just
+    /// [`Workshop::apply`], running `record` in the same transaction just
     /// before commit. A replayed batch does not run it.
     pub(crate) fn apply_with(
         &mut self,

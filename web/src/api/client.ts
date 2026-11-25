@@ -2,14 +2,17 @@ import { ulid } from 'ulid';
 import { DEMO, EMBEDDED } from '../core/mode';
 import type {
   HistoryEntry,
+  HistoryResponse,
   ImageRef,
   IncomingFieldValue,
   AgentProviders,
+  ProviderTestResult,
   SaveAgentProviders,
   StartAgentTurn,
   AgentTurnStarted,
   AgentTurnEvents,
   ExtractedMetadata,
+  LinkPreview,
   LookupPreview,
   IngestPlan,
   Agenda,
@@ -72,8 +75,10 @@ import type {
   WorkshopInfo,
   WorkshopSize,
   KnownWorkshops,
+  OpeningWorkshop,
   PageView,
   ProjectRecord,
+  PositionQuery,
   PositionQueryResult,
   QuestionQuery,
   QuestionRow,
@@ -92,16 +97,12 @@ import type {
   TaskQuery,
   TaskQueryResult,
   TaskView,
+  UndoReceipt,
   WorkSession,
 } from './types';
 
+export type { UndoReceipt } from './types';
 export type ExportFormat = 'bibtex' | 'csl' | 'markdown';
-
-export interface UndoReceipt {
-  undone: number;
-  kept_pages: Block[];
-  committed: Committed;
-}
 
 export type Transport = (url: string, init: RequestInit) => Promise<Response>;
 let transport: Transport = (url, init) => fetch(url, init);
@@ -253,7 +254,7 @@ export interface ApiClient {
   /** The Mac service only: known workshops, and switching the service to one. */
   workshops(signal?: AbortSignal): Promise<KnownWorkshops>;
   /** Resolves once the service has accepted; it then restarts on `path`, and this window reloads. */
-  openWorkshop(path: string, create: boolean, signal?: AbortSignal): Promise<{ path: string }>;
+  openWorkshop(path: string, create: boolean, signal?: AbortSignal): Promise<OpeningWorkshop>;
   forgetWorkshop(path: string, signal?: AbortSignal): Promise<KnownWorkshops>;
   /** Hub side, the Mac only: paired devices and tailnet sharing. */
   syncDevices(signal?: AbortSignal): Promise<SyncDevices>;
@@ -272,7 +273,7 @@ export interface ApiClient {
   undoChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
   agentProviders(signal?: AbortSignal): Promise<AgentProviders>;
   saveAgentProviders(body: SaveAgentProviders, signal?: AbortSignal): Promise<AgentProviders>;
-  testAgentProvider(id: string, signal?: AbortSignal): Promise<{ ok: true }>;
+  testAgentProvider(id: string, signal?: AbortSignal): Promise<ProviderTestResult>;
   startAgentTurn(body: StartAgentTurn, signal?: AbortSignal): Promise<AgentTurnStarted>;
   agentTurnEvents(turn: string, after: number, signal?: AbortSignal): Promise<AgentTurnEvents>;
   cancelAgentTurn(turn: string, signal?: AbortSignal): Promise<void>;
@@ -299,10 +300,7 @@ export interface ApiClient {
   workSessions(id: string, signal?: AbortSignal): Promise<WorkSession[]>;
   activeWorkSession(signal?: AbortSignal): Promise<WorkSession | null>;
   projects(signal?: AbortSignal): Promise<ProjectRecord[]>;
-  positions(
-    query: { holder?: string; subject?: string; limit?: number },
-    signal?: AbortSignal,
-  ): Promise<PositionQueryResult>;
+  positions(query: PositionQuery, signal?: AbortSignal): Promise<PositionQueryResult>;
   relations(query: RelationQuery, signal?: AbortSignal): Promise<RelationRow[]>;
   questions(query: QuestionQuery, signal?: AbortSignal): Promise<QuestionRow[]>;
   revisits(due?: string, signal?: AbortSignal): Promise<RevisitRow[]>;
@@ -355,7 +353,7 @@ export interface ApiClient {
   collectionValues(id: string, signal?: AbortSignal): Promise<Block[]>;
   lookup(query: string, signal?: AbortSignal): Promise<LookupPreview>;
   /** A pasted web page's title and site, for a titled link; the desktop service reads the page. */
-  linkPreview(url: string, signal?: AbortSignal): Promise<{ title: string | null; site: string | null }>;
+  linkPreview(url: string, signal?: AbortSignal): Promise<LinkPreview>;
   normalizeMetadata(metadata: ExtractedMetadata): Promise<ExtractedMetadata>;
   planRecord(metadata: ExtractedMetadata, coverUrl?: string | null): Promise<IngestPlan>;
   uploadCover(file: Blob): Promise<string>;
@@ -450,7 +448,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
             request<Backups>(base, 'DELETE', `/backups/others/${segment(workshopId)}`, undefined, signal),
           workshops: (signal?: AbortSignal) => get<KnownWorkshops>('/notebooks', signal),
           openWorkshop: (path: string, create: boolean, signal?: AbortSignal) =>
-            request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
+            request<OpeningWorkshop>(base, 'POST', '/notebooks/open', { path, create }, signal),
           forgetWorkshop: (path: string, signal?: AbortSignal) =>
             request<KnownWorkshops>(base, 'POST', '/notebooks/forget', { path }, signal),
           syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
@@ -464,7 +462,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
         }
       : {}),
     history: async (limit = 50, before?: number, signal?: AbortSignal) =>
-      (await get<{ entries: HistoryEntry[] }>(`/history${query({ limit, before })}`, signal)).entries,
+      (await get<HistoryResponse>(`/history${query({ limit, before })}`, signal)).entries,
     undoChange: (seq: number, signal?: AbortSignal) =>
       request<UndoReceipt>(
         base,
@@ -478,7 +476,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     saveAgentProviders: (body: SaveAgentProviders, signal?: AbortSignal) =>
       agentRequest<AgentProviders>('PUT', '/agent/providers', body, signal),
     testAgentProvider: (id: string, signal?: AbortSignal) =>
-      agentRequest<{ ok: true }>('POST', `/agent/providers/${segment(id)}/test`, undefined, signal),
+      agentRequest<ProviderTestResult>('POST', `/agent/providers/${segment(id)}/test`, undefined, signal),
     startAgentTurn: (body: StartAgentTurn, signal?: AbortSignal) =>
       agentRequest<AgentTurnStarted>('POST', '/agent/turns', body, signal),
     agentTurnEvents: (turn: string, after: number, signal?: AbortSignal) =>
@@ -538,11 +536,11 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
       get<WorkSession[]>(`/blocks/${segment(id)}/work-sessions`, signal),
     activeWorkSession: (signal?: AbortSignal) => get<WorkSession | null>('/work-sessions/active', signal),
     projects: (signal?: AbortSignal) => get<ProjectRecord[]>('/projects', signal),
-    positions: (query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal) => {
+    positions: (query: PositionQuery, signal?: AbortSignal) => {
       const params = new URLSearchParams();
-      if (query.holder !== undefined) params.set('holder', query.holder);
-      if (query.subject !== undefined) params.set('subject', query.subject);
-      if (query.limit !== undefined) params.set('limit', String(query.limit));
+      if (query.holder != null) params.set('holder', query.holder);
+      if (query.subject != null) params.set('subject', query.subject);
+      if (query.limit != null) params.set('limit', String(query.limit));
       return get<PositionQueryResult>(`/positions?${params}`, signal);
     },
     relations: (value: RelationQuery, signal?: AbortSignal) =>
@@ -631,7 +629,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     lookup: (query: string, signal?: AbortSignal) =>
       request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
     linkPreview: (url: string, signal?: AbortSignal) =>
-      request<{ title: string | null; site: string | null }>(base, 'POST', '/library/link', { url }, signal),
+      request<LinkPreview>(base, 'POST', '/library/link', { url }, signal),
     normalizeMetadata: (metadata: ExtractedMetadata) =>
       request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
     planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) =>
