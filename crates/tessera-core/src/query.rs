@@ -189,7 +189,7 @@ fn starting_names(title: &str, fields: &[String]) -> Vec<String> {
     if !fields.is_empty() {
         return Vec::new();
     }
-    crate::built_in::schema(&crate::storage::title_key(title))
+    crate::built_in::schema(&crate::aliases::fold(title))
         .iter()
         .map(|(name, _)| (*name).to_owned())
         .collect()

@@ -538,15 +538,14 @@ impl<'a> Planner<'a> {
             SourceFormat::Epub | SourceFormat::Record => "Book",
             SourceFormat::Article => "Article",
         };
-        let labels: Vec<(&str, FieldKind)> =
-            crate::built_in::schema(&crate::storage::title_key(title))
-                .iter()
-                .map(|(name, _)| {
-                    let field =
-                        crate::built_in::field_named(name).expect("schemas name built-in fields");
-                    (field.name, field.kind)
-                })
-                .collect();
+        let labels: Vec<(&str, FieldKind)> = crate::built_in::schema(&crate::aliases::fold(title))
+            .iter()
+            .map(|(name, _)| {
+                let field =
+                    crate::built_in::field_named(name).expect("schemas name built-in fields");
+                (field.name, field.kind)
+            })
+            .collect();
         let (id, revision) = self.page(title)?;
         let has: bool = self.workshop.conn.query_row(
             "SELECT EXISTS(
