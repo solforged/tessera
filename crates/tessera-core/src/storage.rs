@@ -365,7 +365,7 @@ pub struct TagToken<'a> {
     pub span: std::ops::Range<usize>,
 }
 
-fn bare_tag_character(ch: char) -> bool {
+pub(crate) fn bare_tag_character(ch: char) -> bool {
     ch.is_alphanumeric()
         || unicode_normalization::char::is_combining_mark(ch)
         || matches!(ch, '-' | '_' | '/')

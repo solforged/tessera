@@ -336,14 +336,15 @@ impl Workshop {
         actor: Actor,
     ) -> Result<Option<Committed>> {
         let page = self.alias_page(type_id)?;
-        let labels: Vec<(&str, FieldKind)> = crate::built_in::schema(&fold(&page.text))
-            .iter()
-            .map(|(name, _)| {
-                let field =
-                    crate::built_in::field_named(name).expect("schemas name built-in fields");
-                (field.name, field.kind)
-            })
-            .collect();
+        let labels: Vec<(&str, FieldKind)> =
+            crate::built_in::schema(&crate::storage::title_key(&page.text))
+                .iter()
+                .map(|(name, _)| {
+                    let field =
+                        crate::built_in::field_named(name).expect("schemas name built-in fields");
+                    (field.name, field.kind)
+                })
+                .collect();
         if labels.is_empty() {
             return Ok(None);
         }
