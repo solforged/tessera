@@ -50,7 +50,7 @@ async fn host(app: &AppHandle) -> Result<&'static Host, String> {
         let (router, handles) = tessera_service::embedded_router_with_paths(
             workshop,
             data_dir.join("agent.json"),
-            Some(data_dir.join("backups")),
+            None,
         )?;
         // A paired phone syncs at start, after its own edits and every few minutes; unpaired, it waits for a join.
         tessera_service::start_sync_runner(&handles);
@@ -266,7 +266,7 @@ async fn deliver(host: &'static Host, after: i64, channel: Channel<String>) -> R
     tessera_api::follow_changes(
         &host.handles.changes,
         host.handles.workshop.clone(),
-        None,
+        Some(host.handles.readers.clone()),
         after,
         100,
         || true,

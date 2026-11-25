@@ -5416,6 +5416,7 @@ dependencies = [
  "reqwest",
  "roxmltree",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "tempfile",
@@ -5426,6 +5427,7 @@ dependencies = [
  "tracing",
  "ts-rs",
  "ulid",
+ "webpki-roots",
 ]
 
 [[package]]

@@ -29,7 +29,7 @@ import type {
   ReadingState,
 } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
-import { EMBEDDED } from '../core/mode';
+import { DEMO } from '../core/mode';
 import { BlockText } from '../outline/BlockText';
 import type { LibraryGroup, LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../core/contract';
 import { Button } from '../ui/Button';
@@ -650,7 +650,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     props.onOpen(target, beside || listOpensBeside(null, !!props.neighbour));
   }
   function openAdd(anchor: HTMLElement) {
-    if (EMBEDDED) {
+    if (DEMO) {
       fileInput.click();
       return;
     }
@@ -2522,8 +2522,8 @@ export function LibraryPane(props: LibraryPaneProps) {
                   class="bordered"
                   icon="plus"
                   label="Add to library"
-                  aria-haspopup={EMBEDDED ? undefined : 'dialog'}
-                  aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'}
+                  aria-haspopup={DEMO ? undefined : 'dialog'}
+                  aria-expanded={DEMO ? undefined : popup()?.kind === 'add'}
                   onClick={event => openAdd(event.currentTarget)}
                 />
               </Show>
@@ -3364,7 +3364,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                                   >
                                     <h2>Add your first source</h2>
                                     <p>
-                                      {EMBEDDED
+                                      {DEMO
                                         ? 'Import an EPUB to read, highlight, and make notes.'
                                         : 'Import an EPUB, save an article, or add a catalog record.'}
                                     </p>
@@ -3379,7 +3379,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                                           icon="plus"
                                           onClick={event => openAdd(event.currentTarget)}
                                         >
-                                          {EMBEDDED ? 'Import an EPUB' : 'Add a source'}
+                                          {DEMO ? 'Import an EPUB' : 'Add a source'}
                                         </Button>
                                       </Show>
                                     }
@@ -3896,7 +3896,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                 </div>
               </Popup>
             );
-          if (EMBEDDED) return null;
+          if (DEMO) return null;
           return (
             <AddSheet
               anchor={state.anchor}

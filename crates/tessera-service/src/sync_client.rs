@@ -24,13 +24,6 @@ pub struct InvalidHubUrl(&'static str);
 
 /// Bundled roots deliberately bypass Android's uninitialized platform verifier.
 fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
-    let roots = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
-        rustls::crypto::aws_lc_rs::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()?
-    .with_root_certificates(roots)
-    .with_no_client_auth();
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         SCHEMA_HEADER,
@@ -48,8 +41,8 @@ fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
         value.set_sensitive(true);
         headers.insert(reqwest::header::AUTHORIZATION, value);
     }
-    Ok(reqwest::Client::builder()
-        .tls_backend_preconfigured(tls)
+    Ok(tessera_api::tls_client_builder()
+        .map_err(anyhow::Error::msg)?
         .default_headers(headers)
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(30))

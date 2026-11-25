@@ -36,6 +36,13 @@ impl Readers {
         Ok(Self(Arc::new(readers)))
     }
 
+    #[cfg(native)]
+    pub fn flush(&self) {
+        for reader in self.0.iter() {
+            reader.lock().flush();
+        }
+    }
+
     /// An idle connection, or the first one once it is free.
     fn free(&self) -> MutexGuard<'_, Reader> {
         self.0
