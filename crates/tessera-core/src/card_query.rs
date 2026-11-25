@@ -212,13 +212,16 @@ impl Workshop {
     }
 
     pub fn deck(&self, id: &str) -> Result<Deck> {
-        validate_id(id)?;
-        self.conn
-            .prepare_cached(
-                "SELECT id, name, query, revision, created_at, updated_at FROM decks WHERE id = ?1",
-            )?
-            .query_row([id], stored_deck)
-            .optional()?
-            .ok_or_else(|| not_found_as("deck", id))
+        deck_in(&self.conn, id)
     }
+}
+
+pub(crate) fn deck_in(conn: &Connection, id: &str) -> Result<Deck> {
+    validate_id(id)?;
+    conn.prepare_cached(
+        "SELECT id, name, query, revision, created_at, updated_at FROM decks WHERE id = ?1",
+    )?
+    .query_row([id], stored_deck)
+    .optional()?
+    .ok_or_else(|| not_found_as("deck", id))
 }
