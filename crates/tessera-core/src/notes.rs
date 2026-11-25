@@ -348,8 +348,7 @@ impl Workshop {
         })
     }
 
-    /// One kind's members and alias cross-references, for its finding aid.
-    pub fn kind_notes(&self, key: &str) -> Result<KindIndex> {
+    fn kind_member_entries(&self, key: &str) -> Result<Option<(Option<String>, Vec<NoteEntry>)>> {
         let type_id = key.strip_prefix("type:");
         if let Some(id) = type_id {
             validate_id(id)?;
@@ -361,16 +360,43 @@ impl Workshop {
             // A known kind with no members yet, or an unknown custom type.
             return match type_id {
                 Some(id) => Err(not_found(id)),
-                None => Ok(KindIndex::default()),
+                None => Ok(None),
             };
         };
         let summary_type = filing.kinds[index].type_id.clone();
-        let mut notes: Vec<_> = filing
+        let notes = filing
             .notes
             .into_iter()
             .filter(|note| note.kinds.contains(&index))
             .map(|note| note.entry)
             .collect();
+        Ok(Some((summary_type, notes)))
+    }
+
+    pub(crate) fn kind_member_ids(&self, key: &str) -> Result<HashSet<String>> {
+        Ok(self
+            .kind_member_entries(key)?
+            .map(|(_, notes)| notes.into_iter().map(|note| note.id).collect())
+            .unwrap_or_default())
+    }
+
+    pub(crate) fn kind_member_titles(&self, key: &str) -> Result<HashMap<String, String>> {
+        Ok(self
+            .kind_member_entries(key)?
+            .map(|(_, notes)| {
+                notes
+                    .into_iter()
+                    .map(|note| (note.id, note.title))
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// One kind's members and alias cross-references, for its finding aid.
+    pub fn kind_notes(&self, key: &str) -> Result<KindIndex> {
+        let Some((summary_type, mut notes)) = self.kind_member_entries(key)? else {
+            return Ok(KindIndex::default());
+        };
         let mut sort_as = self.named_page_values("sort as", None)?;
         for note in &mut notes {
             note.sort_as = sort_as

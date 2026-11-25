@@ -837,6 +837,7 @@ impl Workshop {
               ORDER BY o.text COLLATE NOCASE, o.id, e.ordinal, e.id, v.ordinal, v.id"
         ))?;
         let mut cursor = statement.query(params![id, task_path])?;
+        let mut reader = ReadingContext::new(&self.conn);
         let limit = limit.unwrap_or(12).min(500);
         let mut owner_id = String::new();
         let mut entry_id = String::new();
@@ -888,13 +889,7 @@ impl Workshop {
             } else {
                 Some(block_at(row, 10)?)
             };
-            let reading = constrained_reading(
-                &self.conn,
-                kind,
-                &detail.field.definition,
-                &text,
-                target.as_ref(),
-            )?;
+            let reading = reader.read(kind, &detail.field.definition, &text, target.as_ref())?;
             let index = *interpretation_indices
                 .entry(text.clone())
                 .or_insert_with(|| {
@@ -1076,6 +1071,162 @@ pub(crate) fn number(text: &str) -> Option<f64> {
     text.parse::<f64>().ok().filter(|n| n.is_finite())
 }
 
+struct AllowedTargets {
+    valid_ids: HashSet<String>,
+    problem: String,
+}
+
+pub(crate) struct ReadingContext<'a> {
+    conn: &'a Connection,
+    texts: HashMap<String, Option<String>>,
+    allowed: HashMap<String, AllowedTargets>,
+}
+
+impl<'a> ReadingContext<'a> {
+    pub(crate) fn new(conn: &'a Connection) -> Self {
+        Self {
+            conn,
+            texts: HashMap::new(),
+            allowed: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn target_label(&mut self, text: &str) -> String {
+        let conn = self.conn;
+        let texts = &mut self.texts;
+        target_label(text, &mut |id| {
+            if let Some(cached) = texts.get(id) {
+                return cached.clone();
+            }
+            let fetched = conn
+                .prepare_cached("SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL")
+                .ok()
+                .and_then(|mut statement| {
+                    statement
+                        .query_row([id], |row| row.get::<_, String>(0))
+                        .optional()
+                        .ok()
+                        .flatten()
+                });
+            texts.insert(id.to_owned(), fetched.clone());
+            fetched
+        })
+    }
+
+    fn allowed_targets(&mut self, definition: &FieldDefinition) -> Result<&AllowedTargets> {
+        if !self.allowed.contains_key(&definition.id) {
+            let targets = serde_json::json!(definition.targets).to_string();
+            let links_sources = definition
+                .targets
+                .iter()
+                .any(|target| target == SOURCE_TARGET);
+            let valid_ids: HashSet<String> = self
+                .conn
+                .prepare_cached(
+                    "WITH RECURSIVE target_types(id) AS (
+                         SELECT ty.id FROM blocks ty
+                         WHERE ty.id IN (SELECT value FROM json_each(?1))
+                           AND ty.deletion_id IS NULL AND ty.archived = 0
+                         UNION
+                         SELECT b.id FROM memberships m
+                         JOIN target_types tt ON m.type_id = tt.id
+                         JOIN blocks ty ON ty.id = tt.id
+                         JOIN blocks b ON b.id = m.block_id
+                         WHERE b.kind = 'page' AND b.parent_id IS NULL
+                           AND b.deletion_id IS NULL AND b.archived = 0
+                           AND (
+                               (ty.kind = 'page' AND ty.parent_id IS NULL
+                                AND ty.title_key IN ('person', 'group', 'concept', 'thesis'))
+                               OR EXISTS (SELECT 1 FROM memberships sub WHERE sub.type_id = b.id)
+                           )
+                     )
+                     SELECT m.block_id FROM memberships m
+                     JOIN target_types ty ON ty.id = m.type_id
+                     UNION
+                     SELECT p.block_id FROM projects p
+                     WHERE p.active = 1
+                       AND EXISTS (
+                           SELECT 1 FROM target_types ty
+                           JOIN blocks b ON b.id = ty.id
+                           WHERE b.kind = 'page' AND b.title_key = 'project'
+                       )
+                     UNION
+                     SELECT s.block_id FROM sources s
+                     WHERE s.active = 1 AND ?2 != 0",
+                )?
+                .query_map(params![&targets, links_sources], |row| row.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            let names = self
+                .conn
+                .prepare_cached(
+                    "SELECT COALESCE(b.text, t.value) FROM json_each(?1) t
+                     LEFT JOIN blocks b ON b.id = t.value ORDER BY t.key",
+                )?
+                .query_map([&targets], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            self.allowed.insert(
+                definition.id.clone(),
+                AllowedTargets {
+                    valid_ids,
+                    problem: format!("Not a {}", names.join(" or ").to_lowercase()),
+                },
+            );
+        }
+        Ok(&self.allowed[&definition.id])
+    }
+
+    pub(crate) fn read(
+        &mut self,
+        kind: FieldKind,
+        definition: &FieldDefinition,
+        text: &str,
+        target: Option<&Block>,
+    ) -> Result<Reading> {
+        // A creator or contributor may be a plain name rather than a linked person or group; only a
+        // reference keeps the relation's reading. A kind preview still reads the name for mapping.
+        if kind == FieldKind::Instance
+            && definition.kind == FieldKind::Instance
+            && crate::built_in::creator_tier(definition, 0).is_some()
+            && reference(text).is_none()
+            && !text.trim().is_empty()
+        {
+            return Ok(Reading::Value {
+                ok: true,
+                value: ReadingValue::Text(text.trim().to_owned()),
+                target: None,
+            });
+        }
+        let mut reading = reading(kind, &definition.id, text, target);
+        if kind != FieldKind::Instance {
+            return Ok(reading);
+        }
+        if let Reading::Value {
+            value: ReadingValue::Text(label),
+            target: Some(_),
+            ..
+        } = &mut reading
+        {
+            *label = self.target_label(label);
+        }
+        if definition.targets.is_empty() {
+            return Ok(reading);
+        }
+        if let Reading::Value {
+            target: Some(id), ..
+        } = &reading
+        {
+            let allowed = self.allowed_targets(definition)?;
+            if !allowed.valid_ids.contains(id) {
+                return Ok(Reading::Problem {
+                    ok: false,
+                    problem: allowed.problem.clone(),
+                });
+            }
+        }
+        Ok(reading)
+    }
+}
+
 pub(crate) fn constrained_reading(
     conn: &Connection,
     kind: FieldKind,
@@ -1083,90 +1234,7 @@ pub(crate) fn constrained_reading(
     text: &str,
     target: Option<&Block>,
 ) -> Result<Reading> {
-    // A creator or contributor may be a plain name rather than a linked person or group; only a
-    // reference keeps the relation's reading. A kind preview still reads the name for mapping.
-    if kind == FieldKind::Instance
-        && definition.kind == FieldKind::Instance
-        && crate::built_in::creator_tier(definition, 0).is_some()
-        && reference(text).is_none()
-        && !text.trim().is_empty()
-    {
-        return Ok(Reading::Value {
-            ok: true,
-            value: ReadingValue::Text(text.trim().to_owned()),
-            target: None,
-        });
-    }
-    let mut reading = reading(kind, &definition.id, text, target);
-    if kind != FieldKind::Instance {
-        return Ok(reading);
-    }
-    if let Reading::Value {
-        value: ReadingValue::Text(label),
-        target: Some(_),
-        ..
-    } = &mut reading
-    {
-        let mut text =
-            conn.prepare_cached("SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL")?;
-        *label = target_label(label, &mut |id| {
-            text.query_row([id], |row| row.get(0))
-                .optional()
-                .ok()
-                .flatten()
-        });
-    }
-    if definition.targets.is_empty() {
-        return Ok(reading);
-    }
-    if let Reading::Value {
-        target: Some(id), ..
-    } = &reading
-    {
-        // The definition's own targets, which a kind preview may fill before they are filed.
-        let targets = serde_json::json!(definition.targets).to_string();
-        let matches: bool = conn
-            .prepare_cached(
-                "WITH RECURSIVE target_types(id) AS (
-                     SELECT ty.id FROM blocks ty
-                     WHERE ty.id IN (SELECT value FROM json_each(?2))
-                       AND ty.deletion_id IS NULL AND ty.archived = 0
-                     UNION
-                     SELECT b.id FROM memberships m
-                     JOIN target_types tt ON m.type_id = tt.id
-                     JOIN blocks ty ON ty.id = tt.id
-                     JOIN blocks b ON b.id = m.block_id
-                     WHERE b.kind = 'page' AND b.parent_id IS NULL
-                       AND b.deletion_id IS NULL AND b.archived = 0
-                       AND (
-                           (ty.kind = 'page' AND ty.parent_id IS NULL
-                            AND ty.title_key IN ('person', 'group', 'concept', 'thesis'))
-                           OR EXISTS (SELECT 1 FROM memberships sub WHERE sub.type_id = b.id)
-                       )
-                 )
-                 SELECT EXISTS(SELECT 1 FROM target_types ty
-                     WHERE EXISTS(SELECT 1 FROM memberships m WHERE m.block_id = ?1 AND m.type_id = ty.id)
-                        OR (EXISTS(SELECT 1 FROM blocks b WHERE b.id = ty.id AND b.kind = 'page' AND b.title_key = 'project')
-                            AND EXISTS(SELECT 1 FROM projects p WHERE p.block_id = ?1 AND p.active = 1)))
-                 OR (?3 IN (SELECT value FROM json_each(?2))
-                     AND EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1))",
-            )?
-            .query_row(params![id, targets, SOURCE_TARGET], |row| row.get(0))?;
-        if !matches {
-            let names = conn
-                .prepare_cached(
-                    "SELECT COALESCE(b.text, t.value) FROM json_each(?1) t
-                 LEFT JOIN blocks b ON b.id = t.value ORDER BY t.key",
-                )?
-                .query_map([&targets], |row| row.get::<_, String>(0))?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            return Ok(Reading::Problem {
-                ok: false,
-                problem: format!("Not a {}", names.join(" or ").to_lowercase()),
-            });
-        }
-    }
-    Ok(reading)
+    ReadingContext::new(conn).read(kind, definition, text, target)
 }
 
 /// A relation target's label wherever it sorts, groups, filters or renders: its
