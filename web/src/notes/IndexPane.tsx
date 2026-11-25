@@ -68,10 +68,13 @@ import {
 } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
-import { CreateSlip } from '../create/CreateSlip';
+import { lazy as solidLazy } from 'solid-js';
 import { kindNoun } from '../create/kinds';
+import '../ui/chips.css';
 import './notes.css';
 import '../fields/fields.css';
+
+const CreateSlip = solidLazy(() => import('../create/CreateSlip').then(module => ({ default: module.CreateSlip })));
 import { QuestionLedger } from './QuestionLedger';
 import { sourceKindLabel } from '../library/query';
 

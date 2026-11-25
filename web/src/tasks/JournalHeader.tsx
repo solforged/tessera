@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, createUniqueId, lazy, onCleanup } from 'solid-js';
 import type { Agenda, Citation, LibraryRow, SourceView } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
@@ -21,15 +21,16 @@ import { Figures } from './Figures';
 import { createPhone } from './journal-phone';
 import { agendaTaskTime, groupDayAgenda } from './task-labels';
 import { createClock } from './clock';
-import { TaskSourceRows } from './JournalAgenda';
 import { movableTo } from './reschedule';
 import { createBulkMove } from './BulkMove';
 import { SectionHead } from '../ui/SectionHead';
 import { section } from './today-template';
 import { createSettledChanges, sameData } from '../ui/loading';
-import './agenda.css';
+import '../ui/covers.css';
+import './journal.css';
 import './journal-phone.css';
-import '../library/library.css';
+
+const TaskSourceRows = lazy(() => import('./JournalAgenda').then(module => ({ default: module.TaskSourceRows })));
 
 export function JournalHeader(props: {
   date: string;

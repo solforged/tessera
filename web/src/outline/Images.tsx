@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createSignal, lazy, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { ImageRef } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
@@ -7,9 +7,12 @@ import type { OutlineDropIndicator } from './drag';
 import { WorkshopImage } from '../ui/NotebookImage';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
-import { OcclusionEditor } from '../review/OcclusionEditor';
 import { retireDialog } from '../review/dialog-motion';
 import './image.css';
+
+const OcclusionEditor = lazy(() =>
+  import('../review/OcclusionEditor').then(module => ({ default: module.OcclusionEditor })),
+);
 
 /** The whole image at the largest size the screen allows, with its caption beneath; Escape or Close returns to the outline. */
 export function ImageViewer(props: {

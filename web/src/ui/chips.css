@@ -1,0 +1,96 @@
+/* Shared filter chips, popup headings and register footers across table, library, agenda, notes and desk views. */
+.table-query-chips {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: var(--space-8);
+  padding-bottom: var(--page-head-gap);
+}
+.table-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-size);
+  max-width: 100%;
+  padding-left: var(--space-8);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  overflow-wrap: anywhere;
+}
+.table-chip .button {
+  flex: none;
+  min-height: var(--target-size);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-pill);
+}
+.table-popup-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-8) var(--space-8);
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  line-height: var(--line-h2);
+  font-weight: var(--weight-display-heading);
+}
+.table-popup-count,
+.table-popup-note {
+  color: var(--faint);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.table-popup-count {
+  flex: none;
+  font: var(--figures);
+  white-space: nowrap;
+}
+.table-popup-note {
+  padding: 0 var(--space-8) var(--space-4);
+}
+/* The view menu's trailing label is state, not a keyboard hint, including on touch. */
+.menu:has(.table-popup-heading) kbd {
+  display: block;
+  color: var(--faint);
+  font: var(--figures);
+}
+.table-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: var(--space-4);
+  min-height: var(--space-32);
+  padding-block: var(--space-8);
+  border-top: var(--rule-width) solid var(--line);
+  color: var(--faint);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.table-show-more.button {
+  padding-inline: var(--space-8);
+  color: var(--accent);
+  font: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: var(--space-4);
+}
+.menu-section {
+  padding: var(--space-8) var(--space-8) var(--space-4);
+  color: var(--muted);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+  border-top: var(--rule-width) solid var(--line);
+  margin-top: var(--space-4);
+}
+.menu-section:first-child {
+  border-top: 0;
+  margin-top: 0;
+}

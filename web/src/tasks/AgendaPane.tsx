@@ -51,7 +51,7 @@ import { NavTitle } from '../ui/NavBar';
 import { SearchWell } from '../ui/SearchWell';
 import { isPhone } from '../ui/phone';
 import './agenda.css';
-import '../table/table.css';
+import '../ui/chips.css';
 
 export interface AgendaPaneProps {
   pane: PaneId;

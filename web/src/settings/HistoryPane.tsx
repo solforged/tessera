@@ -8,7 +8,6 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { historyActor } from './history';
 import { isoMinute, workshopZone } from './time';
-import '../fields/field-page.css';
 import './settings.css';
 
 const PAGE = 50;

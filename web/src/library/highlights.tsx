@@ -11,6 +11,7 @@ import { Button } from '../ui/Button';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { createHighlightTagPrompt } from './HighlightTagPopup';
+import '../ui/covers.css';
 import './library.css';
 
 export const highlightColors = ['yellow', 'green', 'blue', 'red', 'purple'] as const;

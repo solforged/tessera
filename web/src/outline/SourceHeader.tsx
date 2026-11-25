@@ -26,7 +26,7 @@ import { timeLeft } from '../reader/paged';
 import { BookMap } from '../reader/BookMap';
 import { bookChapters, chapterAt } from '../reader/book-map';
 import { civilDate, journalLabel } from '../tasks/relative-date';
-import '../library/library.css';
+import '../ui/covers.css';
 
 const stateLabels: Record<ReadingState, string> = {
   inbox: 'Inbox',

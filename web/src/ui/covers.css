@@ -1,0 +1,176 @@
+/* Shared book covers, highlight colour dots and source collection chips across outline, journal and library surfaces. */
+.library-message {
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  color: var(--muted);
+}
+.library-highlight-color-bar {
+  display: inline-block;
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-16);
+  background: var(--highlight-bar);
+}
+.highlight-color-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--space-12);
+  height: var(--space-12);
+  border-radius: 50%;
+  background: var(--faint);
+}
+.highlight-color-yellow {
+  background: var(--highlight-yellow);
+}
+.highlight-color-green {
+  background: var(--highlight-green);
+}
+.highlight-color-blue {
+  background: var(--highlight-blue);
+}
+.highlight-color-red {
+  background: var(--highlight-red);
+}
+.highlight-color-purple {
+  background: var(--highlight-purple);
+}
+/* An uncoloured highlight is a hollow ring wherever it appears: rows, the reader list, citation chips and the colour menu. */
+.highlight-color-dot.highlight-color-none {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--faint);
+}
+.library-cover {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 0 0 var(--rule-width) var(--line);
+  transition: box-shadow var(--motion-fast) var(--motion-ease);
+}
+.library-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+img[data-resource-image="pending"] {
+  opacity: 0;
+}
+img[data-resource-image="loaded"] {
+  animation: fade-in var(--motion-ui) var(--motion-ease) both;
+}
+/* Captions carry the title; placeholder covers carry only a centered shelfmark. */
+.library-spine {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-8);
+}
+.library-spine-siglum {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+  font: var(--figures);
+  letter-spacing: var(--tracking-apparatus);
+  text-align: center;
+}
+.library-cover-generated {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--hue) 26%, var(--raised));
+  box-shadow:
+    inset 0 1px 0 var(--lit-edge),
+    0 1px 3px var(--contact-shadow),
+    0 0 0 0.5px color-mix(in srgb, var(--hue) 50%, var(--line));
+}
+.library-cover-generated::before {
+  content: "";
+  position: absolute;
+  inset: 6.7cqw;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 0.75px color-mix(in srgb, var(--hue) 55%, transparent);
+  pointer-events: none;
+}
+.library-cover-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  max-width: calc(100% - 24cqw);
+  margin: 28cqw 0 0;
+  color: var(--text);
+  font: italic var(--weight-source-title) 21.7cqw / 25cqw var(--font-display);
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+}
+.library-cover-author {
+  max-width: 100%;
+  margin: 0 7cqw 18cqw;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  font: 500 10.8cqw / 13.3cqw var(--font-body);
+  letter-spacing: 0.14em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.library-source-collections {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.library-collection-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-left: var(--space-8);
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-control);
+}
+.library-collection-chip-new {
+  animation: library-chip-in var(--motion-ui) var(--motion-ease) both;
+}
+/* A gilt seal fades over the resting hairline without repainting the border colour every frame. */
+.library-collection-chip-new::after {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--rule-width));
+  border: var(--rule-width) solid var(--accent);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: fade-out var(--motion-ink) var(--motion-ease) both;
+}
+@keyframes library-chip-in {
+  from {
+    scale: 0.96;
+  }
+  to {
+    scale: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .library-collection-chip-new,
+  .library-collection-chip-new::after,
+  img[data-resource-image="loaded"] {
+    animation: none;
+  }
+  .library-collection-chip-new::after {
+    opacity: 0;
+  }
+}
+.library-collection-chip > span {
+  overflow-wrap: anywhere;
+}

@@ -3289,6 +3289,14 @@ mark {
     backdrop-filter: none;
   }
 }
+.index-kind-row {
+  display: flex;
+  min-width: 0;
+}
+.index-kind-row > .index-kind {
+  flex: 1;
+  min-width: 0;
+}
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .tab-rule,
   .sidebar .button::before {

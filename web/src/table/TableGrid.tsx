@@ -14,6 +14,7 @@ import { newTask } from '../tasks/quick-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { longPress } from '../ui/context-menu';
+import '../ui/chips.css';
 import './table.css';
 
 export interface TableGridProps {

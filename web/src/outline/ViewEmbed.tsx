@@ -1,15 +1,16 @@
 import { opensBeside } from '../core/beside';
-import { Show, createEffect, createMemo, createResource, createSignal, on } from 'solid-js';
+import { Show, createEffect, createMemo, createResource, createSignal, lazy, on } from 'solid-js';
 import type { Query } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import type { Token } from '../document/text-tokens';
 import { isViewReference, textTokens } from '../document/text-tokens';
-import { ViewBody } from '../table/ViewBody';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { ViewPicker, viewReference } from './ViewPicker';
 import './view-embed.css';
+
+const ViewBody = lazy(() => import('../table/ViewBody').then(module => ({ default: module.ViewBody })));
 
 /** Only one whole reference becomes a live view; inline occurrences remain links. */
 export function viewEmbedTarget(text: string): Token | undefined {
