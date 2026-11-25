@@ -1,9 +1,10 @@
 import type { FieldDefinition, FieldKind, Filter, FilterOp, Query, SortKey } from '../api/types';
-import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
-import { parseCardText } from '../core/card-text';
-import { targetLabel } from '../outline/names';
-import { fieldLabel } from '../fields/kinds';
+import type { WorkshopClient } from '../document/contract';
+import { fieldEntryText, fieldLabel, matchFieldEntry } from '../model/fields';
+import { targetLabel } from '../model/names';
+
+export { fieldEntryText, matchFieldEntry };
 
 export const filterLabels: Record<FilterOp, string> = {
   is: 'is',
@@ -310,15 +311,4 @@ export function addFilter(query: Query, filter: Filter): Query {
 }
 export function removeFilter(query: Query, index: number): Query {
   return { ...query, filters: query.filters.filter((_, position) => position !== index) };
-}
-export function matchFieldEntry(text: string): { name: string; value: string } | null {
-  const match = /^([^\\`[\]#:]{1,60}?)::\s?(.*)$/.exec(text);
-  if (!match || !match[1]!.trim()) return null;
-  const name = match[1]!.trim();
-  const prefix = parseCardText(name);
-  if (prefix.cards.length || prefix.problems.length) return null;
-  return { name, value: match[2]! };
-}
-export function fieldEntryText(fieldId: string): string {
-  return `[[${fieldId}]]`;
 }

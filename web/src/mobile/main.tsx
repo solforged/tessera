@@ -1,4 +1,4 @@
-import '../shell/theme';
+import '../ui/theme';
 import '@fontsource-variable/ibm-plex-sans';
 import '../ui/keys.css';
 import '@fontsource-variable/piazzolla/standard.css';
@@ -10,7 +10,7 @@ import type { OpenedFiles } from '../library/opened-files';
 import { setQuickCaptureSource } from '../shell/quick-capture';
 import { parseCreateRequest } from '../create/request';
 import { setStreamFactory, setTransport } from '../api/client';
-import { setSystemBarsHandler } from '../shell/system-bars';
+import { setSystemBarsHandler } from '../ui/system-bars';
 import { App } from '../shell/App';
 import { installIosViewport } from '../ui/ios-viewport';
 import { workshopFetch, workshopStream } from './transport';

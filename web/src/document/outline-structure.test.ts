@@ -5,8 +5,8 @@ import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
 import type { Operation } from '../api/types';
 import type { DocumentChange, Edit, PageDocument } from './contract';
-import { createWorkshopClient } from './index';
-import type { Workshop } from './index';
+import { createWorkshopClient } from '../workflows/workshop';
+import type { Workshop } from '../workflows/workshop';
 import { outlineDrop } from '../outline/drag';
 import { selectionRoots } from '../outline/visibility';
 

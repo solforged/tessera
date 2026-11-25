@@ -1,8 +1,9 @@
+import { insideProtectedSyntax } from '../core/syntax';
 import type { WorkshopClient } from '../document/contract';
-import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
-import { insideProtectedSyntax } from '../tasks/quick-date';
-import { foldName, resolveName } from './names';
+import { foldName } from '../model/names';
+import { isStableReference, isViewReference, textTokens } from '../model/text-tokens';
 import { isJournalReference } from './completion';
+import { resolveName } from './names';
 
 export type TitleTargets = Map<string, string>;
 

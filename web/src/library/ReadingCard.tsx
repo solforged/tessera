@@ -81,7 +81,7 @@ export function ReadingCard(props: {
             (snapshot()?.format ?? props.row.snapshot_format ?? props.row.source.format) !== 'article'
           }
         >
-          <SourceCover row={props.row} siglum={props.row.source.siglum} />
+          <SourceCover api={props.workshop.api} row={props.row} siglum={props.row.source.siglum} />
         </Show>
         <span class="library-reading-text">
           <span

@@ -1,5 +1,5 @@
 import { Show, createSignal, onCleanup, onMount } from 'solid-js';
-import { createWorkshopClient } from '../document';
+import { createWorkshopClient } from '../workflows/workshop';
 import type { WorkshopInfo } from '../api/types';
 import { blankCapture, parseCreateRequest } from '../create/request';
 import { CreateSlipBody } from '../create/CreateSlip';

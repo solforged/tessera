@@ -1965,6 +1965,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                           }
                         >
                           <ResourceImage
+                            api={props.workshop.api}
                             snapshotId={row.source.current_snapshot_id ?? ''}
                             href={row.cover!}
                             alt=""
@@ -2126,7 +2127,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                     onClick={event => openSource(target, opensBeside(event))}
                     onKeyDown={event => rowKey(event, target)}
                   >
-                    <SourceCover row={row} siglum={row.source.siglum} />
+                    <SourceCover api={props.workshop.api} row={row} siglum={row.source.siglum} />
                     <span
                       class="library-reading-rule"
                       classList={{ 'library-reading-started': row.progress > 0 }}
@@ -3051,7 +3052,9 @@ export function LibraryPane(props: LibraryPaneProps) {
                           }
                         >
                           <span class="library-collection-covers" aria-hidden="true">
-                            <For each={card.covers}>{row => <SourceCover row={row} siglum={row.source.siglum} />}</For>
+                            <For each={card.covers}>
+                              {row => <SourceCover api={props.workshop.api} row={row} siglum={row.source.siglum} />}
+                            </For>
                             <Show when={!card.covers.length}>
                               <Icon name="shelf" />
                             </Show>
@@ -3124,6 +3127,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                           >
                             <Show when={isPhone()} fallback={<span class="library-siglum">{row.source.siglum}</span>}>
                               <SourceCover
+                                api={props.workshop.api}
                                 row={row}
                                 siglum={row.source.siglum}
                                 title={displayTitle(row.page.text, lookup)}

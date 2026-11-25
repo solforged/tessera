@@ -16,8 +16,7 @@ import type { ExtractedMetadata, FieldDefinition, SourceView } from '../api/type
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
-import { textTokens } from '../document/text-tokens';
-import { documentReady } from '../outline/source-fields';
+import { textTokens } from '../model/text-tokens';
 import { displayTitle } from '../outline/names';
 import { valueLabel } from '../outline/source';
 import { Button } from '../ui/Button';
@@ -281,7 +280,7 @@ export function MetadataInspector(props: {
         setRequested(undefined);
         setLoading(true);
         setLoadError('');
-        void Promise.all(selected.docs.map(documentReady))
+        void Promise.all(selected.docs.map(doc => doc.ready()))
           .then(() => {
             if (cancelled) return;
             if (selected.docs.some(doc => !doc.root()?.source))
@@ -678,6 +677,7 @@ export function MetadataInspector(props: {
         <Show when={currentCover()}>
           {href => (
             <ResourceImage
+              api={props.workshop.api}
               snapshotId={selected[0]?.root()?.source?.current_snapshot_id ?? ''}
               href={href()}
               loading="lazy"

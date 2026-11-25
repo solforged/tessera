@@ -1,7 +1,7 @@
 import { For, Match, Show, Switch, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import type { ApiClient } from '../api/client';
 import type { PairedDevice, SyncState } from '../api/types';
-import { api } from '../api/client';
 import { DEMO, MOBILE } from '../core/mode';
 import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
@@ -135,6 +135,7 @@ export function SyncLifecycle(props: {
       <Show when={props.anchor && currentHealth()}>
         {health => (
           <SyncSummary
+            api={props.workshop.api}
             health={health()}
             anchor={props.anchor!}
             onClose={props.onClose}
@@ -153,12 +154,17 @@ export function SyncLifecycle(props: {
         )}
       </Show>
       <Show when={setup()}>
-        <SyncSetup onDone={() => setSetup(false)} />
+        <SyncSetup api={props.workshop.api} onDone={() => setSetup(false)} />
       </Show>
       {/* Keyed: Popup reads returnFocus while it closes, after `again` is null, when an unkeyed accessor would throw and strand the popup. */}
       <Show when={again()} keyed>
         {target => (
-          <SyncSetup again={{ url: target.url }} returnFocus={() => target.opener} onDone={() => setAgain(null)} />
+          <SyncSetup
+            api={props.workshop.api}
+            again={{ url: target.url }}
+            returnFocus={() => target.opener}
+            onDone={() => setAgain(null)}
+          />
         )}
       </Show>
     </>
@@ -286,6 +292,7 @@ export function SyncExplanation(props: { health: SyncHealth; where?: 'summary' |
 
 /** The same fixing action in the short summary and the expanded device row. */
 export function SyncFix(props: {
+  api: ApiClient;
   health: SyncHealth;
   onError(
     message: string,
@@ -338,7 +345,7 @@ export function SyncFix(props: {
           class="bordered"
           disabled={running() || replica()?.syncing}
           onClick={() => {
-            void act(api.runSync);
+            void act(props.api.runSync);
           }}
         >
           {running() ? 'Trying…' : value().kind === 'unreachable' ? 'Try again' : 'Sync now'}
@@ -361,7 +368,7 @@ export function SyncFix(props: {
           class="bordered"
           disabled={running()}
           onClick={() => {
-            void act(api.reclone);
+            void act(props.api.reclone);
           }}
         >
           {running() ? 'Downloading…' : 'Download the workshop again'}
@@ -369,6 +376,7 @@ export function SyncFix(props: {
       </Show>
       <Show when={pairing()}>
         <SyncSetup
+          api={props.api}
           again={{ url: replica()!.hub_url }}
           returnFocus={() => again ?? null}
           onDone={() => setPairing(false)}
@@ -383,6 +391,7 @@ const needsPerson = (device: PairedDevice) => device.state === 'retired' || !!de
 const SUMMARY_DEVICES = 3;
 
 function SyncSummary(props: {
+  api: ApiClient;
   health: SyncHealth;
   anchor: HTMLElement;
   onClose(): void;
@@ -460,7 +469,7 @@ function SyncSummary(props: {
           </Show>
           <Show when={props.health.kind !== 'review'}>
             <div class="sync-summary-action">
-              <SyncFix health={props.health} onError={setError} onPairAgain={props.onPairAgain} />
+              <SyncFix api={props.api} health={props.health} onError={setError} onPairAgain={props.onPairAgain} />
             </div>
           </Show>
           <button type="button" class="sync-details" onClick={props.onDevices}>

@@ -1,4 +1,4 @@
-import '../shell/theme';
+import '../ui/theme';
 import '@fontsource-variable/ibm-plex-sans';
 import '../ui/keys.css';
 import '@fontsource-variable/piazzolla/standard.css';
@@ -32,7 +32,7 @@ function exclusive(work: () => Promise<void>): Promise<void> {
   operation = next.catch(() => {});
   return next;
 }
-installInstalledWindow();
+installInstalledWindow(() => workshop?.api);
 window.addEventListener(
   'pagehide',
   () => {

@@ -2,8 +2,8 @@ import 'fake-indexeddb/auto';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
-import { createWorkshopClient } from './index';
-import type { Workshop } from './index';
+import { createWorkshopClient } from '../workflows/workshop';
+import type { Workshop } from '../workflows/workshop';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
 import {

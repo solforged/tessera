@@ -1,23 +1,10 @@
 import { untrack } from 'solid-js';
 import type { FieldDefinition, FieldRole } from '../api/types';
-import type { PageDocument } from '../document/contract';
 import { fieldEntryId } from '../core/field-entry';
+import type { PageDocument } from '../document/contract';
+import { fieldRole, fieldRoles, roleDescriptions, roleLabels } from '../model/fields';
 
-export const fieldRoles = ['standfirst', 'attribute', 'prose', 'citation'] as const satisfies readonly FieldRole[];
-export type { FieldRole };
-export const roleLabels: Record<FieldRole, string> = {
-  standfirst: 'Standfirst',
-  attribute: 'Attribute',
-  prose: 'Prose',
-  citation: 'Citation',
-};
-export const roleDescriptions: Record<FieldRole, string> = {
-  standfirst: 'A sentence below the atom, without a label.',
-  attribute: 'A compact label and value in the field bed.',
-  prose: 'A full-width passage below the field bed.',
-  citation: 'References as siglum and locator in the field bed.',
-};
-export const fieldRole = (field: { role?: FieldRole } | undefined): FieldRole => field?.role ?? 'attribute';
+export { fieldRole, fieldRoles, roleDescriptions, roleLabels, type FieldRole };
 
 /** Project each owner's standfirst, compact bed and prose before its ordinary children. */
 export function fieldBedRows(

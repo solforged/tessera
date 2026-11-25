@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createRoot, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { AgendaItem, TaskRow, TaskState, TaskStatus, WorkSession } from '../api/types';
 import type { Edit, WorkshopClient, PageDocument } from '../document/contract';
@@ -35,24 +35,6 @@ import './task-row.css';
 
 /** A phone's now rule names the time as a figure: `8:25`, not `08:25`. */
 const clockLabel = (now: string | undefined, phone: boolean) => (phone ? now?.replace(/^0/, '') : now);
-
-/** Resolves once an opened document has loaded; rejects when it is missing or failed. */
-export function documentReady(doc: PageDocument): Promise<void> {
-  const ready = Promise.withResolvers<void>();
-  createRoot(dispose => {
-    createEffect(() => {
-      const status = doc.status();
-      if (status === 'ready') {
-        dispose();
-        ready.resolve();
-      } else if (status !== 'loading') {
-        dispose();
-        ready.reject(new Error(doc.statusMessage()));
-      }
-    });
-  });
-  return ready.promise;
-}
 
 /** Agenda and task queries render the same canonical source, never journal copies. */
 export function TaskSourceRows(props: {
@@ -399,7 +381,7 @@ function TaskSourceRow(props: {
   const saveWork = async (intent: Edit) => {
     const doc = props.workshop.open(props.row.source.page.id);
     try {
-      await documentReady(doc);
+      await doc.ready();
       const result = doc.edit(intent);
       if (!result.ok) throw new Error(result.reason);
       await doc.flush();
@@ -429,7 +411,7 @@ function TaskSourceRow(props: {
       if (props.history) {
         if ((await props.history.edit(row, edit)) === false) return;
       } else {
-        await documentReady(doc!);
+        await doc!.ready();
         if ((await edit(doc!)) === false) return;
         await doc!.flush();
       }

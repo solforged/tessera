@@ -1,4 +1,5 @@
 import { Show } from 'solid-js';
+import type { ApiClient } from '../api/client';
 import type { LibraryRow } from '../api/types';
 import { isPhone } from '../ui/phone';
 import { ResourceImage } from './ResourceImage';
@@ -16,7 +17,7 @@ function hueOf(title: string) {
  * Coverless sources keep only their siglum, with the title in the caption. On a phone they get a generated cover instead:
  * the title in Piazzolla italic on a wash of one type hue, framed by a hairline, the author in small capitals below.
  */
-export function SourceCover(props: { row: LibraryRow; siglum: string; title?: string }) {
+export function SourceCover(props: { api: ApiClient; row: LibraryRow; siglum: string; title?: string }) {
   const surname = () => sourceByline(props.row).split(' · ')[0]!.trim().split(/\s+/).pop() ?? '';
   const title = () => props.title ?? displayTitle(props.row.page.text);
   return (
@@ -47,6 +48,7 @@ export function SourceCover(props: { row: LibraryRow; siglum: string; title?: st
         }
       >
         <ResourceImage
+          api={props.api}
           snapshotId={props.row.source.current_snapshot_id ?? ''}
           href={props.row.cover!}
           alt=""

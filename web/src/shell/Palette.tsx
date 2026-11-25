@@ -1,7 +1,6 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { highlightMatches, sourceFacts } from '../library/query';
-import { api } from '../api/client';
 import type {
   Block,
   BlockInPage,
@@ -34,7 +33,7 @@ import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from
 import { citationRange, passageSegments } from '../reader/passages';
 import { contentsTitle } from '../reader/openings';
 import { titleKey } from '../document/title-key';
-import { pendingCaretInput } from './pending-caret';
+import { pendingCaretInput } from '../ui/pending-caret';
 import { inferKind, type CreateRequest } from '../create/request';
 import { createPageDraft } from '../create/draft';
 import type { PopupAnchor } from '../ui/Popup';
@@ -270,7 +269,7 @@ export function Palette(props: {
     () => (mode() === 'search' ? ([debounced(), props.workshop.changeSequence(), live()] as const) : false),
     async ([q]): Promise<SearchHit[]> => {
       if (!q) return props.workshop.roots().map(root => ({ block: root, page: root }));
-      const [pages, blocks] = await Promise.all([api.complete(q, 40), api.search(q)]);
+      const [pages, blocks] = await Promise.all([props.workshop.api.complete(q, 40), props.workshop.api.search(q)]);
       const roots = pages.filter(page => page.kind !== 'block').map(page => ({ block: page, page, alias: page.alias }));
       const ids = new Set(roots.map(hit => hit.block.id));
       // A field entry whose whole text is the field's name matches the label, not anything written: its page is not a result.
@@ -288,7 +287,7 @@ export function Palette(props: {
       const id = scope()?.matching ? undefined : scope()?.page.id;
       return live() && id && props.workshop.lookup(id)()?.revision !== 0 ? id : undefined;
     },
-    id => api.page(id),
+    id => props.workshop.api.page(id),
   );
   const commands = createMemo(() => {
     if (mode() !== 'commands') return [];
@@ -393,7 +392,7 @@ export function Palette(props: {
   });
   const drill = async (hit: BlockInPage): Promise<boolean> => {
     if (props.workshop.lookup(hit.page.id)()?.revision === 0) return false;
-    const page = await api.page(hit.page.id);
+    const page = await props.workshop.api.page(hit.page.id);
     if (!page.rows.some(row => row.block.parent_id === hit.block.id)) return false;
     setScopes(previous => [...previous, hit]);
     return true;
@@ -1070,7 +1069,9 @@ function FindPreview(props: {
             <header class="find-preview-header">
               {/* Covers are paths inside a book, served through its snapshot. */}
               <Show when={value().cover}>
-                {cover => <ResourceImage snapshotId={cover().snapshotId} href={cover().href} alt="" />}
+                {cover => (
+                  <ResourceImage api={props.workshop.api} snapshotId={cover().snapshotId} href={cover().href} alt="" />
+                )}
               </Show>
               <div>
                 <h2>{value().title}</h2>

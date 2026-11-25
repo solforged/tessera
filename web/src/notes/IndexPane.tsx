@@ -32,7 +32,6 @@ import type { IndexViewState, OpenTarget } from '../core/contract';
 import { displayTitle, plainText, readableText } from '../outline/names';
 import { titleKey } from '../document/title-key';
 import { builtInTagReason, PageMergePicker } from '../outline/PageMerge';
-import { documentReady } from '../outline/source-fields';
 import {
   addFilter,
   copyQuery,
@@ -1872,7 +1871,7 @@ function FilingPicker(props: {
     try {
       await Promise.all(
         docs.map(async doc => {
-          await documentReady(doc);
+          await doc.ready();
           await doc.flush();
         }),
       );
@@ -1977,7 +1976,7 @@ function RenameNote(props: {
     setError('');
     const doc = props.workshop.open(props.note.id);
     try {
-      await documentReady(doc);
+      await doc.ready();
       const result = doc.edit({ kind: 'text', id: props.note.id, text: title().trim() });
       if (!result.ok) throw new Error(result.reason);
       await doc.flush();

@@ -6,7 +6,6 @@ import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { Icon } from '../ui/Icon';
 import { completeNames, displayTitle } from './names';
-import { documentReady } from './source-fields';
 import type { OutlineContext } from './context';
 
 export function viewReference(view: Pick<View, 'id' | 'name'>): string {
@@ -77,7 +76,7 @@ export function EmbedOnPagePicker(props: {
     setError('');
     const doc = props.workshop.open(pageId);
     try {
-      await documentReady(doc);
+      await doc.ready();
       const children = doc.outline.children(pageId);
       const written = doc.edit({
         kind: 'insert',

@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import type { ProviderInput, ProviderView } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -45,8 +45,8 @@ const keyStays = (value: Draft) => {
 };
 
 /** Settings › Models: the models the agent dock can use, with keys kept on this machine. */
-export function AgentSettings(props: { id: string; heading: JSX.Element }) {
-  const [saved, { mutate }] = createResource(() => api.agentProviders());
+export function AgentSettings(props: { id: string; heading: JSX.Element; api: ApiClient }) {
+  const [saved, { mutate }] = createResource(() => props.api.agentProviders());
   const [draft, setDraft] = createSignal<Draft | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -82,7 +82,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     setBusy(true);
     setError('');
     try {
-      const next = await api.saveAgentProviders({ providers, default: fallback });
+      const next = await props.api.saveAgentProviders({ providers, default: fallback });
       mutate(next);
       return true;
     } catch (reason) {
@@ -126,7 +126,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     if (tested()[provider.id] === 'Testing…') return;
     setTested(values => ({ ...values, [provider.id]: 'Testing…' }));
     try {
-      await api.testAgentProvider(provider.id);
+      await props.api.testAgentProvider(provider.id);
       setTested(values => ({ ...values, [provider.id]: 'Answered' }));
     } catch (reason) {
       setTested(values => ({ ...values, [provider.id]: message(reason) }));

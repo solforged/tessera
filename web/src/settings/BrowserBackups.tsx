@@ -1,8 +1,7 @@
 import { Show, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { browserWorkshop } from '../demo/notebook';
-import { localToday } from '../demo/seed';
 import { size } from '../sync/state';
+import { browserWorkshop, localToday } from '../ui/browser-workshop';
 import { Button } from '../ui/Button';
 import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
 import { Group } from './Group';

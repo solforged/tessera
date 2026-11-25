@@ -1,6 +1,5 @@
 import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
-import { api } from '../api/client';
 import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../core/contract';
@@ -98,7 +97,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true);
-      void api
+      void props.workshop.api
         .fields(controller.signal)
         .then(value => {
           if (controller.signal.aborted) return;

@@ -1,4 +1,4 @@
-import { newTask } from '../../tasks/quick-date';
+import { newTask } from '../../model/tasks';
 import { sameState } from '../types';
 import type { Edit } from '../contract';
 import type { DocumentInternals } from './internals';

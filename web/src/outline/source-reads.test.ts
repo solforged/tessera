@@ -4,7 +4,7 @@ import type * as Solid from 'solid-js';
 import { freePort, startService, type WorkshopService } from '../testing/service';
 import { ulid } from 'ulid';
 import type { ChangeSocket } from '../api/client';
-import type { Workshop } from '../document/index';
+import type { Workshop } from '../workflows/workshop';
 
 // Dynamic imports are intentional here: mock Solid's SSR boundary before loading its consumers.
 const browserEntry = 'solid-js/dist/solid.js';
@@ -14,7 +14,7 @@ const { createMemo, createRoot } = await import('solid-js');
 const { createApi } = await import('../api/client');
 const { emptyMetadata } = await import('../library/details');
 const { citedSigla } = await import('../library/sigla');
-const { createWorkshopClient } = await import('../document/index');
+const { createWorkshopClient } = await import('../workflows/workshop');
 const { createCitationSources, createCitedSources } = await import('./source-reads');
 const { textTokens } = await import('../document/text-tokens');
 

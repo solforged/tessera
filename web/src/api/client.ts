@@ -717,5 +717,3 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     // Only service, backups and article URL ingestion are absent in embedded builds; their callers are guarded.
   } satisfies Omit<ApiClient, NativeMethod> as ApiClient;
 }
-
-export const api = createApi();
