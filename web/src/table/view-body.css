@@ -3,6 +3,49 @@
   max-width: 100%;
   --criterion-width: calc(var(--space-48) * 4);
 }
+.compare-siglum {
+  color: var(--faint);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.compare-holder-name.button {
+  min-height: var(--target-size);
+  padding: 0;
+  color: var(--text);
+  font: var(--weight-display-heading) var(--text-h2) / var(--line-h2) var(--font-display);
+  text-align: left;
+}
+.compare-holder-name.button:hover {
+  color: var(--accent);
+}
+.criteria-value {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+.criteria-value + .criteria-value {
+  margin-top: var(--space-4);
+}
+.criteria-input {
+  display: block;
+  width: 100%;
+  min-height: var(--space-48);
+  padding: var(--space-4);
+  border: var(--rule-width) solid var(--accent);
+  background: var(--canvas);
+  color: var(--text);
+  font: var(--weight-body) var(--text-body) / var(--line-body) var(--font-body);
+  outline: none;
+}
 .view-shared-frame {
   position: relative;
   max-width: 100%;

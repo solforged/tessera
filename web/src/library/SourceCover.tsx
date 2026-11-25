@@ -5,6 +5,7 @@ import { isPhone } from '../ui/phone';
 import { ResourceImage } from './ResourceImage';
 import { displayTitle } from '../outline/names';
 import { sourceByline } from './query';
+import '../ui/covers.css';
 
 /** One of the six type hues, picked from the title so a book keeps its colour wherever it appears. */
 function hueOf(title: string) {

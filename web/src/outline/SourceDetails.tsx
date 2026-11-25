@@ -1,10 +1,13 @@
-import { Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createSignal, lazy, onCleanup, onMount } from 'solid-js';
 import { glide } from '../ui/pane-motion';
 import type { WorkshopClient } from '../document/contract';
 import type { OutlinePaneProps } from './contract';
-import { MetadataInspector } from '../library/MetadataInspector';
 import { Popup } from '../ui/Popup';
 import './source-details.css';
+
+const MetadataInspector = lazy(() =>
+  import('../library/MetadataInspector').then(module => ({ default: module.MetadataInspector })),
+);
 
 export function SourceDetails(props: {
   workshop: WorkshopClient;

@@ -33,7 +33,7 @@ import { TodaySettings } from './TodaySettings';
 import { PhoneAbout } from './About';
 import { Choice } from './Choice';
 import { Group } from './Group';
-import '../fields/field-page.css';
+import '../ui/field-sheet.css';
 import './settings.css';
 import './devices.css';
 

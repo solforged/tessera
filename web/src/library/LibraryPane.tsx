@@ -82,9 +82,14 @@ import {
   renameCollection,
   sourceCollections,
 } from '../document/collections';
-import { MetadataInspector } from './MetadataInspector';
+import { lazy as solidLazy } from 'solid-js';
+import '../ui/covers.css';
+import '../ui/chips.css';
 import './library.css';
-import '../table/table.css';
+
+const MetadataInspector = solidLazy(() =>
+  import('./MetadataInspector').then(module => ({ default: module.MetadataInspector })),
+);
 
 export interface LibraryPaneProps {
   pane: PaneId;

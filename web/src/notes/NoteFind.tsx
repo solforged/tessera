@@ -10,7 +10,7 @@ import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';
 import { notePredicates, parseNoteFind } from './finding-aid';
 import type { NotePredicate } from './finding-aid';
-import '../table/table.css';
+import '../ui/chips.css';
 import './notes.css';
 
 /** Both layouts edit the same query; resolved predicates store stable page IDs. */

@@ -25,6 +25,7 @@ import {
   updateColumn,
 } from './query';
 import type { DeskColumn } from './query';
+import '../ui/chips.css';
 import './desk.css';
 
 const columns: DeskColumn[] = [0, 1, 2];

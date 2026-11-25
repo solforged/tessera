@@ -11,7 +11,7 @@ import { Icon } from '../ui/Icon';
 import { SectionHead } from '../ui/SectionHead';
 import { createSettledChanges, createSlowFlag, sameData } from '../ui/loading';
 import { civilDate, relativeDate } from './relative-date';
-import './agenda.css';
+import './journal.css';
 
 export interface JournalResurfaceProps {
   /** The template's name for the section. */

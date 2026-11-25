@@ -15,6 +15,7 @@ import { hasValueEditor } from '../fields/value-options';
 import { checkboxValue } from '../fields/kinds';
 import { createOptionValue } from '../fields/commands';
 import { typedTitles } from '../outline/link-titles';
+import './compare.css';
 
 interface CriterionValue {
   id: string;

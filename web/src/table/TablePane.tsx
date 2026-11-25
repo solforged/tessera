@@ -57,7 +57,7 @@ import { createOptionValue } from '../fields/commands';
 import { missingFilter, requiredIds, requiredReason } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import { censusNoun, kindLabel, kindPlural, kindTally, noteKindIcon } from '../notes/kinds';
-import { CreateSlip } from '../create/CreateSlip';
+import { lazy as solidLazy } from 'solid-js';
 import { kindNoun } from '../create/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
@@ -97,11 +97,14 @@ import { TableGrid } from './TableGrid';
 import { columnEdge } from './edge';
 import { ViewBody } from './ViewBody';
 import { DeskPane } from '../desk/DeskPane';
+import '../ui/chips.css';
 import './table.css';
 import '../fields/fields.css';
 import { TaskFieldEditor } from '../tasks/TaskFieldEditor';
 import { taskFieldName } from '../tasks/task-fields';
 import { proseDate } from '../tasks/relative-date';
+
+const CreateSlip = solidLazy(() => import('../create/CreateSlip').then(module => ({ default: module.CreateSlip })));
 
 type TableTarget = Extract<OpenTarget, { kind: 'table' }>;
 export interface TablePaneProps {
