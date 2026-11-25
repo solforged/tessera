@@ -277,7 +277,7 @@ fn value_form(kind: FieldKind) -> Option<(&'static str, &'static str)> {
 
 /// Match `matchFieldEntry` without allocating a regex for each block. The
 /// editor's non-Unicode regex counts name length in UTF-16 code units.
-fn field_shorthand(text: &str) -> Option<(&str, &str)> {
+pub fn field_shorthand(text: &str) -> Option<(&str, &str)> {
     let (name, value) = text.split_once("::")?;
     let length = name.encode_utf16().count();
     if !(1..=60).contains(&length)

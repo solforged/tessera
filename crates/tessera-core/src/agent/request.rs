@@ -11,10 +11,10 @@ pub(super) const NOTE_LIMIT: usize = 5000;
 /// The longest idempotency key, in bytes.
 pub(super) const KEY_LIMIT: usize = 255;
 
-/// Where a note is appended.
+/// Where blocks are appended.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum NoteTarget {
+pub enum BlockTarget {
     /// The live page with this title, ignoring tags and case, else the one
     /// page whose title or alias matches it folded, as `[[Name]]` links;
     /// created when none matches. A name several pages share is refused.
@@ -29,10 +29,13 @@ pub enum NoteTarget {
     Block { id: String },
 }
 
-/// One block of a note and its nested children.
+/// Compatibility alias for [`BlockTarget`].
+pub type NoteTarget = BlockTarget;
+
+/// One block of an outline input and its nested children.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct NoteBlock {
+pub struct OutlineBlock {
     /// `Name:: value` becomes a field entry with the value as its first
     /// child, before `children`; nested blocks use the same shorthand.
     pub text: String,
@@ -44,8 +47,11 @@ pub struct NoteBlock {
     #[serde(default)]
     pub task: Option<TaskState>,
     #[serde(default)]
-    pub children: Vec<NoteBlock>,
+    pub children: Vec<OutlineBlock>,
 }
+
+/// Compatibility alias for [`OutlineBlock`].
+pub type NoteBlock = OutlineBlock;
 
 /// Evidence to attach to an existing block. A quote selects its first exact
 /// occurrence in one passage; otherwise the whole passage or range is cited.
@@ -70,13 +76,14 @@ pub struct AgentCitation {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AgentEdit {
     /// Append an outline after the target's last child.
-    AddNote {
-        target: NoteTarget,
-        blocks: Vec<NoteBlock>,
+    #[serde(alias = "add_note")]
+    AddBlocks {
+        target: BlockTarget,
+        blocks: Vec<OutlineBlock>,
     },
     /// Replace a block's text, its heading level, or both. Level 0 removes
     /// the heading. Editing a page root renames the page; ordinary blocks
-    /// accept the same field shorthand as [`NoteBlock`].
+    /// accept the same field shorthand as [`OutlineBlock`].
     EditBlock {
         id: String,
         #[serde(default)]

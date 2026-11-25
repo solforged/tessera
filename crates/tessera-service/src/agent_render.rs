@@ -379,18 +379,7 @@ fn structural(line: &str) -> bool {
             .any(|task| line.strip_prefix(task).is_some_and(marker_ends))
         || (line.chars().all(|ch| mark(ch) || matches!(ch, ' ' | '\t'))
             && line.chars().filter(|ch| mark(*ch)).count() >= 2)
-        || line.find("::").is_some_and(|at| {
-            // As the outline reads field shorthand: a name of up to 60
-            // characters that is not card syntax.
-            let name = line[..at].trim();
-            !name.is_empty()
-                && line[..at].chars().count() <= 60
-                && !name.contains(['\\', '`', '[', ']', '#', ':'])
-                && {
-                    let card = tessera_core::card_text::parse_card_text(name);
-                    card.cards.is_empty() && card.problems.is_empty()
-                }
-        })
+        || tessera_core::field_shorthand(line).is_some()
 }
 
 /// Whether `text` is one fenced code block: three or more backticks or
@@ -822,6 +811,148 @@ pub fn location(page: &Block) -> String {
         kind_label(page.kind),
         page.text,
         page.id
+    )
+}
+
+/// How many block revisions a receipt lists before counting the rest.
+pub const RECEIPT_BLOCKS: usize = 50;
+
+/// Live titles for `[[ID]]` references and `#[[ID|…]]` tags in agent output.
+#[derive(Default)]
+pub struct TitleMap(pub HashMap<String, String>);
+
+impl TitleMap {
+    /// The IDs a text's `[[ID]]` references and canonical tags name.
+    pub fn targets(text: &str) -> impl Iterator<Item = &str> {
+        tessera_core::reference_spans(text)
+            .filter(move |(span, _, _)| text[span.clone()].starts_with("[["))
+            .map(|(_, target, _)| target)
+            .chain(tessera_core::tag_tokens(text).filter_map(|token| token.id))
+    }
+
+    /// `text` with its references and tags shown by title.
+    pub fn show(&self, text: &str) -> String {
+        let titles: HashMap<&str, &str> = Self::targets(text)
+            .filter_map(|id| self.0.get_key_value(id))
+            .map(|(id, title)| (id.as_str(), title.as_str()))
+            .collect();
+        titled(text, &titles)
+    }
+
+    /// A block, typically a page, with its text shown by title.
+    pub fn block(&self, block: &Block) -> Block {
+        Block {
+            text: self.show(&block.text),
+            ..block.clone()
+        }
+    }
+
+    /// [`TitleMap::block`] for each block.
+    pub fn blocks(&self, blocks: &[Block]) -> Vec<Block> {
+        blocks.iter().map(|block| self.block(block)).collect()
+    }
+}
+
+/// The change number, page, created pages and fields, and block revisions,
+/// with their texts shown by title.
+pub fn describe_receipt(
+    receipt: &tessera_core::AgentReceipt,
+    titles: &TitleMap,
+    read_page_tool: &str,
+) -> String {
+    let mut text = format!(
+        "{}. This is change {}",
+        titles.show(&receipt.summary),
+        receipt.seq
+    );
+    if let Some(page) = &receipt.page {
+        text.push_str(&format!(
+            " on {} {:?} (id {})",
+            kind_label(page.kind),
+            titles.show(&page.text),
+            page.id
+        ));
+    }
+    text.push('.');
+    if !receipt.created_pages.is_empty() {
+        text.push_str(&format!(
+            " Created atoms: {}.",
+            quoted(&titles.blocks(&receipt.created_pages))
+        ));
+    }
+    if !receipt.created_fields.is_empty() {
+        text.push_str(&format!(
+            " Created fields: {}.",
+            quoted(&titles.blocks(&receipt.created_fields))
+        ));
+    }
+    if !receipt.blocks.is_empty() {
+        let blocks: Vec<_> = receipt
+            .blocks
+            .iter()
+            .take(RECEIPT_BLOCKS)
+            .map(|block| format!("{} r{}", block.id, block.revision))
+            .collect();
+        text.push_str(&format!(" Atoms: {}", blocks.join(", ")));
+        match receipt.blocks.len() - blocks.len() {
+            0 => text.push('.'),
+            more => text.push_str(&format!(
+                " and {more} more; {read_page_tool} shows every ID and revision."
+            )),
+        }
+    }
+    text
+}
+
+/// ` Cards: …` naming the cards a write left on its blocks, with what each
+/// shows and what it asks for, so a reversed direction is plain at once.
+pub fn format_card_report(cards: &[CardUnit], clock: &Clock, titles: &TitleMap) -> String {
+    if cards.is_empty() {
+        return String::new();
+    }
+    let labels: Vec<_> = cards
+        .iter()
+        .map(|card| {
+            let front = card_front(card);
+            let answer = card_answer(card);
+            format!(
+                "{} on block {} shows “{}” and asks for “{}”",
+                card_label(card, clock),
+                card.source_block_id,
+                snippet(&titles.show(&front)),
+                snippet(&titles.show(&answer))
+            )
+        })
+        .collect();
+    format!(" Cards: {}.", labels.join("; "))
+}
+
+/// ` …` for a committed write whose cards could not be read back.
+pub fn unread_cards_report(error: &anyhow::Error, read_page_tool: &str) -> String {
+    let error = format!("{error:#}");
+    format!(
+        " The change is saved; only reading its cards back failed: {}. Do not repeat the call; \
+         {read_page_tool} shows the cards.",
+        error.trim_end_matches('.')
+    )
+}
+
+/// ` Problems …` for card syntax that made no card and field lines that
+/// stayed text, quoting the whole block or line each is about.
+pub fn problem_report(problems: &[(String, String)], edit_block_tool: &str) -> String {
+    if problems.is_empty() {
+        return String::new();
+    }
+    let lines: Vec<_> = problems
+        .iter()
+        .map(|(text, message)| {
+            let message = message.trim_end_matches('.');
+            format!("“{}”: {message}", one_line(text))
+        })
+        .collect();
+    format!(
+        " Problems: {}. Fix them with {edit_block_tool}.",
+        lines.join("; ")
     )
 }
 
@@ -1375,7 +1506,7 @@ mod tests {
     #[test]
     fn choice_values_show_their_option_by_name_where_it_reads_back() {
         use tessera_core::{
-            Actor, AgentEdit, AgentRequest, Batch, NoteBlock, NoteTarget, Operation, Workshop,
+            Actor, AgentEdit, AgentRequest, Batch, BlockTarget, Operation, OutlineBlock, Workshop,
         };
         let dir = tempfile::tempdir().unwrap();
         let mut nb = Workshop::open(dir.path()).unwrap();
@@ -1385,11 +1516,11 @@ mod tests {
                     name: "test".into(),
                 },
                 reason: None,
-                edit: AgentEdit::AddNote {
-                    target: NoteTarget::Page {
+                edit: AgentEdit::AddBlocks {
+                    target: BlockTarget::Page {
                         title: "Attention".into(),
                     },
-                    blocks: vec![NoteBlock {
+                    blocks: vec![OutlineBlock {
                         text: "form:: paper".into(),
                         heading: None,
                         task: None,

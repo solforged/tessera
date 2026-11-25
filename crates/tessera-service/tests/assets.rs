@@ -1,3 +1,5 @@
+#![cfg(feature = "hub")]
+
 use axum::{
     Router,
     body::{Body, to_bytes},

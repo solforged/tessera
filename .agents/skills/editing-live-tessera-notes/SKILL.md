@@ -36,7 +36,7 @@ The launch agent serves the live workshop at `http://127.0.0.1:4318`.
 {
   "actor": { "kind": "agent", "name": "omp" },
   "reason": "Why this note was written.",
-  "kind": "add_note",
+  "kind": "add_blocks",
   "target": { "kind": "journal", "date": "2026-10-12" },
   "blocks": [
     {
@@ -47,6 +47,8 @@ The launch agent serves the live workshop at `http://127.0.0.1:4318`.
   ]
 }
 ```
+
+(`"kind": "add_note"` is still accepted as a compatibility alias.)
 
 - `target` can instead be `{"kind": "page", "title": "Inbox"}` or
   `{"kind": "block", "id": "<ULID>"}`. A missing page or journal day is created.
@@ -137,7 +139,7 @@ slip. Never put the same sentence in both.
 
 This is the pattern used for the Muqaddimah batch on 2026-10-12:
 
-- Post one `add_note` per page, with `target: {kind: page, title}`.
+- Post one `add_blocks` per page, with `target: {kind: page, title}`.
 - Make the first block `Gloss:: <what the idea is about>`.
 - Cite quoted spans in body paragraphs as
   `[[<Source page title or id>|exact quoted words|3.12]]`. The last part is the

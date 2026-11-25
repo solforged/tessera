@@ -4,6 +4,7 @@ use axum::{
         Path, Query, State,
         rejection::{JsonRejection, PathRejection, QueryRejection},
     },
+    http::{HeaderMap, HeaderValue},
 };
 use tessera_core::now_ms;
 use tessera_core::{
@@ -18,14 +19,28 @@ use crate::error::ApiError;
 use crate::run::read;
 use crate::state::WorkshopState;
 
+/// Response header carrying the live block revision read alongside its
+/// capability snapshot on `GET /api/blocks/{id}/capabilities`.
+pub const BLOCK_REVISION_HEADER: &str = "x-tessera-block-revision";
+
 pub(crate) async fn block(
     State(state): State<WorkshopState>,
     path: Result<Path<String>, PathRejection>,
-) -> Result<Json<BlockCapabilities>, ApiError> {
+) -> Result<(HeaderMap, Json<BlockCapabilities>), ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    read(&state, move |workshop| workshop.capabilities(&id))
-        .await
-        .map(Json)
+    let (revision, capabilities) = read(&state, move |workshop| {
+        let capabilities = workshop.capabilities(&id)?;
+        let revision = workshop.block(&id).ok().map(|block| block.revision);
+        Ok((revision, capabilities))
+    })
+    .await?;
+    let mut headers = HeaderMap::new();
+    if let Some(revision) = revision
+        && let Ok(value) = HeaderValue::from_str(&revision.to_string())
+    {
+        headers.insert(BLOCK_REVISION_HEADER, value);
+    }
+    Ok((headers, Json(capabilities)))
 }
 
 pub(crate) async fn task_occurrences(

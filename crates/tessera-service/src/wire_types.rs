@@ -412,7 +412,7 @@ fn declarations() -> String {
         crate::replica::ReplicaState,
         crate::replica::SyncState,
         crate::sharing::Sharing,
-        crate::sync::Attempt,
+        crate::replica::Attempt,
         crate::sync_client::Pairing
     );
     let mut text = String::from(HEADER);

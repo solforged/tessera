@@ -21,7 +21,7 @@ use axum::{
 use futures_util::Stream;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
-use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Workshop};
+use tessera_core::{Actor, AgentEdit, AgentRequest, BlockTarget, OutlineBlock, Workshop};
 use tower::ServiceExt;
 
 async fn request(app: &Router, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
@@ -595,11 +595,11 @@ async fn protocol_turn(protocol: &'static str) {
         .agent_edit(&AgentRequest {
             actor: Actor::Person,
             reason: None,
-            edit: AgentEdit::AddNote {
-                target: NoteTarget::Page {
+            edit: AgentEdit::AddBlocks {
+                target: BlockTarget::Page {
                     title: "Context".into(),
                 },
-                blocks: vec![NoteBlock {
+                blocks: vec![OutlineBlock {
                     text: "Context detail".into(),
                     heading: None,
                     task: None,

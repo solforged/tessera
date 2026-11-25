@@ -5,7 +5,7 @@ use anyhow::Context;
 use serde_json::Value;
 use tessera_core::calendar::add_days;
 use tessera_core::{
-    Agenda, AgendaItem, AgendaReason, AgentEdit, Block, BlockCapabilities, DateRange, TaskFilter,
+    Agenda, AgendaItem, AgendaReason, AgentEdit, BlockCapabilities, DateRange, TaskFilter,
     TaskQuery, TaskQueryResult, TaskRow, TaskSelection, TaskStatus, TaskView,
 };
 use tessera_service::agent_tools::edits;
@@ -40,35 +40,21 @@ impl Session<'_> {
     pub(super) async fn set_task(&self, arguments: &Value) -> anyhow::Result<String> {
         let id = required(arguments, "id")?;
         let api = self.api().await?;
-        // The write names the revision the merge starts from, so a change made
-        // in between is refused instead of overwritten. It is read before the
-        // task state; a caller's own revision is older still.
-        let revision = match integer(arguments, "revision")? {
-            Some(revision) => revision,
-            None => {
-                api.get::<Block>(&format!("/api/blocks/{}", segment(&id)))
-                    .await?
-                    .revision
-            }
-        };
-        let current: BlockCapabilities = api
-            .get(&format!("/api/blocks/{}/capabilities", segment(&id)))
+        // The capability route returns the block's revision header from the
+        // same read snapshot as its current task state, so a change made after
+        // this snapshot is refused instead of overwritten.
+        let (current, block_revision): (BlockCapabilities, Option<i64>) = api
+            .get_revisioned(&format!("/api/blocks/{}/capabilities", segment(&id)))
             .await?;
+        let revision = integer(arguments, "revision")?.or(block_revision);
         let today = if edits::sets_repeat(arguments)? {
             Some(clock(&api).await?.today)
         } else {
             None
         };
         let task = edits::task(current.task.as_ref(), arguments, today.as_deref())?;
-        self.submit(
-            arguments,
-            AgentEdit::SetTask {
-                id,
-                revision: Some(revision),
-                task,
-            },
-        )
-        .await
+        self.submit(arguments, AgentEdit::SetTask { id, revision, task })
+            .await
     }
 
     pub(super) async fn tasks(&self, arguments: &Value) -> anyhow::Result<String> {

@@ -27,7 +27,9 @@ use tessera_core::{Actor, AgentEdit, AgentReceipt, AgentRequest, Block};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 use crate::{Service, service};
-use render::{kind_label, quoted};
+#[cfg(test)]
+use render::RECEIPT_BLOCKS;
+use render::{TitleMap, describe_receipt};
 use tessera_service::agent_tools::args::{
     boolean, choice, given, integer, limit, required, string, undeclared,
 };
@@ -43,9 +45,6 @@ const DEFAULT_AGENT: &str = "mcp";
 
 /// The longest client name kept for attribution, in characters.
 const AGENT_NAME_CHARS: usize = 64;
-
-/// How many block revisions a receipt lists before counting the rest.
-const RECEIPT_BLOCKS: usize = 50;
 
 const INSTRUCTIONS: &str = "Tessera is a local outline workshop. Every note is a tree of \
 blocks on a named page or a journal day. Search or read before writing to avoid duplicates. \
@@ -388,48 +387,7 @@ fn agent_name(name: &str) -> String {
 /// The change number, page, created pages and fields, and block revisions,
 /// with their texts shown by title.
 fn describe(receipt: &AgentReceipt, titles: &Titles) -> String {
-    let mut text = format!(
-        "{}. This is change {}",
-        titles.show(&receipt.summary),
-        receipt.seq
-    );
-    if let Some(page) = &receipt.page {
-        text.push_str(&format!(
-            " on {} {:?} (id {})",
-            kind_label(page.kind),
-            titles.show(&page.text),
-            page.id
-        ));
-    }
-    text.push('.');
-    if !receipt.created_pages.is_empty() {
-        text.push_str(&format!(
-            " Created atoms: {}.",
-            quoted(&titles.blocks(&receipt.created_pages))
-        ));
-    }
-    if !receipt.created_fields.is_empty() {
-        text.push_str(&format!(
-            " Created fields: {}.",
-            quoted(&titles.blocks(&receipt.created_fields))
-        ));
-    }
-    if !receipt.blocks.is_empty() {
-        let blocks: Vec<_> = receipt
-            .blocks
-            .iter()
-            .take(RECEIPT_BLOCKS)
-            .map(|block| format!("{} r{}", block.id, block.revision))
-            .collect();
-        text.push_str(&format!(" Atoms: {}", blocks.join(", ")));
-        match receipt.blocks.len() - blocks.len() {
-            0 => text.push('.'),
-            more => text.push_str(&format!(
-                " and {more} more; tessera_read_page shows every ID and revision."
-            )),
-        }
-    }
-    text
+    describe_receipt(receipt, &TitleMap(titles.0.clone()), "tessera_read_page")
 }
 
 /// Live titles for the `[[ID]]` references and `#[[ID|…]]` tags in some block
@@ -477,10 +435,7 @@ impl Titles {
 
     /// The IDs a text's `[[ID]]` references and canonical tags name.
     fn targets(text: &str) -> impl Iterator<Item = &str> {
-        tessera_core::reference_spans(text)
-            .filter(move |(span, _, _)| text[span.clone()].starts_with("[["))
-            .map(|(_, target, _)| target)
-            .chain(tessera_core::tag_tokens(text).filter_map(|token| token.id))
+        TitleMap::targets(text)
     }
 }
 
@@ -500,6 +455,19 @@ impl Api {
     ) -> anyhow::Result<T> {
         let request = self.0.request(reqwest::Method::GET, path).query(query);
         body(request.send().await?).await
+    }
+
+    async fn get_revisioned<T: DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> anyhow::Result<(T, Option<i64>)> {
+        let response = self.0.request(reqwest::Method::GET, path).send().await?;
+        let revision = response
+            .headers()
+            .get(tessera_service::BLOCK_REVISION_HEADER)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<i64>().ok());
+        Ok((body(response).await?, revision))
     }
 
     async fn post<T: DeserializeOwned>(

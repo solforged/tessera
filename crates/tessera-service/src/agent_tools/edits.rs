@@ -5,10 +5,10 @@
 use anyhow::Context;
 use serde_json::Value;
 use tessera_core::calendar::{RepeatMode, RepeatUnit, Repeater};
-use tessera_core::{AgentEdit, NoteTarget, TaskPriority, TaskState, TaskStatus};
+use tessera_core::{AgentEdit, BlockTarget, TaskPriority, TaskState, TaskStatus};
 
 use super::args::{boolean, choice, given, integer, required, string};
-use crate::agent_outline::block_text;
+use crate::agent_outline::{block_problems, block_text, outline, text_problems};
 
 const MODES: &str = "fixed, catch_up or after_completion";
 
@@ -28,25 +28,88 @@ const TASK_FIELDS: [&str; 9] = [
 /// The longest warning lead before a deadline, in days.
 const WARNING_DAYS: u32 = 365;
 
+/// How a `read_page` call identifies the page or block to read.
+pub enum PageLookup<'a> {
+    Title(&'a str),
+    Date(&'a str),
+    Block(&'a str),
+}
+
+/// Validate a `read_page` call's target and subtree flag.
+pub fn read_page_target(arguments: &Value) -> anyhow::Result<(PageLookup<'_>, bool)> {
+    let id = string(arguments, "id")?;
+    let lookup = match (string(arguments, "title")?, string(arguments, "date")?, id) {
+        (Some(title), None, None) => {
+            let title = title.trim();
+            anyhow::ensure!(!title.is_empty(), "title must not be empty");
+            PageLookup::Title(title)
+        }
+        (None, Some(date), None) => PageLookup::Date(date),
+        (None, None, Some(id)) => PageLookup::Block(id),
+        _ => anyhow::bail!("Give exactly one of title, date or id."),
+    };
+    let subtree = boolean(arguments, "subtree")?.unwrap_or(false);
+    anyhow::ensure!(!subtree || id.is_some(), "subtree needs id.");
+    Ok((lookup, subtree))
+}
+
 /// Where add_note appends: a page, a journal day or under a block, and
 /// today's journal when none is given.
-pub fn note_target(arguments: &Value) -> anyhow::Result<NoteTarget> {
+pub fn block_target(arguments: &Value) -> anyhow::Result<BlockTarget> {
     Ok(
         match (
             string(arguments, "page")?,
             string(arguments, "journal")?,
             string(arguments, "parent_id")?,
         ) {
-            (Some(title), None, None) => NoteTarget::Page {
+            (Some(title), None, None) => BlockTarget::Page {
                 title: title.to_owned(),
             },
-            (None, journal, None) => NoteTarget::Journal {
+            (None, journal, None) => BlockTarget::Journal {
                 date: journal.filter(|date| *date != "today").map(str::to_owned),
             },
-            (None, None, Some(id)) => NoteTarget::Block { id: id.to_owned() },
+            (None, None, Some(id)) => BlockTarget::Block { id: id.to_owned() },
             _ => anyhow::bail!("Give at most one of page, journal or parent_id."),
         },
     )
+}
+
+pub use block_target as note_target;
+
+/// A parsed write-tool call with any syntax warnings on its blocks.
+pub struct PreparedEdit {
+    pub edit: AgentEdit,
+    pub edited_id: Option<String>,
+    pub problems: Vec<(String, String)>,
+}
+
+/// Parse an `add_note` call into its [`AgentEdit`] and any card/shorthand problems.
+pub fn add_note(arguments: &Value) -> anyhow::Result<PreparedEdit> {
+    let markdown = string(arguments, "markdown")?.context("markdown is required")?;
+    let blocks = outline(markdown)?;
+    anyhow::ensure!(!blocks.is_empty(), "Nothing to add: the text is empty.");
+    let target = block_target(arguments)?;
+    let problems = block_problems(&blocks);
+    Ok(PreparedEdit {
+        edit: AgentEdit::AddBlocks { target, blocks },
+        edited_id: None,
+        problems,
+    })
+}
+
+/// An edit_block call: new text, heading level, or both, with any text problems.
+pub fn edit_block_with_problems(arguments: &Value) -> anyhow::Result<PreparedEdit> {
+    let edit = edit_block(arguments)?;
+    let AgentEdit::EditBlock { id, text, .. } = &edit else {
+        unreachable!("edit_block reads an EditBlock")
+    };
+    let edited_id = text.is_some().then(|| id.clone());
+    let problems = text.as_deref().map(text_problems).unwrap_or_default();
+    Ok(PreparedEdit {
+        edit,
+        edited_id,
+        problems,
+    })
 }
 
 /// An edit_block call: new text, heading level, or both.

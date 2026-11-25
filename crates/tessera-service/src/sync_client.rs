@@ -1,6 +1,26 @@
 //! Shared native replica transport for the CLI and in-process hosts.
-use crate::sync::{BUILD_HEADER, SCHEMA_HEADER, TICKET_HEADER, VERSION_HEADER};
 use anyhow::Context;
+
+/// The schema version a replica runs; every sync request carries it.
+pub(crate) const SCHEMA_HEADER: &str = "x-tessera-schema";
+pub(crate) const VERSION_HEADER: &str = "x-tessera-version";
+pub(crate) const BUILD_HEADER: &str = "x-tessera-build";
+/// The clone ticket, beside the database bytes it describes.
+pub(crate) const TICKET_HEADER: &str = "x-tessera-clone";
+
+pub(crate) fn reported_version(headers: &axum::http::HeaderMap) -> Option<crate::SyncVersion> {
+    Some(crate::SyncVersion {
+        schema: headers.get(SCHEMA_HEADER)?.to_str().ok()?.parse().ok()?,
+        version: headers
+            .get(VERSION_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+        build: headers
+            .get(BUILD_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+    })
+}
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -58,7 +78,7 @@ async fn checked(
     response: reqwest::Response,
     hub_version: &Mutex<Option<crate::SyncVersion>>,
 ) -> anyhow::Result<reqwest::Response> {
-    let reported = crate::sync::reported_version(response.headers());
+    let reported = reported_version(response.headers());
     let has_headers = reported.is_some();
     if let Some(version) = reported {
         *hub_version.lock() = Some(version);
@@ -355,7 +375,7 @@ impl Hub for HttpHub {
                     .get(format!("{}/api/sync/objects/{sha}", self.base))
                     .send()
                     .await?;
-                if let Some(version) = crate::sync::reported_version(response.headers()) {
+                if let Some(version) = reported_version(response.headers()) {
                     *self.hub_version.lock() = Some(version);
                 }
                 if response.status() == reqwest::StatusCode::NOT_FOUND {

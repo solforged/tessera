@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::{OptionalExtension, params};
 
-use super::request::{AgentCitation, NOTE_LIMIT, NoteBlock, NoteTarget, TITLE_LIMIT};
+use super::request::{AgentCitation, BlockTarget, NOTE_LIMIT, OutlineBlock, TITLE_LIMIT};
 use crate::history::Step;
 use crate::notebook::{new_ulid, now_ms};
 use crate::storage::{validate_date, validate_id, validation};
@@ -66,11 +66,11 @@ pub(super) fn next_revision(revisions: &mut HashMap<String, i64>, id: &str) -> i
 }
 
 impl Workshop {
-    pub(super) fn plan_note(
+    pub(super) fn plan_blocks_edit(
         &self,
         plan: &mut Plan,
-        target: &NoteTarget,
-        blocks: &[NoteBlock],
+        target: &BlockTarget,
+        blocks: &[OutlineBlock],
     ) -> Result<(String, String)> {
         if blocks.is_empty() {
             return Err(validation("a capture must contain an atom"));
@@ -83,7 +83,7 @@ impl Workshop {
         let mut tagged = Vec::new();
         let mut values = None;
         let (page_id, parent_id, after, title) = match target {
-            NoteTarget::Page { title } => {
+            BlockTarget::Page { title } => {
                 let title = title.trim();
                 page_title(title)?;
                 if crate::storage::title_key(title) == "fields" {
@@ -123,7 +123,7 @@ impl Workshop {
                     }
                 }
             }
-            NoteTarget::Journal { date } => {
+            BlockTarget::Journal { date } => {
                 let date = match date {
                     Some(date) => {
                         validate_date(date)?;
@@ -147,7 +147,7 @@ impl Workshop {
                     }
                 }
             }
-            NoteTarget::Block { id } => {
+            BlockTarget::Block { id } => {
                 let block = self.block(id)?;
                 if crate::fields::page_id(&self.conn)?.as_deref() == Some(block.page_id.as_str()) {
                     return Err(fields_target());
@@ -226,7 +226,7 @@ impl Workshop {
         plan: &mut Plan,
         parent_id: &str,
         mut after: Option<String>,
-        blocks: &[NoteBlock],
+        blocks: &[OutlineBlock],
         top: bool,
         values: Option<&str>,
     ) -> Result<()> {
@@ -1056,7 +1056,7 @@ fn date_shaped(title: &str) -> bool {
 }
 
 /// How many atoms `blocks` holds, counting nested ones.
-fn note_size(blocks: &[NoteBlock]) -> usize {
+fn note_size(blocks: &[OutlineBlock]) -> usize {
     blocks
         .iter()
         .map(|block| 1 + note_size(&block.children))

@@ -684,12 +684,13 @@ Agents without MCP use the same endpoints:
 | `POST /api/agent/turns/{turn}/cancel`        | Stop an agent turn.                                                                                                                                                                                                                                        |
 
 A change body has an `actor`, an optional `reason`, a `kind` and that kind's
-fields. An `add_note` appends `blocks` to a `target`:
+fields. An `add_blocks` change (`add_note` is also accepted) appends `blocks` to
+a `target`:
 
 ```json
 {
   "actor": { "kind": "agent", "name": "my-agent" },
-  "kind": "add_note",
+  "kind": "add_blocks",
   "target": { "kind": "page", "title": "Inbox" },
   "blocks": [{ "text": "A thought", "children": [] }]
 }
@@ -716,7 +717,7 @@ A journal note with a heading, a task beneath it and a field entry:
 ```json
 {
   "actor": { "kind": "agent", "name": "my-agent" },
-  "kind": "add_note",
+  "kind": "add_blocks",
   "target": { "kind": "journal", "date": "2026-10-31" },
   "blocks": [
     {
@@ -736,7 +737,7 @@ Children appended to an existing block:
 ```json
 {
   "actor": { "kind": "agent", "name": "my-agent" },
-  "kind": "add_note",
+  "kind": "add_blocks",
   "target": { "kind": "block", "id": "01JBX5Q2Z8M4V7R9T3W6Y1K0AB" },
   "blocks": [{ "text": "A follow-up thought" }]
 }

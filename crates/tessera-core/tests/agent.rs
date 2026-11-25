@@ -2,8 +2,8 @@ use tessera_core::library::{
     ExtractedDocument, ExtractedMetadata, ExtractedPassage, Passage, PassageKind, SourceFormat,
 };
 use tessera_core::{
-    Actor, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, CardQuery,
-    CardSelection, Error, NoteBlock, NoteTarget, Operation, TaskPriority, TaskState, TaskStatus,
+    Actor, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, BlockTarget,
+    CardQuery, CardSelection, Error, Operation, OutlineBlock, TaskPriority, TaskState, TaskStatus,
     Workshop,
 };
 
@@ -47,8 +47,8 @@ fn dune(workshop: &mut Workshop) {
         ],
     );
 }
-fn block(text: &str, children: Vec<NoteBlock>) -> NoteBlock {
-    NoteBlock {
+fn block(text: &str, children: Vec<OutlineBlock>) -> OutlineBlock {
+    OutlineBlock {
         text: text.into(),
         heading: None,
         task: None,
@@ -67,11 +67,11 @@ fn request(edit: AgentEdit) -> AgentRequest {
         edit,
     }
 }
-fn note(target: NoteTarget, blocks: Vec<NoteBlock>) -> AgentRequest {
-    request(AgentEdit::AddNote { target, blocks })
+fn note(target: BlockTarget, blocks: Vec<OutlineBlock>) -> AgentRequest {
+    request(AgentEdit::AddBlocks { target, blocks })
 }
-fn page(title: &str) -> NoteTarget {
-    NoteTarget::Page {
+fn page(title: &str) -> BlockTarget {
+    BlockTarget::Page {
         title: title.into(),
     }
 }
@@ -166,7 +166,7 @@ fn a_note_lands_after_the_last_top_level_block_or_under_a_block() {
 
     run(
         &mut nb,
-        &note(NoteTarget::Block { id: id(2) }, vec![block("z", vec![])]),
+        &note(BlockTarget::Block { id: id(2) }, vec![block("z", vec![])]),
     );
     assert_eq!(
         outline(&nb, &id(1)),
@@ -318,7 +318,7 @@ fn saved_view_references_survive_authoring_without_creating_pages_or_links() {
 #[test]
 fn a_journal_note_creates_the_day_once_and_undo_removes_an_emptied_day() {
     let (_dir, mut nb) = fixture();
-    let today = NoteTarget::Journal { date: None };
+    let today = BlockTarget::Journal { date: None };
     let first = run(&mut nb, &note(today.clone(), vec![block("one", vec![])]));
     let second = run(&mut nb, &note(today, vec![block("two", vec![])]));
     let day = first.page.clone().unwrap();
@@ -638,7 +638,7 @@ fn a_rejected_request_writes_nothing() {
 
     refused(
         nb.agent_edit(&note(
-            NoteTarget::Journal {
+            BlockTarget::Journal {
                 date: Some("2026-02-30".into()),
             },
             vec![block("x", vec![])],
@@ -892,7 +892,7 @@ fn shorthand_never_rewrites_page_roots_or_card_syntax_or_multiline_names() {
     let receipt = run(
         &mut nb,
         &note(
-            NoteTarget::Block { id: id(4) },
+            BlockTarget::Block { id: id(4) },
             texts.iter().map(|text| block(text, vec![])).collect(),
         ),
     );
@@ -1607,11 +1607,18 @@ fn new_agent_kinds_deserialize_with_optional_revision_and_citation_range_fields(
 fn unknown_request_fields_are_refused_instead_of_ignored() {
     let base = serde_json::json!({
         "actor": { "kind": "agent", "name": "claude" },
-        "kind": "add_note",
+        "kind": "add_blocks",
         "target": { "kind": "page", "title": "Dune" },
         "blocks": [{ "text": "Kitchen" }]
     });
-    assert!(serde_json::from_value::<AgentRequest>(base.clone()).is_ok());
+    let parsed = serde_json::from_value::<AgentRequest>(base.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&parsed).unwrap()["kind"], "add_blocks");
+    let mut legacy_kind = base.clone();
+    legacy_kind["kind"] = serde_json::json!("add_note");
+    assert_eq!(
+        serde_json::from_value::<AgentRequest>(legacy_kind).unwrap(),
+        parsed
+    );
     for (pointer, field) in [
         ("/blocks/0", "type"),
         ("/target", "titel"),
@@ -1876,7 +1883,7 @@ fn choice_values_under_their_entry_link_their_option_as_shorthand_does() {
     run(
         &mut nb,
         &note(
-            NoteTarget::Block { id: entry },
+            BlockTarget::Block { id: entry },
             vec![block("Video", vec![])],
         ),
     );
@@ -1954,8 +1961,8 @@ fn notes_never_target_the_fields_page() {
     let fields = nb.fields().unwrap();
     for target in [
         page(" FIELDS "),
-        NoteTarget::Block { id: field },
-        NoteTarget::Block {
+        BlockTarget::Block { id: field },
+        BlockTarget::Block {
             id: fields.page_id.clone(),
         },
     ] {
@@ -1974,7 +1981,7 @@ fn page_and_journal_roots_refuse_headings() {
     let day = run(
         &mut nb,
         &note(
-            NoteTarget::Journal {
+            BlockTarget::Journal {
                 date: Some("2026-10-31".into()),
             },
             vec![block("x", vec![])],

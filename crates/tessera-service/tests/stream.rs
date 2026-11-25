@@ -1,3 +1,5 @@
+#![cfg(feature = "hub")]
+
 use std::time::Duration;
 
 use futures_util::StreamExt;

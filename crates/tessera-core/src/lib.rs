@@ -69,7 +69,10 @@ mod topics;
 mod unlogged;
 mod work_store;
 
-pub use agent::{AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget};
+pub use agent::{
+    AgentCitation, AgentEdit, AgentReceipt, AgentRequest, BlockTarget, NoteBlock, NoteTarget,
+    OutlineBlock, field_shorthand,
+};
 pub use aliases::{Completion, NameMatch};
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use backup::{
