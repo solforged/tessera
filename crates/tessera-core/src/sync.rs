@@ -484,12 +484,7 @@ fn parse<T: for<'de> Deserialize<'de>>(text: &str) -> Result<T> {
     serde_json::from_str(text).map_err(|error| validation(format!("invalid sync record: {error}")))
 }
 
-/// Columns of applied tables written outside the change log. A row may differ
-/// from a patch there without the workshop having diverged from its hub.
-const UNLOGGED_COLUMNS: &[(&str, &str)] = &[
-    ("sources", "last_read_at"),
-    ("citations", "resurface_muted_at"),
-];
+use crate::replication::UNLOGGED_COLUMNS;
 
 /// Applies patches within one transaction, refusing any conflict that means
 /// this workshop's state is not the state the patch was made from.
@@ -618,6 +613,9 @@ struct HistoryRow {
     undo: Option<String>,
     undone_seq: Option<i64>,
     undoes_seq: Option<i64>,
+    idempotency_key: Option<String>,
+    request_hash: Option<String>,
+    receipt: Option<String>,
 }
 
 impl LocalHistory {
@@ -638,7 +636,8 @@ impl LocalHistory {
 
         let rows = conn
             .prepare(&format!(
-                "SELECT seq, summary, page_id, undo, undone_seq, undoes_seq
+                "SELECT seq, summary, page_id, undo, undone_seq, undoes_seq,
+                        idempotency_key, request_hash, receipt
                  FROM change_history WHERE seq IN ({PENDING})"
             ))?
             .query_map([], |row| {
@@ -649,6 +648,9 @@ impl LocalHistory {
                     undo: row.get(3)?,
                     undone_seq: row.get(4)?,
                     undoes_seq: row.get(5)?,
+                    idempotency_key: row.get(6)?,
+                    request_hash: row.get(7)?,
+                    receipt: row.get(8)?,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -713,17 +715,25 @@ impl LocalHistory {
             // Earlier versions could leave another change's row under this
             // number; this change's row replaces it.
             tx.execute(
-                "INSERT INTO change_history(seq, summary, page_id, undo, undone_seq, undoes_seq)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                "INSERT INTO change_history(
+                     seq, summary, page_id, undo, undone_seq, undoes_seq,
+                     idempotency_key, request_hash, receipt
+                 )
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
                  ON CONFLICT(seq) DO UPDATE SET summary = excluded.summary, page_id = excluded.page_id,
-                     undo = excluded.undo, undone_seq = excluded.undone_seq, undoes_seq = excluded.undoes_seq",
+                     undo = excluded.undo, undone_seq = excluded.undone_seq, undoes_seq = excluded.undoes_seq,
+                     idempotency_key = excluded.idempotency_key, request_hash = excluded.request_hash,
+                     receipt = excluded.receipt",
                 params![
                     seq,
                     row.summary,
                     row.page_id,
                     row.undo,
                     renumber(row.undone_seq),
-                    renumber(row.undoes_seq)
+                    renumber(row.undoes_seq),
+                    row.idempotency_key,
+                    row.request_hash,
+                    row.receipt,
                 ],
             )?;
         }

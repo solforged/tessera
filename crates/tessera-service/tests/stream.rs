@@ -554,3 +554,70 @@ async fn provisional_tag_cleanup_reaches_receipts_stream_and_completion() {
     socket.close(None).await.unwrap();
     task.abort();
 }
+
+#[tokio::test]
+async fn sync_push_wakes_editor_stream_when_editor_cursor_exceeds_change_seq() {
+    let hub_dir = tempfile::tempdir().unwrap();
+    let replica_dir = tempfile::tempdir().unwrap();
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
+    hub.apply(&batch(vec![Operation::CreatePage {
+        id: PAGE.into(),
+        title: "Synced".into(),
+    }]))
+    .unwrap();
+    drop(hub);
+
+    // Advance editor_events sequence far past changes.seq, as after a rebase or restore.
+    rusqlite::Connection::open(hub_dir.path().join(tessera_core::DATABASE_FILE))
+        .unwrap()
+        .execute_batch(
+            "UPDATE editor_events SET seq = 500;
+             UPDATE sqlite_sequence SET seq = 500 WHERE name = 'editor_events';",
+        )
+        .unwrap();
+
+    let mut hub = Workshop::open(hub_dir.path()).unwrap();
+    let ticket = hub
+        .sync_clone(&replica_dir.path().join(tessera_core::DATABASE_FILE))
+        .unwrap()
+        .finish()
+        .unwrap();
+    let mut replica = Workshop::open(replica_dir.path()).unwrap();
+    replica.sync_adopt("loopback", &ticket).unwrap();
+
+    let after = hub.editor_cursor().unwrap();
+    let (host, task) = server(hub).await;
+    let (mut socket, _) = connect_async(format!("ws://{host}/api/changes/stream?after={after}"))
+        .await
+        .unwrap();
+
+    replica
+        .apply(&batch(vec![Operation::Insert {
+            id: BLOCK.into(),
+            parent_id: PAGE.into(),
+            after: None,
+            text: "from replica".into(),
+            heading: None,
+        }]))
+        .unwrap();
+    let host_for_sync = host.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut remote =
+            tessera_service::sync_client::HttpHub::new(&format!("http://{host_for_sync}"), None)
+                .unwrap();
+        replica.sync_with(&mut remote).unwrap();
+    })
+    .await
+    .unwrap();
+
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .expect("sync push should wake the editor stream")
+        .unwrap()
+        .unwrap();
+    let event: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+    assert!(event.seq > 500);
+    assert!(event.restructured_pages.contains(&PAGE.to_owned()));
+    socket.close(None).await.unwrap();
+    task.abort();
+}

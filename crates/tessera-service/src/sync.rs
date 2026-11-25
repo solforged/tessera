@@ -277,15 +277,8 @@ async fn push(
         .map_or_else(|| request.device.clone(), |p| p.name.clone());
     let receipts = run_authorized(&state, paired, request.device.clone(), move |workshop| {
         let receipts = workshop.sync_push(&request.device, &request.changes)?;
-        if let Some(seq) = receipts
-            .iter()
-            .map(|receipt| match receipt.outcome {
-                tessera_core::sync::PushOutcome::Accepted { seq }
-                | tessera_core::sync::PushOutcome::Rejected { seq, .. } => seq,
-            })
-            .max()
-        {
-            let _ = notify.send(seq);
+        if !receipts.is_empty() {
+            let _ = notify.send(workshop.editor_cursor()?);
         }
         Ok(receipts)
     })
@@ -446,8 +439,14 @@ async fn exchange_rows(
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
+    let notify = state.changes.clone();
     let pull = run_authorized(&state, paired, request.device.clone(), move |workshop| {
-        workshop.sync_exchange_rows(&request.device, &request.rows, request.after)
+        let changed = !request.rows.positions.is_empty() || !request.rows.surfacings.is_empty();
+        let pull = workshop.sync_exchange_rows(&request.device, &request.rows, request.after)?;
+        if changed {
+            let _ = notify.send(workshop.editor_cursor()?);
+        }
+        Ok(pull)
     })
     .await?;
     Ok(Json(pull).into_response())
