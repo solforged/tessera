@@ -889,7 +889,7 @@ impl Workshop {
                 prefix
                     .chars()
                     .next_back()
-                    .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
+                    .is_none_or(|ch| !crate::storage::bare_tag_character(ch))
             });
             let (target, alias, locator) = crate::storage::reference_parts(reference);
             let title = target.trim();

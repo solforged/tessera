@@ -3718,3 +3718,55 @@ fn page_count_constraint_is_bibliographic_and_cannot_be_bypassed_by_reclassifica
     assert!(matches!(result, Err(Error::Validation { .. })));
     assert!(n.capabilities(&page).unwrap().source.is_none());
 }
+
+#[test]
+fn source_queries_and_highlights_preserve_plain_creators_manual_tags_and_folded_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Workshop::open(dir.path()).unwrap();
+    let (source, snapshot) = ingest(&mut n, &document(), b"plain-creator-and-manual-tag");
+    // Searching without accents matches accented creators and titles, and vice versa.
+    for term in ["Garcia", "García"] {
+        let res = n
+            .library(&LibraryQuery {
+                text: Some(term.into()),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(res.total, 1, "term {term}");
+    }
+    // QuerySource::Sources preserves unlinked plain-text creators in @creator.
+    let table = n
+        .query(&tessera_core::Query {
+            source: Some(tessera_core::QuerySource::Sources),
+            filters: vec![tessera_core::Filter {
+                field: "@creator".into(),
+                op: tessera_core::FilterOp::Contains,
+                value: Some("García".into()),
+                or_empty: false,
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(table.total, 1);
+
+    // Manual tags on highlighted blocks appear in HighlightQuery tags and filter results.
+    let block = note(&mut n, &source, "highlighted passage");
+    cite(&mut n, &block, &snapshot);
+    let rev = n.block(&block).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::AddType {
+            id: block.clone(),
+            base_revision: rev,
+            title: "Evidence".into(),
+        }],
+    );
+    let highlights = n
+        .highlights(&HighlightQuery {
+            tags: vec!["Evidence".into()],
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(highlights.total, 1);
+    assert_eq!(highlights.rows[0].tags, ["Evidence"]);
+}

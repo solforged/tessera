@@ -843,3 +843,80 @@ fn capability_kind_counts_finding_aids_and_tables_include_untagged_atoms() {
         "Tasks source agrees and excludes appointments"
     );
 }
+
+#[test]
+fn refined_types_file_their_members_under_both_and_satisfy_target_constraints() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Person"),
+            page(2, "Philosopher"),
+            page(3, "Stoic"),
+            page(4, "Plato"),
+            page(5, "Zeno"),
+            page(6, "Republic"),
+            Operation::Insert {
+                id: id(20),
+                parent_id: fields,
+                after: None,
+                text: "author".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(60),
+                parent_id: id(6),
+                after: None,
+                text: format!("[[{}]]", id(20)),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(61),
+                parent_id: id(60),
+                after: None,
+                text: format!("[[{}]]", id(4)),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(62),
+                parent_id: id(6),
+                after: Some(id(60)),
+                text: format!("[[{}]]", id(20)),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(63),
+                parent_id: id(62),
+                after: None,
+                text: format!("[[{}]]", id(5)),
+                heading: None,
+            },
+        ],
+    );
+    tag(&mut nb, 2, "Person");
+    tag(&mut nb, 3, "Philosopher");
+    tag(&mut nb, 4, "Philosopher");
+    tag(&mut nb, 5, "Stoic");
+
+    assert_eq!(titles(&nb, "person"), ["Plato", "Zeno"]);
+    assert_eq!(titles(&nb, &format!("type:{}", id(2))), ["Plato"]);
+    assert_eq!(titles(&nb, &format!("type:{}", id(3))), ["Zeno"]);
+    assert_eq!(
+        nb.note_kinds(&id(4))
+            .unwrap()
+            .into_iter()
+            .map(|kind| kind.name)
+            .collect::<Vec<_>>(),
+        ["Person", "Philosopher"]
+    );
+    assert!(nb.note_kinds(&id(2)).unwrap().is_empty());
+
+    let detail = nb.field_detail(&id(20), None, None).unwrap();
+    assert_eq!(
+        (detail.values_total, detail.problems_total),
+        (2, 0),
+        "refined Person types satisfy author's Person target constraint"
+    );
+}

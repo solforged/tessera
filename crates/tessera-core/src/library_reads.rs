@@ -715,8 +715,8 @@ impl Workshop {
                  JOIN blocks incoming ON incoming.id = l.source_id
                  WHERE l.target_id = b.id AND incoming.deletion_id IS NULL
              ), (SELECT json_group_array(title) FROM (
-                 SELECT t.text AS title FROM memberships m JOIN blocks t ON t.id = m.type_id
-                 WHERE m.block_id = b.id AND m.manual = 0 AND t.deletion_id IS NULL ORDER BY t.title_key, t.id
+                 SELECT DISTINCT t.text AS title, t.title_key, t.id FROM memberships m JOIN blocks t ON t.id = m.type_id
+                 WHERE m.block_id = b.id AND t.deletion_id IS NULL ORDER BY t.title_key, t.id
              ))
              FROM blocks b
              JOIN blocks p ON p.id = b.page_id
@@ -726,7 +726,7 @@ impl Workshop {
                  SELECT 1 FROM json_each(?1) wanted
                  WHERE NOT EXISTS(
                      SELECT 1 FROM memberships m JOIN blocks t ON t.id = m.type_id
-                     WHERE m.block_id = b.id AND m.manual = 0 AND t.title_key = wanted.value AND t.deletion_id IS NULL
+                     WHERE m.block_id = b.id AND t.title_key = wanted.value AND t.deletion_id IS NULL
                  )
              )
              AND (?2 IS NULL OR b.id IN (SELECT value FROM json_each(?2)))"
@@ -982,7 +982,7 @@ impl Workshop {
         let text = query
             .text
             .as_ref()
-            .map(|s| crate::storage::title_key(s))
+            .map(|s| crate::aliases::fold(s))
             .filter(|s| !s.is_empty());
         let query_languages: Vec<_> = query
             .languages
@@ -1009,10 +1009,10 @@ impl Workshop {
             source_siglum(&mut source, &page.text, &fields);
             let creators = crate::library_export::creators(&fields).to_vec();
             if let Some(text) = &text
-                && !crate::storage::title_key(&page.text).contains(text.as_str())
+                && !crate::aliases::fold(&page.text).contains(text.as_str())
                 && !creators
                     .iter()
-                    .any(|s| crate::storage::title_key(s).contains(text.as_str()))
+                    .any(|s| crate::aliases::fold(s).contains(text.as_str()))
             {
                 continue;
             }

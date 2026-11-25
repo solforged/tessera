@@ -1127,14 +1127,29 @@ pub(crate) fn constrained_reading(
         let targets = serde_json::json!(definition.targets).to_string();
         let matches: bool = conn
             .prepare_cached(
-                "SELECT EXISTS(SELECT 1 FROM blocks ty
-             WHERE ty.id IN (SELECT value FROM json_each(?2))
-             AND ty.deletion_id IS NULL AND ty.archived = 0
-             AND (EXISTS(SELECT 1 FROM memberships m WHERE m.block_id = ?1 AND m.type_id = ty.id)
-                 OR (ty.kind = 'page' AND ty.title_key = 'project'
-                     AND EXISTS(SELECT 1 FROM projects p WHERE p.block_id = ?1 AND p.active = 1))))
-             OR (?3 IN (SELECT value FROM json_each(?2))
-                 AND EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1))",
+                "WITH RECURSIVE target_types(id) AS (
+                     SELECT ty.id FROM blocks ty
+                     WHERE ty.id IN (SELECT value FROM json_each(?2))
+                       AND ty.deletion_id IS NULL AND ty.archived = 0
+                     UNION
+                     SELECT b.id FROM memberships m
+                     JOIN target_types tt ON m.type_id = tt.id
+                     JOIN blocks ty ON ty.id = tt.id
+                     JOIN blocks b ON b.id = m.block_id
+                     WHERE b.kind = 'page' AND b.parent_id IS NULL
+                       AND b.deletion_id IS NULL AND b.archived = 0
+                       AND (
+                           (ty.kind = 'page' AND ty.parent_id IS NULL
+                            AND ty.title_key IN ('person', 'group', 'concept', 'thesis'))
+                           OR EXISTS (SELECT 1 FROM memberships sub WHERE sub.type_id = b.id)
+                       )
+                 )
+                 SELECT EXISTS(SELECT 1 FROM target_types ty
+                     WHERE EXISTS(SELECT 1 FROM memberships m WHERE m.block_id = ?1 AND m.type_id = ty.id)
+                        OR (EXISTS(SELECT 1 FROM blocks b WHERE b.id = ty.id AND b.kind = 'page' AND b.title_key = 'project')
+                            AND EXISTS(SELECT 1 FROM projects p WHERE p.block_id = ?1 AND p.active = 1)))
+                 OR (?3 IN (SELECT value FROM json_each(?2))
+                     AND EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1))",
             )?
             .query_row(params![id, targets, SOURCE_TARGET], |row| row.get(0))?;
         if !matches {

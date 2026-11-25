@@ -473,15 +473,20 @@ impl Workshop {
                     .expect("IDs serialize");
                 let mut statement = self.conn.prepare_cached(concat!(
                     hidden_blocks!(),
-                    "SELECT DISTINCT fv.owner_id, fv.field_id, l.target_id FROM field_values fv
+                    "SELECT fv.owner_id, fv.field_id, v.text FROM field_values fv
                     JOIN blocks v ON v.id = fv.value_id
-                    JOIN links l ON l.source_id = v.id AND l.occurrence = 0
                     WHERE fv.field_id IN (SELECT value FROM json_each(?1))
-                    AND v.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY fv.owner_id, fv.ordinal"
+                    AND v.deletion_id IS NULL
+                    AND v.rowid NOT IN (SELECT rowid FROM hidden)
+                    ORDER BY fv.owner_id, fv.ordinal, v.id"
                 ))?;
+                enum CreatorRef {
+                    Target(String),
+                    Plain(String),
+                }
                 let mut people: HashMap<
                     String,
-                    Vec<(crate::built_in::CreatorTier, usize, String)>,
+                    Vec<(crate::built_in::CreatorTier, usize, CreatorRef)>,
                 > = HashMap::new();
                 for row in statement.query_map([&ids], |r| {
                     Ok((
@@ -490,10 +495,21 @@ impl Workshop {
                         r.get::<_, String>(2)?,
                     ))
                 })? {
-                    let (owner, field, target) = row?;
-                    if let Some(&(tier, rank)) = tiers.get(field.as_str()) {
-                        people.entry(owner).or_default().push((tier, rank, target));
-                    }
+                    let (owner, field, raw) = row?;
+                    let Some(&(tier, rank)) = tiers.get(field.as_str()) else {
+                        continue;
+                    };
+                    let creator = if let Some(target) = crate::fields::reference(&raw) {
+                        if !titles.contains_key(target) {
+                            continue;
+                        }
+                        CreatorRef::Target(target.to_owned())
+                    } else if !raw.trim().is_empty() {
+                        CreatorRef::Plain(raw.trim().to_owned())
+                    } else {
+                        continue;
+                    };
+                    people.entry(owner).or_default().push((tier, rank, creator));
                 }
                 for (owner, mut values) in people {
                     let Some(attrs) = entities.get_mut(&owner) else {
@@ -503,18 +519,16 @@ impl Workshop {
                     let leads = values
                         .iter()
                         .any(|(tier, _, _)| *tier == crate::built_in::CreatorTier::Creator);
-                    for (tier, _, target) in values {
-                        match tier {
-                            crate::built_in::CreatorTier::Creator => {
-                                instance(attrs, "@creator", &target, &titles);
-                            }
-                            crate::built_in::CreatorTier::Fallback if !leads => {
-                                instance(attrs, "@creator", &target, &titles);
-                            }
-                            crate::built_in::CreatorTier::Fallback => {}
-                            crate::built_in::CreatorTier::Contributor => {
-                                instance(attrs, "@contributor", &target, &titles);
-                            }
+                    for (tier, _, creator) in values {
+                        let key = match tier {
+                            crate::built_in::CreatorTier::Creator => "@creator",
+                            crate::built_in::CreatorTier::Fallback if !leads => "@creator",
+                            crate::built_in::CreatorTier::Fallback => continue,
+                            crate::built_in::CreatorTier::Contributor => "@contributor",
+                        };
+                        match creator {
+                            CreatorRef::Target(target) => instance(attrs, key, &target, &titles),
+                            CreatorRef::Plain(name) => text(attrs, key, name),
                         }
                     }
                 }

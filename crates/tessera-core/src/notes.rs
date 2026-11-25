@@ -627,7 +627,65 @@ impl Workshop {
             type_id: None,
         });
 
+        let type_pages: HashSet<String> = self
+            .conn
+            .prepare_cached(
+                "SELECT DISTINCT m.type_id FROM memberships m JOIN blocks b ON b.id = m.block_id
+                 WHERE m.type_id IS NOT NULL AND b.deletion_id IS NULL
+                 UNION SELECT type_id FROM field_targets",
+            )?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        let spreads: HashSet<String> = self
+            .conn
+            .prepare_cached("SELECT block_id FROM spreads WHERE active = 1")?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<_>>()?;
+
+        let mut type_parents: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
         for (note_id, type_id, _, title_key) in &memberships {
+            if let Some(builtin) = kinds
+                .iter()
+                .take(TYPE_KINDS.len() + CAPABILITY_KINDS.len())
+                .position(|kind| &kind.key == title_key)
+            {
+                kinds[builtin]
+                    .type_id
+                    .get_or_insert_with(|| type_id.clone());
+            }
+            if type_pages.contains(note_id.as_str()) {
+                type_parents
+                    .entry(note_id.as_str())
+                    .or_default()
+                    .push((type_id.as_str(), title_key.as_str()));
+            }
+        }
+        let refined_type_kinds = |start: &str| -> Vec<usize> {
+            let mut result = Vec::new();
+            let mut visited = HashSet::from([start]);
+            let mut stack = vec![start];
+            while let Some(current) = stack.pop() {
+                let Some(parents) = type_parents.get(current) else {
+                    continue;
+                };
+                for &(parent_id, parent_key) in parents {
+                    if let Some(builtin) =
+                        TYPE_KINDS.iter().position(|(key, ..)| *key == parent_key)
+                    {
+                        result.push(builtin);
+                    }
+                    if visited.insert(parent_id) {
+                        stack.push(parent_id);
+                    }
+                }
+            }
+            result
+        };
+
+        for (note_id, type_id, _, title_key) in &memberships {
+            if type_pages.contains(note_id.as_str()) {
+                continue;
+            }
             let Some(&note) = position.get(note_id) else {
                 continue;
             };
@@ -636,15 +694,11 @@ impl Workshop {
                 .take(TYPE_KINDS.len() + CAPABILITY_KINDS.len())
                 .position(|kind| &kind.key == title_key)
             {
-                Some(builtin) => {
-                    kinds[builtin]
-                        .type_id
-                        .get_or_insert_with(|| type_id.clone());
-                    builtin
-                }
+                Some(builtin) => builtin,
                 None => by_type[type_id.as_str()],
             };
             notes[note].kinds.push(kind);
+            notes[note].kinds.extend(refined_type_kinds(type_id));
         }
         let mut tagged_block_counts = vec![0; kinds.len()];
         for (type_id, _, title_key, count) in &tagged_types {
@@ -729,22 +783,13 @@ impl Workshop {
         }
 
         // A type page is listed as its kind and a saved spread under Spreads, not as an unfiled note.
-        let listed: HashSet<String> = self
-            .conn
-            .prepare_cached(
-                "SELECT DISTINCT m.type_id FROM memberships m JOIN blocks b ON b.id = m.block_id
-                 WHERE m.type_id IS NOT NULL AND b.deletion_id IS NULL
-                 UNION SELECT type_id FROM field_targets
-                 UNION SELECT block_id FROM spreads WHERE active = 1",
-            )?
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<_>>()?;
         // A built-in tag's page is the kind itself, so it is never an unfiled note.
         for note in &mut notes {
             note.kinds.sort_unstable();
             note.kinds.dedup();
             if note.kinds.is_empty()
-                && !listed.contains(&note.entry.id)
+                && !type_pages.contains(&note.entry.id)
+                && !spreads.contains(&note.entry.id)
                 && built_in_tag_name(&crate::storage::title_key(&note.entry.title)).is_none()
             {
                 note.kinds.push(unfiled);
