@@ -4,7 +4,7 @@ import type { WorkshopClient, PageDocument, RelationPickIntent } from '../docume
 import { resolveRelationPick } from '../fields/instances';
 import { filingOperations } from '../notes/finding-aid';
 import type { EntityKind } from '../outline/holders';
-import { documentReady, ensureField } from '../outline/source-fields';
+import { ensureField } from '../outline/source-fields';
 import { fieldEntryId } from '../core/field-entry';
 import type { CreateKind } from './request';
 
@@ -130,7 +130,7 @@ export async function createPageDraft(
       blocks: Block[] = [];
     if (existingId) {
       doc = workshop.open(existingId);
-      await documentReady(doc);
+      await doc.ready();
       await doc.flush();
       const page = await workshop.api.page(pageId);
       revision = page.root.revision;

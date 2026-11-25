@@ -31,7 +31,7 @@ import type { WorkshopClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { opensBeside } from '../core/beside';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../core/contract';
-import { shortDay } from '../shell/desk-counts';
+import { shortDay } from '../workflows/desk-counts';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -42,7 +42,6 @@ import { createSlowFlag } from '../ui/loading';
 import { ListGroup, ListRow } from '../ui/List';
 import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
 import { phoneQuery } from '../ui/phone';
-import { documentReady } from '../tasks/JournalAgenda';
 import { civilDate, relativeDate } from '../tasks/relative-date';
 import { CardComposer } from './CardComposer';
 import type { CreateRequest } from '../create/request';
@@ -1114,7 +1113,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     const pageId = await props.workshop.today();
     const doc = props.workshop.open(pageId);
     try {
-      await documentReady(doc);
+      await doc.ready();
       const id = ulid();
       await props.workshop.commit(
         [

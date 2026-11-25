@@ -1,6 +1,9 @@
-import type { TaskState, TaskStatus } from '../api/types';
-import { matchFieldEntry } from '../table/query';
-import { parseTaskDate } from './date-input';
+import type { TaskState } from '../api/types';
+import { insideProtectedSyntax } from '../core/syntax';
+import { matchFieldEntry } from '../model/fields';
+import { newTask, parseTaskDate } from '../model/tasks';
+
+export { insideProtectedSyntax, newTask };
 
 export interface DateToken {
   from: number;
@@ -12,76 +15,6 @@ export interface DateSuggestion {
   label: string;
   date: string;
   time: string | null;
-}
-
-export const newTask = (status: TaskStatus | null = null): TaskState => ({
-  status,
-  scheduled: null,
-  scheduled_time: null,
-  deadline: null,
-  deadline_time: null,
-  warning_days: null,
-  repeater: null,
-  priority: null,
-  completed_on: null,
-});
-
-/** Typing guards include open code drafts; stored text shields only matched inline code. */
-export function insideProtectedSyntax(text: string, at: number, purpose: 'typing' | 'stored' = 'typing'): boolean {
-  for (let cursor = 0; cursor < at; ) {
-    if (text[cursor] === '\\') {
-      cursor += 2;
-      continue;
-    }
-    if (text.startsWith('[[', cursor)) {
-      cursor += 2;
-      while (cursor < text.length && !text.startsWith(']]', cursor)) cursor += text[cursor] === '\\' ? 2 : 1;
-      cursor = Math.min(text.length, cursor + 2);
-      if (cursor > at) return true;
-      continue;
-    }
-    const marker = text[cursor];
-    const lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    const fenceStart = /^[ ]{0,3}$/.test(text.slice(lineStart, cursor));
-    if (marker !== '`' && !(marker === '~' && fenceStart)) {
-      cursor++;
-      continue;
-    }
-    let end = cursor;
-    while (text[end] === marker) end++;
-    const count = end - cursor;
-    const newline = text.indexOf('\n', end);
-    const openingEnd = newline < 0 ? text.length : newline;
-    if (
-      count >= 3 &&
-      fenceStart &&
-      (marker === '~' || ((purpose === 'typing' || newline >= 0) && !text.slice(end, openingEnd).includes('`')))
-    ) {
-      const close = new RegExp(`^[ ]{0,3}${marker}{${count},}[ \\t\\r]*$`);
-      cursor = Math.min(openingEnd + 1, text.length);
-      while (cursor < text.length) {
-        const next = text.indexOf('\n', cursor);
-        const lineEnd = next < 0 ? text.length : next;
-        const closed = close.test(text.slice(cursor, lineEnd));
-        cursor = Math.min(lineEnd + 1, text.length);
-        if (closed) break;
-      }
-    } else if (marker === '`') {
-      cursor = end;
-      for (;;) {
-        const start = text.indexOf('`', cursor);
-        if (start < 0) {
-          cursor = purpose === 'typing' ? text.length : end;
-          break;
-        }
-        cursor = start;
-        while (text[cursor] === '`') cursor++;
-        if (cursor - start === count) break;
-      }
-    } else cursor = end;
-    if (cursor > at) return true;
-  }
-  return false;
 }
 
 /** The active @ token ends at the caret, not necessarily at the end of the block. */

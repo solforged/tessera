@@ -11,7 +11,7 @@ import type {
 } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import { plainText } from '../outline/names';
-import { Calendar } from '../shell/Calendar';
+import { Calendar } from './Calendar';
 import type { AgendaViewState, OpenTarget, PaneId } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';

@@ -1,31 +1,14 @@
-import { createEffect, createResource, createRoot } from 'solid-js';
-import { api } from '../api/client';
+import { createResource } from 'solid-js';
 import type { BlockKind, FieldDefinition, FieldKind } from '../api/types';
-import { guessFieldKind } from '../fields/value-reading';
-import type { FieldRole } from '../fields/roles';
-import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { Caret } from '../core/contract';
-import { matchFieldEntry } from '../table/query';
+import type { PageDocument, WorkshopClient } from '../document/contract';
+import { guessFieldKind } from '../fields/value-reading';
+import { matchFieldEntry } from '../model/fields';
+import type { FieldRole } from '../model/fields';
 import type { MenuItem } from '../ui/Menu';
 import { extractedResets, sourceFieldName } from './source';
 
 const fieldCreations = new WeakMap<WorkshopClient, Map<string, Promise<FieldDefinition>>>();
-
-export function documentReady(doc: PageDocument): Promise<void> {
-  if (doc.status() === 'ready') return Promise.resolve();
-  const { promise, resolve, reject } = Promise.withResolvers<void>();
-  createRoot(dispose => {
-    createEffect(() => {
-      const status = doc.status();
-      if (status === 'loading') return;
-      const message = doc.statusMessage();
-      dispose();
-      if (status === 'ready') resolve();
-      else reject(new Error(message));
-    });
-  });
-  return promise;
-}
 
 const freshFields = new WeakMap<WorkshopClient, Set<string>>();
 /** A field `name::` created here whose kind still waits for its first value. */
@@ -60,7 +43,7 @@ export function ensureField(
     if (definition) return definition;
     const fieldsDoc = workshop.open(result.page_id);
     try {
-      await documentReady(fieldsDoc);
+      await fieldsDoc.ready();
       for (const id of fieldsDoc.outline.children(result.page_id)) {
         const block = fieldsDoc.block(id);
         if (block && !block.archived && block.text.trim() && block.text.toLowerCase() === key)
@@ -96,10 +79,10 @@ export function ensureField(
 export async function addFieldOption(workshop: WorkshopClient, field: FieldDefinition, text: string): Promise<string> {
   const existing = field.options.find(option => option.text.toLowerCase() === text.toLowerCase());
   if (existing) return existing.id;
-  const definition = await api.block(field.id);
+  const definition = await workshop.api.block(field.id);
   const doc = workshop.open(definition.page_id);
   try {
-    await documentReady(doc);
+    await doc.ready();
     const written = doc.edit({
       kind: 'insert',
       parentId: field.id,

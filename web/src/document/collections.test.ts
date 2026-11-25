@@ -4,8 +4,8 @@ import { ulid } from 'ulid';
 import { createApi } from '../api/client';
 import { freePort, startService, type WorkshopService } from '../testing/service';
 import { emptyMetadata } from '../library/details';
-import { createWorkshopClient } from './index';
-import type { Workshop } from './index';
+import { createWorkshopClient } from '../workflows/workshop';
+import type { Workshop } from '../workflows/workshop';
 import {
   changeCollectionMembers,
   collectionPages,

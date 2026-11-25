@@ -1,4 +1,4 @@
-import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import { setOpenedFilesInbox } from '../library/opened-files';
 import type { OpenedFiles } from '../library/opened-files';
 import { setQuickCaptureSource } from '../shell/quick-capture';
@@ -10,7 +10,7 @@ type Launch = { targetURL?: string; files?: readonly FileSystemFileHandle[] };
 type LaunchWindow = Window & { launchQueue?: { setConsumer(consumer: (launch: Launch) => void): void } };
 
 /** Installed-browser hooks stay out of the native and Android entry points. */
-export function installInstalledWindow(): void {
+export function installInstalledWindow(client: () => ApiClient | undefined): void {
   const overlay = (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlay }).windowControlsOverlay;
   const geometry = () => {
     if (overlay?.visible) document.documentElement.dataset.titlebar = 'overlay';
@@ -52,6 +52,8 @@ export function installInstalledWindow(): void {
         continue;
       }
       try {
+        const api = client();
+        if (!api) throw new Error('The workshop is still opening.');
         const file = await handle.getFile();
         result.jobs.push(await api.upload(file, file.name));
       } catch (reason) {

@@ -16,7 +16,6 @@ import {
 } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
-import { api } from '../api/client';
 import type {
   QueryAttributeValue,
   FieldDefinition,
@@ -39,7 +38,7 @@ import { BlockText } from '../outline/BlockText';
 import { plainText, targetLabel } from '../outline/names';
 import { EmbedOnPagePicker } from '../outline/ViewPicker';
 import type { OpenTarget, PaneId, TableViewState } from '../core/contract';
-import { pendingCaretInput } from '../shell/pending-caret';
+import { pendingCaretInput } from '../ui/pending-caret';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -266,7 +265,11 @@ function TableContent(props: TablePaneProps) {
   };
   const refreshCells = async () =>
     showResult(
-      await api.query({ ...copyQuery(query()), offset: 0, limit: Math.max(pageSize(), result()?.rows.length ?? 0) }),
+      await props.workshop.api.query({
+        ...copyQuery(query()),
+        offset: 0,
+        limit: Math.max(pageSize(), result()?.rows.length ?? 0),
+      }),
     );
   // Columns past the right edge get a fade over the table rows and a count in the header, so a wide register says it scrolls.
   const [edge, setEdge] = createSignal({ height: 0, hidden: 0 });
@@ -303,7 +306,7 @@ function TableContent(props: TablePaneProps) {
       const controller = new AbortController();
       savedController = controller;
       try {
-        return await api.view(id, controller.signal);
+        return await props.workshop.api.view(id, controller.signal);
       } catch (reason) {
         if (!controller.signal.aborted) message(reason);
         return undefined;
@@ -312,7 +315,7 @@ function TableContent(props: TablePaneProps) {
   );
   const [views, { refetch: refetchViews }] = createResource(savedRevision, async () => {
     try {
-      return await api.views();
+      return await props.workshop.api.views();
     } catch (reason) {
       message(reason);
       return [];
@@ -667,7 +670,7 @@ function TableContent(props: TablePaneProps) {
     firstQuery = false;
     const timer = setTimeout(() => {
       void (async () => {
-        const allFields = await api.fields(controller.signal);
+        const allFields = await props.workshop.api.fields(controller.signal);
         if (controller.signal.aborted) return;
         setDefinitions(allFields);
         if (missingQueryFields(value, allFields.fields).length) {
@@ -677,9 +680,9 @@ function TableContent(props: TablePaneProps) {
           return;
         }
         const [rows, pageType, index] = await Promise.all([
-          api.query({ ...value, offset: 0 }, controller.signal),
-          value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined),
-          api.noteIndex(controller.signal),
+          props.workshop.api.query({ ...value, offset: 0 }, controller.signal),
+          value.type ? props.workshop.api.type(value.type, controller.signal) : Promise.resolve(undefined),
+          props.workshop.api.noteIndex(controller.signal),
         ]);
         if (controller.signal.aborted) return;
         setType(pageType);
@@ -690,7 +693,7 @@ function TableContent(props: TablePaneProps) {
           (value.type ? (index.kinds.find(kind => kind.type_id === value.type)?.key ?? `type:${value.type}`) : null);
         if (!kind) setIndexTotal(undefined);
         else
-          void api
+          void props.workshop.api
             .query(
               { ...value, note_kind: kind, note_view: { layout: 'index', grouping: 'letter' }, offset: 0, limit: 0 },
               controller.signal,
@@ -745,7 +748,7 @@ function TableContent(props: TablePaneProps) {
     setAppending(true);
     setError('');
     try {
-      const next = await api.query(
+      const next = await props.workshop.api.query(
         { ...copyQuery(query()), limit: pageSize(), offset: current.rows.length },
         controller.signal,
       );
@@ -801,22 +804,8 @@ function TableContent(props: TablePaneProps) {
       doc = props.workshop.open(pageId);
       documents.set(pageId, doc);
     }
-    const current = doc;
-    const ready = Promise.withResolvers<void>();
-    createRoot(dispose => {
-      createEffect(() => {
-        const status = current.status();
-        if (status === 'ready') {
-          dispose();
-          ready.resolve();
-        } else if (status !== 'loading') {
-          dispose();
-          ready.reject(new Error(current.statusMessage()));
-        }
-      });
-    });
-    await ready.promise;
-    await action(current);
+    await doc.ready();
+    await action(doc);
   };
   const appendField = async (fieldId: string) => {
     const currentType = type();
@@ -834,7 +823,7 @@ function TableContent(props: TablePaneProps) {
     const id = rename ? previous!.id : ulid();
     const value = rename ? previous!.query : { ...copyQuery(query()), columns: recipeColumns() };
     await submit({ op: 'save_view', id, base_revision: rename ? previous!.revision : null, name, query: value });
-    setSaved(await api.view(id));
+    setSaved(await props.workshop.api.view(id));
     if (!rename) updateQuery(value);
     await refetchViews();
     props.onTargetChange({ kind: 'table', typeId: value.type, viewId: id, query: copyQuery(value) });
@@ -901,7 +890,7 @@ function TableContent(props: TablePaneProps) {
     await refetchViews();
   };
   const createField = async (name: string, addColumn: boolean) => {
-    const all = await api.fields();
+    const all = await props.workshop.api.fields();
     let fieldId = all.fields.find(field => field.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase())?.id;
     if (!fieldId)
       await withDocument(all.page_id, async doc => {
@@ -924,7 +913,7 @@ function TableContent(props: TablePaneProps) {
         await committed.promise;
       });
     if (addColumn) await appendField(fieldId!);
-    setDefinitions(await api.fields());
+    setDefinitions(await props.workshop.api.fields());
     setPopup(null);
     return fieldId!;
   };
@@ -1692,7 +1681,7 @@ function TableContent(props: TablePaneProps) {
             ];
             return {
               field_id: field.field_id,
-              missing: (await api.query({ ...value, filters, offset: 0, limit: 0 })).total,
+              missing: (await props.workshop.api.query({ ...value, filters, offset: 0, limit: 0 })).total,
             };
           }),
       ),

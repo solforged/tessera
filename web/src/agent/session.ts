@@ -1,7 +1,6 @@
 import { createComputed, createMemo, createSignal, onCleanup, untrack } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
-import { api } from '../api/client';
 import type { ApiClient } from '../api/client';
 import type { ContextRef, StartAgentTurn, ThreadMessage, TurnEvent } from '../api/types';
 
@@ -50,7 +49,7 @@ function load(workshop: string | undefined): DockMessage[] {
   }
 }
 
-export function createAgentSession(workshopId: Accessor<string | undefined>, client: ApiClient = api): AgentSession {
+export function createAgentSession(workshopId: Accessor<string | undefined>, client: ApiClient): AgentSession {
   const [messages, setMessages] = createSignal<DockMessage[]>([]);
   let workshop: string | undefined;
   let active: RunningTurn | undefined;
@@ -77,7 +76,7 @@ export function createAgentSession(workshopId: Accessor<string | undefined>, cli
     stopped.controller.abort();
     updateAssistant(stopped.message, message => ({ ...message, status: 'cancelled' }));
     if (stopped.turn)
-      void api.cancelAgentTurn(stopped.turn).catch(() => {
+      void client.cancelAgentTurn(stopped.turn).catch(() => {
         /* The turn may already have expired. */
       });
   };
@@ -131,17 +130,17 @@ export function createAgentSession(workshopId: Accessor<string | undefined>, cli
   const run = async (current: RunningTurn, body: StartAgentTurn) => {
     try {
       // Do not abort creation: a late reply must still be cancelled on the server.
-      const { turn } = await api.startAgentTurn(body);
+      const { turn } = await client.startAgentTurn(body);
       current.turn = turn;
       if (active !== current) {
-        void api.cancelAgentTurn(turn).catch(() => {
+        void client.cancelAgentTurn(turn).catch(() => {
           /* The turn may already have expired. */
         });
         return;
       }
       let after = 0;
       while (active === current) {
-        const result = await api.agentTurnEvents(turn, after, current.controller.signal);
+        const result = await client.agentTurnEvents(turn, after, current.controller.signal);
         if (active !== current) return;
         let finished = false;
         const events = result.events.filter(event => event.n > after);

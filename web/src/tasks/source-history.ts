@@ -1,6 +1,5 @@
-import type { TaskRow, AgendaItem } from '../api/types';
-import type { WorkshopClient, PageDocument } from '../document/contract';
-import { documentReady } from '../outline/source-fields';
+import type { AgendaItem, TaskRow } from '../api/types';
+import type { PageDocument, WorkshopClient } from '../document/contract';
 
 export type TaskSourceEdit = (doc: PageDocument) => Promise<boolean | void>;
 interface Entry {
@@ -34,7 +33,7 @@ export class TaskSourceHistory {
     this.undone = [];
     return this.enqueue(async () => {
       try {
-        await documentReady(entry.doc);
+        await entry.doc.ready();
         if ((await apply(entry.doc)) === false) return false;
         entry.changed = true;
         await entry.doc.flush();

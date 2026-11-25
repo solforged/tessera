@@ -47,6 +47,7 @@ export async function loadWorks(
 
 /** The sources a person wrote, edited or translated, as a small shelf on their page, oldest first. */
 export function PersonWorks(props: {
+  api: ApiClient;
   pageId: string;
   rows: LibraryRow[];
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -79,7 +80,7 @@ export function PersonWorks(props: {
                   class="person-work"
                   onClick={event => props.onOpen({ kind: 'page', pageId: row.page.id }, opensBeside(event))}
                 >
-                  <SourceCover row={row} siglum={row.source.siglum} />
+                  <SourceCover api={props.api} row={row} siglum={row.source.siglum} />
                   <span class="person-work-title">{displayTitle(row.page.text)}</span>
                   <Show when={apparatus()}>
                     <span class="person-work-apparatus">{apparatus()}</span>

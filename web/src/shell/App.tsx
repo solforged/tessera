@@ -12,10 +12,10 @@ import {
   Show,
 } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import { api } from '../api/client';
-import type { Block, IndexKind, NoteKind, WorkshopInfo, Shelf, Type, View } from '../api/types';
-import { createWorkshopClient, type Workshop } from '../document';
+import type { Block, IndexKind, NoteKind, Shelf, Type, View, WorkshopInfo } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
+import { createWorkshopClient, type Workshop } from '../workflows/workshop';
+import { bindSyncApi } from '../sync/state';
 import { displayTitle } from '../outline/names';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { builtInTagReason } from '../outline/PageMerge';
@@ -36,11 +36,11 @@ import { Popup, type PopupAnchor } from '../ui/Popup';
 import { crossfade, navigatePane, reflowPanes } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
-import { pendingCaretInput } from './pending-caret';
-import { Calendar } from './Calendar';
+import { pendingCaretInput } from '../ui/pending-caret';
+import { Calendar } from '../tasks/Calendar';
 import { localDate } from '../tasks/MonthGrid';
 import { createCommandRegistry } from './commands';
-import { deskCounts, shortDay } from './desk-counts';
+import { deskCounts, shortDay } from '../workflows/desk-counts';
 import type {
   Command,
   HistoryEntry,
@@ -205,6 +205,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     /* A first offline visit has no cached workshop identity. */
   }
   const workshop = createWorkshopClient({ workshopId: cachedIdentity?.id });
+  bindSyncApi(workshop.api);
   onCleanup(() => {
     void workshop.dispose();
   });
@@ -212,7 +213,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const commands = createCommandRegistry();
   const [info] = createResource(async () => {
     try {
-      const value = await api.workshop();
+      const value = await workshop.api.workshop();
       try {
         localStorage.setItem(identityKey, JSON.stringify(value));
       } catch {
@@ -264,7 +265,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const [questionsMenu, setQuestionsMenu] = createSignal<HTMLElement>();
   const showTypes = async (anchor: HTMLElement) => {
     try {
-      setTypesMenu({ anchor, types: await api.types() });
+      setTypesMenu({ anchor, types: await workshop.api.types() });
     } catch (reason) {
       reportError(reason);
     }

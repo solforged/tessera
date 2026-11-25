@@ -128,7 +128,7 @@ export function ReadingUnder(props: {
             >
               <span class="create-under-cover">
                 <Show when={choice.row} fallback={<Icon name="library" />}>
-                  {row => <SourceCover row={row()} siglum={row().source.siglum} />}
+                  {row => <SourceCover api={props.workshop.api} row={row()} siglum={row().source.siglum} />}
                 </Show>
               </span>
               <span class="create-under-text">

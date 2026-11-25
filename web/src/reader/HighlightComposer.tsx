@@ -2,7 +2,6 @@ import { Show, createEffect, createSignal, createUniqueId, onCleanup, onMount } 
 import { Portal } from 'solid-js/web';
 import type { WorkshopClient } from '../document/contract';
 import { formatProgress } from '../library/query';
-import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
 import { readerStyle } from './ReaderSettings';
 
@@ -75,7 +74,8 @@ export function HighlightComposer(props: { workshop: WorkshopClient; draft: High
     const observer = new ResizeObserver(fit);
     observer.observe(context);
     onCleanup(() => observer.disconnect());
-    void documentReady(doc)
+    void doc
+      .ready()
       .then(() => {
         if (disposed) return;
         setText(doc.block(noteId)?.text ?? '');

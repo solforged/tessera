@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
-import type { WorkshopClient } from '../document/contract';
 import type { AgendaItem } from '../api/types';
+import type { WorkshopClient } from '../document/contract';
 import { groupAgenda } from '../tasks/task-labels';
 
 /** Today and the sidebar share the day's actionable plans, separate from overdue work and future warnings. */

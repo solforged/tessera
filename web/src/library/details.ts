@@ -8,7 +8,7 @@ import type {
 } from '../api/types';
 import type { DocumentChange, WorkshopClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import { sourceState } from '../document/types';
-import { addFieldOption, documentReady, ensureField } from '../outline/source-fields';
+import { addFieldOption, ensureField } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
 import { createInstance } from '../fields/instances';
 import { displayTitle, foldName, referenceValue, resolveName } from '../outline/names';
@@ -311,7 +311,7 @@ async function prepareField(
     if (definition.kind === 'instance' && !definition.targets.length) {
       const doc = workshop.open(context.pageId);
       try {
-        await documentReady(doc);
+        await doc.ready();
         const targets = await Promise.all(
           ['Person', 'Group'].map(async title => (await workshop.pageByTitle(title, true))!),
         );
@@ -459,7 +459,7 @@ export async function saveSourceField(
   return prepareWrite(workshop, async () => {
     await Promise.all(
       docs.map(async doc => {
-        await documentReady(doc);
+        await doc.ready();
         await doc.flush();
       }),
     );
@@ -565,7 +565,7 @@ export async function fillMissingSourceDetails(
   return prepareWrite(workshop, async () => {
     await Promise.all(
       docs.map(async doc => {
-        await documentReady(doc);
+        await doc.ready();
         await doc.flush();
       }),
     );

@@ -1,13 +1,11 @@
 import { besideHint, opensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block, Mention, ReferenceGroup } from '../api/types';
-import { api } from '../api/client';
 import { loadWorks } from '../library/PersonWorks';
 import { sourceByline } from '../library/query';
 import type { OutlineIndex } from '../document/outline-index';
 import { linkMentionEdit } from '../document/link-mention';
-import { isStableReference, textTokens } from '../document/text-tokens';
-import { documentReady } from '../tasks/JournalAgenda';
+import { isStableReference, textTokens } from '../model/text-tokens';
 import { journalLabel, relativeDate } from '../tasks/relative-date';
 import { isPhone } from '../ui/phone';
 import { createWorkTest } from './source';
@@ -62,7 +60,7 @@ export function createOutlineRelated(
   const [counts] = createResource(version, async () => {
     countRequest?.abort();
     countRequest = new AbortController();
-    return readJournalRelated(api.referenceCounts(props.pageId, countRequest.signal), doc.root(), []);
+    return readJournalRelated(props.workshop.api.referenceCounts(props.pageId, countRequest.signal), doc.root(), []);
   });
   const countById = createMemo(
     () => new Map((counts.error ? [] : (counts() ?? [])).map(row => [row.block_id, row.count])),
@@ -80,7 +78,7 @@ export function createOutlineRelated(
       const [references, tagged, held, aboutSubjects, passages, branches, collection, collectionValues] =
         await Promise.all([
           readJournalRelated(
-            api.pageReferences(
+            props.workshop.api.pageReferences(
               props.pageId,
               sourcePage || collectionPage ? Number.MAX_SAFE_INTEGER : limit(),
               requests.signal,
@@ -88,17 +86,22 @@ export function createOutlineRelated(
             doc.root(),
             { total: 0, groups: [] },
           ),
-          api.members(props.pageId, undefined, requests.signal),
-          api.positions({ holder: props.pageId }, requests.signal),
+          props.workshop.api.members(props.pageId, undefined, requests.signal),
+          props.workshop.api.positions({ holder: props.pageId }, requests.signal),
           Promise.all(
             subjects()
               .split(',')
-              .map(subject => api.positions({ subject }, requests.signal)),
+              .map(subject => props.workshop.api.positions({ subject }, requests.signal)),
           ),
           sourcePage
-            ? api.highlights({ source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER }, requests.signal)
+            ? props.workshop.api.highlights(
+                { source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER },
+                requests.signal,
+              )
             : undefined,
-          doc.root()?.question ? api.questions({ parent: props.pageId }, requests.signal) : Promise.resolve([]),
+          doc.root()?.question
+            ? props.workshop.api.questions({ parent: props.pageId }, requests.signal)
+            : Promise.resolve([]),
           collectionPage
             ? props.workshop.api.library(
                 { collection_id: props.pageId, sort: 'title', direction: 'asc', limit: null },
@@ -119,7 +122,7 @@ export function createOutlineRelated(
           .filter(row => row.targets.includes(props.pageId))
           .map(row => ({ source: row.source, page: group.page })),
       );
-      const works = await loadWorks(api, props.pageId, rootLinks, requests.signal);
+      const works = await loadWorks(props.workshop.api, props.pageId, rootLinks, requests.signal);
       let filtered = 0;
       let backlinks = references.groups
         .map(group => ({
@@ -235,7 +238,7 @@ export function createOutlineRelated(
     async () => {
       relationRequest?.abort();
       relationRequest = new AbortController();
-      return api.relations({ subject: props.pageId }, relationRequest.signal);
+      return props.workshop.api.relations({ subject: props.pageId }, relationRequest.signal);
     },
   );
   const holderRelations = createMemo(() => {
@@ -293,7 +296,7 @@ export function createOutlineRelated(
   };
   const [blockBacklinks] = createResource(
     () => (zoom() && doc.block(zoom()!)?.revision !== 0 ? ([zoom()!, relatedVersion(), limit()] as const) : false),
-    ([id, , count]) => api.backlinks(id, count),
+    ([id, , count]) => props.workshop.api.backlinks(id, count),
   );
   function Backlinks(section: { cited?: boolean }) {
     const work = createWorkTest(props.workshop);
@@ -446,7 +449,7 @@ export function createOutlineRelated(
       async () => {
         request?.abort();
         request = new AbortController();
-        return api.unlinkedMentions(props.pageId, 100, request.signal);
+        return props.workshop.api.unlinkedMentions(props.pageId, 100, request.signal);
       },
     );
     const rows = createMemo(
@@ -459,7 +462,7 @@ export function createOutlineRelated(
       setError('');
       const source = props.workshop.open(row.page.id);
       try {
-        await documentReady(source);
+        await source.ready();
         const block = source.block(row.block.id);
         const edit = block && linkMentionEdit(block.id, block.text, props.pageId, row.term);
         if (!edit) throw new Error('This mention changed. Open its source to link it.');

@@ -14,8 +14,8 @@ import type {
   SourceState,
   TaskState,
 } from '../api/types';
-import { createWorkshopClient } from './index';
-import type { Workshop } from './index';
+import { createWorkshopClient } from '../workflows/workshop';
+import type { Workshop } from '../workflows/workshop';
 import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';

@@ -19,7 +19,7 @@ import { ulid } from 'ulid';
 import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../core/contract';
-import { setSystemBarsHidden } from '../shell/system-bars';
+import { setSystemBarsHidden } from '../ui/system-bars';
 import { createRetained } from '../core/retained';
 import { crossfade } from '../ui/pane-motion';
 import { sourceMetadata } from '../library/details';
@@ -27,7 +27,6 @@ import { formatProgress, highlightLocation } from '../library/query';
 import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
 import type { HighlightMenu, HighlightSection } from '../library/highlights';
 import { ResourceImage } from '../library/ResourceImage';
-import { documentReady } from '../tasks/JournalAgenda';
 import { BookMap } from './BookMap';
 import { bookChapters, chapterEntries } from './book-map';
 import { Button } from '../ui/Button';
@@ -63,7 +62,7 @@ import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
 import { isPhone } from '../ui/phone';
-import { setThemeOverride } from '../shell/theme';
+import { setThemeOverride } from '../ui/theme';
 import { Figures } from './Figures';
 import { hideEditMenu, nativeEditMenu, onEditMenu, showEditMenu } from './edit-menu';
 import './reader.css';
@@ -1814,7 +1813,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   async function prepareMerges(value?: SelectionToolbar, color: Citation['color'] = null) {
-    await documentReady(readerDocument);
+    await readerDocument.ready();
     await readerDocument.flush();
     const sourceId = props.target.sourceId;
     const rows = (
@@ -2620,6 +2619,7 @@ export function ReaderPane(props: ReaderPaneProps) {
                 }
               >
                 <ResourceImage
+                  api={props.workshop.api}
                   snapshotId={snapshot()}
                   href={value().resource!}
                   alt={value().text}
@@ -2708,7 +2708,15 @@ export function ReaderPane(props: ReaderPaneProps) {
     return (
       <div class="reader-title-page">
         <Show when={titleCover()}>
-          {href => <ResourceImage class="reader-title-cover" snapshotId={snapshot()} href={href()} alt="" />}
+          {href => (
+            <ResourceImage
+              api={props.workshop.api}
+              class="reader-title-cover"
+              snapshotId={snapshot()}
+              href={href()}
+              alt=""
+            />
+          )}
         </Show>
         <div class="reader-title-text">
           <Show when={imprint()}>

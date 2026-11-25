@@ -8,7 +8,7 @@ import { shortSourceTitle } from '../outline/source';
 import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import type { OpenTarget } from '../core/contract';
-import { agendaDaySummary } from '../shell/desk-counts';
+import { agendaDaySummary } from '../workflows/desk-counts';
 import { opensBeside } from '../core/beside';
 import { BookMap } from '../reader/BookMap';
 import { bookChapters, chapterAt } from '../reader/book-map';
@@ -159,7 +159,11 @@ export function JournalHeader(props: {
   });
   const readingLead = createMemo(() => {
     const book = reading();
-    return book ? <SourceCover row={book.row} siglum={book.row.source.siglum} /> : <Icon name="library" />;
+    return book ? (
+      <SourceCover api={props.workshop.api} row={book.row} siglum={book.row.source.siglum} />
+    ) : (
+      <Icon name="library" />
+    );
   });
   return (
     <section class="journal-header" aria-label={spokenJournalDate(props.date)}>
@@ -300,7 +304,7 @@ export function JournalHeader(props: {
                   {book => (
                     <>
                       <span class="journal-reading-book">
-                        <SourceCover row={book().row} siglum={book().row.source.siglum} />
+                        <SourceCover api={props.workshop.api} row={book().row} siglum={book().row.source.siglum} />
                         <span class="journal-reading-text">
                           <span class="journal-reading-title" title={book().row.page.text}>
                             {shortSourceTitle(book().row.page.text)}

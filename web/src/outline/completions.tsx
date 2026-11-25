@@ -1,7 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import type { EditorView } from '@codemirror/view';
 import type { Block, Completion as NameCompletion, FieldDefinition, RelationKind, TaskStatus } from '../api/types';
-import { api } from '../api/client';
 import type { BlockState } from '../document/contract';
 import type { Caret } from '../core/contract';
 import { fieldEntryId } from '../core/field-entry';
@@ -637,11 +636,11 @@ export function createOutlineCompletions(
       mode === 'types'
         ? completeTypes(props.workshop, query)
         : mode === 'blocks'
-          ? (query.trim() ? api.search(query, 20) : Promise.resolve([])).then(hits => ({
+          ? (query.trim() ? props.workshop.api.search(query, 20) : Promise.resolve([])).then(hits => ({
               rows: hits.map(hit => hit.block).filter(block => block.kind === 'block'),
               canCreate: false,
             }))
-          : api.complete(query).then(rows => ({ rows, canCreate: false }));
+          : props.workshop.api.complete(query).then(rows => ({ rows, canCreate: false }));
     completionRequest = { key, promise };
     return promise;
   });

@@ -1,13 +1,18 @@
 import { Show, createRenderEffect, createResource, createSignal, splitProps } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import { EMBEDDED } from '../core/mode';
 
-// Snapshot resources are immutable. Keep URLs for the tab's lifetime so virtualized
+// Snapshot resources are immutable. Keep URLs per client for the tab's lifetime so virtualized
 // reader rows can remount without downloading the same image again.
-const resourceUrls = new Map<string, Promise<string | undefined>>();
+const caches = new WeakMap<ApiClient, Map<string, Promise<string | undefined>>>();
 
-function resourceUrl(snapshotId: string, href: string): Promise<string | undefined> {
+function resourceUrl(api: ApiClient, snapshotId: string, href: string): Promise<string | undefined> {
+  let resourceUrls = caches.get(api);
+  if (!resourceUrls) {
+    resourceUrls = new Map();
+    caches.set(api, resourceUrls);
+  }
   const key = JSON.stringify([snapshotId, href]);
   let url = resourceUrls.get(key);
   if (!url) {
@@ -15,7 +20,7 @@ function resourceUrl(snapshotId: string, href: string): Promise<string | undefin
     url = api.resource(snapshotId, href).then(
       blob => URL.createObjectURL(blob),
       () => {
-        resourceUrls.delete(key);
+        resourceUrls!.delete(key);
         return undefined;
       },
     );
@@ -24,7 +29,7 @@ function resourceUrl(snapshotId: string, href: string): Promise<string | undefin
   return url;
 }
 
-export type ResourceImageProps = { snapshotId: string; href: string } & Omit<
+export type ResourceImageProps = { api: ApiClient; snapshotId: string; href: string } & Omit<
   JSX.ImgHTMLAttributes<HTMLImageElement>,
   'src' | 'srcset'
 >;
@@ -32,7 +37,7 @@ export type ResourceImageProps = { snapshotId: string; href: string } & Omit<
 // Lazy images can defer their cached load event until after mount; only their first decode needs a fade.
 const loadedImages = new Set<string>();
 
-function LoadedImage(props: { src: string; image: Omit<ResourceImageProps, 'snapshotId' | 'href'> }) {
+function LoadedImage(props: { src: string; image: Omit<ResourceImageProps, 'api' | 'snapshotId' | 'href'> }) {
   const [state, setState] = createSignal<'pending' | 'loaded' | 'instant'>('pending');
   let element!: HTMLImageElement;
   const image = (
@@ -63,11 +68,12 @@ function LoadedImage(props: { src: string; image: Omit<ResourceImageProps, 'snap
 }
 
 export function ResourceImage(props: ResourceImageProps) {
-  const [resource, image] = splitProps(props, ['snapshotId', 'href']);
-  if (!EMBEDDED) return <LoadedImage image={image} src={api.resourceUrl(resource.snapshotId, resource.href)} />;
+  const [resource, image] = splitProps(props, ['api', 'snapshotId', 'href']);
+  if (!EMBEDDED)
+    return <LoadedImage image={image} src={resource.api.resourceUrl(resource.snapshotId, resource.href)} />;
   const [url] = createResource(
-    () => [resource.snapshotId, resource.href] as const,
-    ([snapshotId, href]) => resourceUrl(snapshotId, href),
+    () => [resource.api, resource.snapshotId, resource.href] as const,
+    ([api, snapshotId, href]) => resourceUrl(api, snapshotId, href),
   );
   return <Show when={url()}>{src => <LoadedImage image={image} src={src()} />}</Show>;
 }

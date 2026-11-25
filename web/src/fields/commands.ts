@@ -15,7 +15,6 @@ import type {
 import type { DocumentChange, WorkshopClient, PageDocument } from '../document/contract';
 import { fieldEntryId } from '../core/field-entry';
 import { queryFieldIds, remapQueryField } from '../table/query';
-import { documentReady } from '../outline/source-fields';
 import { fieldNameProblem } from './kinds';
 import { SOURCE_TARGET, sourceOperation } from './targets';
 import { isStableReference, textTokens } from '../document/text-tokens';
@@ -357,7 +356,7 @@ export async function createOptionValue(
   target: { ownerId: string; valueId?: string; field: FieldDefinition },
   text: string,
 ): Promise<DocumentChange> {
-  await documentReady(doc);
+  await doc.ready();
   await doc.flush();
   const steps: Step[] = [];
   const field = (await workshop.api.fields()).fields.find(field => field.id === target.field.id);

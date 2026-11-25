@@ -1,6 +1,6 @@
 import { For, Show, batch, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import type { PairingCode, PairingStatus, RejectedChange, SyncAttempt } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -46,7 +46,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
     setBusy(true);
     setPairNeedsSharing(false);
     try {
-      const sharing = await api.setSharing(on);
+      const sharing = await props.workshop.api.setSharing(on);
       const value = hubDevices.state();
       if (value) hubDevices.set({ ...value, sharing });
       return sharing.on;
@@ -70,7 +70,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
   };
   const forget = async (id: string) => {
     try {
-      await api.forgetDevice(id);
+      await props.workshop.api.forgetDevice(id);
       setForgetting(null);
     } catch (reason) {
       props.onError(message(reason));
@@ -157,7 +157,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
                           <div class="devices-fix" data-tone={health().tone}>
                             <h3>{health().title}</h3>
                             <SyncExplanation health={health()} where="settings" />
-                            <SyncFix health={health()} onError={props.onError} />
+                            <SyncFix api={props.workshop.api} health={health()} onError={props.onError} />
                           </div>
                         </Show>
                         <dl class="devices-facts">
@@ -240,6 +240,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
               </div>
               <Show when={pairing()}>
                 <PairDialog
+                  api={props.workshop.api}
                   url={value().sharing.url}
                   returnFocus={() => pairButton ?? null}
                   onDone={() => {
@@ -258,7 +259,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
 }
 
 /** The QR code and short code a phone pairs with. It closes itself once the phone has paired. */
-function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | null; onDone(): void }) {
+function PairDialog(props: { api: ApiClient; url: string | null; returnFocus(): HTMLElement | null; onDone(): void }) {
   const [code, setCode] = createSignal<PairingCode | null>(null);
   const [status, setStatus] = createSignal<PairingStatus['state']>('none');
   const [paired, setPaired] = createSignal<string | null>(null);
@@ -268,7 +269,7 @@ function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | nu
     setError('');
     setPaired(null);
     try {
-      const next = await api.startPairing();
+      const next = await props.api.startPairing();
       batch(() => {
         setStatus('waiting');
         setCode(next);
@@ -282,7 +283,7 @@ function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | nu
     setNow(Date.now());
     if (status() !== 'waiting') return;
     try {
-      const value = await api.pairingStatus();
+      const value = await props.api.pairingStatus();
       setStatus(value.state);
       if (value.state === 'paired') setPaired(value.device?.name ?? 'The phone');
     } catch {
@@ -291,7 +292,7 @@ function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | nu
   }, 1000);
   onCleanup(() => window.clearInterval(timer));
   const close = () => {
-    if (status() === 'waiting') void api.cancelPairing().catch(() => undefined);
+    if (status() === 'waiting') void props.api.cancelPairing().catch(() => undefined);
     props.onDone();
   };
   const left = () => {
@@ -457,7 +458,7 @@ export function PhoneDevices(props: DeviceProps) {
                     </ListRow>
                   </Show>
                   <Show when={setup()}>
-                    <SyncSetup onDone={() => setSetup(false)} />
+                    <SyncSetup api={props.workshop.api} onDone={() => setSetup(false)} />
                   </Show>
                 </>
               }
@@ -493,7 +494,7 @@ export function PhoneDevices(props: DeviceProps) {
                           <div class="devices-fix" data-tone={health().tone}>
                             <h3>{health().title}</h3>
                             <SyncExplanation health={health()} where="settings" />
-                            <SyncFix health={health()} onError={props.onError} />
+                            <SyncFix api={props.workshop.api} health={health()} onError={props.onError} />
                           </div>
                         )}
                       </Show>
@@ -518,7 +519,7 @@ export function PhoneDevices(props: DeviceProps) {
                       {/* A healthy copy has nothing to fix; Sync now sits with the facts. */}
                       <Show when={currentHealth()?.kind === 'synced'}>
                         <div class="devices-actions">
-                          <SyncFix health={currentHealth()!} onError={props.onError} />
+                          <SyncFix api={props.workshop.api} health={currentHealth()!} onError={props.onError} />
                         </div>
                       </Show>
                       <AttemptLedger attempts={value().attempts} when={props.when} />

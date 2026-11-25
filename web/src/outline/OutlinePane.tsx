@@ -19,7 +19,6 @@ import {
 import { Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, PositionQuestion } from '../api/types';
-import { api } from '../api/client';
 import type { Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import { mapTextOffset } from '../document/text-patch';
 import { depthStops } from '../core/contract';
@@ -383,7 +382,7 @@ function Pane(props: OutlinePaneProps) {
   const live = createMemo(() => props.workshop.connection() === 'live');
   const [fields] = createResource(
     () => [props.workshop.changed('fields'), live()] as const,
-    () => api.fields(),
+    () => props.workshop.api.fields(),
   );
   const definitions = createMemo(
     () => {
@@ -428,7 +427,11 @@ function Pane(props: OutlinePaneProps) {
     undefined,
     { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
   );
-  const templates = createTemplateCache(() => (fields.error ? undefined : fields()), props.workshop.lastChange);
+  const templates = createTemplateCache(
+    props.workshop.api,
+    () => (fields.error ? undefined : fields()),
+    props.workshop.lastChange,
+  );
   const glossId = createMemo(() =>
     doc.root()?.kind === 'page' ? glossEntry(doc, id => fieldRole(definitionsById().get(id)) === 'standfirst') : null,
   );
@@ -447,7 +450,7 @@ function Pane(props: OutlinePaneProps) {
       !creatingRoot() && doc.root()?.kind === 'page'
         ? ([props.pageId, props.workshop.changed('types'), live()] as const)
         : false,
-    ([pageId]) => api.type(pageId),
+    ([pageId]) => props.workshop.api.type(pageId),
   );
   const [editingNames] = createResource(
     () => {
@@ -490,7 +493,7 @@ function Pane(props: OutlinePaneProps) {
       const target = tagTemplate();
       return target ? ([target.id, props.workshop.changed('types'), live()] as const) : false;
     },
-    ([id]) => api.type(id),
+    ([id]) => props.workshop.api.type(id),
   );
   function DiscoveryHints(row: { id: string }) {
     return (
@@ -1046,7 +1049,7 @@ function Pane(props: OutlinePaneProps) {
     !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   const [noteKinds] = createResource(
     () => (!creatingRoot() && isNote() ? ([props.pageId, props.workshop.changed('pages'), live()] as const) : false),
-    ([id]) => api.noteKinds(id),
+    ([id]) => props.workshop.api.noteKinds(id),
   );
   createEffect(() => {
     if (isNote()) props.onNoteKinds?.(noteKinds.error ? undefined : noteKinds.latest);
@@ -3650,7 +3653,7 @@ function Pane(props: OutlinePaneProps) {
           </div>
         </Show>
         <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}>
-          <PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} />
+          <PersonWorks api={props.workshop.api} pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} />
         </Show>
         <Show when={!zoom()}>
           <projectSummary.LinkedTasks />

@@ -25,7 +25,7 @@ import { fieldEntryId } from '../core/field-entry';
 import { Icon } from '../ui/Icon';
 import type { OutlineContext } from './context';
 import { createFieldEntry } from '../fields/commands';
-import { pendingCaretInput } from '../shell/pending-caret';
+import { pendingCaretInput } from '../ui/pending-caret';
 import { TaskFieldBed } from '../tasks/TaskFieldBed';
 import { taskFieldName, type TaskFieldName } from '../tasks/task-fields';
 import { newTask } from '../tasks/quick-date';

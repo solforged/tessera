@@ -21,9 +21,9 @@ import type { Caret } from '../core/contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
-import { isStableReference, textTokens } from './text-tokens';
+import { isStableReference, textTokens } from '../model/text-tokens';
 import { mapTextOffset, rebaseText } from './text-patch';
-import { titleKey } from './title-key';
+import { titleKey } from '../model/title-key';
 
 import { EditSession } from './edits/session';
 import type { DocumentInternals } from './edits/internals';
@@ -163,6 +163,7 @@ export class Document implements PageDocument {
   archivedVersion = this.archiveChange[0];
   private loadStatus = createSignal<'loading' | 'ready' | 'missing' | 'error'>('loading');
   private loadMessage = createSignal('');
+  private readyWaiters: { resolve(): void; reject(error: Error): void }[] = [];
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private textCommit: { entry?: HistoryEntry } | undefined;
@@ -194,6 +195,25 @@ export class Document implements PageDocument {
   holds = 0;
   status = this.loadStatus[0];
   statusMessage = this.loadMessage[0];
+  private setStatus(status: 'ready' | 'missing' | 'error', message = '') {
+    this.loadStatus[1](status);
+    this.loadMessage[1](message);
+    if (this.readyWaiters.length) {
+      const waiters = this.readyWaiters.splice(0);
+      for (const waiter of waiters) {
+        if (status === 'ready') waiter.resolve();
+        else waiter.reject(new Error(message));
+      }
+    }
+  }
+  ready(): Promise<void> {
+    const status = this.status();
+    if (status === 'ready') return Promise.resolve();
+    if (status !== 'loading') return Promise.reject(new Error(this.statusMessage()));
+    const waiter = Promise.withResolvers<void>();
+    this.readyWaiters.push(waiter);
+    return waiter.promise;
+  }
   constructor(
     readonly pageId: string,
     private host: DocumentHost,
@@ -425,17 +445,13 @@ export class Document implements PageDocument {
       for (const id of ids) this.presenceChanged(id);
       this.host.publish(null, this.pageId);
       this.host.updateRoot(null, this.pageId);
-      this.loadStatus[1]('missing');
-      this.loadMessage[1](message);
+      this.setStatus('missing', message);
     });
   }
   private fail(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof ApiError && error.status === 404) this.markMissing(message);
-    else {
-      this.loadStatus[1]('error');
-      this.loadMessage[1](message);
-    }
+    else this.setStatus('error', message);
   }
   isResolving(id: string) {
     return this.resolving.has(id);
@@ -1182,8 +1198,7 @@ export class Document implements PageDocument {
           index.splice(at, 0, rows);
         }
         if (!base && action.id === this.pageId) {
-          this.loadStatus[1]('ready');
-          this.loadMessage[1]('');
+          this.setStatus('ready');
         }
         return [{ kind: 'delete', id: action.id }];
       }
@@ -1317,8 +1332,7 @@ export class Document implements PageDocument {
       // put() wrote every saved cell above; only local commands, conflicts and resolutions can differ from it.
       this.refreshPending(new Set([...this.pendingIds(), ...this.conflicts, ...this.resolving]));
       this.conflictVersion[1](value => value + 1);
-      this.loadStatus[1]('ready');
-      this.loadMessage[1]('');
+      this.setStatus('ready');
     });
     for (const target of view.targets) this.host.publish(target);
     this.host.cachePage(view);
@@ -1607,8 +1621,7 @@ export class Document implements PageDocument {
       if (command.actions.some(action => action.kind === 'delete' && action.id === this.pageId)) this.markMissing();
       if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) {
         this.retainHistoryOnDelete = false;
-        this.loadStatus[1]('ready');
-        this.loadMessage[1]('');
+        this.setStatus('ready');
       }
       this.recordPrunedPages(command, receipt?.pruned_pages ?? []);
     });

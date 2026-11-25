@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createResource, createSignal, createUniqueId, onMount } from 'solid-js';
 import type { NoteKind } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
-import { pendingCaretInput } from '../shell/pending-caret';
+import { pendingCaretInput } from '../ui/pending-caret';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import type { CreateKind } from './request';
