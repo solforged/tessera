@@ -13,6 +13,8 @@ bun = "1.4"
 vale = "3.25"
 # Formats and lints the editor by web/biome.json, whose $schema names this version.
 biome = "2.5.15"
+# Runs the Rust tests in parallel across test binaries.
+cargo-nextest = "0.9"
 
 [tasks.deps]
 description = "Install the web dependencies"
@@ -83,8 +85,8 @@ run = [
 ]
 
 [tasks.test]
-description = "Run the Rust tests"
-run = "cargo test --workspace --locked"
+description = "Run the Rust tests, each test binary in parallel"
+run = "cargo nextest run --workspace --locked"
 
 [tasks.check]
 description = "Run the checks a change must pass"
