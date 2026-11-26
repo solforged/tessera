@@ -302,7 +302,7 @@ distinct source counts. `unlinked_mentions` runs one FTS phrase query over the
 title and aliases, then confirms whole-word matches outside reference and tag
 tokens. Code: `crates/tessera-core/src/references.rs`.
 
-`Notebook.lookup` supplies reference labels: the alias or current target text,
+`Workshop.lookup` supplies reference labels: the alias or current target text,
 or an unresolved label for a missing target. Rendering leaves the authored ID
 token unchanged. Code: `web/src/outline/names.ts:125` (`referenceLabel`),
 `web/src/outline/BlockText.tsx:71` (`BlockText`).
@@ -1185,7 +1185,7 @@ sequenceDiagram
     Queue->>Outbox: Persist frozen command before sending
     Outbox-->>Queue: IndexedDB write completes
     Queue->>HTTP: POST /api/batches, unchanged JSON and command ID key
-    HTTP->>Core: `Notebook.apply(batch)` under workshop mutex
+    HTTP->>Core: `Workshop::apply(batch)` under workshop mutex
     Core->>Core: Begin immediate transaction, insert changes row
     alt base_revision matches at each operation
         Core->>Core: Apply operations, derive links, tags, cards and fields
@@ -1233,7 +1233,7 @@ after reload and stay in the outbox.
    `OutlineIndex` separately stores IDs, parents and depths in an implicit
    treap; text edits never mutate it. Code: `web/src/document/contract.ts:55`;
    `page-document.ts:152`, `156`; `outline-index.ts:80`.
-4. `Notebook.enqueue` schedules command-snapshot persistence in a microtask.
+4. `Workshop.enqueue` schedules command-snapshot persistence in a microtask.
    `Outbox` serializes IndexedDB writes off the input path. The queue can
    replace its latest unfrozen single-block text action, retaining the original
    inverse. Code: `web/src/document/index.ts:526`;
@@ -1429,7 +1429,7 @@ The palette captures commands on opening so focus cannot retarget
 selection-sensitive commands. Leading `>` selects command search. Otherwise
 block/page search uses a 100 ms debounce. Outline commands stay scoped to the
 opening pane, and Tab drills into children. Blocks open by page ID plus block
-ID. `NotebookClient.createPage` creates pages. Code:
+ID. `WorkshopClient.createPage` creates pages. Code:
 `web/src/shell/Palette.tsx:293` (`commands`), `394` (`drill`), `403` (`open`),
 `432` (`create`).
 

@@ -1,5 +1,4 @@
 import { Show, createSignal } from 'solid-js';
-import { api } from '../api/client';
 import { DEMO, EMBEDDED, MOBILE } from '../core/mode';
 import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
@@ -51,7 +50,7 @@ export function WorkshopSwitcher(props: {
               ? 'Download the workshop again first'
               : undefined,
           action: () => {
-            void api.runSync().then(sync.set, props.onError);
+            void props.workshop.api.runSync().then(sync.set, props.onError);
           },
         },
         {

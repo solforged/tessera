@@ -1,7 +1,6 @@
 import { Show, createSignal, onCleanup } from 'solid-js';
 import type { PageDocument } from '../document/contract';
-import { textTokens } from '../document/text-tokens';
-import { documentReady } from '../tasks/JournalAgenda';
+import { textTokens } from '../model/text-tokens';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 
@@ -42,7 +41,7 @@ export function createHighlightTagPrompt() {
             setBusy(true);
             setError('');
             try {
-              await documentReady(value.document);
+              await value.document.ready();
               const block = value.document.block(value.id);
               if (!block) throw new Error('Highlight not found.');
               if (

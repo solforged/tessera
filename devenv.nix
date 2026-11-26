@@ -162,9 +162,10 @@ let
       run = ''cd web && exec biome ci . "$@"'';
     };
     ts-lint = {
-      description = "Check formatting and run Clippy on the workspace";
+      description = "Check formatting, rustdoc and Clippy on the workspace";
       run = ''
         cargo fmt --all -- --check
+        RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
         exec cargo clippy --workspace --all-targets --locked -- -D warnings
       '';
     };

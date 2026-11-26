@@ -14,6 +14,7 @@ import { newTask } from '../tasks/quick-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { longPress } from '../ui/context-menu';
+import '../ui/chips.css';
 import './table.css';
 
 export interface TableGridProps {
@@ -231,6 +232,7 @@ export function TableGrid(props: TableGridProps) {
                         props.onOpen(row, true);
                     }}
                   >
+                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: TablePane owns Enter, Space, F2 and arrow-key navigation across grid cells. */}
                     <td
                       class="table-title-column table-cell"
                       classList={{ 'table-title-actions': !!props.onRowMenu }}
@@ -271,6 +273,7 @@ export function TableGrid(props: TableGridProps) {
                     </td>
                     <For each={props.columns}>
                       {id => (
+                        // biome-ignore lint/a11y/useKeyWithClickEvents: TablePane owns Enter, Space, F2 and arrow-key navigation across grid cells.
                         <td
                           class={`table-cell table-kind-${props.field(id)?.kind ?? 'text'}`}
                           data-field-id={id}
@@ -358,6 +361,7 @@ export function TableGrid(props: TableGridProps) {
                     </span>
                   </div>
                 </Show>
+                {/* biome-ignore lint/a11y/useKeyWithClickEvents: Keyboard focus lands on the card title button and field controls inside each listitem. */}
                 <article
                   hidden={entry.hidden}
                   class="table-card"

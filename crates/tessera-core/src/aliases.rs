@@ -21,7 +21,7 @@ pub struct Completion {
     pub alias: Option<String>,
 }
 
-/// How a title target's name reached a page; see [`Notebook::page_by_name`].
+/// How a title target's name reached a page; see [`Workshop::page_by_name`].
 pub(crate) enum Named {
     None,
     /// The page with this title, ignoring tags and case.
@@ -262,7 +262,7 @@ impl Workshop {
         }
     }
 
-    /// [`Notebook::page_by_name`], saying how the name reached its page.
+    /// [`Workshop::page_by_name`], saying how the name reached its page.
     /// The exact title wins, so pages whose titles differ only in
     /// punctuation each stay reachable by their own title.
     pub(crate) fn named_page(&self, name: &str) -> Result<Named> {
@@ -272,7 +272,7 @@ impl Workshop {
         }
     }
 
-    /// The folded half of [`Notebook::named_page`], for a caller that has
+    /// The folded half of [`Workshop::named_page`], for a caller that has
     /// already looked for the exact title; it never returns [`Named::Title`].
     pub(crate) fn folded_page(&self, name: &str) -> Result<Named> {
         let mut matches = self.resolve_name(name)?;

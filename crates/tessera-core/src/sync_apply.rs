@@ -71,11 +71,16 @@ impl Workshop {
         }
         let mut attempts = rewrite.batch.operations.len() + 2;
         loop {
-            let error =
-                match self.commit(&rewrite.batch, Some(&change.stamp), &extras, |_, _| Ok(())) {
-                    Ok(committed) => return Ok(PushOutcome::Accepted { seq: committed.seq }),
-                    Err(error) => error,
-                };
+            let error = match self.commit(
+                &rewrite.batch,
+                Some(&change.stamp),
+                &extras,
+                false,
+                |_, _| Ok(()),
+            ) {
+                Ok(committed) => return Ok(PushOutcome::Accepted { seq: committed.seq }),
+                Err(error) => error,
+            };
             attempts -= 1;
             if let Error::Conflict {
                 op_index,
@@ -176,6 +181,7 @@ impl Workshop {
             cards: Vec::new(),
             work_sessions: Vec::new(),
             review_sessions: Vec::new(),
+            views: Vec::new(),
             decks: Vec::new(),
             task_views: Vec::new(),
             library_views: Vec::new(),

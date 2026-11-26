@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
-import { createWorkshopClient, type Workshop } from './index';
+import { createWorkshopClient, type Workshop } from '../workflows/workshop';
 import { startService } from '../testing/service';
 import { autoPlural } from '../fields/presentation';
 import { noteKindIcon } from '../notes/kinds';

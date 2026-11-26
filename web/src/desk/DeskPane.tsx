@@ -12,7 +12,8 @@ import { BlockText } from '../outline/BlockText';
 import { plainText, targetLabel } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { Popup } from '../ui/Popup';
+import { createTopicQuery } from '../ui/loading';
+import { SavedViewNamePopup } from '../workflows/saved-views';
 import {
   columnNames,
   columnQuery,
@@ -25,6 +26,7 @@ import {
   updateColumn,
 } from './query';
 import type { DeskColumn } from './query';
+import '../ui/chips.css';
 import './desk.css';
 
 const columns: DeskColumn[] = [0, 1, 2];
@@ -39,7 +41,6 @@ export function DeskPane(props: TablePaneProps) {
   const [editing, setEditing] = createSignal<DeskColumn | null>(null);
   const [filter, setFilter] = createSignal<{ column: DeskColumn; anchor: HTMLElement; index?: number }>();
   const [saveAnchor, setSaveAnchor] = createSignal<HTMLElement>();
-  const [name, setName] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [pendingFocus, setPendingFocus] = createSignal<DeskColumn | null>(null);
@@ -49,40 +50,51 @@ export function DeskPane(props: TablePaneProps) {
     () => props.workshop.changed('fields'),
     () => api.fields(),
   );
-  const [saved, { mutate: setSaved }] = createResource(
-    () => props.target.viewId,
-    id => api.view(id),
-  );
+  const savedQuery = createTopicQuery<string, View>({
+    workshop: props.workshop,
+    topics: ['views'],
+    key: () => props.target.viewId,
+    fetcher: (id, signal) => api.view(id, signal),
+  });
+  const saved = savedQuery.data;
+  const setSaved = savedQuery.mutate;
   const missing = createMemo(() => (fields() ? missingQueryFields(query(), fields()!.fields) : []));
   const columnQueries = columns.map(column => createMemo(() => columnQuery(query(), column)));
   const results = columns.map(column => {
+    const cache = new Map<string, QueryResult>();
     const signature = createMemo(() =>
       JSON.stringify({ ...columnQueries[column]!(), offset: 0, limit: limits()[column] }),
     );
     const enabled = createMemo(
       () => !missing().length && (column === 0 || !!selection()[column === 1 ? 'question' : 'position']),
     );
-    return createResource(
-      () => enabled() && { signature: signature(), seq: props.workshop.changeSequence() },
-      async ({ signature }) => {
-        const value = JSON.parse(signature) as Query;
+    return createTopicQuery<string, QueryResult>({
+      workshop: props.workshop,
+      key: () => (enabled() ? signature() : false),
+      cache,
+      cacheKey: value => value,
+      fetcher: async (sig, signal) => {
+        const value = JSON.parse(sig) as Query;
         const wanted = value.limit ?? 500;
-        const first = await api.query({ ...value, limit: Math.min(wanted, 2000) });
+        const first = await api.query({ ...value, limit: Math.min(wanted, 2000) }, signal);
         while (first.rows.length < Math.min(wanted, first.total)) {
-          const next = await api.query({
-            ...value,
-            offset: first.rows.length,
-            limit: Math.min(2000, wanted - first.rows.length),
-          });
+          const next = await api.query(
+            {
+              ...value,
+              offset: first.rows.length,
+              limit: Math.min(2000, wanted - first.rows.length),
+            },
+            signal,
+          );
           if (!next.rows.length) break;
           first.rows.push(...next.rows);
         }
         return first;
       },
-    );
+    });
   });
-  const result = (column: DeskColumn) => results[column]![0]() ?? emptyResult;
-  const loading = (column: DeskColumn) => results[column]![0].loading;
+  const result = (column: DeskColumn) => results[column]!.data() ?? emptyResult;
+  const loading = (column: DeskColumn) => results[column]!.loading();
   const enabled = (column: DeskColumn) => column === 0 || !!selection()[column === 1 ? 'question' : 'position'];
   const ordered = columns.map(column =>
     createMemo(() => {
@@ -128,12 +140,12 @@ export function DeskPane(props: TablePaneProps) {
   };
   for (const column of columns)
     createEffect(() => {
-      const resource = results[column]![0];
-      const value = resource();
+      const resource = results[column]!;
+      const value = resource.data();
       const id = selection()[selectionKey[column]];
       if (
         !enabled(column) ||
-        resource.state !== 'ready' ||
+        resource.loading() ||
         !value ||
         value.rows.length < value.total ||
         !id ||
@@ -173,19 +185,15 @@ export function DeskPane(props: TablePaneProps) {
       untrack(() => focusColumn(column));
     }
   });
-  const [positionPage] = createResource(
-    () => {
+  const positionPageQuery = createTopicQuery<{ pageId: string; positionId: string }, Map<string, string[]>>({
+    workshop: props.workshop,
+    key: () => {
       const position = selectedRow(1);
-      return (
-        position && {
-          pageId: position.block.page.id,
-          positionId: position.block.block.id,
-          seq: props.workshop.changeSequence(),
-        }
-      );
+      return position ? { pageId: position.block.page.id, positionId: position.block.block.id } : false;
     },
-    async ({ pageId, positionId }) => positionLocators(await api.page(pageId), positionId),
-  );
+    fetcher: async ({ pageId, positionId }, signal) => positionLocators(await api.page(pageId, signal), positionId),
+  });
+  const positionPage = positionPageQuery.data;
   const attribute = (row: QueryRow, key: string) => row.attributes?.[key]?.map(value => value.text).join(' · ') ?? '';
   const fieldValue = (row: QueryRow, label: string) => {
     const definition = fields()?.fields.find(field => field.name.toLocaleLowerCase() === label.toLocaleLowerCase());
@@ -213,15 +221,11 @@ export function DeskPane(props: TablePaneProps) {
           : 'All questions';
   };
   const openRow = (row: QueryRow, beside: boolean) => props.onOpen(rowTarget(row), beside);
-  const submit = (operation: Operation) =>
-    api.submit({
-      actor: { kind: 'client', name: 'tessera-web-desk' },
-      idempotency_key: ulid(),
-      operations: [operation],
-    });
+  const submit = (operation: Operation) => props.workshop.commit([operation]);
   const failure = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
-  const save = async (create: boolean) => {
-    if (busy() || (create && !name().trim())) return;
+  const save = async (create: boolean, chosenName?: string) => {
+    const trimmed = chosenName?.trim() ?? '';
+    if (busy() || (create && !trimmed)) return;
     setBusy(true);
     setError('');
     try {
@@ -231,7 +235,7 @@ export function DeskPane(props: TablePaneProps) {
         op: 'save_view',
         id,
         base_revision: before?.revision ?? null,
-        name: create ? name().trim() : before!.name,
+        name: create ? trimmed : before!.name,
         query: copyQuery(query()),
       });
       const after = await api.view(id);
@@ -242,6 +246,7 @@ export function DeskPane(props: TablePaneProps) {
       report();
     } catch (reason) {
       failure(reason);
+      if (create) throw reason;
     } finally {
       setBusy(false);
     }
@@ -363,13 +368,7 @@ export function DeskPane(props: TablePaneProps) {
               Save changes
             </Button>
           </Show>
-          <Button
-            class="bordered"
-            onClick={event => {
-              setName('');
-              setSaveAnchor(event.currentTarget);
-            }}
-          >
+          <Button class="bordered" onClick={event => setSaveAnchor(event.currentTarget)}>
             Save desk
           </Button>
           <Show when={history()}>
@@ -487,13 +486,13 @@ export function DeskPane(props: TablePaneProps) {
                     </p>
                   }
                 >
-                  <Show when={results[column]![0].error}>
+                  <Show when={results[column]!.error()}>
                     <p class="error" role="alert">
-                      {String(results[column]![0].error)}
-                      <Button onClick={() => results[column]![1].refetch()}>Try again</Button>
+                      {results[column]!.error()}
+                      <Button onClick={() => results[column]!.refresh()}>Try again</Button>
                     </p>
                   </Show>
-                  <Show when={!loading(column) && !result(column).rows.length && !results[column]![0].error}>
+                  <Show when={!loading(column) && !result(column).rows.length && !results[column]!.error()}>
                     <p class="desk-empty">
                       No {columnNames[column].toLowerCase()} match this query.
                       <Show when={filtered(column)}>
@@ -541,6 +540,16 @@ export function DeskPane(props: TablePaneProps) {
                           tabIndex={selection()[selectionKey[column]] === row.block.block.id ? 0 : -1}
                           aria-selected={selection()[selectionKey[column]] === row.block.block.id}
                           data-desk-row={row.block.block.id}
+                          onKeyDown={event => {
+                            if (event.key === ' ') {
+                              event.preventDefault();
+                              select(
+                                column,
+                                row,
+                                getComputedStyle(region.querySelector('.desk-breadcrumb')!).display !== 'none',
+                              );
+                            }
+                          }}
                           onClick={event => {
                             if (opensBeside(event)) {
                               openRow(row, true);
@@ -655,35 +664,17 @@ export function DeskPane(props: TablePaneProps) {
         )}
       </Show>
       <Show when={saveAnchor()}>
-        <Popup
-          anchor={saveAnchor()!}
-          label="Save desk"
-          width={320}
-          dirty={() => name().length > 0}
-          onDismiss={() => setSaveAnchor(undefined)}
-        >
-          <form
-            onSubmit={event => {
-              event.preventDefault();
-              void save(true);
-            }}
-          >
-            <input
-              class="input"
-              aria-label="Desk name"
-              placeholder="Desk name"
-              value={name()}
-              onInput={event => setName(event.currentTarget.value)}
-              maxlength={120}
-            />
-            <div class="popup-actions">
-              <Button onClick={() => setSaveAnchor(undefined)}>Cancel</Button>
-              <Button type="submit" class="bordered" disabled={busy() || !name().trim()}>
-                Save
-              </Button>
-            </div>
-          </form>
-        </Popup>
+        {anchor => (
+          <SavedViewNamePopup
+            anchor={anchor()}
+            label="Save desk"
+            inputLabel="Desk name"
+            width={320}
+            busy={busy()}
+            onDismiss={() => setSaveAnchor(undefined)}
+            onSave={chosenName => save(true, chosenName)}
+          />
+        )}
       </Show>
     </div>
   );

@@ -1,5 +1,5 @@
 import { createRoot, createSignal } from 'solid-js';
-import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import type { SyncConflicts, SyncDevices, SyncState } from '../api/types';
 import { DEMO, EMBEDDED } from '../core/mode';
 
@@ -7,6 +7,11 @@ import { DEMO, EMBEDDED } from '../core/mode';
 const POLL_MS = 5000;
 /** While the app is on screen, a replica whose last sync is older than this syncs again. */
 export const FRESH_MS = 30_000;
+
+let boundApi: ApiClient | undefined;
+export function bindSyncApi(client: ApiClient): void {
+  boundApi = client;
+}
 
 /**
  * Whether an open replica should sync now. Opening the app tries once even after a failure; while it stays open, a
@@ -43,8 +48,9 @@ export const sync = createRoot(() => {
       }, POLL_MS);
   };
   const run = () => {
+    if (!boundApi) return;
     running = true;
-    void api
+    void boundApi
       .runSync()
       .then(setState, () => undefined)
       .finally(() => {
@@ -53,8 +59,8 @@ export const sync = createRoot(() => {
       });
   };
   const refresh = (): Promise<SyncState | null> => {
-    if (DEMO) return Promise.resolve(null);
-    inflight ??= api
+    if (DEMO || !boundApi) return Promise.resolve(null);
+    inflight ??= boundApi
       .syncState()
       .then(
         value => {
@@ -114,8 +120,8 @@ export const hubDevices = createRoot(() => {
     }
   };
   const refresh = (): Promise<SyncDevices | null> => {
-    if (EMBEDDED || !sync.state() || sync.state()!.role === 'replica') return Promise.resolve(null);
-    inflight ??= api
+    if (EMBEDDED || !boundApi || !sync.state() || sync.state()!.role === 'replica') return Promise.resolve(null);
+    inflight ??= boundApi
       .syncDevices()
       .then(
         value => {
@@ -152,8 +158,8 @@ export const syncConflicts = createRoot(() => {
   const [state, setState] = createSignal<SyncConflicts | null>(null);
   let inflight: Promise<SyncConflicts | null> | null = null;
   const refresh = (): Promise<SyncConflicts | null> => {
-    if (DEMO || !sync.state() || sync.state()?.role === 'none') return Promise.resolve(null);
-    inflight ??= api
+    if (DEMO || !boundApi || !sync.state() || sync.state()?.role === 'none') return Promise.resolve(null);
+    inflight ??= boundApi
       .syncConflicts()
       .then(
         value => {

@@ -182,14 +182,6 @@
 .desk-breadcrumb {
   display: none;
 }
-.index-kind-row {
-  display: flex;
-  min-width: 0;
-}
-.index-kind-row > .index-kind {
-  flex: 1;
-  min-width: 0;
-}
 @media (pointer: coarse) {
   .desk-row-actions {
     visibility: visible;

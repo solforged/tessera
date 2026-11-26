@@ -87,6 +87,14 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("editor_events", Replication::Local),
 ];
 
+/// Columns of applied tables written outside the change log. A row may differ
+/// from a patch or another device's table hash there without the workshop
+/// having diverged from its hub.
+pub const UNLOGGED_COLUMNS: &[(&str, &str)] = &[
+    ("sources", "last_read_at"),
+    ("citations", "resurface_muted_at"),
+];
+
 /// The tables whose rows a change patch carries.
 pub fn applied_tables() -> impl Iterator<Item = &'static str> {
     TABLES

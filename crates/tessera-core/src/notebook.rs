@@ -120,7 +120,7 @@ impl Workshop {
 }
 
 /// A read-only connection beside a workshop's writer, from
-/// [`Notebook::reader`].
+/// [`Workshop::reader`].
 pub struct Reader(Workshop);
 
 impl Reader {
@@ -132,6 +132,11 @@ impl Reader {
         // Nothing was written, so ending the snapshot cannot lose anything.
         drop(snapshot);
         result
+    }
+
+    /// Clear cached statements after an in-place clone replacement.
+    pub fn flush(&mut self) {
+        self.0.conn.flush_prepared_statement_cache();
     }
 }
 

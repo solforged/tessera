@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, params};
 
 use crate::calendar::{add_days, days_between, validate_civil_date};
 use crate::reads::hidden_blocks;
-use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
+use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    Agenda, AgendaItem, AgendaReason, BlockInPage, DateRange, Error, Operation, Result, Revision,
+    Agenda, AgendaItem, AgendaReason, BlockInPage, DateRange, Operation, Result, Revision,
     TaskPriority, TaskProjectVia, TaskQuery, TaskQueryResult, TaskRow, TaskSelection, TaskSort,
     TaskState, TaskStatus, TaskView, Workshop,
 };
@@ -308,19 +308,15 @@ fn agenda_plan(state: &TaskState, date: &str) -> Result<(Vec<AgendaReason>, Opti
     Ok((reasons, time.map(str::to_owned)))
 }
 
-fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskView> {
-    let json: String = row.get(2)?;
-    let query = serde_json::from_str(&json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(error))
-    })?;
-    Ok(TaskView {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        query,
-        revision: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
-    })
+fn build_view(row: crate::operations::views::SavedViewRow<TaskQuery>) -> TaskView {
+    TaskView {
+        id: row.id,
+        name: row.name,
+        query: row.query,
+        revision: row.revision,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
 }
 
 pub(crate) fn apply_view(
@@ -329,66 +325,33 @@ pub(crate) fn apply_view(
     now: i64,
     index: usize,
 ) -> Result<Revision> {
-    let (id, expected) = match operation {
-        Operation::SaveTaskView {
-            id, base_revision, ..
-        } => (id, *base_revision),
-        Operation::DeleteTaskView { id, base_revision } => (id, Some(*base_revision)),
-        _ => return Err(validation("not a task view operation")),
+    use crate::operations::views::{
+        SavedViewWrite, TASK_VIEWS_SPEC, delete_saved_view, save_saved_view,
     };
-    validate_id(id)?;
-    let found = conn
-        .prepare_cached("SELECT revision FROM task_views WHERE id = ?1")?
-        .query_row([id], |row| row.get::<_, i64>(0))
-        .optional()?;
-    if matches!(operation, Operation::DeleteTaskView { .. }) && found.is_none() {
-        return Err(not_found(id));
-    }
-    if found != expected {
-        return Err(Error::Conflict {
-            op_index: index,
-            what: "task view",
-            id: id.clone(),
-            expected: expected.unwrap_or(0),
-            found,
-        });
-    }
-    let revision = found
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or_else(|| validation("task view revision overflow"))?;
     match operation {
-        Operation::SaveTaskView { name, query, .. } => {
-            let name = name.trim();
-            if name.is_empty() || name.chars().count() > 120 {
-                return Err(validation(
-                    "task view name must contain 1 to 120 characters",
-                ));
-            }
-            validate(conn, query)?;
-            conn.execute(
-                "INSERT INTO task_views(id, name, query, revision, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?5)
-                 ON CONFLICT(id) DO UPDATE SET name = excluded.name, query = excluded.query,
-                 revision = excluded.revision, updated_at = excluded.updated_at",
-                params![
-                    id,
-                    name,
-                    serde_json::to_string(query).expect("task query serializes"),
-                    revision,
-                    now
-                ],
-            )?;
+        Operation::SaveTaskView {
+            id,
+            base_revision,
+            name,
+            query,
+        } => save_saved_view(
+            conn,
+            &TASK_VIEWS_SPEC,
+            SavedViewWrite {
+                id,
+                base_revision: *base_revision,
+                name,
+                query,
+                now,
+                index,
+            },
+            validate,
+        ),
+        Operation::DeleteTaskView { id, base_revision } => {
+            delete_saved_view(conn, &TASK_VIEWS_SPEC, id, *base_revision, index)
         }
-        Operation::DeleteTaskView { .. } => {
-            conn.execute("DELETE FROM task_views WHERE id = ?1", [id])?;
-        }
-        _ => unreachable!("task view operation checked"),
+        _ => Err(validation("not a task view operation")),
     }
-    Ok(Revision {
-        id: id.clone(),
-        revision,
-    })
 }
 
 impl Workshop {
@@ -526,21 +489,20 @@ impl Workshop {
     }
 
     pub fn task_views(&self) -> Result<Vec<TaskView>> {
-        let mut views = self
-            .conn
-            .prepare_cached(
-                "SELECT id, name, query, revision, created_at, updated_at FROM task_views",
-            )?
-            .query_map([], stored_view)?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        views.sort_by_cached_key(|view| (view.name.to_lowercase(), view.id.clone()));
-        Ok(views)
+        crate::operations::views::read_saved_views(
+            &self.conn,
+            crate::operations::views::TASK_VIEWS_SPEC.table,
+            build_view,
+        )
     }
 
     pub fn task_view(&self, id: &str) -> Result<TaskView> {
-        validate_id(id)?;
-        self.conn.prepare_cached(
-            "SELECT id, name, query, revision, created_at, updated_at FROM task_views WHERE id = ?1"
-        )?.query_row([id], stored_view).optional()?.ok_or_else(|| not_found(id))
+        crate::operations::views::read_saved_view(
+            &self.conn,
+            crate::operations::views::TASK_VIEWS_SPEC.table,
+            None,
+            id,
+            build_view,
+        )
     }
 }

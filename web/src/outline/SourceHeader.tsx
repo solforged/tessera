@@ -2,7 +2,7 @@ import { opensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { api, exportExtensions } from '../api/client';
+import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
 import type { Citation, FieldDefinition, HighlightResult, ReadingState } from '../api/types';
 import type { WorkshopClient, PageDocument } from '../document/contract';
@@ -26,7 +26,7 @@ import { timeLeft } from '../reader/paged';
 import { BookMap } from '../reader/BookMap';
 import { bookChapters, chapterAt } from '../reader/book-map';
 import { civilDate, journalLabel } from '../tasks/relative-date';
-import '../library/library.css';
+import '../ui/covers.css';
 
 const stateLabels: Record<ReadingState, string> = {
   inbox: 'Inbox',
@@ -190,7 +190,7 @@ export function SourceHeader(props: {
   }
   async function exportSource(format: ExportFormat) {
     try {
-      const blob = await api.exportSources(format, [props.doc.pageId]);
+      const blob = await props.workshop.api.exportSources(format, [props.doc.pageId]);
       downloadBlob(blob, `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${exportExtensions[format]}`);
     } catch (error) {
       fail(error);
@@ -375,6 +375,7 @@ export function SourceHeader(props: {
                     >
                       {href => (
                         <ResourceImage
+                          api={props.workshop.api}
                           snapshotId=""
                           href={href()}
                           loading="eager"
@@ -405,6 +406,7 @@ export function SourceHeader(props: {
                   >
                     {href => (
                       <ResourceImage
+                        api={props.workshop.api}
                         snapshotId={snapshot()!.id}
                         href={href()}
                         loading="eager"

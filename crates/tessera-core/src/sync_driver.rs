@@ -1,4 +1,4 @@
-//! Transport calls happen strictly outside `NotebookAccess::with_notebook`.
+//! Transport calls happen strictly outside [`WorkshopAccess::with_workshop`].
 use super::*;
 
 /// Access to a workshop for one local step. A host may acquire its writer lock

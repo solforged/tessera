@@ -1,13 +1,15 @@
 [package]
 name = "tessera-service"
-description = "Loopback HTTP service that owns a Tessera notebook"
+description = "Loopback HTTP service that owns a Tessera workshop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [features]
-embed-web = ["dep:include_dir"]
+default = ["hub"]
+hub = ["dep:qrcodegen", "dep:tokio-util", "tokio/process"]
+embed-web = ["hub", "dep:include_dir"]
 
 [dependencies]
 tessera-api.workspace = true
@@ -22,18 +24,18 @@ include_dir = { version = "0.7", optional = true }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 parking_lot.workspace = true
 percent-encoding.workspace = true
-qrcodegen = "1.8"
+qrcodegen = { version = "1.8", optional = true }
 reqwest.workspace = true
-rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["process"] }
-tokio-util = { version = "0.7", features = ["io"] }
+tokio.workspace = true
+tokio-util = { version = "0.7", features = ["io"], optional = true }
 tracing.workspace = true
 ts-rs.workspace = true
 ulid.workspace = true
-webpki-roots = "1"
+webpki-roots.workspace = true
 
 [dev-dependencies]
 rusqlite.workspace = true

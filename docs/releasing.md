@@ -35,7 +35,7 @@ Two rulesets guard `main`:
 
 | Ruleset    | Rules                                                                                              | Bypass                                                                                             |
 | ---------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `green`    | Signed commits, linear history, no force-push or deletion, and the seven CI checks on the new head | Nobody                                                                                             |
+| `green`    | Signed commits, linear history, no force-push or deletion, and the eight CI checks on the new head | Nobody                                                                                             |
 | `reviewed` | Changes arrive through a pull request                                                              | Deploy keys. The fast-forward workflow pushes with the write key in the `FAST_FORWARD_KEY` secret. |
 
 If `main` moves before CI finishes, the workflow comments on the pull request
@@ -47,7 +47,8 @@ passed. Branches without a pull request do not run CI. Run
 `gh workflow run ci.yml --ref <branch>` to start it by hand.
 
 A pull request that changes only `web/` (outside `web/src/fields/`, which Rust
-tests read), `docs/` or Markdown files skips the steps of `rust`,
+tests read, and the demo entry files `web/demo.html`, `web/tsconfig.demo.json`
+and `web/src/demo/`), `docs/` or Markdown files skips the steps of `rust`,
 `browser wasm build` and `backend correctness and scaling`, so those checks pass
 within seconds. `android app` and `embedded release assets` build the editor and
 always run.
@@ -74,8 +75,8 @@ The task:
 
 1. Refuses a version that is not newer than `Cargo.toml`, or a tag that already
    exists.
-2. Sets the workspace version and rewrites the workspace entries in
-   `Cargo.lock`.
+2. Sets the workspace and `web/package.json` versions and rewrites the
+   workspace entries in `Cargo.lock`.
 3. Prepends a changelog draft built from commits since the latest `v*` tag.
 
 Edit `CHANGELOG.md`. Delete the `<!-- draft: ... -->` line. Group or drop

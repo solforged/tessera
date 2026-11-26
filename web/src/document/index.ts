@@ -16,32 +16,31 @@ import type {
   WorkSession,
 } from '../api/types';
 import type { ApiClient } from '../api/client';
-import { resolveRelationPick } from '../fields/instances';
-import { defaultTodayTemplate, parseTodayTemplate, todayTemplateKey } from '../tasks/today-template';
-import type { TodayTemplate } from '../tasks/today-template';
-import { captureOperations } from '../capture/append';
+import type { Caret } from '../core/contract';
+import { titleKey } from '../model/title-key';
+import { defaultTodayTemplate, parseTodayTemplate, todayTemplateKey } from '../model/today-template';
+import type { TodayTemplate } from '../model/today-template';
 import type {
   BlockClipboard,
   CaptureIntent,
   CaptureReceipt,
   DerivedType,
   DocumentChange,
-  WorkshopClient,
   PageDocument,
+  RelationPickIntent,
   SaveState,
   SourceDetailsEdit,
+  WorkshopClient,
 } from './contract';
-import type { Caret } from '../core/contract';
-import { Document } from './page-document';
-import type { DocumentHost } from './page-document';
-import { Outbox } from './outbox';
 import { WorkshopChangeStream } from './change-stream';
 import type { WorkshopChangeHost } from './change-stream';
-import type { Action, Command, Compiled, WorkshopCommand, PageCommand, Ticket } from './types';
-import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
+import { Outbox } from './outbox';
+import { Document } from './page-document';
+import type { DocumentHost } from './page-document';
 import { SubtreeCache } from './subtrees';
-import { titleKey } from './title-key';
-export type { WorkshopClient, PageDocument, BlockState, Edit, EditResult, SaveState } from './contract';
+import type { Action, Command, Compiled, PageCommand, Ticket, WorkshopCommand } from './types';
+import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
+export type { BlockState, Edit, EditResult, PageDocument, SaveState, WorkshopClient } from './contract';
 
 /** Every topic a change can name; a change that names none of its own alters them all. */
 const TOPICS = [
@@ -60,6 +59,24 @@ const TOPICS = [
 const everyTopic: Exclude<Topic, (typeof TOPICS)[number]> extends never ? true : never = true;
 void everyTopic;
 
+export interface WorkshopWorkflows {
+  captureOperations(
+    workshop: WorkshopClient,
+    capture: CaptureIntent,
+  ): Promise<{ operations: Operation[]; pageId: string }>;
+  resolveRelationPick(
+    workshop: WorkshopClient,
+    intent: RelationPickIntent,
+  ): Promise<{ text: string; operations: Operation[] }>;
+  editSourceDetails(
+    workshop: Workshop,
+    edits: readonly { pageId: string; edit: SourceDetailsEdit }[],
+  ): Promise<DocumentChange>;
+  integrateBlock(workshop: Workshop, id: string, destinationId: string): Promise<DocumentChange>;
+  moveBlocks(workshop: Workshop, ids: readonly string[], destinationId: string): Promise<DocumentChange>;
+  promoteToProject(workshop: Workshop, id: string, title: string): Promise<{ pageId: string; change: DocumentChange }>;
+}
+
 export interface WorkshopOptions {
   baseUrl?: string;
   /** A test or embedding may supply its own persistent window identity. */
@@ -67,6 +84,7 @@ export interface WorkshopOptions {
   workshopId?: string;
   databaseName?: string;
   coalesceMs?: number;
+  workflows?: WorkshopWorkflows;
 }
 
 type SettingEdit = {
@@ -75,7 +93,6 @@ type SettingEdit = {
   after: string;
   revision: number;
 };
-type SourceCommandPart = { pageId: string; actions: Action[]; expected?: string; stale?: boolean };
 
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
 const WARM_DOCUMENTS = 3;
@@ -140,7 +157,6 @@ export class Workshop implements WorkshopClient, DocumentHost {
   private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
   private captureWaiters = new Map<string, { resolve(value: Committed | null): void; reject(error: Error): void }>();
   private createdValueReceipts = new Map<string, Promise<Committed>>();
-  private sourceChangeQueue: Promise<unknown> = Promise.resolve();
   private pageWaiters = new Set<{ pageId: string; ids: Set<string>; resolve(): void; reject(error: Error): void }>();
   // A signal, so rows showing the running clock follow starts and stops from any window.
   private workSignal = createSignal<WorkSession | undefined>();
@@ -211,12 +227,19 @@ export class Workshop implements WorkshopClient, DocumentHost {
     });
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.online);
+      window.addEventListener('offline', this.offline);
       window.addEventListener('beforeunload', this.beforeUnload);
     }
   }
   private online = () => {
     this.retry();
   };
+  private offline = () => {
+    this.markOffline(true);
+  };
+  private markOffline(staleSocket = false) {
+    this.changes.markOffline(staleSocket);
+  }
   private beforeUnload = (event: BeforeUnloadEvent) => {
     if (this.queue.some(command => !this.persisted.has(command.id)) || (this.persistenceFailure && this.queue.length)) {
       event.preventDefault();
@@ -262,7 +285,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         /* IndexedDB, not session storage, owns drafts. */
       }
     } catch (error) {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
       try {
         workshopId ??= sessionStorage.getItem(key) ?? undefined;
       } catch {
@@ -285,7 +308,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.seedCursor();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     try {
       await this.refreshSettings();
@@ -312,7 +335,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.refreshRoots();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     // Loading recovered documents is chained after ready, avoiding a constructor cycle.
     queueMicrotask(() => {
@@ -433,7 +456,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
           this.cachedViews.add(cached.view);
           if (!provisional) {
             this.recoveryPages.set(id, cached.cursor);
-            this.connectionSignal[1]('offline');
+            this.markOffline();
             this.scheduleReconnect();
           }
           if (provisional) this.recoveryPages.delete(id);
@@ -449,15 +472,6 @@ export class Workshop implements WorkshopClient, DocumentHost {
   cachePage(view: PageView) {
     if (this.cachedViews.has(view)) return;
     this.cachedViews.add(view);
-    const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
-    void this.outbox
-      ?.capabilities(
-        [view.root, ...view.rows.map(row => row.block)].map(
-          block => capabilities.get(block.id) ?? emptyCapabilities(block.id),
-        ),
-        this.snapshotSequence.get(view) ?? 0,
-      )
-      .catch(() => undefined);
     void this.outbox
       ?.page(view, this.snapshotSequence.get(view) ?? 0, this.snapshotCursor.get(view))
       .catch(() => undefined);
@@ -724,8 +738,9 @@ export class Workshop implements WorkshopClient, DocumentHost {
     operations: readonly Operation[],
     reason?: string,
     refreshPages?: readonly string[],
+    options?: { retainRejection?: boolean },
   ): Promise<Committed> {
-    return this.commitOperations(operations, reason, refreshPages);
+    return this.commitOperations(operations, reason, refreshPages, options?.retainRejection ?? true);
   }
   async queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void> {
     if (this.closed || !this.outbox) throw new Error('Recovery storage has not opened.');
@@ -838,388 +853,29 @@ export class Workshop implements WorkshopClient, DocumentHost {
       throw error;
     });
   }
-  private serializeSourceChange<T>(work: () => Promise<T>): Promise<T> {
-    const result = this.sourceChangeQueue.then(work, work);
-    this.sourceChangeQueue = result.catch(() => undefined);
-    return result;
+  private requireWorkflows(): WorkshopWorkflows {
+    if (!this.options.workflows) throw new Error('Workshop workflows are not configured.');
+    return this.options.workflows;
+  }
+  compilePageActions(pageId: string, actions: readonly Action[]): Operation[] {
+    const doc = this.docs.get(pageId);
+    if (!doc) throw new Error('This atom is not open.');
+    return this.compile(
+      { id: '', order: 0, pageId, actions: [...actions], inverse: [], before: null, after: null },
+      doc,
+    ).batch.operations;
   }
   async editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange> {
-    let next = await this.serializeSourceChange(async () => {
-      const docs = edits.map(({ pageId }) => this.open(pageId) as Document);
-      try {
-        await Promise.all(
-          docs.map(async doc => {
-            if (doc.status() === 'loading') await doc.reload(false);
-            await doc.flush();
-          }),
-        );
-        const parts = edits.map(({ pageId, edit }, index) => {
-          const doc = docs[index]!;
-          const actions = doc.sourceDetailsActions(edit);
-          return { pageId, actions, expected: doc.sourceActionsState(actions) };
-        });
-        return await this.commitSourceActions(parts);
-      } finally {
-        for (const doc of docs) doc.release();
-      }
-    });
-    let applied = true;
-    const travel = (undo: boolean) =>
-      this.serializeSourceChange(async () => {
-        if (applied !== undo) return;
-        next = await this.commitSourceActions(next);
-        applied = !undo;
-      });
-    return { undo: () => travel(true), redo: () => travel(false) };
+    return this.requireWorkflows().editSourceDetails(this, edits);
   }
   async integrateBlock(id: string, destinationId: string): Promise<DocumentChange> {
-    return this.serializeSourceChange(async () => {
-      const source = await this.api.block(id),
-        destination = await this.api.block(destinationId);
-      const pages = [...new Set([source.page_id, destination.page_id])];
-      const docs = pages.map(pageId => this.open(pageId) as Document);
-      try {
-        await Promise.all(
-          docs.map(async doc => {
-            if (doc.status() === 'loading') await doc.reload(false);
-            await doc.flush();
-          }),
-        );
-        const sourceDoc = docs[pages.indexOf(source.page_id)]!;
-        const destinationDoc = docs[pages.indexOf(destination.page_id)]!;
-        if (sourceDoc.root()?.kind !== 'journal' || source.kind !== 'block')
-          throw new Error('Integrate an atom from a journal day.');
-        const block = await this.api.block(id);
-        if (!block.parent_id || block.page_id !== source.page_id)
-          throw new Error('The atom moved while choosing its destination.');
-        const parentId = block.parent_id;
-        const siblings = sourceDoc.outline.children(parentId);
-        const after = siblings[siblings.indexOf(id) - 1] ?? null;
-        let ancestor: string | null = destinationId;
-        while (ancestor) {
-          if (ancestor === id) throw new Error('An atom cannot move into its own subtree.');
-          ancestor = destinationDoc.block(ancestor)?.parentId ?? null;
-        }
-        const referenceId = ulid();
-        const referenceText = `[[${id}]]`;
-        let applied = false,
-          deletionId: string | undefined,
-          referenceRevision = 0;
-        const travel = async (forward: boolean) => {
-          if (applied === forward) return;
-          const opened = pages.map(pageId => this.open(pageId) as Document);
-          try {
-            await Promise.all(
-              opened.map(async doc => {
-                if (doc.status() === 'loading') await doc.reload(false);
-                await doc.flush();
-              }),
-            );
-            const current = await this.api.block(id);
-            if (current.parent_id !== (forward ? parentId : destinationId))
-              throw new Error('The atom moved since this change. Its current place was kept.');
-            const operations: Operation[] = [];
-            if (forward) {
-              const dest = opened[pages.indexOf(destination.page_id)]!;
-              const last =
-                dest.outline
-                  .children(destinationId)
-                  .filter(child => child !== id)
-                  .at(-1) ?? null;
-              operations.push({
-                op: 'move',
-                id,
-                base_revision: current.revision,
-                parent_id: destinationId,
-                after: last,
-              });
-              operations.push(
-                deletionId
-                  ? { op: 'restore', id: referenceId, deletion_id: deletionId, revision: referenceRevision }
-                  : { op: 'insert', id: referenceId, parent_id: parentId, after, text: referenceText, heading: null },
-              );
-            } else {
-              const reference = await this.api.block(referenceId);
-              if (
-                reference.revision !== referenceRevision ||
-                reference.text !== referenceText ||
-                reference.parent_id !== parentId
-              )
-                throw new Error('The journal reference changed. Its current text was kept.');
-              operations.push({ op: 'delete', id: referenceId, base_revision: reference.revision });
-              operations.push({ op: 'move', id, base_revision: current.revision, parent_id: parentId, after });
-            }
-            const receipt = await this.commitOperations(
-              operations,
-              forward ? 'Integrate journal atom' : 'Undo integration',
-              pages,
-              false,
-            );
-            referenceRevision = receipt.revisions.find(value => value.id === referenceId)!.revision;
-            if (!forward) deletionId = receipt.deletions[0];
-            applied = forward;
-          } finally {
-            for (const doc of opened) doc.release();
-          }
-        };
-        await travel(true);
-        return {
-          undo: () => this.serializeSourceChange(() => travel(false)),
-          redo: () => this.serializeSourceChange(() => travel(true)),
-        };
-      } finally {
-        for (const doc of docs) doc.release();
-      }
-    });
+    return this.requireWorkflows().integrateBlock(this, id, destinationId);
   }
   async moveBlocks(ids: readonly string[], destinationId: string): Promise<DocumentChange> {
-    return this.serializeSourceChange(async () => {
-      if (!ids.length) throw new Error('Select atoms to move.');
-      const first = await this.api.block(ids[0]!);
-      if (first.page_id === destinationId) throw new Error('Choose another atom.');
-      const pages = [first.page_id, destinationId];
-      const opened = pages.map(pageId => this.open(pageId) as Document);
-      try {
-        // A pending move may already own the page's external history boundary.
-        await Promise.all(
-          opened.map(async doc => {
-            if (doc.status() === 'loading') await doc.reload(false);
-            await this.flushPage(doc.pageId);
-          }),
-        );
-        const source = await this.api.page(first.page_id);
-        const destination = await this.api.block(destinationId);
-        if (destination.kind !== 'page') throw new Error('Choose a titled atom.');
-        const selected = new Set(ids);
-        const blocks = new Map(source.rows.map(row => [row.block.id, row.block]));
-        const predecessors = new Map<string, string | null>();
-        const previous = new Map<string, string>();
-        for (const { block } of source.rows) {
-          predecessors.set(block.id, previous.get(block.parent_id!) ?? null);
-          previous.set(block.parent_id!, block.id);
-        }
-        if (ids.some(id => !blocks.has(id))) throw new Error('A selected atom moved or was deleted.');
-        const roots = source.rows
-          .filter(({ block }) => {
-            if (!selected.has(block.id)) return false;
-            for (
-              let parent = block.parent_id;
-              parent && parent !== source.root.id;
-              parent = blocks.get(parent)?.parent_id ?? null
-            )
-              if (selected.has(parent)) return false;
-            return true;
-          })
-          .map(({ block }) => ({ id: block.id, parentId: block.parent_id!, after: predecessors.get(block.id)! }));
-        let applied = false;
-        const travel = async (forward: boolean) => {
-          if (applied === forward) return;
-          const docs = pages.map(pageId => this.open(pageId) as Document);
-          try {
-            // This transaction can itself be the page's pending external history entry.
-            await Promise.all(
-              docs.map(async doc => {
-                if (doc.status() === 'loading') await doc.reload(false);
-                await this.flushPage(doc.pageId);
-              }),
-            );
-            const current = await Promise.all(roots.map(root => this.api.block(root.id)));
-            if (
-              current.some(
-                (block, index) =>
-                  block.parent_id !== (forward ? roots[index]!.parentId : destinationId) ||
-                  block.page_id !== (forward ? first.page_id : destinationId),
-              )
-            )
-              throw new Error('An atom moved since this change. Its current place was kept.');
-            const target = forward ? await this.api.page(destinationId) : null;
-            let after = target?.rows.filter(row => row.depth === 0).at(-1)?.block.id ?? null;
-            const operations: Operation[] = roots.map((root, index) => {
-              const operation: Operation = {
-                op: 'move',
-                id: root.id,
-                base_revision: current[index]!.revision,
-                parent_id: forward ? destinationId : root.parentId,
-                after: forward ? after : root.after,
-              };
-              after = root.id;
-              return operation;
-            });
-            await this.commitOperations(operations, forward ? 'Move atoms' : 'Undo atom move', pages, false);
-            applied = forward;
-          } finally {
-            for (const doc of docs) doc.release();
-          }
-        };
-        await travel(true);
-        return {
-          undo: () => this.serializeSourceChange(() => travel(false)),
-          redo: () => this.serializeSourceChange(() => travel(true)),
-        };
-      } finally {
-        for (const doc of opened) doc.release();
-      }
-    });
+    return this.requireWorkflows().moveBlocks(this, ids, destinationId);
   }
   async promoteToProject(id: string, title: string): Promise<{ pageId: string; change: DocumentChange }> {
-    return this.serializeSourceChange(async () => {
-      const name = title.trim();
-      if (!name) throw new Error('Name the project before making it one.');
-      const source = await this.api.block(id);
-      const journal = this.open(source.page_id) as Document;
-      try {
-        if (journal.status() === 'loading') await journal.reload(false);
-        await journal.flush();
-        if (journal.root()?.kind !== 'journal' || source.kind !== 'block')
-          throw new Error('Promote an atom from a journal day.');
-        const row = await this.api.block(id);
-        if (row.page_id !== source.page_id) throw new Error('The atom moved while making it a project.');
-        const children = [...journal.outline.children(id)];
-        const found = await this.pageByTitle(name, false);
-        const existing = found ? await this.api.block(found) : null;
-        if (existing && existing.kind !== 'page') throw new Error(`“${name}” names a journal day.`);
-        const pageId = existing?.id ?? ulid();
-        const wasProject = !!existing && (await this.api.projects()).some(project => project.block_id === pageId);
-        const originalText = row.text;
-        const linkText = `[[${pageId}]]`;
-        const pages = [source.page_id, pageId];
-        const created = !existing;
-        let applied = false,
-          deletionId: string | undefined,
-          pageRevision = 0;
-        const travel = async (forward: boolean) => {
-          if (applied === forward) return;
-          const operations: Operation[] = [];
-          const current = await this.api.block(id);
-          if (forward) {
-            if (current.text !== originalText)
-              throw new Error('The journal atom changed since this change. Its current text was kept.');
-            if (created)
-              operations.push(
-                deletionId
-                  ? { op: 'restore', id: pageId, deletion_id: deletionId, revision: pageRevision }
-                  : { op: 'create_page', id: pageId, title: name },
-              );
-            if (!wasProject && !deletionId)
-              operations.push({
-                op: 'set_project',
-                id: pageId,
-                base_revision: created ? 1 : (await this.api.block(pageId)).revision,
-                project: { status: 'active', outcome: '', deadline: null },
-              });
-            if (originalText !== linkText)
-              operations.push({ op: 'edit_text', id, base_revision: current.revision, text: linkText });
-            // A page this change made holds only the moved rows; an existing one keeps its own writing first.
-            let after = created
-              ? null
-              : ((await this.api.page(pageId)).rows
-                  .filter(row => row.depth === 0 && !children.includes(row.block.id))
-                  .at(-1)?.block.id ?? null);
-            for (const child of children) {
-              const block = await this.api.block(child);
-              if (block.parent_id !== id)
-                throw new Error('The project row’s children changed. Their current place was kept.');
-              operations.push({ op: 'move', id: child, base_revision: block.revision, parent_id: pageId, after });
-              after = child;
-            }
-          } else {
-            if (current.text !== linkText && originalText !== linkText)
-              throw new Error('The journal link changed. Its current text was kept.');
-            let after: string | null = null;
-            for (const child of children) {
-              const block = await this.api.block(child);
-              if (block.parent_id !== pageId)
-                throw new Error('The project changed since this change. Its current outline was kept.');
-              operations.push({ op: 'move', id: child, base_revision: block.revision, parent_id: id, after });
-              after = child;
-            }
-            if (originalText !== linkText)
-              operations.push({ op: 'edit_text', id, base_revision: current.revision, text: originalText });
-            const page = await this.api.page(pageId);
-            if (created) {
-              if (page.rows.some(row => !children.includes(row.block.id) && row.depth === 0))
-                throw new Error('The project has new writing. It was kept.');
-              operations.push({ op: 'delete', id: pageId, base_revision: page.root.revision });
-            } else if (!wasProject)
-              operations.push({ op: 'set_project', id: pageId, base_revision: page.root.revision, project: null });
-          }
-          const receipt = await this.commitOperations(
-            operations,
-            forward ? 'Make project' : 'Undo project creation',
-            pages,
-            false,
-          );
-          pageRevision = receipt.revisions.find(value => value.id === pageId)?.revision ?? pageRevision;
-          if (!forward && created) deletionId = receipt.deletions[0];
-          applied = forward;
-        };
-        await travel(true);
-        return {
-          pageId,
-          change: {
-            undo: () => this.serializeSourceChange(() => travel(false)),
-            redo: () => this.serializeSourceChange(() => travel(true)),
-          },
-        };
-      } finally {
-        journal.release();
-      }
-    });
-  }
-  private async commitSourceActions(parts: readonly SourceCommandPart[]): Promise<SourceCommandPart[]> {
-    const docs = parts.map(part => this.open(part.pageId) as Document);
-    try {
-      await Promise.all(
-        docs.map(async doc => {
-          if (doc.status() === 'loading') await doc.reload(false);
-          await doc.flush();
-          if (doc.status() !== 'ready') throw new Error(doc.statusMessage() || 'This atom is not ready.');
-        }),
-      );
-      const operations: Operation[] = [];
-      const inverse: SourceCommandPart[] = parts.map((part, index) => {
-        const doc = docs[index]!;
-        if (part.stale || (part.expected !== undefined && doc.sourceActionsState(part.actions) !== part.expected))
-          throw new Error('The field changed since this edit. Its current value was kept.');
-        const actions = part.actions.map(action =>
-          action.kind === 'source' ? { ...action, baseRevision: doc.root()!.revision } : action,
-        );
-        const inverse = doc.sourceActionsInverse(actions);
-        const command: PageCommand = {
-          id: '',
-          order: 0,
-          pageId: part.pageId,
-          actions,
-          inverse,
-          before: null,
-          after: null,
-        };
-        operations.push(...this.compile(command, doc).batch.operations);
-        return { pageId: part.pageId, actions: inverse, expected: '' };
-      });
-      const ack = operations.length
-        ? await this.commitOperations(
-            operations,
-            undefined,
-            parts.map(part => part.pageId),
-            false,
-          )
-        : undefined;
-      for (let index = 0; index < inverse.length; index++) {
-        const doc = docs[index]!;
-        const part = inverse[index]!;
-        part.expected = doc.sourceActionsState(part.actions);
-        // A page refresh may already contain edits newer than this receipt. Never
-        // bless those values as this command's own values for a subsequent undo.
-        part.stale = ack?.revisions.some(({ id, revision }) => {
-          const block = doc.block(id);
-          return block !== undefined && (block.pending || block.revision > revision);
-        });
-      }
-      return inverse;
-    } finally {
-      for (const doc of docs) doc.release();
-    }
+    return this.requireWorkflows().promoteToProject(this, id, title);
   }
   commandState(): SaveState {
     this.revision[0]();
@@ -1944,7 +1600,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       if (command.capture) {
         if (!command.frozen) {
-          const prepared = await captureOperations(this, command.capture);
+          const prepared = await this.requireWorkflows().captureOperations(this, command.capture);
           command.operations = prepared.operations;
           command.refreshPages = [prepared.pageId];
           command.frozen = JSON.stringify({
@@ -2089,7 +1745,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         await this.reject(command, undefined, error.message);
         return true;
       }
-      this.connectionSignal[1]('offline');
+      this.markOffline();
       this.scheduleReconnect();
       this.touch();
       return false;
@@ -2156,6 +1812,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
       decks: (ack.decks ?? []).map(value => value.id),
       task_views: (ack.task_views ?? []).map(value => value.id),
       library_views: (ack.library_views ?? []).map(value => value.id),
+      views: ack.views?.length ? ack.views.map(value => value.id) : (ack.topics ?? []).includes('views') ? ['*'] : [],
       topics: ack.topics,
     });
     this.noteTopics(ack.seq, ack.topics);
@@ -2217,7 +1874,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
             const relationOperations: Operation[] = [];
             for (const action of [...command.actions])
               if (action.kind === 'text' && action.relationPick) {
-                const resolved = await resolveRelationPick(this, action.relationPick);
+                const resolved = await this.requireWorkflows().resolveRelationPick(this, action.relationPick);
                 if (this.closed) return;
                 if (!this.queue.includes(command)) continue commands;
                 // A later edit can replace the unfrozen command while its lookup is pending.
@@ -2349,7 +2006,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
                 (action.kind === 'text' && action.id === doc.pageId),
             )
           )
-            await this.refreshRoots().catch(() => this.connectionSignal[1]('offline'));
+            await this.refreshRoots().catch(() => this.markOffline());
           // Derived type pages alone appear as new roots in a text/Add type receipt. Ordinary page creation and
           // references to existing empty type pages do not seed templates; the route is a no-op without a schema.
           const derivedPages: DerivedType[] = [];
@@ -2374,7 +2031,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         } catch (error) {
           this.activeCommand = undefined;
           if (error instanceof ApiError && error.uncertain) {
-            this.connectionSignal[1]('offline');
+            this.markOffline();
             this.failure = '';
             this.scheduleReconnect();
           } else if (error instanceof ApiError && error.status === 409) {
@@ -2794,7 +2451,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.refreshSettings();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     return this.journal(this.todayDate(), signal);
   }
@@ -2817,7 +2474,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     try {
       await this.refreshSettings();
     } catch {
-      this.connectionSignal[1]('offline');
+      this.markOffline();
     }
     return revision;
   }
@@ -3043,6 +2700,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     this.changes.stop();
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this.online);
+      window.removeEventListener('offline', this.offline);
       window.removeEventListener('beforeunload', this.beforeUnload);
     }
     await this.outbox?.close();
@@ -3090,8 +2748,4 @@ function rejectionText(command: Command): string {
       ? ''
       : JSON.stringify(rejection.operations ?? rejection.actions ?? []);
   return [words, record].filter(Boolean).join('\n');
-}
-
-export function createWorkshopClient(options?: WorkshopOptions): Workshop {
-  return new Workshop(options);
 }

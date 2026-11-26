@@ -10,7 +10,7 @@ import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';
 import { notePredicates, parseNoteFind } from './finding-aid';
 import type { NotePredicate } from './finding-aid';
-import '../table/table.css';
+import '../ui/chips.css';
 import './notes.css';
 
 /** Both layouts edit the same query; resolved predicates store stable page IDs. */
@@ -225,6 +225,12 @@ export function NoteFind(props: {
                       class="picker-row"
                       classList={{ selected: highlight() === index() }}
                       onPointerMove={() => setHighlight(index())}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          choose(item.id);
+                        }
+                      }}
                       onClick={() => choose(item.id)}
                     >
                       <span class="picker-text">

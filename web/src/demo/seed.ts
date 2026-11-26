@@ -1,10 +1,9 @@
 import { ulid } from 'ulid';
 import type { Batch, Citation, Operation, Passage, PassagePoint, TaskState } from '../api/types';
 import { besideHint } from '../core/beside';
+import { localToday } from '../ui/browser-workshop';
 
-export function localToday(now = new Date()): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
+export { localToday };
 
 /** Passages of the bundled Meditations the tour highlights, with the blocks written beneath them. */
 export const bookHighlights: readonly { quote: string; color: Citation['color']; children: readonly string[] }[] = [

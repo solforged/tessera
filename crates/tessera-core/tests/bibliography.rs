@@ -1,8 +1,8 @@
 use tessera_core::library::{CreatorRole, LibraryPerson, LibraryQuery};
-use tessera_core::{Actor, AgentEdit, AgentRequest, NoteBlock, NoteTarget, Workshop};
+use tessera_core::{Actor, AgentEdit, AgentRequest, BlockTarget, OutlineBlock, Workshop};
 
-fn block(text: &str, children: Vec<NoteBlock>) -> NoteBlock {
-    NoteBlock {
+fn block(text: &str, children: Vec<OutlineBlock>) -> OutlineBlock {
+    OutlineBlock {
         text: text.into(),
         heading: None,
         task: None,
@@ -11,15 +11,15 @@ fn block(text: &str, children: Vec<NoteBlock>) -> NoteBlock {
 }
 
 /// Files a note as an agent does through MCP, returning its page id.
-fn add_note(workshop: &mut Workshop, title: &str, blocks: Vec<NoteBlock>) -> String {
+fn add_note(workshop: &mut Workshop, title: &str, blocks: Vec<OutlineBlock>) -> String {
     workshop
         .agent_edit(&AgentRequest {
             actor: Actor::Agent {
                 name: "claude".into(),
             },
             reason: None,
-            edit: AgentEdit::AddNote {
-                target: NoteTarget::Page {
+            edit: AgentEdit::AddBlocks {
+                target: BlockTarget::Page {
                     title: title.into(),
                 },
                 blocks,

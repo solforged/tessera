@@ -43,7 +43,7 @@ Use a fake OpenAI-compatible server instead.
 - First request (no `tool` message): stream text deltas, then a `tool_calls`
   delta with
   `{index:0,id,type:'function',function:{name:'add_note',arguments:''}}`. Follow
-  with an arguments delta holding `{"target":{"page":"Asabiyya"},"text":"..."}`,
+  with an arguments delta holding `{"page":"Asabiyya","markdown":"..."}`,
   then `finish_reason:'tool_calls'`.
 - Follow-up request (has a `tool` message): stream a final answer citing
   `[[Asabiyya]]`, then `finish_reason:'stop'`.

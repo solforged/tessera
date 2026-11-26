@@ -13,7 +13,6 @@
  *   a block with unsent local text, the block enters conflict and keeps both.
  */
 
-import type { SectionTarget, TodayTemplate } from '../tasks/today-template';
 import type { Accessor } from 'solid-js';
 import type {
   Block,
@@ -21,8 +20,10 @@ import type {
   ChangeEvent,
   Citation,
   Committed,
+  CountsAs,
   FieldDefinition,
   FieldKind,
+  FieldRole,
   Operation,
   PassagePoint,
   ProjectState,
@@ -35,8 +36,7 @@ import type {
 } from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
 import type { FieldHide } from '../core/hide';
-import type { CountsAs } from '../fields/counts';
-import type { FieldRole } from '../fields/roles';
+import type { SectionTarget, TodayTemplate } from '../model/today-template';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';
 import type { ApiClient } from '../api/client';
 import type { CardTemplate, CardTemplateState } from '../api/types';
@@ -385,6 +385,8 @@ export type SaveState =
 /** One page's shared document. Both panes showing a page share one instance. */
 export interface PageDocument {
   readonly pageId: string;
+  /** Resolves once the document has loaded; rejects when missing or failed. */
+  ready(): Promise<void>;
   status(): 'loading' | 'ready' | 'missing' | 'error';
   /** Load error or missing-page message. */
   statusMessage(): string;
@@ -468,7 +470,12 @@ export interface DerivedType {
 export interface WorkshopClient {
   readonly api: ApiClient;
   /** Durable workshop command; structural writes name pages whose outlines must refresh before acknowledgement is exposed. */
-  commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed>;
+  commit(
+    operations: readonly Operation[],
+    reason?: string,
+    refreshPages?: readonly string[],
+    options?: { retainRejection?: boolean },
+  ): Promise<Committed>;
   /** Keep text for a value whose creation is already queued, before its editor can mount. */
   queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void>;
   /** Resolves once the capture is in the outbox, not when the service acknowledges it. */

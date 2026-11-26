@@ -396,6 +396,11 @@ histories are never merged.
 
 ## Later: end-to-end encryption and collaboration
 
+Before moving to a blind sequencer, sync will exchange per-table `Applied`
+hashes from `tessera check` after each pull. Comparing replica and hub hashes
+at the confirmed sequence lets `/api/sync/state` and Settings › Devices report
+silent divergence without waiting for a later session patch to fail.
+
 The hub reads changes only to validate them. Once applying a change is
 deterministic everywhere and a stale operation resolves to the same outcome on
 every device instead of being rejected, the hub can become a blind sequencer: it

@@ -1,9 +1,10 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
-import { ApiError, api } from '../api/client';
+import { ApiError } from '../api/client';
+import type { ApiClient } from '../api/client';
 import type { KnownWorkshop, KnownWorkshops } from '../api/types';
+import type { CommandRegistry } from '../core/contract';
 import { EMBEDDED } from '../core/mode';
 import type { WorkshopClient } from '../document/contract';
-import type { CommandRegistry } from '../core/contract';
 
 // One service owns one workshop. Switching asks it to restart on another; every window on it then
 // reloads, because its requests name the workshop it opened and the service refuses them.
@@ -31,11 +32,11 @@ export function workshopPlace(workshop: KnownWorkshop): string | undefined {
   return workshop.named ? undefined : workshop.display_path;
 }
 
-export async function loadWorkshops(): Promise<void> {
+export async function loadWorkshops(api: ApiClient): Promise<void> {
   if (!EMBEDDED) setKnown(await api.workshops());
 }
 
-export async function forgetWorkshop(path: string): Promise<void> {
+export async function forgetWorkshop(api: ApiClient, path: string): Promise<void> {
   setKnown(await api.forgetWorkshop(path));
 }
 
@@ -58,8 +59,8 @@ export async function openWorkshop(
       setTimeout(wait.resolve, 100);
       await wait.promise;
     }
-    const opened = await api.openWorkshop(path, create);
-    await reloadWorkshop(opened.path, label);
+    const opened = await workshop.api.openWorkshop(path, create);
+    await reloadWorkshop(workshop.api, opened.path, label);
   } catch (error) {
     setOpening(null);
     throw error;
@@ -67,7 +68,7 @@ export async function openWorkshop(
 }
 
 /** Wait through the drain and restart before reloading, including same-workshop restores. */
-export async function reloadWorkshop(path: string, label: string): Promise<void> {
+export async function reloadWorkshop(api: ApiClient, path: string, label: string): Promise<void> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const wait = Promise.withResolvers<void>();
@@ -93,7 +94,7 @@ export function registerWorkshopCommands(
   report: (error: unknown) => void,
 ): void {
   if (EMBEDDED) return;
-  void loadWorkshops().catch(() => {
+  void loadWorkshops(workshop.api).catch(() => {
     /* The commands appear once Settings loads the list. */
   });
   createEffect(() => {

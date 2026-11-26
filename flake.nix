@@ -16,20 +16,16 @@
 # through the host ssh agent forwarded by `container run --ssh`, never with
 # keys on container disk.
 {
-  # Pinned to revisions the caches have already built: cache.nixos.org for
-  # nixpkgs, cache.numtide.com for the unfree agents that Hydra never
-  # builds. A Mac with no Linux builder can only substitute image contents;
-  # it cannot compile aarch64-linux closures, so both pins must stay on
-  # revisions already present in those caches. Update via `nix flake
-  # update` after checking the caches have the new revisions built.
-  inputs.llm-agents.url = "github:numtide/llm-agents.nix/e78ca7f96a07c5d9ab88a34f5e76d544c6d2a299";
+  # Pinned to a revision cache.nixos.org has already built. A Mac with no
+  # Linux builder can only substitute image contents; it cannot compile
+  # aarch64-linux closures, so the pin must stay on a revision present in the
+  # cache. Update via `nix flake update` after checking the cache has it built.
   inputs.nixpkgs.url = "github:nixos/nixpkgs/fe13242281a67641c0102cdb1087f0ebe586c7df";
 
   outputs =
     {
       self,
       nixpkgs,
-      llm-agents,
     }:
     let
       system = "aarch64-darwin";
@@ -88,6 +84,7 @@
             # Web demo toolchain.
             wasm-bindgen-cli
             binaryen
+            biome
             bun
             nodejs
             # Prose linting.

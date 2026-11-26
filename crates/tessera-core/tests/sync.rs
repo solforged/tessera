@@ -150,11 +150,7 @@ fn state(dir: &Path) -> Vec<(String, Vec<String>)> {
             continue;
         }
         let mut statement = conn.prepare(&format!("SELECT * FROM {table}")).unwrap();
-        let columns: Vec<String> = statement
-            .column_names()
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
+        let columns: Vec<String> = statement.column_names().map(str::to_owned).collect();
         let mut rows: Vec<String> = statement
             .query_map([], |row| {
                 Ok(columns
@@ -2388,4 +2384,85 @@ fn image_blocks_sync_their_bytes_to_hub_and_fresh_clone() {
     assert_eq!(clone.sync_with(&mut p.hub).unwrap().received_objects, 1);
     assert_eq!(clone.read_object(&image.sha256).unwrap(), bytes);
     assert_eq!(clone.capabilities(&id(2)).unwrap().image, Some(image));
+}
+
+#[test]
+fn keyed_agent_edit_survives_replica_rebase_and_replays_idempotently() {
+    let mut p = pair();
+    let request = tessera_core::AgentRequest {
+        actor: Actor::Agent {
+            name: "test-agent".into(),
+        },
+        reason: Some("idempotent replica note".into()),
+        edit: tessera_core::AgentEdit::AddBlocks {
+            target: tessera_core::BlockTarget::Page {
+                title: "Notes".into(),
+            },
+            blocks: vec![tessera_core::OutlineBlock {
+                text: "recorded once".into(),
+                heading: None,
+                task: None,
+                children: Vec::new(),
+            }],
+        },
+    };
+    let first = p
+        .replica
+        .agent_edit_keyed(&request, Some("replica-key-1"))
+        .unwrap();
+    assert!(!first.committed.replayed);
+
+    // Advance the hub first so the replica's unconfirmed change is detached and renumbered.
+    apply(&mut p.hub, vec![insert(40, &id(1), None, "hub sibling")]);
+    p.sync();
+    p.assert_converged();
+
+    let replayed = p
+        .replica
+        .agent_edit_keyed(&request, Some("replica-key-1"))
+        .unwrap();
+    assert!(replayed.committed.replayed);
+    assert_eq!(replayed.blocks, first.blocks);
+    assert_eq!(children(&p.replica, &id(1)).len(), 3);
+}
+
+#[test]
+fn check_table_hashes_ignore_unlogged_source_and_citation_columns() {
+    let mut snapshot = String::new();
+    let mut citation = String::new();
+    let mut p = pair_with(|hub| {
+        let (snap, source, _) = import(hub, &book("Desk Book", "urn:desk"), b"epub", &[]);
+        highlight(hub, &source, &snap, 60, 61);
+        hub.set_reading_position(&snap, 0).unwrap();
+        Connection::open(hub.info().unwrap().path.join(DATABASE_FILE))
+            .unwrap()
+            .execute(
+                "UPDATE changes SET created_at = 0 WHERE seq IN (SELECT created_seq FROM citations)",
+                [],
+            )
+            .unwrap();
+        snapshot = snap;
+        citation = id(61);
+    });
+    p.sync();
+    p.assert_converged();
+
+    // Mutate unlogged columns only on the hub without syncing rows yet.
+    assert!(
+        p.hub
+            .set_reading_position(&snapshot, 1)
+            .unwrap()
+            .seq
+            .is_none()
+    );
+    let picks = p.hub.resurfacing("2020-01-01", 3).unwrap();
+    assert_eq!(picks[0].row.citation.id, citation);
+    p.hub
+        .record_surfacing(&citation, "2020-01-01", "muted")
+        .unwrap();
+
+    assert_eq!(
+        p.hub.check(false).unwrap().hashes,
+        p.replica.check(false).unwrap().hashes
+    );
 }

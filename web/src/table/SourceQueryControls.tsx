@@ -8,6 +8,7 @@ import { noteKindIcon } from '../notes/kinds';
 import { Picker } from '../ui/Picker';
 import { FilterPopup } from './FilterPopup';
 import { addFilter, filterLabel, removeFilter } from './query';
+import '../ui/chips.css';
 import './table.css';
 import './source-query.css';
 

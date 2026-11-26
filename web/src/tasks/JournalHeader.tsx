@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, createUniqueId, lazy, onCleanup } from 'solid-js';
 import type { Agenda, Citation, LibraryRow, SourceView } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
@@ -8,7 +8,7 @@ import { shortSourceTitle } from '../outline/source';
 import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import type { OpenTarget } from '../core/contract';
-import { agendaDaySummary } from '../shell/desk-counts';
+import { agendaDaySummary } from '../workflows/desk-counts';
 import { opensBeside } from '../core/beside';
 import { BookMap } from '../reader/BookMap';
 import { bookChapters, chapterAt } from '../reader/book-map';
@@ -21,15 +21,16 @@ import { Figures } from './Figures';
 import { createPhone } from './journal-phone';
 import { agendaTaskTime, groupDayAgenda } from './task-labels';
 import { createClock } from './clock';
-import { TaskSourceRows } from './JournalAgenda';
 import { movableTo } from './reschedule';
 import { createBulkMove } from './BulkMove';
 import { SectionHead } from '../ui/SectionHead';
 import { section } from './today-template';
 import { createSettledChanges, sameData } from '../ui/loading';
-import './agenda.css';
+import '../ui/covers.css';
+import './journal.css';
 import './journal-phone.css';
-import '../library/library.css';
+
+const TaskSourceRows = lazy(() => import('./JournalAgenda').then(module => ({ default: module.TaskSourceRows })));
 
 export function JournalHeader(props: {
   date: string;
@@ -159,7 +160,11 @@ export function JournalHeader(props: {
   });
   const readingLead = createMemo(() => {
     const book = reading();
-    return book ? <SourceCover row={book.row} siglum={book.row.source.siglum} /> : <Icon name="library" />;
+    return book ? (
+      <SourceCover api={props.workshop.api} row={book.row} siglum={book.row.source.siglum} />
+    ) : (
+      <Icon name="library" />
+    );
   });
   return (
     <section class="journal-header" aria-label={spokenJournalDate(props.date)}>
@@ -300,7 +305,7 @@ export function JournalHeader(props: {
                   {book => (
                     <>
                       <span class="journal-reading-book">
-                        <SourceCover row={book().row} siglum={book().row.source.siglum} />
+                        <SourceCover api={props.workshop.api} row={book().row} siglum={book().row.source.siglum} />
                         <span class="journal-reading-text">
                           <span class="journal-reading-title" title={book().row.page.text}>
                             {shortSourceTitle(book().row.page.text)}

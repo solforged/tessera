@@ -1,13 +1,16 @@
-import { Show, createResource } from 'solid-js';
+import { Show, createResource, lazy } from 'solid-js';
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
-import { TaskSourceRows } from '../tasks/JournalAgenda';
 import { createTaskQuery } from '../tasks/query';
 import { relativeDate } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import './projects.css';
+
+const TaskSourceRows = lazy(() =>
+  import('../tasks/JournalAgenda').then(module => ({ default: module.TaskSourceRows })),
+);
 
 export function createProjectSummary(props: {
   doc: PageDocument;

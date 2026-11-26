@@ -434,7 +434,7 @@ impl Engine<'_, '_> {
             ));
         }
         crate::image_store::guard_merge(self.tx, &destination.block.id)?;
-        crate::task_store::guard_merge(self.tx, &source.block.id)?;
+        crate::capabilities::guard_merge(self.tx, &source.block.id)?;
         crate::card_store::guard_merge(self.tx, &source.block.id)?;
         crate::work_store::guard_move(self.tx, &source.block.id, &destination.block.id)?;
         let mut text =
@@ -521,7 +521,7 @@ impl Engine<'_, '_> {
             return Ok(None);
         }
         for guard in [
-            crate::task_store::guard_merge(self.tx, &entry.block.id),
+            crate::capabilities::guard_merge(self.tx, &entry.block.id),
             crate::card_store::guard_merge(self.tx, &entry.block.id),
         ] {
             match guard {
@@ -583,7 +583,7 @@ impl Engine<'_, '_> {
         }
         self.page_merge_endpoint(source)?;
         self.page_merge_endpoint(destination)?;
-        crate::task_store::guard_merge(self.tx, &source.block.id)?;
+        crate::capabilities::guard_merge(self.tx, &source.block.id)?;
         crate::card_store::guard_merge(self.tx, &source.block.id)?;
         let metadata: bool = self
             .tx

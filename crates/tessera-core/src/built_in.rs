@@ -205,29 +205,18 @@ pub(crate) fn task_options(name: &str) -> &'static [&'static str] {
     }
 }
 
-/// The option atoms a new definition `id` of built-in `field` starts with, in order, and the options
-/// they make, so a value in the same change can link one.
-pub(crate) fn starting_options(
-    field: &BuiltInField,
-    id: &str,
-) -> (Vec<Operation>, Vec<FieldOption>) {
-    let mut operations = Vec::with_capacity(field.options.len());
-    let mut options: Vec<FieldOption> = Vec::with_capacity(field.options.len());
-    for &text in field.options {
-        let option = crate::notebook::new_ulid().to_string();
-        operations.push(Operation::Insert {
-            id: option.clone(),
-            parent_id: id.to_owned(),
-            after: options.last().map(|previous| previous.id.clone()),
+/// The starting option atoms a new definition `id` of built-in `field` receives from
+/// `Engine::settle_built_in_definitions`, in order, with deterministic IDs so values in the same
+/// change can link them before settlement commits.
+pub(crate) fn starting_options(field: &BuiltInField, id: &str) -> Vec<FieldOption> {
+    field
+        .options
+        .iter()
+        .map(|&text| FieldOption {
+            id: crate::notebook::derived_id(&["field-option", id, text]),
             text: text.to_owned(),
-            heading: None,
-        });
-        options.push(FieldOption {
-            id: option,
-            text: text.to_owned(),
-        });
-    }
-    (operations, options)
+        })
+        .collect()
 }
 
 /// The Links to a built-in relation files: Sources, and those of its types whose pages exist.
@@ -371,6 +360,51 @@ impl Workshop {
             operations,
         })?;
         Ok(())
+    }
+
+    pub(crate) fn built_in_fields_need_ensure(&self, committed: &crate::Committed) -> Result<bool> {
+        if committed
+            .capabilities
+            .iter()
+            .any(|caps| caps.task.is_some())
+            && self.task_fields_need_ensure()?
+        {
+            return Ok(true);
+        }
+        if committed.revisions.is_empty() {
+            return Ok(false);
+        }
+        let ids: Vec<&str> = committed
+            .revisions
+            .iter()
+            .map(|revision| revision.id.as_str())
+            .collect();
+        let json = serde_json::to_string(&ids).expect("revision IDs serialize");
+        Ok(self.conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM json_each(?1) j
+                 JOIN blocks p ON p.id = j.value
+                 WHERE p.kind = 'page' AND p.deletion_id IS NULL AND (
+                     (p.title_key = 'book' AND NOT EXISTS(
+                         SELECT 1 FROM type_fields tf
+                         JOIN blocks d ON d.id = tf.field_id
+                         WHERE tf.type_id = p.id AND d.deletion_id IS NULL AND d.archived = 0
+                         AND lower(d.text) = 'author'
+                     ))
+                     OR (p.title_key IN ('person', 'group', 'collection', 'project') AND EXISTS(
+                         SELECT 1 FROM blocks d
+                         JOIN blocks fp ON fp.id = d.parent_id
+                         JOIN fields f ON f.block_id = d.id
+                         WHERE fp.title_key = 'fields' AND fp.deletion_id IS NULL
+                         AND d.deletion_id IS NULL AND d.archived = 0
+                         AND f.kind = 'instance' AND f.links_sources = 0
+                         AND NOT EXISTS(SELECT 1 FROM field_targets ft WHERE ft.field_id = d.id)
+                     ))
+                 )
+             )",
+            [json],
+            |row| row.get(0),
+        )?)
     }
 
     pub(crate) fn task_fields_need_ensure(&self) -> Result<bool> {
@@ -616,6 +650,30 @@ mod tests {
                 .map(|(name, _)| *name)
                 .collect::<Vec<_>>(),
             ["author"]
+        );
+    }
+
+    #[test]
+    fn creating_book_mid_session_seeds_required_author_template() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut workshop = Workshop::open(dir.path()).unwrap();
+        let book_id = crate::notebook::new_ulid().to_string();
+        workshop
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![Operation::CreatePage {
+                    id: book_id.clone(),
+                    title: "Book".into(),
+                }],
+            })
+            .unwrap();
+        let info = workshop.type_info(&book_id).unwrap();
+        assert_eq!(info.required.len(), 1);
+        assert_eq!(
+            workshop.block(&info.required[0].field_id).unwrap().text,
+            "author"
         );
     }
 }

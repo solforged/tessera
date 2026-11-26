@@ -32,8 +32,13 @@ export function RelationPicker(props: {
 }) {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
+  const targetChanges = () => [
+    props.workshop.changed('pages'),
+    props.workshop.changed('types'),
+    props.workshop.changed('library'),
+  ];
   const [members] = createResource(
-    () => ({ targets: props.field.targets, sequence: props.workshop.changeSequence() }),
+    () => ({ targets: props.field.targets, changes: targetChanges() }),
     ({ targets }) => relationMembers(props.workshop, targets),
   );
   const [types] = createResource(
@@ -52,7 +57,7 @@ export function RelationPicker(props: {
     return kind ? `Find ${/^[aeiou]/.test(kind) ? 'an' : 'a'} ${kind}…` : `${fieldLabel(props.field)}…`;
   });
   const [matches] = createResource(
-    () => members() && { query: query(), members: members()!, sequence: props.workshop.changeSequence() },
+    () => members() && { query: query(), members: members()!, changes: targetChanges() },
     state =>
       relationCandidates(props.workshop, state.members, props.field.targets.length > 0, state.query, props.owner).then(
         result => ({ ...result, query: state.query }),

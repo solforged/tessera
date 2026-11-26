@@ -1,6 +1,5 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
-import { api } from '../api/client';
 import type { Backups, WorkshopInfo } from '../api/types';
 import { DEMO, EMBEDDED, MOBILE } from '../core/mode';
 import type { WorkshopClient } from '../document/contract';
@@ -10,7 +9,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { isPhone } from '../ui/phone';
-import { setThemePreference, themePreference } from '../shell/theme';
+import { setThemePreference, themePreference } from '../ui/theme';
 import { size, sync } from '../sync/state';
 import { backupLabel, backupStale } from './backup';
 import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
@@ -34,7 +33,7 @@ import { TodaySettings } from './TodaySettings';
 import { PhoneAbout } from './About';
 import { Choice } from './Choice';
 import { Group } from './Group';
-import '../fields/field-page.css';
+import '../ui/field-sheet.css';
 import './settings.css';
 import './devices.css';
 
@@ -56,7 +55,7 @@ export function SettingsPane(props: {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try {
-      return await api.workshop();
+      return await props.workshop.api.workshop();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       return undefined;
@@ -66,7 +65,7 @@ export function SettingsPane(props: {
     () => !EMBEDDED,
     async () => {
       try {
-        return await api.service();
+        return await props.workshop.api.service();
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason));
         return undefined;
@@ -79,7 +78,7 @@ export function SettingsPane(props: {
     () => phone() && !DEMO,
     async () => {
       try {
-        return (await api.workshopSize()).size;
+        return (await props.workshop.api.workshopSize()).size;
       } catch {
         return undefined;
       }
@@ -89,7 +88,7 @@ export function SettingsPane(props: {
     () => !EMBEDDED,
     async () => {
       try {
-        return await api.backups();
+        return await props.workshop.api.backups();
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason));
         return undefined;
@@ -138,7 +137,7 @@ export function SettingsPane(props: {
     setError('');
     setUnchanged(false);
     try {
-      const result = await api.createBackup();
+      const result = await props.workshop.api.createBackup();
       updateBackups(result.backups);
       setUnchanged(!result.created);
     } catch (reason) {
@@ -152,10 +151,10 @@ export function SettingsPane(props: {
     setRestoringBackup(true);
     setError('');
     try {
-      const current = await api.workshop();
-      await api.restoreBackup(name);
+      const current = await props.workshop.api.workshop();
+      await props.workshop.api.restoreBackup(name);
       setConfirmBackup(null);
-      await reloadWorkshop(current.path, 'The restored workshop');
+      await reloadWorkshop(props.workshop.api, current.path, 'The restored workshop');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       setRestoringBackup(false);
@@ -178,7 +177,7 @@ export function SettingsPane(props: {
     setForgetting(path);
     setError('');
     try {
-      await forgetWorkshop(path);
+      await forgetWorkshop(props.workshop.api, path);
     } catch (reason) {
       report(reason);
     } finally {
@@ -349,7 +348,7 @@ export function SettingsPane(props: {
     void props.workshop
       .refreshSettings()
       .catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
-    if (!EMBEDDED) void loadWorkshops().catch(report);
+    if (!EMBEDDED) void loadWorkshops(props.workshop.api).catch(report);
   });
   const change = async (key: 'time_zone' | 'vim' | 'confirm_view_delete', value: string) => {
     setError('');
@@ -861,7 +860,7 @@ export function SettingsPane(props: {
                                   onKeyDown={cancelBackupOnEscape}
                                   onClick={() => {
                                     void (confirmBackup() === backup.path
-                                      ? removeBackups(() => api.deleteBackup(backup.name))
+                                      ? removeBackups(() => props.workshop.api.deleteBackup(backup.name))
                                       : restoreBackup(backup.name));
                                   }}
                                 >
@@ -920,7 +919,7 @@ export function SettingsPane(props: {
                                   disabled={backupBusy()}
                                   onKeyDown={cancelBackupOnEscape}
                                   onClick={() => {
-                                    void removeBackups(() => api.deleteOtherBackups(other.workshop_id));
+                                    void removeBackups(() => props.workshop.api.deleteOtherBackups(other.workshop_id));
                                   }}
                                 >
                                   Confirm
@@ -963,7 +962,13 @@ export function SettingsPane(props: {
               </Show>
             </section>
           )}
-          {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Models')} />}
+          {!DEMO && (
+            <AgentSettings
+              id={sectionId('agent')}
+              heading={heading(number('agent'), 'agent', 'Models')}
+              api={props.workshop.api}
+            />
+          )}
           <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
             <Group heading={heading(number('about'), 'about', 'About')}>
               <Show

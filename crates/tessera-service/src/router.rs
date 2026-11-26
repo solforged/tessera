@@ -1,31 +1,46 @@
+#[cfg(feature = "hub")]
 use std::path::PathBuf;
+#[cfg(feature = "hub")]
 use std::sync::Arc;
 
-use axum::{
-    Router,
-    extract::{DefaultBodyLimit, State},
-    middleware,
-    response::Response,
-    routing::get,
-};
-use parking_lot::Mutex;
+#[cfg(feature = "hub")]
+use axum::extract::DefaultBodyLimit;
+use axum::{Router, extract::State, middleware, response::Response, routing::get};
+#[cfg(feature = "hub")]
+use parking_lot::{Mutex, RwLock};
+#[cfg(feature = "hub")]
 use tessera_core::Workshop;
+#[cfg(feature = "hub")]
 use tokio::sync::broadcast;
 
+#[cfg(feature = "hub")]
 use crate::agent;
+#[cfg(feature = "hub")]
 use crate::assets;
 use crate::error::ApiError;
-use crate::info::{service_info, workshop_size};
+#[cfg(feature = "hub")]
+use crate::info::service_info;
+use crate::info::workshop_size;
+#[cfg(feature = "hub")]
 use crate::notebooks;
+#[cfg(feature = "hub")]
 use crate::pairing;
 use crate::replica;
+#[cfg(feature = "hub")]
 use crate::security;
-use crate::state::{AppState, hub_objects, read};
+use crate::state::AppState;
+#[cfg(feature = "hub")]
+use crate::state::hub_objects;
+#[cfg(feature = "hub")]
 use crate::stream::change_stream;
+#[cfg(feature = "hub")]
 use crate::sync;
+#[cfg(feature = "hub")]
 use crate::{backups, library};
+#[cfg(feature = "hub")]
 use tessera_api::images;
 
+#[cfg(feature = "hub")]
 pub fn router(
     workshop: Workshop,
     port: u16,
@@ -45,10 +60,12 @@ pub fn router(
         None,
         None,
         backup_store,
+        tokio::sync::watch::channel(false).1,
     )?
     .0)
 }
 
+#[cfg(feature = "hub")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn routers(
     workshop: Workshop,
@@ -59,30 +76,37 @@ pub(crate) fn routers(
     switcher: Option<Arc<notebooks::Switcher>>,
     agent_path: Option<PathBuf>,
     backup_store: Option<PathBuf>,
+    shutdown: tokio::sync::watch::Receiver<bool>,
 ) -> Result<(Router, Router, AppState), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
+    let info = Arc::new(RwLock::new(
+        workshop.info().map_err(|error| error.to_string())?,
+    ));
     let readers = tessera_api::Readers::open(&workshop).map_err(|error| error.to_string())?;
     let workshop = Arc::new(Mutex::new(workshop));
     let notifications = broadcast::channel(256).0;
     let library =
         library::Library::start(workshop.clone(), notifications.clone(), library::extract)?;
+    let replica_runtime: Arc<replica::ReplicaRuntime> = Arc::default();
     let state = AppState {
         workshop,
+        info,
         readers: Some(readers),
         assets: assets.map(Arc::new),
         changes: notifications,
         library,
-        objects: hub_objects(),
+        objects: hub_objects(replica_runtime.clone()),
         port,
         backup: Arc::new(tokio::sync::Mutex::new(None)),
         backup_store,
         sync_port,
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         sharing: Arc::new(tokio::sync::Mutex::new(())),
-        replica: Arc::default(),
+        replica: replica_runtime,
         sync_health: Arc::default(),
         switcher,
         agent: Arc::new(agent::Runtime::new(agent_path)?),
+        shutdown,
     };
     replica::start(
         state.workshop.clone(),
@@ -159,17 +183,14 @@ pub(crate) async fn same_workshop(
         })
         .map(str::to_owned);
     if let Some(expected) = expected {
-        match read(&state, |workshop| workshop.info()).await {
-            Ok(info) if info.id != expected => {
-                return ApiError::new(
-                    axum::http::StatusCode::CONFLICT,
-                    "notebook_changed",
-                    format!("The service now has {} open.", info.path.display()),
-                )
-                .into_response();
-            }
-            Ok(_) => {}
-            Err(error) => return error.into_response(),
+        let info = state.info.read();
+        if info.id != expected {
+            return ApiError::new(
+                axum::http::StatusCode::CONFLICT,
+                "notebook_changed",
+                format!("The service now has {} open.", info.path.display()),
+            )
+            .into_response();
         }
     }
     next.run(request).await
@@ -181,6 +202,7 @@ pub(crate) fn workshop_routes() -> Router<AppState> {
         .merge(replica::routes())
 }
 
+#[cfg(feature = "hub")]
 async fn refuse_while_switching(
     State(state): State<AppState>,
     request: axum::extract::Request,
@@ -207,7 +229,7 @@ async fn refuse_while_switching(
     next.run(request).await
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "hub"))]
 mod tests {
     use axum::{
         body::Body,
@@ -230,6 +252,7 @@ mod tests {
             None,
             Some(dir.path().join("agent.json")),
             None,
+            tokio::sync::watch::channel(false).1,
         )
         .unwrap();
         // Hold the writer as a long save or sync apply would.

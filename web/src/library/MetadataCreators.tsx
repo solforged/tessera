@@ -3,7 +3,6 @@ import type { Block } from '../api/types';
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { opensBeside } from '../core/beside';
-import { documentReady } from '../outline/source-fields';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -173,7 +172,7 @@ export function MetadataCreators(props: {
       const doc = props.workshop.open(id);
       let previous: string;
       try {
-        await documentReady(doc);
+        await doc.ready();
         previous = doc.root()!.text;
         const result = doc.rename(title);
         if (!result.ok) throw new Error(result.reason);
@@ -184,7 +183,7 @@ export function MetadataCreators(props: {
       const apply = async (text: string) => {
         const held = props.workshop.open(id);
         try {
-          await documentReady(held);
+          await held.ready();
           const result = held.rename(text);
           if (!result.ok) throw new Error(result.reason);
           await held.flush();

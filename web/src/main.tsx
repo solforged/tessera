@@ -1,13 +1,15 @@
-import './shell/theme';
+import './ui/theme';
 import '@fontsource-variable/ibm-plex-sans';
 import './ui/keys.css';
 import '@fontsource-variable/piazzolla/standard.css';
 import '@fontsource-variable/piazzolla/standard-italic.css';
+import { lazy } from 'solid-js';
 import { render } from 'solid-js/web';
 import { App } from './shell/App';
-import { CaptureWindow } from './capture/CaptureSheet';
 import { installIosViewport } from './ui/ios-viewport';
 import './styles.css';
+
+const CaptureWindow = lazy(() => import('./capture/CaptureSheet').then(module => ({ default: module.CaptureWindow })));
 
 installIosViewport();
 

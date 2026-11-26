@@ -136,6 +136,7 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
   const source = { ...page('Arnold J. Toynbee'), id: '01ARZ3NDEKTSV4RRFFQ69G5FAW' };
   const doc = {
     pageId: 'book',
+    ready: async () => {},
     status: () => 'ready',
     flush: async () => {},
     outline: { children: () => [] },
@@ -170,6 +171,7 @@ test('the catalog Title reads the tagless title, and a new title keeps the store
   let text = `Attention Is All You Need #[[${tag}|source]]`;
   const doc = {
     pageId: 'paper',
+    ready: async () => {},
     status: () => 'ready',
     flush: async () => {},
     root: () => ({ text }),
@@ -223,6 +225,7 @@ test('role changes resolve a title-form creator while preserving the same bare p
   };
   const doc = {
     pageId: 'book',
+    ready: async () => {},
     status: () => 'ready',
     flush: async () => {},
     root: () => ({ text: 'A source' }),

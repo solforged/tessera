@@ -1,6 +1,6 @@
 import { createSignal, Show } from 'solid-js';
 import { render } from 'solid-js/web';
-import { createWorkshopClient } from '../src/document';
+import { createWorkshopClient } from '../src/workflows/workshop';
 import type { PageDocument } from '../src/document/contract';
 import type { Command, CommandRegistry, OpenTarget, ViewState } from '../src/core/contract';
 import { OutlinePane } from '../src/outline/OutlinePane';

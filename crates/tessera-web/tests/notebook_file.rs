@@ -3,6 +3,7 @@
 
 use rusqlite::Connection;
 use serde_json::{Value, json};
+use sqlite_wasm_rs::vfs::{VfsFilesManager, transfer::DbTransfer};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, OpfsSAHPoolUtil, install};
 use tessera_core::SCHEMA_VERSION;
 use tessera_web::{
@@ -44,7 +45,7 @@ fn modify(pool: &OpfsSAHPoolUtil, bytes: &[u8], sql: &str) -> Vec<u8> {
     conn.execute_batch(sql).unwrap();
     drop(conn);
     let bytes = pool.export_db(FIXTURE).unwrap();
-    pool.delete_db(FIXTURE).unwrap();
+    pool.remove(FIXTURE).unwrap();
     bytes
 }
 
@@ -142,7 +143,8 @@ async fn round_trip_and_invalid_files_leave_the_current_workshop_untouched() {
         assert_eq!(export_notebook().unwrap().to_vec(), bytes);
         assert!(
             !pool
-                .list()
+                .names()
+                .unwrap()
                 .iter()
                 .any(|name| name.starts_with("/demo-restore/"))
         );
@@ -167,9 +169,10 @@ async fn round_trip_and_invalid_files_leave_the_current_workshop_untouched() {
         .unwrap();
     assert_eq!(objects, 2);
     drop(conn);
-    pool.delete_db(FIXTURE).unwrap();
+    pool.remove(FIXTURE).unwrap();
 
     // Reset also removes unfinished imports, journals, and an earlier upgrade copy.
+    pool.ensure_capacity(8).await.unwrap();
     for filename in [
         "/demo-restore/notebook.db",
         "/demo-restore/notebook.db-journal",
@@ -182,6 +185,6 @@ async fn round_trip_and_invalid_files_leave_the_current_workshop_untouched() {
     reset().await.unwrap();
     assert!(is_empty().unwrap());
     assert!(upgrade_copy().unwrap().is_none());
-    assert_eq!(pool.list(), vec!["/demo/notebook.db"]);
+    assert_eq!(pool.names().unwrap(), vec!["/demo/notebook.db"]);
     assert_eq!(request("GET", &page_path, Value::Null).await.0, 404);
 }

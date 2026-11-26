@@ -146,7 +146,12 @@ export function RecipeSection(props: {
   });
   createEffect(
     on(
-      () => props.workshop.changeSequence(),
+      () => [
+        props.workshop.changed('cards'),
+        props.workshop.changed('fields'),
+        props.workshop.changed('types'),
+        props.workshop.changed('pages'),
+      ],
       () => {
         const timer = setTimeout(() => setVersion(value => value + 1), 150);
         onCleanup(() => clearTimeout(timer));

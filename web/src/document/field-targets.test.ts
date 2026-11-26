@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
-import { createWorkshopClient } from './index';
-import type { Workshop } from './index';
+import { createWorkshopClient } from '../workflows/workshop';
+import type { Workshop } from '../workflows/workshop';
 import { startService } from '../testing/service';
 import { createInstance, instancePages, relationCandidates, relationMembers } from '../fields/instances';
 import { changeFieldKind } from '../fields/commands';

@@ -4,14 +4,14 @@ import type { ApiClient } from '../api/client';
 import type { Citation, HighlightRow, TocEntry } from '../api/types';
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
-import { pendingCaretInput } from '../shell/pending-caret';
-import { documentReady } from '../tasks/JournalAgenda';
-import { CardComposer } from '../review/CardComposer';
 import { parseCardText } from '../core/card-text';
+import { CardComposer } from '../review/CardComposer';
+import { pendingCaretInput } from '../ui/pending-caret';
 import { Button } from '../ui/Button';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { createHighlightTagPrompt } from './HighlightTagPopup';
+import '../ui/covers.css';
 import './library.css';
 
 export const highlightColors = ['yellow', 'green', 'blue', 'red', 'purple'] as const;
@@ -108,9 +108,9 @@ export function createHighlightActions(
     if (!doc) {
       doc = workshop.open(pageId);
       documents.set(pageId, doc);
-      await documentReady(doc);
+      await doc.ready();
       if (!disposed) setDocumentsVersion(value => value + 1);
-    } else await documentReady(doc);
+    } else await doc.ready();
     return doc;
   };
   const notes = (doc: PageDocument, id: string) =>
@@ -135,7 +135,7 @@ export function createHighlightActions(
       confirmed = false,
       cancelInput?: (() => void) & { signal: AbortSignal },
     ) => {
-      await documentReady(document);
+      await document.ready();
       if (disposed) return;
       if (action === 'card') {
         // Hang the draft from the control that started it: the focus now, else the one captured before loading (a busy button can drop focus to the body).
@@ -238,7 +238,7 @@ export function createHighlightActions(
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
     const setColor = (color: Citation['color']) => {
       void (async () => {
-        await documentReady(document);
+        await document.ready();
         const result = document.edit({ kind: 'highlightColor', id, citationId: row.citation.id, color });
         if (!result.ok) throw new Error(result.reason);
         setLastDocument(document);
@@ -388,7 +388,7 @@ export function createHighlightActions(
                 try {
                   const doc = draft.document,
                     parentId = draft.row.citation.block_id;
-                  await documentReady(doc);
+                  await doc.ready();
                   const result = doc.edit({
                     kind: 'insert',
                     parentId,

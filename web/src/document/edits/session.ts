@@ -4,9 +4,9 @@ import { markdownPasteRows } from '../clipboard';
 import type { HistoryCaret, PasteRow, TextRange } from '../contract';
 import type { Caret } from '../../core/contract';
 import { parseCardText } from '../../core/card-text';
-import { newTask } from '../../tasks/quick-date';
-import { quoteTarget, textTokens } from '../text-tokens';
-import { titleKey } from '../title-key';
+import { newTask } from '../../model/tasks';
+import { quoteTarget, textTokens } from '../../model/text-tokens';
+import { titleKey } from '../../model/title-key';
 import type { Action } from '../types';
 import type { DocumentInternals } from './internals';
 

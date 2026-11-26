@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import type { LibraryRow } from '../api/types';
+import { DEMO } from '../core/mode';
 import type { WorkshopClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
 import { BlockText } from '../outline/BlockText';
@@ -88,7 +89,7 @@ export function ReadingUnder(props: {
       ).rows,
   );
   // A pasted web address is offered first: choosing it adds the page to the Library and files the note under it.
-  const address = () => (/^https?:\/\/\S+$/i.test(query().trim()) ? query().trim() : null);
+  const address = () => (!DEMO && /^https?:\/\/\S+$/i.test(query().trim()) ? query().trim() : null);
   const items = (): Other[] => [...(address() ? [{ url: address()! }] : []), ...(found() ?? []).map(row => ({ row }))];
   const importLink = async (url: string) => {
     setImporting(true);
@@ -127,7 +128,7 @@ export function ReadingUnder(props: {
             >
               <span class="create-under-cover">
                 <Show when={choice.row} fallback={<Icon name="library" />}>
-                  {row => <SourceCover row={row()} siglum={row().source.siglum} />}
+                  {row => <SourceCover api={props.workshop.api} row={row()} siglum={row().source.siglum} />}
                 </Show>
               </span>
               <span class="create-under-text">
@@ -294,14 +295,16 @@ export function LinkPreview(props: {
         </Show>
         <span class="create-link-site">{site()}</span>
       </div>
-      <label class="create-link-library">
-        <input
-          type="checkbox"
-          checked={props.library}
-          onChange={event => props.onLibrary(event.currentTarget.checked)}
-        />
-        Also add to the Library
-      </label>
+      <Show when={!DEMO}>
+        <label class="create-link-library">
+          <input
+            type="checkbox"
+            checked={props.library}
+            onChange={event => props.onLibrary(event.currentTarget.checked)}
+          />
+          Also add to the Library
+        </label>
+      </Show>
     </div>
   );
 }

@@ -429,7 +429,7 @@ fn field_kind_contract_matches_database_check() {
 #[test]
 fn field_kind_contract_matches_web_order() {
     let source = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/fields/kinds.ts"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/model/fields.ts"),
     )
     .unwrap();
     let array = source
@@ -1379,8 +1379,9 @@ fn view_lifecycle_is_revision_checked_atomic_replayable_and_streamed_separately(
     }]);
     create.idempotency_key = Some("create-view".into());
     let committed = nb.apply(&create).unwrap();
+    assert!(committed.revisions.is_empty());
     assert_eq!(
-        committed.revisions,
+        committed.views,
         vec![Revision {
             id: id(500),
             revision: 1
@@ -1412,7 +1413,7 @@ fn view_lifecycle_is_revision_checked_atomic_replayable_and_streamed_separately(
         if error_conflict {
             assert!(matches!(result, Err(Error::Conflict { .. })));
         } else {
-            assert_eq!(result.unwrap().revisions[0].revision, 2);
+            assert_eq!(result.unwrap().views[0].revision, 2);
         }
     }
     assert_eq!(nb.view(&id(500)).unwrap().created_at, view.created_at);
@@ -1476,7 +1477,8 @@ fn view_lifecycle_is_revision_checked_atomic_replayable_and_streamed_separately(
     }]);
     deletion.idempotency_key = Some("delete-view".into());
     let deleted = nb.apply(&deletion).unwrap();
-    assert_eq!(deleted.revisions[0].revision, 3);
+    assert!(deleted.revisions.is_empty());
+    assert_eq!(deleted.views[0].revision, 3);
     assert!(nb.apply(&deletion).unwrap().replayed);
     assert!(matches!(nb.view(&id(500)), Err(Error::NotFound { .. })));
     assert_eq!(

@@ -7,6 +7,7 @@ use crate::storage::derive_memberships;
 const UNICODE_TITLE_KEYS: &str = include_str!("../migrations/047_unicode_title_keys.sql");
 const DISPLAY_TITLE_KEYS: &str = include_str!("../migrations/053_display_title_keys.sql");
 const AGENT_IDEMPOTENCY: &str = include_str!("../migrations/055_agent_idempotency.sql");
+const UNIQUE_LIVE_TITLES: &str = include_str!("../migrations/056_unique_live_titles.sql");
 
 /// Ordered schema migrations. Version N is the Nth entry; never edit or
 /// reorder a released entry, only append.
@@ -66,6 +67,7 @@ const MIGRATIONS: &[&str] = &[
     DISPLAY_TITLE_KEYS,
     include_str!("../migrations/054_change_history.sql"),
     AGENT_IDEMPOTENCY,
+    UNIQUE_LIVE_TITLES,
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -97,7 +99,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     // Historical migrations retain their original spelling rule. Apply 053
     // after the 051 text rewrite, so tag-only titles are keyed in stored form.
     for sql in &MIGRATIONS[found as usize..] {
-        if *sql != DISPLAY_TITLE_KEYS && *sql != AGENT_IDEMPOTENCY {
+        if *sql != DISPLAY_TITLE_KEYS && *sql != AGENT_IDEMPOTENCY && *sql != UNIQUE_LIVE_TITLES {
             tx.execute_batch(sql)?;
         }
     }
@@ -203,6 +205,10 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
             |context| Ok(crate::storage::title_key(context.get_raw(0).as_str()?)),
         )?;
         tx.execute_batch(DISPLAY_TITLE_KEYS)?;
+    }
+    if found < 56 {
+        disambiguate_display_titles(&tx)?;
+        tx.execute_batch(UNIQUE_LIVE_TITLES)?;
     }
     crate::fields::ensure_page(&tx)?;
     crate::fields::rebuild(&tx)?;
@@ -927,6 +933,22 @@ mod tests {
              VALUES (?1, 'page', ?1, 1024, 'CAFÉ', 'café', 1, 0, 0)",
             [ulid::Ulid::from(4_u128).to_string()],
         ).is_err());
+        let triggers: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name IN ('blocks_title_insert', 'blocks_title_update')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(triggers, 0);
+        let unique_index: bool = conn
+            .query_row(
+                "SELECT \"unique\" = 1 FROM pragma_index_list('blocks') WHERE name = 'blocks_live_title'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(unique_index);
         migrate(&mut conn).unwrap();
     }
 }

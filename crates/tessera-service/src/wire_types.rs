@@ -271,6 +271,7 @@ fn declarations() -> String {
         tessera_core::library::PassagePage,
         tessera_core::library::PassagePoint,
         tessera_core::PositionInfo,
+        tessera_core::PositionQuery,
         tessera_core::PositionQueryResult,
         tessera_core::PositionQuestion,
         tessera_core::PositionRow,
@@ -370,6 +371,7 @@ fn declarations() -> String {
         tessera_core::library::TocEntry,
         tessera_core::Topic,
         tessera_core::TypeInfo,
+        tessera_core::UndoReceipt,
         tessera_core::UnlinkedMentions,
         tessera_core::View,
         tessera_core::WorkSession,
@@ -377,12 +379,15 @@ fn declarations() -> String {
     );
     roots!(collector:
         tessera_api::ConflictDetails,
+        tessera_api::HistoryResponse,
+        tessera_api::library::LinkPreview,
         tessera_api::library::Preview,
         tessera_api::library::SurfacingBody,
         crate::SyncVersion,
         crate::agent::ContextRef,
         crate::agent::Event,
         crate::agent::Events,
+        crate::agent::ProviderTestResult,
         crate::agent::Start,
         crate::agent::Started,
         crate::agent::ThreadMessage,
@@ -398,6 +403,7 @@ fn declarations() -> String {
         crate::info::WorkshopSize,
         crate::info::ServiceInfo,
         crate::notebooks::Entry,
+        crate::notebooks::Opening,
         crate::notebooks::Workshops,
         crate::pairing::DeviceRecord,
         crate::pairing::PairingCode,
@@ -406,7 +412,8 @@ fn declarations() -> String {
         crate::replica::ReplicaState,
         crate::replica::SyncState,
         crate::sharing::Sharing,
-        crate::sync::Attempt
+        crate::replica::Attempt,
+        crate::sync_client::Pairing
     );
     let mut text = String::from(HEADER);
     for declaration in collector.declarations.values() {

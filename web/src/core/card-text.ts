@@ -1,4 +1,7 @@
 import type { CardKind, CardUnit, ImageRef, Occlusion, OcclusionMask, Rect } from '../api/types';
+import { escapeEnd, protectedEnd } from './syntax';
+
+export { protectedEnd };
 
 export interface ParsedCard {
   key: string;
@@ -45,81 +48,6 @@ function operator(text: string, at: number): CardOperator | undefined {
 
 function problem(message: string, start: number, end: number): CardProblem {
   return { message, start, end };
-}
-
-// Consume whole escaped syntax tokens. Even runs of backslashes leave the
-// following syntax active; unknown escapes keep their backslash in shown text.
-function escapeEnd(text: string, at: number): number | null {
-  if (text[at] !== '\\') return null;
-  const token = ['>>1.', '>>>', '>>', '<<', '<>', ';;', '{{', '}}', '::', '[[', ']]'].find(token =>
-    text.startsWith(token, at + 1),
-  );
-  if (token) return at + 1 + token.length;
-  if (text[at + 1] !== undefined && '\\`~[]{}<>:'.includes(text[at + 1]!)) return at + 2;
-  return null;
-}
-
-function runEnd(text: string, at: number, marker: string): number {
-  let end = at;
-  while (text[end] === marker) end++;
-  return end;
-}
-function linePrefix(text: string, at: number): boolean {
-  for (let offset = 0; offset < 4 && offset < at; offset++) {
-    const ch = text[at - offset - 1];
-    if (ch === '\n') return true;
-    if (ch !== ' ' || offset === 3) return false;
-  }
-  return true;
-}
-
-// Preserve code/reference markup verbatim. Unclosed spans shield the remainder
-// while the author is typing, rather than deriving accidental cards inside it.
-export function protectedEnd(text: string, at: number): number | null {
-  if (text.startsWith('[[', at)) {
-    let cursor = at + 2;
-    while (cursor < text.length) {
-      const escaped = escapeEnd(text, cursor);
-      if (escaped !== null) cursor = escaped;
-      else if (text.startsWith(']]', cursor)) return cursor + 2;
-      else cursor++;
-    }
-    return text.length;
-  }
-  const marker = text[at];
-  if (marker !== '`' && marker !== '~') return null;
-  const fenceStart = linePrefix(text, at);
-  if (marker === '~' && !fenceStart) return null;
-  const openingEnd = runEnd(text, at, marker);
-  const count = openingEnd - at;
-  let openingLineEnd: number | null = null;
-  if (count >= 3 && fenceStart) {
-    const newline = text.indexOf('\n', openingEnd);
-    openingLineEnd = newline < 0 ? text.length : newline;
-  }
-  // Backtick fence info cannot contain backticks. Same-line triple-backtick
-  // spans are inline code, with active syntax after their closing delimiter.
-  if (openingLineEnd !== null && (marker === '~' || !text.slice(openingEnd, openingLineEnd).includes('`'))) {
-    let line = Math.min(openingLineEnd + 1, text.length);
-    while (line < text.length) {
-      const next = text.indexOf('\n', line);
-      const end = next < 0 ? text.length : next;
-      let first = line;
-      while (first < end && first - line < 3 && text[first] === ' ') first++;
-      const closingEnd = runEnd(text, first, marker);
-      if (closingEnd - first >= count && /^[ \t\r]*$/.test(text.slice(closingEnd, end))) return end;
-      line = end + 1;
-    }
-    return text.length;
-  }
-  if (marker === '~') return null;
-  let cursor = openingEnd;
-  for (;;) {
-    const start = text.indexOf('`', cursor);
-    if (start < 0) return text.length;
-    cursor = runEnd(text, start, '`');
-    if (cursor - start === count) return cursor;
-  }
 }
 
 // JS trim includes BOM and excludes NEL; Rust uses Unicode White_Space.

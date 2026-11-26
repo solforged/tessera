@@ -19,7 +19,7 @@ impl Workshop {
         self.agent_edit_keyed(request, None)
     }
 
-    /// [`Notebook::agent_edit`] under an idempotency key, so a client that
+    /// [`Workshop::agent_edit`] under an idempotency key, so a client that
     /// lost the answer can send the request again. The same key with the same
     /// request returns the stored receipt and writes nothing; the same key
     /// with a different request is refused.
@@ -47,8 +47,8 @@ impl Workshop {
         let mut plan = Plan::default();
         let on_page = |(id, summary): (String, String)| (Some(id), summary);
         let (page_id, summary) = match &request.edit {
-            AgentEdit::AddNote { target, blocks } => {
-                on_page(self.plan_note(&mut plan, target, blocks)?)
+            AgentEdit::AddBlocks { target, blocks } => {
+                on_page(self.plan_blocks_edit(&mut plan, target, blocks)?)
             }
             AgentEdit::EditBlock {
                 id,
@@ -264,7 +264,8 @@ impl Workshop {
         // atom under it, so its starting options count as made here.
         let created_atoms: Vec<String> = inserted.iter().chain(&options).cloned().collect();
         let provisional = provisional_undo_targets(&self.conn, &steps)?;
-        let committed = self.apply_with(
+        let mut built_receipt = None;
+        self.apply_without_capture(
             &Batch {
                 actor: request.actor.clone(),
                 reason: request.reason.clone(),
@@ -301,61 +302,59 @@ impl Workshop {
                     created_pages,
                     created_fields: resulting(committed, &created_fields)?,
                 };
+                let blocks = inserted
+                    .iter()
+                    .chain(&changed)
+                    .filter_map(|id| committed.revisions.iter().find(|r| &r.id == id).cloned())
+                    .collect();
+                let receipt = AgentReceipt {
+                    seq: committed.seq,
+                    summary: summary.clone(),
+                    page: match &page_id {
+                        Some(id) => crate::reads::live_block_in(tx, id)?,
+                        None => None,
+                    },
+                    blocks,
+                    created_pages: created
+                        .iter()
+                        .map(|id| crate::reads::block_in(tx, id))
+                        .collect::<Result<_>>()?,
+                    created_fields: created_fields
+                        .iter()
+                        .map(|id| crate::reads::block_in(tx, id))
+                        .collect::<Result<_>>()?,
+                    decks: saved_decks
+                        .iter()
+                        .map(|id| crate::card_query::deck_in(tx, id))
+                        .collect::<Result<_>>()?,
+                    committed: committed.clone(),
+                };
+                let receipt_json = keyed
+                    .is_some()
+                    .then(|| serde_json::to_string(&receipt).expect("receipt serializes"));
                 tx.execute(
-                    "INSERT INTO change_history(seq, summary, page_id, undo, idempotency_key, request_hash)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                    "INSERT INTO change_history(
+                         seq, summary, page_id, undo, idempotency_key, request_hash, receipt
+                     )
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                      ON CONFLICT(seq) DO UPDATE SET summary = excluded.summary, page_id = excluded.page_id,
                          undo = excluded.undo, idempotency_key = excluded.idempotency_key,
-                         request_hash = excluded.request_hash",
+                         request_hash = excluded.request_hash, receipt = excluded.receipt",
                     params![
                         committed.seq,
-                        summary,
-                        page_id,
+                        &summary,
+                        &page_id,
                         serde_json::to_string(&undo).expect("undo serializes"),
                         keyed.as_ref().map(|(key, _)| *key),
                         keyed.as_ref().map(|(_, hash)| hash),
+                        receipt_json,
                     ],
                 )?;
+                built_receipt = Some(receipt);
                 Ok(())
             },
         )?;
-        let blocks = inserted
-            .iter()
-            .chain(&changed)
-            .filter_map(|id| committed.revisions.iter().find(|r| &r.id == id).cloned())
-            .collect();
-        let receipt = AgentReceipt {
-            seq: committed.seq,
-            summary,
-            page: match &page_id {
-                Some(id) => self.live_block(id)?,
-                None => None,
-            },
-            blocks,
-            created_pages: created
-                .iter()
-                .map(|id| self.block(id))
-                .collect::<Result<_>>()?,
-            created_fields: created_fields
-                .iter()
-                .map(|id| self.block(id))
-                .collect::<Result<_>>()?,
-            decks: saved_decks
-                .iter()
-                .map(|id| self.deck(id))
-                .collect::<Result<_>>()?,
-            committed,
-        };
-        if keyed.is_some() {
-            self.conn.execute(
-                "UPDATE change_history SET receipt = ?1 WHERE seq = ?2",
-                params![
-                    serde_json::to_string(&receipt).expect("receipt serializes"),
-                    receipt.seq
-                ],
-            )?;
-        }
-        Ok(receipt)
+        Ok(built_receipt.expect("fresh agent batch records its receipt"))
     }
 
     /// The stored receipt of the change made under `key`, when there is one.

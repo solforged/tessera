@@ -257,6 +257,7 @@ export function createOutlineRows(
                 >
                   <For each={facts()}>
                     {fact => (
+                      // biome-ignore lint/a11y/useKeyWithClickEvents: Keyboard activation on the enclosing Plan task button opens all task fields.
                       <span
                         onClick={event => {
                           event.stopPropagation();
@@ -928,6 +929,7 @@ export function createOutlineRows(
             onChange={status => capabilities.status(id(), status)}
           />
         </Show>
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: Tree keyboard navigation on the outline pane owns Enter and arrow keys for rows. */}
         <div
           class="outline-body"
           classList={{

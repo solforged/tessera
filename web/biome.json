@@ -18,7 +18,12 @@
   "linter": {
     "rules": {
       "preset": "recommended",
-      "a11y": "off",
+      "a11y": {
+        "recommended": false,
+        "useKeyWithClickEvents": "error",
+        "useButtonType": "error",
+        "noSvgWithoutTitle": "error"
+      },
       "style": {
         "noNonNullAssertion": "off",
         "noDescendingSpecificity": "off"
@@ -42,7 +47,7 @@
   },
   "overrides": [
     {
-      "includes": ["src/api/**", "src/core/**", "!**/*.test.ts"],
+      "includes": ["src/api/**", "src/core/**", "!**/*.test.ts", "!**/*.test.tsx"],
       "linter": {
         "rules": {
           "style": {
@@ -51,7 +56,7 @@
               "options": {
                 "patterns": [
                   {
-                    "group": ["../**", "!../api/**", "!../core/**"],
+                    "group": ["../**", "!../api/**", "!../core/**", "!../../api/**", "!../../core/**"],
                     "message": "api and core are the base layer: they import only each other. Move the shared code down here instead."
                   }
                 ]
@@ -62,7 +67,7 @@
       }
     },
     {
-      "includes": ["src/ui/**", "!**/*.test.ts"],
+      "includes": ["src/model/**", "!**/*.test.ts", "!**/*.test.tsx"],
       "linter": {
         "rules": {
           "style": {
@@ -71,8 +76,110 @@
               "options": {
                 "patterns": [
                   {
-                    "group": ["../**", "!../api/**", "!../core/**"],
-                    "message": "ui imports only api and core. Move a feature's component into that feature instead."
+                    "group": [
+                      "../**",
+                      "!../api/**",
+                      "!../core/**",
+                      "!../model/**",
+                      "!../../api/**",
+                      "!../../core/**",
+                      "!../../model/**"
+                    ],
+                    "message": "model imports only api, core and model. Keep stateful or UI helpers in document, ui or workflows."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/document/*",
+        "src/ui/*",
+        "!src/document/*/**",
+        "!src/ui/*/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**", "!../api/**", "!../core/**", "!../model/**", "!../document/**", "!../ui/**"],
+                    "message": "document and ui import only api, core, model, document and ui. Move cross-surface orchestration into workflows or a feature."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/document/*/**", "src/ui/*/**", "!**/*.test.ts", "!**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "../../**",
+                      "!../../api/**",
+                      "!../../core/**",
+                      "!../../model/**",
+                      "!../../document/**",
+                      "!../../ui/**"
+                    ],
+                    "message": "document and ui import only api, core, model, document and ui. Move cross-surface orchestration into workflows or a feature."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/**",
+        "!src/main.tsx",
+        "!src/shell/**",
+        "!src/mobile/**",
+        "!src/demo/**",
+        "!src/api/**",
+        "!src/core/**",
+        "!src/model/**",
+        "!src/document/**",
+        "!src/ui/**",
+        "!**/*.test.ts",
+        "!**/*.test.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "../shell/**",
+                      "../../shell/**",
+                      "../mobile/**",
+                      "../../mobile/**",
+                      "../demo/**",
+                      "../../demo/**"
+                    ],
+                    "message": "Features and workflows never import shell or platform entrypoints. Move shared primitives to ui, model or workflows."
                   }
                 ]
               }

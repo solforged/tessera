@@ -1,9 +1,9 @@
 import { createEffect, createMemo, createSignal, on } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import type { ChangeEvent, Fields } from '../api/types';
-import { textTokens } from '../document/text-tokens';
-import { titleKey } from '../document/title-key';
+import { textTokens } from '../model/text-tokens';
+import { titleKey } from '../model/title-key';
 
 /** A block's types as canonical case-folded keys: `#tags`, then manual types, each once. */
 export function typeKeys(text: string, manual: readonly string[]): string[] {
@@ -44,7 +44,11 @@ export function entryAnchor(
  * Template field orders for the types a block belongs to. Field summaries name every type with a template, so only
  * those types are fetched, once each; a change that touches a type page refetches its order.
  */
-export function createTemplateCache(fields: Accessor<Fields | undefined>, lastChange: Accessor<ChangeEvent | null>) {
+export function createTemplateCache(
+  client: ApiClient,
+  fields: Accessor<Fields | undefined>,
+  lastChange: Accessor<ChangeEvent | null>,
+) {
   const [orders, setOrders] = createSignal(new Map<string, readonly string[]>());
   const [required, setRequired] = createSignal(new Map<string, readonly string[]>());
   const loading = new Set<string>();
@@ -60,7 +64,7 @@ export function createTemplateCache(fields: Accessor<Fields | undefined>, lastCh
   function load(id: string) {
     if (loading.has(id)) return;
     loading.add(id);
-    void api
+    void client
       .type(id)
       .then(
         type => {

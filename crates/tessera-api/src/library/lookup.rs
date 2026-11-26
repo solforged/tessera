@@ -20,8 +20,8 @@ pub(super) struct LookupRequest {
 pub(super) struct LinkRequest {
     url: String,
 }
-#[derive(Serialize)]
-pub(super) struct LinkPreview {
+#[derive(Serialize, ts_rs::TS)]
+pub struct LinkPreview {
     title: Option<String>,
     site: Option<String>,
 }
@@ -54,7 +54,8 @@ pub(super) async fn link(Json(body): Json<LinkRequest>) -> Result<Json<LinkPrevi
 #[cfg(fetch_urls)]
 async fn native_link(address: &str) -> Result<ExtractedMetadata, ApiError> {
     let unreadable = || failed("the page could not be read");
-    let client = reqwest::Client::builder()
+    let client = crate::tls_client_builder()
+        .map_err(|message| failed(&message))?
         .timeout(std::time::Duration::from_secs(10))
         .redirect(reqwest::redirect::Policy::limited(5))
         .user_agent("Tessera/0.1 (link preview)")
@@ -182,7 +183,8 @@ async fn native_lookup(id: &str) -> Result<Preview, ApiError> {
 
 #[cfg(fetch_urls)]
 fn client() -> Result<reqwest::Client, ApiError> {
-    reqwest::Client::builder()
+    crate::tls_client_builder()
+        .map_err(|message| failed(&message))?
         .timeout(std::time::Duration::from_secs(10))
         .user_agent("Tessera/0.1 (bibliographic lookup)")
         .build()

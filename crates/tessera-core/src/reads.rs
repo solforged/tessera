@@ -126,13 +126,7 @@ impl Workshop {
 
     /// Read one live block, including an archived block.
     pub fn block(&self, id: &str) -> Result<Block> {
-        validate_id(id)?;
-        let mut block = stored(&self.conn, id)?
-            .filter(|row| row.deletion_id.is_none())
-            .map(|row| row.block)
-            .ok_or_else(|| not_found(id))?;
-        self.mark_kept_copies(std::iter::once(&mut block))?;
-        Ok(block)
+        block_in(&self.conn, id)
     }
 
     /// One indexed lookup for the whole payload, not one query per block.
@@ -140,38 +134,7 @@ impl Workshop {
         &self,
         blocks: impl Iterator<Item = &'a mut Block>,
     ) -> Result<()> {
-        let mut blocks: HashMap<_, _> = blocks
-            .map(|block| (block.id.as_str(), &mut block.kept_copy))
-            .collect();
-        let ids =
-            serde_json::to_string(&blocks.keys().collect::<Vec<_>>()).expect("block IDs serialize");
-        let mut statement = self.conn.prepare_cached(
-            "SELECT c.id, c.block_id, c.origin,
-                    CASE WHEN c.origin = local.device_id THEN
-                        COALESCE(d.name, (SELECT device_name FROM sync_hub WHERE singleton = 1))
-                    ELSE d.name END,
-                    c.origin = local.device_id
-             FROM json_each(?1) ids
-             JOIN sync_conflicts c ON c.id = ids.value
-             JOIN blocks b ON b.id = c.id
-             CROSS JOIN replica local
-             LEFT JOIN sync_replicas r ON r.device_id = c.origin
-             LEFT JOIN sync_devices d ON d.id = r.paired_device
-             WHERE c.kind = 'copy' AND c.settled_at IS NULL AND b.deletion_id IS NULL",
-        )?;
-        let mut rows = statement.query([ids])?;
-        while let Some(row) = rows.next()? {
-            let id: String = row.get(0)?;
-            if let Some(marker) = blocks.get_mut(id.as_str()) {
-                **marker = Some(crate::KeptCopy {
-                    of: row.get(1)?,
-                    origin: row.get(2)?,
-                    origin_name: row.get(3)?,
-                    mine: row.get(4)?,
-                });
-            }
-        }
-        Ok(())
+        mark_kept_copies_in(&self.conn, blocks)
     }
 
     /// Fetch the page's rows once, then its external reference targets once.
@@ -254,7 +217,7 @@ impl Workshop {
             root_manual_types: manual_types.remove(id).unwrap_or_default(),
             rows,
             targets,
-            capabilities: crate::task_store::page_capabilities(&self.conn, id)?,
+            capabilities: crate::capabilities::page_capabilities(&self.conn, id)?,
         })
     }
 
@@ -685,9 +648,6 @@ impl Workshop {
             let change = changes.last_mut().expect("change exists");
             while let Some(row) = revisions.next()? {
                 if let Some(id) = row.get::<_, Option<String>>(0)? {
-                    if change.views.contains(&id) {
-                        continue;
-                    }
                     if row.get::<_, Option<String>>(1)?.is_none()
                         || row.get::<_, Option<String>>(11)?.is_some()
                     {
@@ -710,7 +670,7 @@ impl Workshop {
         if !ids.is_empty() {
             let mut ids: Vec<_> = ids.into_iter().collect();
             ids.sort_unstable();
-            let current: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+            let current: HashMap<_, _> = crate::capabilities::capabilities_for(&self.conn, &ids)?
                 .into_iter()
                 .map(|capability| (capability.block_id.clone(), capability))
                 .collect();
@@ -729,6 +689,64 @@ impl Workshop {
         }
         Ok(changes)
     }
+}
+
+/// Read one live block from `conn`, including an archived block.
+pub(crate) fn block_in(conn: &rusqlite::Connection, id: &str) -> Result<Block> {
+    validate_id(id)?;
+    let mut block = stored(conn, id)?
+        .filter(|row| row.deletion_id.is_none())
+        .map(|row| row.block)
+        .ok_or_else(|| not_found(id))?;
+    mark_kept_copies_in(conn, std::iter::once(&mut block))?;
+    Ok(block)
+}
+
+pub(crate) fn live_block_in(conn: &rusqlite::Connection, id: &str) -> Result<Option<Block>> {
+    match block_in(conn, id) {
+        Ok(block) => Ok(Some(block)),
+        Err(crate::Error::NotFound { .. }) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+/// One indexed lookup for the whole payload, not one query per block.
+pub(crate) fn mark_kept_copies_in<'a>(
+    conn: &rusqlite::Connection,
+    blocks: impl Iterator<Item = &'a mut Block>,
+) -> Result<()> {
+    let mut blocks: HashMap<_, _> = blocks
+        .map(|block| (block.id.as_str(), &mut block.kept_copy))
+        .collect();
+    let ids =
+        serde_json::to_string(&blocks.keys().collect::<Vec<_>>()).expect("block IDs serialize");
+    let mut statement = conn.prepare_cached(
+        "SELECT c.id, c.block_id, c.origin,
+                CASE WHEN c.origin = local.device_id THEN
+                    COALESCE(d.name, (SELECT device_name FROM sync_hub WHERE singleton = 1))
+                ELSE d.name END,
+                c.origin = local.device_id
+         FROM json_each(?1) ids
+         JOIN sync_conflicts c ON c.id = ids.value
+         JOIN blocks b ON b.id = c.id
+         CROSS JOIN replica local
+         LEFT JOIN sync_replicas r ON r.device_id = c.origin
+         LEFT JOIN sync_devices d ON d.id = r.paired_device
+         WHERE c.kind = 'copy' AND c.settled_at IS NULL AND b.deletion_id IS NULL",
+    )?;
+    let mut rows = statement.query([ids])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        if let Some(marker) = blocks.get_mut(id.as_str()) {
+            **marker = Some(crate::KeptCopy {
+                of: row.get(1)?,
+                origin: row.get(2)?,
+                origin_name: row.get(3)?,
+                mine: row.get(4)?,
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Record a commit in local editor arrival order, independently of hub seq.

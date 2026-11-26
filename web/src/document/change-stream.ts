@@ -64,15 +64,20 @@ export class WorkshopChangeStream {
   private reconnectDelay = 500;
   private streamWork = Promise.resolve();
   private reloadRequired = false;
+  private socketStale = false;
   constructor(private host: WorkshopChangeHost) {}
   /** Drop the reconnect timer and the socket. The host has already marked itself closed. */
   stop() {
     clearTimeout(this.reconnectTimer);
     this.socket?.close();
   }
+  markOffline(staleSocket = false) {
+    if (staleSocket || (typeof navigator !== 'undefined' && navigator.onLine === false)) this.socketStale = true;
+    this.host.setConnection('offline');
+  }
   serviceReached() {
     if (this.host.closed()) return;
-    if (this.socket?.readyState === CHANGE_OPEN) {
+    if (!this.socketStale && this.socket?.readyState === CHANGE_OPEN) {
       const recovered = this.host.connection() !== 'live';
       this.host.setConnection('live');
       this.reconnectDelay = 500;
@@ -90,7 +95,7 @@ export class WorkshopChangeStream {
     this.host.setSeeded(true);
     this.host.setObservedSequence(head);
   }
-  private async prepareReplay() {
+  private async prepareReplay(replaceSocket = false) {
     const head = await this.host.api.changeHead();
     let after = this.host.seeded() ? this.host.cursor() : head;
     let reset = after > head;
@@ -103,10 +108,11 @@ export class WorkshopChangeStream {
       } else after = Math.min(after, cursor);
     }
     reload ||= head - after > MAX_CATCH_UP;
-    if (reload || after !== this.host.cursor()) {
+    if (replaceSocket || reload || after !== this.host.cursor()) {
       // Detach before closing so the old socket cannot append events behind the new floor.
       const socket = this.socket;
       this.socket = undefined;
+      this.socketStale = false;
       socket?.close();
     }
     const recovering = !this.host.seeded() || this.host.recoveryPages().size > 0;
@@ -145,10 +151,11 @@ export class WorkshopChangeStream {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    const wasOffline = this.socketStale;
     this.host.setConnection('connecting');
     try {
       const work = this.streamWork.then(async () => {
-        await this.prepareReplay();
+        await this.prepareReplay(wasOffline);
         while (!this.host.closed()) {
           const events = await this.host.api.changes(this.host.cursor());
           await this.host.onCatchUp(events);
@@ -171,6 +178,7 @@ export class WorkshopChangeStream {
       if (this.socket?.readyState === CHANGE_CONNECTING) return;
       const socket = this.host.api.stream(this.host.cursor());
       this.socket = socket;
+      this.socketStale = false;
       socket.onopen = () => {
         if (this.host.closed() || this.socket !== socket) return;
         this.serviceReached();
@@ -196,13 +204,13 @@ export class WorkshopChangeStream {
       socket.onclose = () => {
         if (this.host.closed() || this.socket !== socket) return;
         this.socket = undefined;
-        this.host.setConnection('offline');
+        this.markOffline();
         this.scheduleReconnect();
       };
       this.host.scheduleCommands();
     } catch {
       if (!this.host.closed()) {
-        this.host.setConnection('offline');
+        this.markOffline();
         this.scheduleReconnect();
       }
     }

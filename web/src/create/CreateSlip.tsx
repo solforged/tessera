@@ -15,6 +15,7 @@ import {
 import { Portal } from 'solid-js/web';
 import type { WorkshopClient, CaptureReceipt } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
+import { DEMO } from '../core/mode';
 import { noteIndex, noteKindIcon } from '../notes/kinds';
 import { completeNames, displayTitle } from '../outline/names';
 import { createClock } from '../tasks/clock';
@@ -382,7 +383,7 @@ export function CreateSlipBody(
   }
   function saved(again: boolean, receipt: CaptureReceipt) {
     const url = kind() === 'link' ? webAddress(text()) : null;
-    if (url && linkLibrary()) {
+    if (!DEMO && url && linkLibrary()) {
       // The line is linked to its source once the import finishes; the text it was saved with tells an edit apart.
       const title = linkTitle(),
         saved = titledLink(url, title);

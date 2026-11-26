@@ -95,8 +95,8 @@ impl Workshop {
         } else {
             self.last_child(&page, &page)?
         };
-        // A built-in name gets the definition the core owns: its lowercase
-        // name, kind and starting options, as a template would make it.
+        // A built-in name gets the definition the core owns: `Engine::settle_built_in_definitions`
+        // assigns its lowercase name, kind, role, targets and starting options at commit time.
         let built_in = crate::built_in::field_named(name);
         let id = match built_in {
             Some(field) if crate::built_in::task_field(field.name).is_some() => {
@@ -112,16 +112,9 @@ impl Workshop {
             heading: None,
         });
         if let Some(field) = built_in.filter(|field| field.kind != FieldKind::Text) {
-            // Setting a relation's kind files Links to its types where those pages exist.
-            plan.operations.push(Operation::SetFieldKind {
-                id: id.clone(),
-                base_revision: 1,
-                kind: field.kind,
-            });
             if field.kind == FieldKind::Choice {
                 if crate::built_in::task_options(field.name).is_empty() {
-                    let (operations, options) = crate::built_in::starting_options(field, &id);
-                    plan.operations.extend(operations);
+                    let options = crate::built_in::starting_options(field, &id);
                     plan.options
                         .extend(options.iter().map(|option| option.id.clone()));
                     plan.choices
@@ -131,14 +124,6 @@ impl Workshop {
                 plan.checked
                     .insert(id.clone(), (field.name.to_owned(), field.kind));
             }
-        }
-        if let Some(field) = built_in.filter(|field| field.role != crate::FieldRole::Attribute) {
-            // A gloss reads as a standfirst under its owner, as the editor's Gloss makes it.
-            plan.operations.push(Operation::SetFieldRole {
-                id: id.clone(),
-                base_revision: if field.kind == FieldKind::Text { 1 } else { 2 },
-                role: field.role,
-            });
         }
         plan.fields
             .as_mut()
@@ -292,7 +277,7 @@ fn value_form(kind: FieldKind) -> Option<(&'static str, &'static str)> {
 
 /// Match `matchFieldEntry` without allocating a regex for each block. The
 /// editor's non-Unicode regex counts name length in UTF-16 code units.
-fn field_shorthand(text: &str) -> Option<(&str, &str)> {
+pub fn field_shorthand(text: &str) -> Option<(&str, &str)> {
     let (name, value) = text.split_once("::")?;
     let length = name.encode_utf16().count();
     if !(1..=60).contains(&length)

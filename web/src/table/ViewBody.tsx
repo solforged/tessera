@@ -1,11 +1,21 @@
 import { opensBeside, listOpensBeside } from '../core/beside';
-import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  lazy,
+  onCleanup,
+} from 'solid-js';
 import { scrollBehavior } from '../core/motion';
 import type { JSX } from 'solid-js';
 import type { PositionRow, Query, QueryGroup, QueryResult, QueryRow } from '../api/types';
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
-import { CriteriaMatrix } from '../compare/CriteriaMatrix';
 import { fieldRole } from '../fields/roles';
 import { citedSigla } from '../library/sigla';
 import { createCitedSources } from '../outline/source-reads';
@@ -23,8 +33,11 @@ import { fieldEntryId } from '../core/field-entry';
 import { TableGrid } from './TableGrid';
 import { ViewValue } from './ViewValue';
 import { taskFieldName } from '../tasks/task-fields';
-import '../compare/compare.css';
 import './view-body.css';
+
+const CriteriaMatrix = lazy(() =>
+  import('../compare/CriteriaMatrix').then(module => ({ default: module.CriteriaMatrix })),
+);
 
 export interface ViewBodyProps {
   query: Query;

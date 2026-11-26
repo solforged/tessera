@@ -1,7 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import type { EditorView } from '@codemirror/view';
 import type { Block, Completion as NameCompletion, FieldDefinition, RelationKind, TaskStatus } from '../api/types';
-import { api } from '../api/client';
 import type { BlockState } from '../document/contract';
 import type { Caret } from '../core/contract';
 import { fieldEntryId } from '../core/field-entry';
@@ -637,11 +636,11 @@ export function createOutlineCompletions(
       mode === 'types'
         ? completeTypes(props.workshop, query)
         : mode === 'blocks'
-          ? (query.trim() ? api.search(query, 20) : Promise.resolve([])).then(hits => ({
+          ? (query.trim() ? props.workshop.api.search(query, 20) : Promise.resolve([])).then(hits => ({
               rows: hits.map(hit => hit.block).filter(block => block.kind === 'block'),
               canCreate: false,
             }))
-          : api.complete(query).then(rows => ({ rows, canCreate: false }));
+          : props.workshop.api.complete(query).then(rows => ({ rows, canCreate: false }));
     completionRequest = { key, promise };
     return promise;
   });
@@ -1492,6 +1491,12 @@ export function createOutlineCompletions(
                     aria-selected={pickable(index())}
                     class="picker-row"
                     classList={{ selected: pickable(index()) }}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void chooseCompletion(index());
+                      }
+                    }}
                     onClick={() => void chooseCompletion(index())}
                   >
                     <Show when={row.kind === 'block' ? row.block : null}>
@@ -1537,6 +1542,12 @@ export function createOutlineCompletions(
                   aria-selected={pickable(completionRows().length)}
                   class="picker-row"
                   classList={{ selected: pickable(completionRows().length) }}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void chooseCompletion(completionRows().length);
+                    }
+                  }}
                   onClick={() => void chooseCompletion(completionRows().length)}
                 >
                   <Icon name="plus" />
@@ -1630,6 +1641,12 @@ export function createOutlineCompletions(
                     aria-selected={dateIndex() === index()}
                     class="picker-row"
                     classList={{ selected: dateIndex() === index() }}
+                    onKeyDown={event => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        chooseDate(index());
+                      }
+                    }}
                     onClick={() => chooseDate(index())}
                   >
                     <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} />
@@ -1657,6 +1674,12 @@ export function createOutlineCompletions(
                 aria-selected={dateIndex() === dateRows().length}
                 class="picker-row"
                 classList={{ selected: dateIndex() === dateRows().length }}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    chooseDate(dateRows().length);
+                  }
+                }}
                 onClick={() => chooseDate(dateRows().length)}
               >
                 <Icon name="more" />
@@ -1712,6 +1735,12 @@ export function createOutlineCompletions(
                       title={row.disabledReason?.(slashCompletion()!.id)}
                       class="picker-row"
                       classList={{ selected: slashIndex() === index() }}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          chooseSlash(index());
+                        }
+                      }}
                       onClick={() => chooseSlash(index())}
                     >
                       <Icon name={row.icon} />

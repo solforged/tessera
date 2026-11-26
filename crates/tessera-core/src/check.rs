@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::notebook::{new_ulid, now_ms};
-use crate::replication::applied_tables;
+use crate::replication::{UNLOGGED_COLUMNS, applied_tables};
 use crate::storage::{derive_links, derive_memberships, validation};
 use crate::{Actor, Batch, ChangeStamp, Committed, Result, Revision, Workshop};
 
@@ -246,6 +246,29 @@ const GUARDED: &[&str] = &[
 const SEARCH_INDEXES: &[&str] = &["blocks_fts", "passages_fts"];
 
 impl Workshop {
+    /// Run a read-only check against an isolated in-memory snapshot of this
+    /// connection, so `GET /api/check` can run on a `query_only` reader beside
+    /// the writer without holding the workshop mutex.
+    pub fn check_snapshot(&self) -> Result<CheckReport> {
+        let live_quick = quick_check(&self.conn)?;
+        let mut scratch = Connection::open_in_memory()?;
+        {
+            let backup = rusqlite::backup::Backup::new(&self.conn, &mut scratch)?;
+            backup.step(-1)?;
+        }
+        scratch.pragma_update(None, "foreign_keys", true)?;
+        let mut copy = Self {
+            dir: self.dir.clone(),
+            conn: scratch,
+        };
+        let mut report = copy.check(false)?;
+        if !live_quick.is_empty() {
+            report.quick_check = live_quick;
+            report.ok = false;
+        }
+        Ok(report)
+    }
+
     /// Check the database file, the derived tables and the model's
     /// invariants, and hash every replicated table. With `repair`, replace the
     /// derived tables with freshly derived rows in one change by the `check`
@@ -263,7 +286,7 @@ impl Workshop {
             invariants
         };
         let hashes = applied_tables()
-            .map(|table| table_hash(&self.conn, table))
+            .map(|table| table_hash(&self.conn, table, false))
             .collect::<Result<Vec<_>>>()?;
         let ok = quick_check.is_empty()
             && foreign_keys.is_empty()
@@ -683,7 +706,7 @@ fn record_change(
     )?;
     let seq = tx.last_insert_rowid();
     let capabilities =
-        crate::task_store::capabilities_for(tx, &blocks.iter().cloned().collect::<Vec<_>>())?;
+        crate::capabilities::capabilities_for(tx, &blocks.iter().cloned().collect::<Vec<_>>())?;
     let blocks = serde_json::to_string(blocks).expect("block IDs serialize");
     let revisions = tx.prepare(
         "SELECT id, revision FROM blocks WHERE id IN (SELECT value FROM json_each(?1)) ORDER BY id",
@@ -710,6 +733,7 @@ fn record_change(
         cards,
         work_sessions: Vec::new(),
         review_sessions: Vec::new(),
+        views: Vec::new(),
         decks: Vec::new(),
         task_views: Vec::new(),
         library_views: Vec::new(),
@@ -731,7 +755,7 @@ fn record_change(
 fn guard_digests(conn: &Connection) -> Result<Vec<(String, u64, String)>> {
     let mut digests = Vec::with_capacity(GUARDED.len() + 1);
     for table in GUARDED {
-        let hash = table_hash(conn, table)?;
+        let hash = table_hash(conn, table, true)?;
         digests.push((hash.table, hash.rows, hash.sha256));
     }
     let (rows, sha256) = digest(
@@ -743,8 +767,9 @@ fn guard_digests(conn: &Connection) -> Result<Vec<(String, u64, String)>> {
 }
 
 /// Hash a table's rows in primary-key order, or in the order of all its
-/// columns when it declares no primary key.
-fn table_hash(conn: &Connection, table: &str) -> Result<TableHash> {
+/// columns when it declares no primary key. Replicated table hashes skip
+/// columns mutated outside the change log so healthy replicas agree.
+fn table_hash(conn: &Connection, table: &str, include_unlogged: bool) -> Result<TableHash> {
     let mut columns = Vec::new();
     let mut keys = Vec::new();
     {
@@ -756,7 +781,9 @@ fn table_hash(conn: &Connection, table: &str) -> Result<TableHash> {
             if key > 0 {
                 keys.push((key, name.clone()));
             }
-            columns.push(name);
+            if include_unlogged || !UNLOGGED_COLUMNS.contains(&(table, name.as_str())) {
+                columns.push(name);
+            }
         }
     }
     keys.sort();

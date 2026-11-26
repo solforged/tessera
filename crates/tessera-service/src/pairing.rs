@@ -14,6 +14,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use serde_json::json;
 use tessera_core::sync_devices::{DeviceInfo, PairedDevice, RetainedPatches};
 
@@ -278,7 +279,19 @@ async fn pair(
         })())
     })
     .await??;
-    Ok(Json(json!({"key":response.0,"device":response.1,"hub":{"name":sharing::hub_name().await,"notebook_id":response.2,"schema_version":tessera_core::SCHEMA_VERSION}})).into_response())
+    Ok(Json(crate::sync_client::Pairing {
+        key: response.0,
+        device: crate::sync_client::PairedDevice {
+            id: response.1.id,
+            name: response.1.name,
+        },
+        hub: crate::sync_client::PairedHub {
+            name: sharing::hub_name().await,
+            workshop_id: response.2,
+            schema_version: tessera_core::SCHEMA_VERSION,
+        },
+    })
+    .into_response())
 }
 
 /// A paired device as the Mac lists it: its pairing, whether it syncs, and how its last attempts went.
@@ -301,10 +314,16 @@ pub(crate) struct SyncDevices {
 }
 
 async fn devices(State(state): State<AppState>) -> Result<Response, ApiError> {
-    let (devices, retained) = run(&state, |workshop| {
-        Ok((workshop.sync_devices()?, workshop.sync_retained_patches()?))
-    })
-    .await?;
+    let (devices, retained) =
+        match read(&state, |workshop| workshop.sync_devices_if_clean()).await? {
+            Some(snapshot) => snapshot,
+            None => {
+                run(&state, |workshop| {
+                    Ok((workshop.sync_devices()?, workshop.sync_retained_patches()?))
+                })
+                .await?
+            }
+        };
     let devices = {
         let health = state.sync_health.lock();
         devices
@@ -431,18 +450,21 @@ mod tests {
     /// writer as the service does.
     fn hub(dir: &std::path::Path) -> (AppState, Router) {
         let workshop = tessera_core::Workshop::open(dir).unwrap();
+        let info = workshop.info().unwrap();
         let readers = tessera_api::Readers::open(&workshop).unwrap();
         let workshop = Arc::new(Mutex::new(workshop));
         let changes = tokio::sync::broadcast::channel(256).0;
+        let replica: Arc<crate::replica::ReplicaRuntime> = Arc::default();
         let state = AppState {
             readers: Some(readers),
+            info: Arc::new(parking_lot::RwLock::new(info)),
             library: crate::library::Library::start(
                 workshop.clone(),
                 changes.clone(),
                 crate::library::extract,
             )
             .unwrap(),
-            objects: crate::state::hub_objects(),
+            objects: crate::state::hub_objects(replica.clone()),
             workshop,
             changes,
             assets: None,
@@ -452,10 +474,11 @@ mod tests {
             backup_store: None,
             pairing: Arc::new(Mutex::new(waiting(now_ms() + LIFETIME_MS))),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
-            replica: Arc::default(),
+            replica,
             sync_health: Arc::default(),
             switcher: None,
             agent: Arc::new(crate::agent::Runtime::new(Some(dir.join("agent.json"))).unwrap()),
+            shutdown: tokio::sync::watch::channel(false).1,
         };
         let app = crate::sync::routes()
             .layer(middleware::from_fn_with_state(

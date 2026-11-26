@@ -1,7 +1,6 @@
 import { fieldHide } from '../../core/hide';
-import { countsReason, fieldCounts } from '../../fields/counts';
-import { fieldRole } from '../../fields/roles';
-import { titleKey } from '../title-key';
+import { countsReason, fieldCounts, fieldRole } from '../../model/fields';
+import { titleKey } from '../../model/title-key';
 import type { Edit } from '../contract';
 import type { Caret } from '../../core/contract';
 import type { DocumentInternals } from './internals';

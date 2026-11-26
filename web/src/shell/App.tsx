@@ -6,16 +6,17 @@ import {
   createSignal,
   For,
   Index,
+  lazy,
   on,
   onCleanup,
   onMount,
   Show,
 } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import { api } from '../api/client';
-import type { Block, IndexKind, NoteKind, WorkshopInfo, Shelf, Type, View } from '../api/types';
-import { createWorkshopClient, type Workshop } from '../document';
+import type { Block, IndexKind, NoteKind, Shelf, Type, View, WorkshopInfo } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
+import { createWorkshopClient, type Workshop } from '../workflows/workshop';
+import { bindSyncApi } from '../sync/state';
 import { displayTitle } from '../outline/names';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { builtInTagReason } from '../outline/PageMerge';
@@ -24,7 +25,6 @@ import { copyQuery, typeQuery } from '../table/query';
 import { fieldLabel } from '../fields/kinds';
 import { querySources } from '../table/attributes';
 import { deskTarget } from '../desk/query';
-import '../desk/desk.css';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { PhoneIndex } from './PhoneIndex';
@@ -36,11 +36,11 @@ import { Popup, type PopupAnchor } from '../ui/Popup';
 import { crossfade, navigatePane, reflowPanes } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
-import { pendingCaretInput } from './pending-caret';
-import { Calendar } from './Calendar';
+import { pendingCaretInput } from '../ui/pending-caret';
+import { Calendar } from '../tasks/Calendar';
 import { localDate } from '../tasks/MonthGrid';
 import { createCommandRegistry } from './commands';
-import { deskCounts, shortDay } from './desk-counts';
+import { deskCounts, shortDay } from '../workflows/desk-counts';
 import type {
   Command,
   HistoryEntry,
@@ -86,7 +86,7 @@ import { ViewLinks } from './ViewLinks';
 import { blankCapture, createEvent } from '../create/request';
 import { resumeLinkImports } from '../create/link-import';
 import type { CreateRequest } from '../create/request';
-import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
+import type { CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
@@ -94,11 +94,13 @@ import { WorkshopOpening, registerWorkshopCommands } from '../settings/notebooks
 import { WorkshopSwitcher } from '../settings/NotebookSwitcher';
 import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, shelves, tagOnly } from '../notes/kinds';
 import { DEMO } from '../core/mode';
-import { AgentDock } from '../agent/AgentDock';
 import type { ContextChip } from '../agent/AgentDock';
 import { AgentMarks } from '../agent/marks';
 import { createAgentSession } from '../agent/session';
 import type { ContextRef } from '../api/types';
+
+const CreateSlip = lazy(() => import('../create/CreateSlip').then(module => ({ default: module.CreateSlip })));
+const AgentDock = lazy(() => import('../agent/AgentDock').then(module => ({ default: module.AgentDock })));
 
 /** How long the deletion toast stays when nothing rests on it. */
 const UNDO_TOAST_MS = 8000;
@@ -205,6 +207,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     /* A first offline visit has no cached workshop identity. */
   }
   const workshop = createWorkshopClient({ workshopId: cachedIdentity?.id });
+  bindSyncApi(workshop.api);
   onCleanup(() => {
     void workshop.dispose();
   });
@@ -212,7 +215,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const commands = createCommandRegistry();
   const [info] = createResource(async () => {
     try {
-      const value = await api.workshop();
+      const value = await workshop.api.workshop();
       try {
         localStorage.setItem(identityKey, JSON.stringify(value));
       } catch {
@@ -223,20 +226,17 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       return cachedIdentity;
     }
   });
-  const [views, { refetch: refetchViews }] = createResource(
-    () => workshop.connection() === 'live',
+  const [views] = createResource(
+    () => (workshop.connection() === 'live' ? workshop.changed('views') : false),
     async () => {
       try {
-        return await api.views();
+        return await workshop.api.views();
       } catch (reason) {
         reportError(reason);
         return [];
       }
     },
   );
-  createEffect(() => {
-    if ((workshop.lastChange()?.views ?? []).length) void refetchViews();
-  });
   const [sessions, setSessions] = createSignal<Record<PaneId, PaneSession>>({ main: emptySession() });
   /** The panes left to right; the first is 'main' until it closes. */
   const [order, setOrder] = createSignal<PaneId[]>(['main']);
@@ -267,7 +267,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const [questionsMenu, setQuestionsMenu] = createSignal<HTMLElement>();
   const showTypes = async (anchor: HTMLElement) => {
     try {
-      setTypesMenu({ anchor, types: await api.types() });
+      setTypesMenu({ anchor, types: await workshop.api.types() });
     } catch (reason) {
       reportError(reason);
     }

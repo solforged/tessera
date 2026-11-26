@@ -3,6 +3,7 @@
 
 use rusqlite::Connection;
 use serde_json::{Value, json};
+use sqlite_wasm_rs::vfs::{VfsFilesManager, transfer::DbTransfer};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
 use tessera_core::{SCHEMA_VERSION, Workshop};
 use tessera_web::{handle, open, upgrade_copy};
@@ -44,8 +45,8 @@ async fn opening_finishes_a_staged_restore_without_a_live_database() {
     drop(conn);
     let bytes = pool.export_db("/demo/notebook.db").unwrap();
     pool.import_db("/demo-restore/notebook.db", &bytes).unwrap();
-    pool.delete_db("/demo/notebook.db").unwrap();
-    assert!(!pool.exists("/demo/notebook.db").unwrap());
+    pool.remove("/demo/notebook.db").unwrap();
+    assert!(!pool.contains("/demo/notebook.db").unwrap());
 
     let info: Value = serde_json::from_str(&open().await.unwrap()).unwrap();
     assert_eq!(info["id"], id);
@@ -61,9 +62,9 @@ async fn opening_finishes_a_staged_restore_without_a_live_database() {
     assert_eq!(response.status(), 200);
     let body: Value = serde_json::from_slice(&response.body().to_vec()).unwrap();
     assert_eq!(body["root"]["text"], "Recovered page");
-    assert!(!pool.exists("/demo-restore/notebook.db").unwrap());
+    assert!(!pool.contains("/demo-restore/notebook.db").unwrap());
     assert!(upgrade_copy().unwrap().is_none());
-    assert_eq!(pool.list(), vec!["/demo/notebook.db"]);
+    assert_eq!(pool.names().unwrap(), vec!["/demo/notebook.db"]);
     assert_eq!(
         serde_json::from_str::<Value>(&open().await.unwrap()).unwrap(),
         info

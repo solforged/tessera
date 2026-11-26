@@ -17,6 +17,7 @@ import { countsAsValues, countsDescriptions, countsLabel, countsLabels, countsRe
 import type { CountsAs } from './counts';
 import { fieldRole, fieldRoles, roleDescriptions, roleLabels } from './roles';
 import type { FieldRole } from './roles';
+import '../ui/field-sheet.css';
 import './field-page.css';
 import { ChoiceConversion, readingLabel } from './ChoiceConversion';
 import { LinksToPopup } from './LinksToPopup';

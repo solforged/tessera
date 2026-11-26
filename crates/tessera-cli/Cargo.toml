@@ -1,6 +1,6 @@
 [package]
 name = "tessera-cli"
-description = "Command line for Tessera notebooks"
+description = "Command line for Tessera workshops"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,7 +15,7 @@ embed-web = ["tessera-service/embed-web"]
 
 [dependencies]
 tessera-core.workspace = true
-tessera-service.workspace = true
+tessera-service = { workspace = true, features = ["hub"] }
 anyhow.workspace = true
 clap.workspace = true
 dirs.workspace = true

@@ -285,10 +285,13 @@ pub struct RelationRow {
     pub problem: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 pub struct PositionQuery {
+    #[ts(optional)]
     pub holder: Option<String>,
+    #[ts(optional)]
     pub subject: Option<String>,
+    #[ts(optional)]
     pub limit: Option<u32>,
 }
 
@@ -679,4 +682,230 @@ pub struct GradePreview {
 pub struct CardPreviews {
     pub current: Vec<GradePreview>,
     pub reset: Vec<GradePreview>,
+}
+
+fn json_at<T: serde::de::DeserializeOwned>(
+    row: &rusqlite::Row<'_>,
+    index: usize,
+) -> rusqlite::Result<T> {
+    let json: String = row.get(index)?;
+    serde_json::from_str(&json).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(
+            index,
+            rusqlite::types::Type::Text,
+            Box::new(error),
+        )
+    })
+}
+
+macro_rules! capability_history {
+    () => {
+        "EXISTS(SELECT 1 FROM task_occurrences o WHERE o.block_id = b.id AND o.reversed = 0)
+         OR EXISTS(SELECT 1 FROM work_sessions w WHERE w.block_id = b.id AND w.reversed = 0)
+         OR EXISTS(SELECT 1 FROM revisit_events e WHERE e.block_id = b.id AND e.undone = 0)"
+    };
+}
+
+macro_rules! capability_rows {
+    () => {
+        concat!(
+            "SELECT b.id, CASE WHEN t.active = 1 THEN t.state END,
+             CASE WHEN p.active = 1 THEN p.state END, (",
+            capability_history!(),
+            ") AS history,
+             EXISTS(SELECT 1 FROM card_units c JOIN review_events e ON e.card_id = c.id
+                    WHERE c.source_block_id = b.id) AS reviewed,
+             (t.block_id IS NOT NULL OR p.block_id IS NOT NULL
+              OR EXISTS(SELECT 1 FROM sources s WHERE s.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM relations r WHERE r.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM images i WHERE i.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM occlusions o WHERE o.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM note_states n WHERE n.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM assessments a WHERE a.block_id=b.id)
+              OR q.block_id IS NOT NULL
+              OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained,
+             (SELECT COUNT(*) FROM card_units c WHERE c.source_block_id = b.id AND c.active = 1 AND c.key LIKE 'tpl:%') AS template_cards,
+             q.state AS quote_state, b.text,
+             EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id AND sp.active=1) AS spread,
+             CASE WHEN b.kind = 'page' THEN b.title_key END AS tag_key,
+             (SELECT COALESCE(SUM(w.ended_at - w.started_at), 0) FROM work_sessions w
+              WHERE w.block_id = b.id AND w.ended_at IS NOT NULL AND w.reversed = 0) AS logged_work_ms
+             FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
+             LEFT JOIN projects p ON p.block_id = b.id
+             LEFT JOIN quotes q ON q.block_id = b.id "
+        )
+    };
+}
+
+fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities> {
+    let history: bool = row.get(3)?;
+    let reviewed_cards: bool = row.get(4)?;
+    let task = if row.get_ref(1)?.data_type() == rusqlite::types::Type::Null {
+        None
+    } else {
+        Some(json_at(row, 1)?)
+    };
+    let project = if row.get_ref(2)?.data_type() == rusqlite::types::Type::Null {
+        None
+    } else {
+        Some(json_at(row, 2)?)
+    };
+    let quote = if row.get_ref(7)?.data_type() == rusqlite::types::Type::Null {
+        None
+    } else {
+        let quote: crate::QuoteState = json_at(row, 7)?;
+        let text = row.get_ref(8)?.as_str().map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                8,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
+        (crate::storage::quote_target(text) == Some(quote.target_id.as_str())).then_some(quote)
+    };
+    Ok(BlockCapabilities {
+        block_id: row.get(0)?,
+        built_in_tag: row
+            .get::<_, Option<String>>(10)?
+            .as_deref()
+            .and_then(crate::notes::built_in_tag_name)
+            .is_some(),
+        merge_protected: task.is_some()
+            || project.is_some()
+            || history
+            || reviewed_cards
+            || row.get::<_, bool>(9)?,
+        task,
+        project,
+        note: None,
+        note_changed: false,
+        position: None,
+        spread: row.get(9)?,
+        question: None,
+        assessment: None,
+        relation: None,
+        quote,
+        image: None,
+        occlusion: None,
+        history,
+        logged_work_ms: row.get(11)?,
+        reviewed_cards,
+        template_cards: row.get::<_, i64>(6)? as usize,
+        source: None,
+        citations: Vec::new(),
+    })
+}
+
+pub(crate) fn capabilities_for(
+    conn: &rusqlite::Connection,
+    ids: &[String],
+) -> crate::Result<Vec<BlockCapabilities>> {
+    let capabilities = crate::position_store::hydrate(
+        conn,
+        crate::question_store::hydrate(
+            conn,
+            crate::library_reads::hydrate(
+                conn,
+                conn.prepare_cached(concat!(
+                    capability_rows!(),
+                    "WHERE b.id IN (SELECT value FROM json_each(?1)) ORDER BY b.id"
+                ))?
+                .query_map(
+                    [serde_json::to_string(ids).expect("block IDs serialize")],
+                    capability_at,
+                )?
+                .collect::<rusqlite::Result<_>>()?,
+            )?,
+        )?,
+    )?;
+    crate::image_store::hydrate(
+        conn,
+        crate::occlusion::hydrate(
+            conn,
+            crate::revisit_store::hydrate(
+                conn,
+                crate::relation_store::hydrate(conn, capabilities)?,
+            )?,
+        )?,
+    )
+}
+
+pub(crate) fn page_capabilities(
+    conn: &rusqlite::Connection,
+    page_id: &str,
+) -> crate::Result<Vec<BlockCapabilities>> {
+    let capabilities = crate::position_store::hydrate(
+        conn,
+        crate::question_store::hydrate(
+            conn,
+            crate::library_reads::hydrate(
+                conn,
+                conn.prepare_cached(concat!(
+                    "SELECT * FROM (",
+                    capability_rows!(),
+                    "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
+             WHERE retained OR history OR reviewed OR template_cards > 0 OR tag_key IS NOT NULL ORDER BY id"
+                ))?
+                .query_map([page_id], |row| {
+                    let capability = capability_at(row)?;
+                    let retained: bool = row.get(5)?;
+                    Ok((retained
+                        || capability.built_in_tag
+                        || capability.history
+                        || capability.reviewed_cards
+                        || capability.template_cards > 0)
+                        .then_some(capability))
+                })?
+                .filter_map(|row| row.transpose())
+                .collect::<rusqlite::Result<_>>()?,
+            )?,
+        )?,
+    )?;
+    crate::image_store::hydrate(
+        conn,
+        crate::occlusion::hydrate(
+            conn,
+            crate::revisit_store::hydrate(
+                conn,
+                crate::relation_store::hydrate(conn, capabilities)?,
+            )?,
+        )?,
+    )
+}
+
+pub(crate) fn guard_merge(conn: &rusqlite::Connection, source_id: &str) -> crate::Result<()> {
+    crate::image_store::guard_merge(conn, source_id)?;
+    let protected: bool = conn
+        .prepare_cached(concat!(
+            "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM projects WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM positions WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM relations WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM questions WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM spreads WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM assessments WHERE block_id = b.id AND active = 1)
+             OR ",
+            capability_history!(),
+            " FROM blocks b WHERE b.id = ?1"
+        ))?
+        .query_row([source_id], |row| row.get(0))?;
+    if protected {
+        return Err(crate::storage::validation(
+            "This atom has active behavior or completion/work history; delete it or keep it separate",
+        ));
+    }
+    Ok(())
+}
+
+impl crate::Workshop {
+    /// Direct reads retain access to a tombstoned source's capability identity.
+    pub fn capabilities(&self, id: &str) -> crate::Result<BlockCapabilities> {
+        crate::storage::validate_id(id)?;
+        capabilities_for(&self.conn, &[id.to_owned()])?
+            .pop()
+            .ok_or_else(|| crate::storage::not_found(id))
+    }
 }

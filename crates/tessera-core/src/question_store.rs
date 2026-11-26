@@ -455,7 +455,7 @@ impl Workshop {
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let ids: Vec<_> = blocks.iter().map(|b| b.block.id.clone()).collect();
-        let mut infos: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+        let mut infos: HashMap<_, _> = crate::capabilities::capabilities_for(&self.conn, &ids)?
             .into_iter()
             .filter_map(|c| c.question.map(|info| (c.block_id, info)))
             .collect();
@@ -465,7 +465,7 @@ impl Workshop {
             .values()
             .filter_map(|info| info.state.accepted.as_ref())
             .collect();
-        let valid_readings: HashSet<_> = crate::task_store::capabilities_for(
+        let valid_readings: HashSet<_> = crate::capabilities::capabilities_for(
             &self.conn,
             &accepted_ids
                 .iter()

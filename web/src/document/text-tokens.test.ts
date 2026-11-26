@@ -277,3 +277,47 @@ describe('deleting beside a reference or tag', () => {
     expect(tokenBeside('#[[two\nlines]]', 14, 'backward')).toBeUndefined();
   });
 });
+
+describe('escaped syntax and code fences', () => {
+  test('backslash escapes keep references and tags literal while even backslashes leave them active', () => {
+    const text = String.raw`See \[[Literal]] and \\[[Active]] plus \#literal and \\#active`;
+    expect(
+      textTokens(text)
+        .filter(token => token.kind !== 'text')
+        .map(token => [token.kind, token.id ?? token.value]),
+    ).toEqual([
+      ['reference', 'Active'],
+      ['tag', 'active'],
+    ]);
+    expect(
+      textTokens(text)
+        .map(token => text.slice(token.start, token.end))
+        .join(''),
+    ).toBe(text);
+    const escapedCloser = String.raw`[[id|label \]] rest]] [[Next]]`;
+    expect(
+      textTokens(escapedCloser)
+        .filter(token => token.kind === 'reference')
+        .map(token => [token.id, token.alias]),
+    ).toEqual([
+      ['id', String.raw`label \]] rest`],
+      ['Next', undefined],
+    ]);
+  });
+
+  test('tilde and backtick fenced blocks shield references, tags, URLs and emphasis until closed', () => {
+    for (const fence of ['~~~', '```ts']) {
+      const closer = fence.startsWith('~') ? '~~~' : '```';
+      const text = `${fence}\n#hidden [[Hidden]] https://hidden.example *plain* \`inner\`\n${closer}\n#shown [[Shown]]`;
+      expect(
+        textTokens(text)
+          .filter(token => token.kind !== 'text')
+          .map(token => [token.kind, token.id ?? token.value]),
+      ).toEqual([
+        ['tag', 'shown'],
+        ['reference', 'Shown'],
+      ]);
+      expect(inlineTokens(text).filter(token => token.formats?.length)).toEqual([]);
+    }
+  });
+});

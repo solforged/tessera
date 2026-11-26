@@ -1,9 +1,29 @@
 //! Shared native replica transport for the CLI and in-process hosts.
-use crate::sync::{BUILD_HEADER, SCHEMA_HEADER, TICKET_HEADER, VERSION_HEADER};
 use anyhow::Context;
+
+/// The schema version a replica runs; every sync request carries it.
+pub(crate) const SCHEMA_HEADER: &str = "x-tessera-schema";
+pub(crate) const VERSION_HEADER: &str = "x-tessera-version";
+pub(crate) const BUILD_HEADER: &str = "x-tessera-build";
+/// The clone ticket, beside the database bytes it describes.
+pub(crate) const TICKET_HEADER: &str = "x-tessera-clone";
+
+pub(crate) fn reported_version(headers: &axum::http::HeaderMap) -> Option<crate::SyncVersion> {
+    Some(crate::SyncVersion {
+        schema: headers.get(SCHEMA_HEADER)?.to_str().ok()?.parse().ok()?,
+        version: headers
+            .get(VERSION_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+        build: headers
+            .get(BUILD_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+    })
+}
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use tessera_core::sync::{
     CloneTicket, Hub, Pull, PushReceipt, PushedChange, SnapshotContent, UnloggedPull, UnloggedRows,
@@ -23,14 +43,11 @@ pub struct HubError {
 pub struct InvalidHubUrl(&'static str);
 
 /// Bundled roots deliberately bypass Android's uninitialized platform verifier.
+pub(crate) fn shared_client() -> anyhow::Result<reqwest::Client> {
+    client(None)
+}
+
 fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
-    let roots = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-    let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
-        rustls::crypto::aws_lc_rs::default_provider(),
-    ))
-    .with_safe_default_protocol_versions()?
-    .with_root_certificates(roots)
-    .with_no_client_auth();
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         SCHEMA_HEADER,
@@ -48,8 +65,8 @@ fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
         value.set_sensitive(true);
         headers.insert(reqwest::header::AUTHORIZATION, value);
     }
-    Ok(reqwest::Client::builder()
-        .tls_backend_preconfigured(tls)
+    Ok(tessera_api::tls_client_builder()
+        .map_err(anyhow::Error::msg)?
         .default_headers(headers)
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(std::time::Duration::from_secs(30))
@@ -59,12 +76,12 @@ fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
 
 async fn checked(
     response: reqwest::Response,
-    hub_version: &RefCell<Option<crate::SyncVersion>>,
+    hub_version: &Mutex<Option<crate::SyncVersion>>,
 ) -> anyhow::Result<reqwest::Response> {
-    let reported = crate::sync::reported_version(response.headers());
+    let reported = reported_version(response.headers());
     let has_headers = reported.is_some();
     if let Some(version) = reported {
-        *hub_version.borrow_mut() = Some(version);
+        *hub_version.lock() = Some(version);
     }
     if response.status().is_success() {
         return Ok(response);
@@ -100,7 +117,7 @@ async fn checked(
                 hub.parse::<u32>().ok()
             })
     {
-        *hub_version.borrow_mut() = Some(crate::SyncVersion {
+        *hub_version.lock() = Some(crate::SyncVersion {
             version: None,
             build: None,
             schema,
@@ -113,19 +130,21 @@ async fn checked(
     .into())
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(rename = "PairedDeviceIdentity")]
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
 pub struct PairedHub {
     pub name: String,
     #[serde(rename = "notebook_id")]
     pub workshop_id: String,
     pub schema_version: u32,
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(rename = "HubPairing")]
 pub struct Pairing {
     pub key: String,
     pub device: PairedDevice,
@@ -138,47 +157,75 @@ pub struct HttpHub {
     runtime: tokio::runtime::Runtime,
     client: reqwest::Client,
     pub base: String,
-    hub_version: RefCell<Option<crate::SyncVersion>>,
+    hub_version: Mutex<Option<crate::SyncVersion>>,
 }
+pub(crate) fn validate_hub_url(url: &str) -> Result<String, InvalidHubUrl> {
+    let url = reqwest::Url::parse(url).map_err(|_| {
+        InvalidHubUrl("That is not a valid address. Copy it from the Mac's pairing dialog.")
+    })?;
+    let loopback = url.host_str().is_some_and(|host| {
+        host.trim_matches(['[', ']'])
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
+    });
+    if url.scheme() != "https"
+        && !(url.scheme() == "http" && (loopback || url.host_str() == Some("localhost")))
+    {
+        return Err(InvalidHubUrl(
+            "Sync needs an https address. Plain http works only for an address on this device.",
+        ));
+    }
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(InvalidHubUrl(
+            "The address can't include a username, password, query or fragment.",
+        ));
+    }
+    Ok(url.as_str().trim_end_matches('/').into())
+}
+
+pub(crate) async fn fetch_object(
+    client: &reqwest::Client,
+    url: &str,
+    key: Option<&str>,
+    sha: &str,
+) -> anyhow::Result<Option<Vec<u8>>> {
+    let base = validate_hub_url(url)?;
+    let mut request = client.get(format!("{base}/api/sync/objects/{sha}"));
+    if let Some(key) = key {
+        request = request.bearer_auth(key);
+    }
+    let response = request.send().await?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let hub_version = Mutex::default();
+    Ok(Some(
+        checked(response, &hub_version)
+            .await?
+            .bytes()
+            .await?
+            .to_vec(),
+    ))
+}
+
 impl HttpHub {
     pub fn new(url: &str, key: Option<&str>) -> anyhow::Result<Self> {
-        let url = reqwest::Url::parse(url).map_err(|_| {
-            InvalidHubUrl("That is not a valid address. Copy it from the Mac's pairing dialog.")
-        })?;
-        let loopback = url.host_str().is_some_and(|host| {
-            host.trim_matches(['[', ']'])
-                .parse::<std::net::IpAddr>()
-                .is_ok_and(|ip| ip.is_loopback())
-        });
-        if url.scheme() != "https"
-            && !(url.scheme() == "http" && (loopback || url.host_str() == Some("localhost")))
-        {
-            return Err(InvalidHubUrl(
-                "Sync needs an https address. Plain http works only for an address on this device.",
-            )
-            .into());
-        }
-        if !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-        {
-            return Err(InvalidHubUrl(
-                "The address can't include a username, password, query or fragment.",
-            )
-            .into());
-        }
+        let base = validate_hub_url(url)?;
         Ok(Self {
             runtime: tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()?,
             client: client(key)?,
-            base: url.as_str().trim_end_matches('/').into(),
-            hub_version: RefCell::default(),
+            base,
+            hub_version: Mutex::default(),
         })
     }
     pub fn hub_version(&self) -> Option<crate::SyncVersion> {
-        self.hub_version.borrow().clone()
+        self.hub_version.lock().clone()
     }
     pub fn pair(&self, code: &str, name: &str) -> anyhow::Result<Pairing> {
         self.runtime.block_on(async {
@@ -328,8 +375,8 @@ impl Hub for HttpHub {
                     .get(format!("{}/api/sync/objects/{sha}", self.base))
                     .send()
                     .await?;
-                if let Some(version) = crate::sync::reported_version(response.headers()) {
-                    *self.hub_version.borrow_mut() = Some(version);
+                if let Some(version) = reported_version(response.headers()) {
+                    *self.hub_version.lock() = Some(version);
                 }
                 if response.status() == reqwest::StatusCode::NOT_FOUND {
                     return Ok(None);

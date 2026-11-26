@@ -1,8 +1,8 @@
 import type { Block, QuoteState } from '../api/types';
+import { insideProtectedSyntax } from '../core/syntax';
 import type { WorkshopClient } from '../document/contract';
-import { insideProtectedSyntax } from '../tasks/quick-date';
-import { titleKey } from '../document/title-key';
 import { mapTextOffset } from '../document/text-patch';
+import { titleKey } from '../model/title-key';
 
 export interface CapturedQuoteCompletion {
   text: string;

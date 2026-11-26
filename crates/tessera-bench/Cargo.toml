@@ -17,7 +17,7 @@ serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 tessera-core.workspace = true
-tessera-service.workspace = true
+tessera-service = { workspace = true, features = ["hub"] }
 tokio.workspace = true
 ulid.workspace = true
 

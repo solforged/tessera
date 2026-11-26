@@ -26,7 +26,7 @@ flowchart TB
     DB[("`notebook.db`<br/>SQLite")]
     Objects[("objects/<br/>original files")]
     subgraph Phone["Android and iOS app"]
-        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-mobile<br/>tessera-api router + core"]
+        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-mobile<br/>embedded service + core"]
         AndroidHost --> AndroidDB[("private workshop")]
     end
     subgraph Demo["Browser demo"]
@@ -296,9 +296,11 @@ workshop in private app data and holds the ownership lock for the process
 lifetime. Recreated activities reuse that workshop rather than open a second
 writer.
 
-`tessera_service::embedded_router` builds the workshop and library routes, as
-for the browser demo's worker. It omits host and origin policy, assets, backups,
-service details and WebSocket.
+`tessera_service::embedded_router_with_paths` builds the workshop, library,
+replica and in-app agent routes alongside three read-only SQLite connections. It
+omits host and origin policy, static assets, automatic backups, service details
+and WebSocket; the browser demo's worker instead uses
+`tessera_api::embedded_router`.
 
 `web/src/mobile/transport.ts` sends requests over Tauri IPC. Bodies travel as
 base64 because Android IPC carries only JSON. Replies are raw frames of status,
@@ -318,9 +320,10 @@ longer shrinks an edge-to-edge window for the keyboard, and WebView ignores
 `interactive-widget=resizes-content`. `MainActivity` therefore pads the content
 view by the keyboard inset, resizing the page above it.
 
-Article URLs are not offered: `reqwest`'s platform TLS verifier needs JNI
-initialization and its Android component, which the app does not yet set up.
-Release builds need signing configuration in the Gradle project.
+Outbound HTTPS requests for sync, the in-app agent, web articles and catalog
+lookups verify certificates against bundled `webpki` roots instead of Android's
+JNI platform verifier. Release builds need signing configuration in the Gradle
+project.
 
 ## Browser editor
 
@@ -416,8 +419,7 @@ see [sync](sync.md).
   A restore writes the file to a staging workshop, validates and migrates it
   there, and only then replaces the live database; opening finishes a restore
   that was cut off. Before a schema upgrade, opening keeps one copy of the old
-  workshop. `sqlite-wasm-vfs` is vendored with a fix that lets SQLite roll back
-  a hot journal left by a browser killed mid-save.
+  workshop.
 
   On macOS, `ts-demo-wasm` points `AR_wasm32_unknown_unknown` at the Rust
   toolchain's own `llvm-ar`; Apple's `ar` cannot index the bundled SQLite.

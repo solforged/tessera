@@ -5,13 +5,17 @@ use std::time::{Duration, SystemTime};
 use parking_lot::Mutex;
 use tessera_core::{DATABASE_FILE, Workshop};
 
-use crate::{AppState, BackupFailure, BackupLock};
+#[cfg(feature = "hub")]
+use crate::BackupLock;
+use crate::{AppState, BackupFailure};
 
 pub(super) struct Task {
     task: tokio::task::JoinHandle<()>,
+    #[cfg(feature = "hub")]
     backup: BackupLock,
 }
 
+#[cfg(feature = "hub")]
 impl Task {
     pub(super) async fn stop(self) {
         self.task.abort();
@@ -65,7 +69,11 @@ pub(super) fn start(state: &AppState) -> Option<Task> {
             }
         }
     });
-    Some(Task { task, backup })
+    Some(Task {
+        task,
+        #[cfg(feature = "hub")]
+        backup,
+    })
 }
 
 fn due(newest: Option<i64>, now: i64) -> bool {

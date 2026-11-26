@@ -615,7 +615,8 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
             plural: plural.map(str::to_owned),
             icon: icon.map(str::to_owned),
         };
-    apply(&mut nb, vec![set(1, Some("  Volumes  "), Some("shelf"))]);
+    let rev = revision(&nb, 1);
+    apply(&mut nb, vec![set(rev, Some("  Volumes  "), Some("shelf"))]);
     let info = nb.type_info(&id(1)).unwrap();
     assert_eq!(info.plural.as_deref(), Some("Volumes"));
     assert_eq!(info.icon.as_deref(), Some("shelf"));
@@ -624,11 +625,11 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
     assert_eq!(kind.plural, "Volumes");
     assert_eq!(kind.icon.as_deref(), Some("shelf"));
     for operation in [
-        set(1, None, None),
-        set(2, Some(" "), None),
-        set(2, None, Some("")),
-        set(2, None, Some("not a token")),
-        set(2, None, Some(&"x".repeat(65))),
+        set(rev, None, None),
+        set(rev + 1, Some(" "), None),
+        set(rev + 1, None, Some("")),
+        set(rev + 1, None, Some("not a token")),
+        set(rev + 1, None, Some(&"x".repeat(65))),
         Operation::SetTypePresentation {
             type_id: id(3),
             base_revision: 1,
@@ -647,12 +648,12 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
         );
         assert_eq!(nb.type_info(&id(1)).unwrap(), info);
     }
-    apply(&mut nb, vec![set(2, None, Some("future-glyph"))]);
+    apply(&mut nb, vec![set(rev + 1, None, Some("future-glyph"))]);
     assert_eq!(
         nb.note_kinds(&id(2)).unwrap()[0].icon.as_deref(),
         Some("future-glyph")
     );
-    apply(&mut nb, vec![set(3, None, None)]);
+    apply(&mut nb, vec![set(rev + 2, None, None)]);
     let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
     assert_eq!(kind.plural, "Books");
     assert_eq!(kind.icon.as_deref(), Some("book"));
@@ -841,5 +842,82 @@ fn capability_kind_counts_finding_aids_and_tables_include_untagged_atoms() {
             .collect::<Vec<_>>(),
         expected,
         "Tasks source agrees and excludes appointments"
+    );
+}
+
+#[test]
+fn refined_types_file_their_members_under_both_and_satisfy_target_constraints() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Workshop::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Person"),
+            page(2, "Philosopher"),
+            page(3, "Stoic"),
+            page(4, "Plato"),
+            page(5, "Zeno"),
+            page(6, "Republic"),
+            Operation::Insert {
+                id: id(20),
+                parent_id: fields,
+                after: None,
+                text: "author".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(60),
+                parent_id: id(6),
+                after: None,
+                text: format!("[[{}]]", id(20)),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(61),
+                parent_id: id(60),
+                after: None,
+                text: format!("[[{}]]", id(4)),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(62),
+                parent_id: id(6),
+                after: Some(id(60)),
+                text: format!("[[{}]]", id(20)),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(63),
+                parent_id: id(62),
+                after: None,
+                text: format!("[[{}]]", id(5)),
+                heading: None,
+            },
+        ],
+    );
+    tag(&mut nb, 2, "Person");
+    tag(&mut nb, 3, "Philosopher");
+    tag(&mut nb, 4, "Philosopher");
+    tag(&mut nb, 5, "Stoic");
+
+    assert_eq!(titles(&nb, "person"), ["Plato", "Zeno"]);
+    assert_eq!(titles(&nb, &format!("type:{}", id(2))), ["Plato"]);
+    assert_eq!(titles(&nb, &format!("type:{}", id(3))), ["Zeno"]);
+    assert_eq!(
+        nb.note_kinds(&id(4))
+            .unwrap()
+            .into_iter()
+            .map(|kind| kind.name)
+            .collect::<Vec<_>>(),
+        ["Person", "Philosopher"]
+    );
+    assert!(nb.note_kinds(&id(2)).unwrap().is_empty());
+
+    let detail = nb.field_detail(&id(20), None, None).unwrap();
+    assert_eq!(
+        (detail.values_total, detail.problems_total),
+        (2, 0),
+        "refined Person types satisfy author's Person target constraint"
     );
 }

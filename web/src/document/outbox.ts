@@ -19,6 +19,7 @@ interface PageRecord {
   view?: PageView;
   patch?: PagePatch;
   cursor?: number;
+  sequence?: number;
 }
 interface CommandRecord {
   key: string;
@@ -50,6 +51,7 @@ interface OutboxSchema extends DBSchema {
 export class Outbox {
   private db: Promise<IDBPDatabase<OutboxSchema>>;
   private writes: Promise<void> = Promise.resolve();
+  private pageSequences = new Map<string, number>();
   private lockReady?: Promise<void>;
   private lockTask?: Promise<void>;
   private releaseLock?: () => void;
@@ -162,9 +164,10 @@ export class Outbox {
     );
   }
   page(view: PageView, sequence = 0, cursor?: number) {
+    this.pageSequences.set(view.root.id, Math.max(this.pageSequences.get(view.root.id) ?? 0, sequence));
     return this.enqueue(async db => {
       const tx = db.transaction('pages', 'readwrite');
-      void tx.store.put({ key: `${this.workshopId}:${view.root.id}`, view, cursor });
+      void tx.store.put({ key: `${this.workshopId}:${view.root.id}`, view, cursor, sequence });
       for (const key of await tx.store.getAllKeys(this.patchRange(view.root.id, sequence))) void tx.store.delete(key);
       await tx.done;
     });
@@ -177,11 +180,13 @@ export class Outbox {
     const copies = structuredClone(values);
     return this.enqueue(async db => {
       const tx = db.transaction('capabilities', 'readwrite');
-      for (const value of copies) {
-        const key = `${this.workshopId}:${value.block_id}`;
-        const old = await tx.store.get(key);
-        if (!old || old.sequence <= sequence) void tx.store.put({ key, value, sequence });
-      }
+      await Promise.all(
+        copies.map(async value => {
+          const key = `${this.workshopId}:${value.block_id}`;
+          const old = await tx.store.get(key);
+          if (!old || old.sequence <= sequence) void tx.store.put({ key, value, sequence });
+        }),
+      );
       await tx.done;
     });
   }
@@ -203,6 +208,10 @@ export class Outbox {
     const actions = command.actions.filter(action =>
       ['insert', 'delete', 'restore', 'move', 'split', 'merge', 'addType', 'removeType'].includes(action.kind),
     );
+    if (view) this.pageSequences.set(view.root.id, Math.max(this.pageSequences.get(view.root.id) ?? 0, sequence));
+    else if (actions.length && command.pageId && !deletedIds?.includes(command.pageId))
+      this.pageSequences.set(command.pageId, Math.max(this.pageSequences.get(command.pageId) ?? 0, sequence));
+    for (const id of deletedIds ?? []) this.pageSequences.delete(id);
     return this.enqueue(async db => {
       const tx = db.transaction(['commands', 'blocks', 'pages'], 'readwrite');
       const pages = tx.objectStore('pages');
@@ -211,7 +220,7 @@ export class Outbox {
         const key = `${this.workshopId}:${view.root.id}`;
         // A receipt may skip other writers' events. Keep the snapshot's older replay floor.
         const cursor = (await pages.get(key))?.cursor;
-        void pages.put({ key, view, cursor });
+        void pages.put({ key, view, cursor, sequence });
         for (const key of await pages.getAllKeys(this.patchRange(view.root.id, sequence))) void pages.delete(key);
       } else if (actions.length && command.pageId && !deletedIds?.includes(command.pageId)) {
         void pages.put({
@@ -480,8 +489,13 @@ export class Outbox {
         depth: row.depth,
         manual_types: manualTypes.get(row.id) ?? [],
       }));
+      const snapshotSequence = record?.sequence ?? 0;
       for (const row of await db.getAll('capabilities'))
-        if (row.key.startsWith(`${this.workshopId}:`) && blocks.has(row.value.block_id))
+        if (
+          row.key.startsWith(`${this.workshopId}:`) &&
+          row.sequence > snapshotSequence &&
+          blocks.has(row.value.block_id)
+        )
           capabilities.set(row.value.block_id, row.value);
       view.capabilities = [...capabilities.values()].filter(value => blocks.has(value.block_id));
       return { view, cursor: record?.cursor };
@@ -492,6 +506,7 @@ export class Outbox {
   }
   /** A reset invalidates sequence-ordered patches, but never pending commands or recovery snapshots. */
   resetJournal() {
+    this.pageSequences.clear();
     return this.enqueue(async db => {
       const tx = db.transaction(['pages', 'blocks', 'capabilities'], 'readwrite');
       const range = IDBKeyRange.bound(`${this.workshopId}:`, `${this.workshopId}:\uffff`);
@@ -513,13 +528,13 @@ export class Outbox {
    * anything read now, so a snapshot fetched afterwards already includes it, even before this window has heard of it.
    */
   async storedSequence(id: string) {
-    await this.settled();
+    const local = this.pageSequences.get(id) ?? 0;
     try {
       const prefix = this.pagePrefix(id);
       const newest = (await (await this.db).getAllKeys('pages', this.patchRange(id))).at(-1);
-      return newest ? Number(newest.slice(prefix.length, prefix.length + 16)) : 0;
+      return Math.max(local, newest ? Number(newest.slice(prefix.length, prefix.length + 16)) : 0);
     } catch {
-      return 0;
+      return local;
     }
   }
   async close() {

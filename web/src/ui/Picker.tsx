@@ -215,6 +215,13 @@ export function Picker<T>(props: PickerProps<T>) {
         title={reason()}
         class={`picker-row ${index() === selected() ? 'selected' : ''}`}
         onPointerMove={() => setCursor(props.key(item))}
+        onKeyDown={event => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            event.stopPropagation();
+            pick(item, event);
+          }
+        }}
         onClick={event => pick(item, event)}
       >
         {props.row(item, index() === selected())}

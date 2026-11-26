@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::fields::{constrained_reading, definition_map, definitions};
+use crate::fields::{ReadingContext, definition_map, definitions};
 use crate::reads::{fts_query, hidden_blocks};
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
@@ -369,19 +369,15 @@ pub(crate) fn migrate_instance_filters(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<View> {
-    let json: String = row.get(2)?;
-    let query = serde_json::from_str(&json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(error))
-    })?;
-    Ok(View {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        query,
-        revision: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
-    })
+fn build_view(row: crate::operations::views::SavedViewRow<Query>) -> View {
+    View {
+        id: row.id,
+        name: row.name,
+        query: row.query,
+        revision: row.revision,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
 }
 
 impl Workshop {
@@ -485,24 +481,21 @@ impl Workshop {
     }
 
     pub fn views(&self) -> Result<Vec<View>> {
-        let mut views = self
-            .conn
-            .prepare_cached("SELECT id, name, query, revision, created_at, updated_at FROM views")?
-            .query_map([], stored_view)?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        views.sort_by_cached_key(|view| (view.name.to_lowercase(), view.id.clone()));
-        Ok(views)
+        crate::operations::views::read_saved_views(
+            &self.conn,
+            crate::operations::views::VIEWS_SPEC.table,
+            build_view,
+        )
     }
 
     pub fn view(&self, id: &str) -> Result<View> {
-        validate_id(id)?;
-        self.conn
-            .prepare_cached(
-                "SELECT id, name, query, revision, created_at, updated_at FROM views WHERE id = ?1",
-            )?
-            .query_row([id], stored_view)
-            .optional()?
-            .ok_or_else(|| not_found(id))
+        crate::operations::views::read_saved_view(
+            &self.conn,
+            crate::operations::views::VIEWS_SPEC.table,
+            None,
+            id,
+            build_view,
+        )
     }
 
     pub fn query(&self, query: &Query) -> Result<QueryResult> {
@@ -622,6 +615,7 @@ impl Workshop {
                 .r#type
                 .as_deref()
                 .filter(|_| capability_type.is_none());
+            let mut reader = ReadingContext::new(&self.conn);
             let mut cursor = statement.query(params![member_type, matched, selected])?;
             while let Some(row) = cursor.next()? {
                 let id: &str = row.get_ref(0)?.as_str().map_err(|error| {
@@ -672,13 +666,8 @@ impl Workshop {
                     } else {
                         Some(block_at(row, 23)?)
                     };
-                    let reading = constrained_reading(
-                        &self.conn,
-                        definition.kind,
-                        definition,
-                        text,
-                        target.as_ref(),
-                    )?;
+                    let reading =
+                        reader.read(definition.kind, definition, text, target.as_ref())?;
                     rows.last_mut()
                         .expect("candidate exists")
                         .values
@@ -692,7 +681,27 @@ impl Workshop {
                 }
             }
         }
-        self.hydrate_query_attributes(source, &mut rows)?;
+        let uses_hydrated_key = |key: &str| {
+            key.starts_with('@')
+                || defs
+                    .get(key)
+                    .is_some_and(|field| crate::built_in::task_field(&field.name).is_some())
+        };
+        let hydrate_all = !truncate
+            || query
+                .filters
+                .iter()
+                .any(|filter| uses_hydrated_key(&filter.field))
+            || query.sort.iter().any(|key| {
+                key.by == SortBy::Field && key.field.as_deref().is_some_and(uses_hydrated_key)
+            })
+            || query
+                .group
+                .as_ref()
+                .is_some_and(|group| uses_hydrated_key(&group.key));
+        if hydrate_all {
+            self.hydrate_query_attributes(source, &mut rows)?;
+        }
         if source != crate::QuerySource::Notes {
             self.retain_entity_references(query, &mut rows)?;
         }
@@ -758,14 +767,7 @@ impl Workshop {
         let kind_members = query
             .note_kind
             .as_deref()
-            .map(|kind| -> Result<HashSet<String>> {
-                Ok(self
-                    .kind_notes(kind)?
-                    .notes
-                    .into_iter()
-                    .map(|note| note.id)
-                    .collect())
-            })
+            .map(|kind| self.kind_member_ids(kind))
             .transpose()?;
         let mut frequencies = column_frequencies(
             &self.conn,
@@ -812,6 +814,9 @@ impl Workshop {
         if truncate {
             rows.drain(..query.offset.min(rows.len()));
             rows.truncate(query.limit.unwrap_or(500));
+        }
+        if !hydrate_all {
+            self.hydrate_query_attributes(source, &mut rows)?;
         }
         Ok(QueryResult {
             fields,
@@ -1187,5 +1192,132 @@ mod tests {
             assert_eq!(query["limit"], 123);
             assert_eq!((revision, updated), (4, 2));
         }
+    }
+
+    #[test]
+    fn paginated_queries_hydrate_attributes_and_validate_refined_targets_once() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut workshop = Workshop::open(directory.path()).unwrap();
+        let person = ulid::Ulid::from(1_u128).to_string();
+        let philosopher = ulid::Ulid::from(2_u128).to_string();
+        let thinker = ulid::Ulid::from(3_u128).to_string();
+        let plain = ulid::Ulid::from(4_u128).to_string();
+        let book = ulid::Ulid::from(5_u128).to_string();
+        let author = ulid::Ulid::from(6_u128).to_string();
+        let work_a = ulid::Ulid::from(7_u128).to_string();
+        let entry_a = ulid::Ulid::from(8_u128).to_string();
+        let val_a = ulid::Ulid::from(9_u128).to_string();
+        let work_b = ulid::Ulid::from(10_u128).to_string();
+        let entry_b = ulid::Ulid::from(11_u128).to_string();
+        let val_b = ulid::Ulid::from(12_u128).to_string();
+        let fields_page = workshop.fields().unwrap().page_id;
+        workshop
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![
+                    Operation::CreatePage {
+                        id: person.clone(),
+                        title: "Person".into(),
+                    },
+                    Operation::CreatePage {
+                        id: philosopher.clone(),
+                        title: "Philosopher #person".into(),
+                    },
+                    Operation::CreatePage {
+                        id: thinker.clone(),
+                        title: "Simone Weil #Philosopher".into(),
+                    },
+                    Operation::CreatePage {
+                        id: plain.clone(),
+                        title: "Unfiled Page".into(),
+                    },
+                    Operation::CreatePage {
+                        id: book.clone(),
+                        title: "Book".into(),
+                    },
+                    Operation::Insert {
+                        id: author.clone(),
+                        parent_id: fields_page,
+                        after: None,
+                        text: "mentor".into(),
+                        heading: None,
+                    },
+                    Operation::SetFieldKind {
+                        id: author.clone(),
+                        base_revision: 1,
+                        kind: FieldKind::Instance,
+                    },
+                    Operation::SetFieldTargets {
+                        id: author.clone(),
+                        base_revision: 2,
+                        targets: vec![person.clone()],
+                    },
+                    Operation::CreatePage {
+                        id: work_a.clone(),
+                        title: "Alpha #Book".into(),
+                    },
+                    Operation::Insert {
+                        id: entry_a.clone(),
+                        parent_id: work_a.clone(),
+                        after: None,
+                        text: format!("[[{author}]]"),
+                        heading: None,
+                    },
+                    Operation::Insert {
+                        id: val_a,
+                        parent_id: entry_a,
+                        after: None,
+                        text: format!("[[{thinker}]]"),
+                        heading: None,
+                    },
+                    Operation::CreatePage {
+                        id: work_b.clone(),
+                        title: "Beta #Book".into(),
+                    },
+                    Operation::Insert {
+                        id: entry_b.clone(),
+                        parent_id: work_b.clone(),
+                        after: None,
+                        text: format!("[[{author}]]"),
+                        heading: None,
+                    },
+                    Operation::Insert {
+                        id: val_b,
+                        parent_id: entry_b,
+                        after: None,
+                        text: format!("[[{plain}]]"),
+                        heading: None,
+                    },
+                ],
+            })
+            .unwrap();
+
+        let page_one = workshop
+            .query(&Query {
+                r#type: Some(book),
+                sort: vec![SortKey {
+                    by: SortBy::Title,
+                    field: None,
+                    direction: Direction::Asc,
+                }],
+                limit: Some(1),
+                offset: 0,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(page_one.total, 2);
+        assert_eq!(page_one.rows.len(), 1);
+        assert_eq!(page_one.rows[0].block.block.id, work_a);
+        assert!(page_one.rows[0].attributes.contains_key("@title"));
+        assert!(matches!(
+            page_one.rows[0].values[&author][0].reading,
+            Reading::Value { .. }
+        ));
+
+        let detail = workshop.field_detail(&author, None, None).unwrap();
+        assert_eq!(detail.values_total, 2);
+        assert_eq!(detail.problems_total, 1);
     }
 }

@@ -73,6 +73,12 @@ export function TaskQueryLine(props: TaskQueryLineProps) {
             onFocus={event => {
               if (event.target === event.currentTarget) edit();
             }}
+            onKeyDown={event => {
+              if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                edit();
+              }
+            }}
             onClick={edit}
           >
             <For each={terms()}>

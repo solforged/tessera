@@ -1,5 +1,6 @@
 import { Match, Show, Switch, createSignal } from 'solid-js';
-import { api, ApiError } from '../api/client';
+import { ApiError } from '../api/client';
+import type { ApiClient } from '../api/client';
 import { MOBILE } from '../core/mode';
 import { Button } from '../ui/Button';
 import { isPhone } from '../ui/phone';
@@ -28,6 +29,7 @@ const failure = (reason: unknown) => {
  * of two leaves, Type code goes to a form with a way back, and joining is a sheet that cannot be dismissed.
  */
 export function SyncSetup(props: {
+  api: ApiClient;
   again?: { url: string } /** Where focus lands when the sheet closes; the opener, when a press did not focus it. */;
   returnFocus?: () => HTMLElement | null;
   onDone(): void;
@@ -47,7 +49,7 @@ export function SyncSetup(props: {
     setMac(macName(target.url));
     setStep('joining');
     try {
-      sync.set(await api.joinHub(target.url, target.code, deviceName()));
+      sync.set(await props.api.joinHub(target.url, target.code, deviceName()));
       finish();
     } catch (reason) {
       setError(failure(reason));

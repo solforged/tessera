@@ -1,5 +1,4 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
-import { api } from '../api/client';
 import type { PositionRow } from '../api/types';
 import type { WorkshopClient, PageDocument } from '../document/contract';
 import { citedSigla } from '../library/sigla';
@@ -51,7 +50,7 @@ export function ComparePane(props: ComparePaneProps) {
   });
   const [result] = createResource(
     () => `${props.subjectId}:${version()}`,
-    () => api.positions({ subject: props.subjectId }),
+    () => props.workshop.api.positions({ subject: props.subjectId }),
   );
   const rows = createMemo(() => result()?.rows ?? []);
   const [tabChoice, setTabChoice] = createSignal(props.view.comparison);
@@ -75,7 +74,7 @@ export function ComparePane(props: ComparePaneProps) {
   });
   const [fieldList] = createResource(
     () => version(),
-    () => api.fields(),
+    () => props.workshop.api.fields(),
   );
   const fieldName = (id: string) => fieldList()?.fields.find(field => field.id === id)?.name;
   const [docs, setDocs] = createSignal(new Map<string, PageDocument>());

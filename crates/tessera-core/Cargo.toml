@@ -1,6 +1,6 @@
 [package]
 name = "tessera-core"
-description = "Domain model, migrations and transactional operations for Tessera notebooks"
+description = "Domain model, migrations and transactional operations for Tessera workshops"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,20 +16,21 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 ulid.workspace = true
-tempfile.workspace = true
 deunicode = "1"
 unicode-normalization = "0.1"
+# Pinned so stored title_key values stay deterministic across Unicode case-folding tables.
 caseless = "=0.2.2"
 isolang = { version = "2.4", default-features = false, features = ["english_names", "list_languages"] }
 tracing.workspace = true
 ts-rs.workspace = true
-base64 = "0.23"
 
 # Sync records each change's row-level effect with SQLite's session
 # extension. The browser build does not sync.
 [target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+base64 = "0.23"
 dirs.workspace = true
 rusqlite = { workspace = true, features = ["session"] }
+tempfile.workspace = true
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }

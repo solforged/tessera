@@ -449,10 +449,11 @@ fn case_only_rename_and_undo_preserve_authored_aliases() {
         ],
     );
     let source = nb.block(&id(10)).unwrap();
-    let renamed = apply(&mut nb, vec![edit(2, 1, "BOOK")]);
+    let rev = nb.block(&id(2)).unwrap().revision;
+    let renamed = apply(&mut nb, vec![edit(2, rev, "BOOK")]);
     assert!(renamed.text_rewrites.is_empty());
     assert_eq!(nb.block(&id(10)).unwrap(), source);
-    apply(&mut nb, vec![edit(2, 2, "Book")]);
+    apply(&mut nb, vec![edit(2, rev + 1, "Book")]);
     assert_eq!(nb.block(&id(10)).unwrap(), source);
 }
 

@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { ulid } from 'ulid';
 import type { Operation } from '../api/types';
-import { createWorkshopClient, type Workshop } from '../document';
+import { createWorkshopClient, type Workshop } from '../workflows/workshop';
 import { startService } from '../testing/service';
 import { blankDraftFields, createPageDraft } from '../create/draft';
 import { convertSyntax, syntaxAtom } from './recipe-conversion';

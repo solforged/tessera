@@ -1,8 +1,9 @@
-//! Tessera's domain rules and storage. Clients use [`Notebook`]; nothing else
+//! Tessera's domain rules and storage. Clients use [`Workshop`]; nothing else
 //! writes to the database.
 
 mod agent;
 mod aliases;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod backup;
 mod built_in;
 pub mod calendar;
@@ -32,6 +33,7 @@ mod notes;
 mod notes_summary;
 pub mod occlusion;
 mod operations;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod ownership;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod paths;
@@ -67,8 +69,12 @@ mod topics;
 mod unlogged;
 mod work_store;
 
-pub use agent::{AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget};
+pub use agent::{
+    AgentCitation, AgentEdit, AgentReceipt, AgentRequest, BlockTarget, NoteBlock, NoteTarget,
+    OutlineBlock, field_shorthand,
+};
 pub use aliases::{Completion, NameMatch};
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use backup::{
     BackupManifest, Safety, StoredBackup, backup, backup_before_update, backup_directory,
     backup_to_store, backup_to_store_preserving, finished_backups, restore, restore_with,
@@ -97,6 +103,8 @@ pub use error::{Error, Result};
 pub use fields::SOURCE_TARGET;
 pub use history::{HistoryEntry, UndoReceipt};
 pub use image_store::image_type;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub use library_store::{object_path_in, put_object_in, read_object_in};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
@@ -114,6 +122,7 @@ pub use notes::{
     CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget, Shelf,
 };
 pub use notes_summary::{NoteSummary, SourceSummary, SummaryField};
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use ownership::WorkshopOwnership;
 pub use position_store::{NO_HOLDER, NOT_ENTITY};
 pub use reads::DeletedPage;

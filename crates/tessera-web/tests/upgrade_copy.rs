@@ -3,6 +3,7 @@
 
 use rusqlite::Connection;
 use serde_json::{Value, json};
+use sqlite_wasm_rs::vfs::{VfsFilesManager, transfer::DbTransfer};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHPoolCfg, install};
 use tessera_core::{SCHEMA_VERSION, Workshop};
 use tessera_web::{
@@ -70,7 +71,7 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
     let after = js_sys::Date::now() as i64;
     assert_eq!(info["id"], id);
     assert_eq!(info["schema_version"], SCHEMA_VERSION);
-    assert!(!pool.exists(&previous_copy).unwrap());
+    assert!(!pool.contains(&previous_copy).unwrap());
     let metadata: Value = serde_json::from_str(&upgrade_copy().unwrap().unwrap()).unwrap();
     assert_eq!(metadata["schema_version"], 35);
     let created_at = metadata["created_at"].as_i64().unwrap();
@@ -89,7 +90,7 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
         .unwrap();
     assert!(!quotes, "the copy was taken after migration");
     drop(conn);
-    pool.delete_db("/inspect/notebook.db").unwrap();
+    pool.remove("/inspect/notebook.db").unwrap();
     open().await.unwrap();
     assert_eq!(export_upgrade_copy().unwrap().to_vec(), copy);
 
@@ -128,5 +129,5 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
     reset().await.unwrap();
     assert!(is_empty().unwrap());
     assert!(upgrade_copy().unwrap().is_none());
-    assert_eq!(pool.list(), vec!["/demo/notebook.db"]);
+    assert_eq!(pool.names().unwrap(), vec!["/demo/notebook.db"]);
 }

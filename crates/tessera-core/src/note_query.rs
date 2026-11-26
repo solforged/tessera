@@ -67,12 +67,7 @@ impl Workshop {
         }
         let mut pages: HashMap<String, String> =
             if let Some(kind) = query.note_kind.as_deref().or(capability_type) {
-                let mut members: HashMap<String, String> = self
-                    .kind_notes(kind)?
-                    .notes
-                    .into_iter()
-                    .map(|note| (note.id, note.title))
-                    .collect();
+                let mut members = self.kind_member_titles(kind)?;
                 // A kind's Table lists its tagged blocks after its notes, as the type's own table
                 // does, so both routes count the same rows. Its List stays notes only.
                 let table = query

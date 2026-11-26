@@ -11,4 +11,8 @@ mod request;
 mod shorthand;
 
 pub(crate) use plan::listed;
-pub use request::{AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget};
+pub use request::{
+    AgentCitation, AgentEdit, AgentReceipt, AgentRequest, BlockTarget, NoteBlock, NoteTarget,
+    OutlineBlock,
+};
+pub use shorthand::field_shorthand;
