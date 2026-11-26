@@ -23,7 +23,7 @@ clap = { version = "4", features = ["derive", "env"] }
 dirs = "7"
 futures-util = { version = "0.3", features = ["sink"] }
 imagesize = "0.14"
-rusqlite = { version = "0.41", features = ["bundled", "backup"] }
+rusqlite = { version = "0.43", features = ["bundled", "backup"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
 serde = { version = "1", features = ["derive"] }
