@@ -1,0 +1,58 @@
+name: Rust cache
+
+# Pull requests restore dependency builds saved on main, but CI never runs on
+# main: main only fast-forwards to a pull request head that already passed.
+# This rebuilds what the rust job compiles whenever the dependencies change,
+# so the next pull request starts warm. The cache keeps dependencies only.
+on:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - "**/Cargo.toml"
+      - mise.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-cache
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    name: warm (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: rust
+
+      - name: Build what the rust job checks
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Build the tests
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo nextest run --workspace --locked --no-run
+
+      - name: Build for iOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          mise run mobile:pages
+          cargo clippy -p tessera-mobile --target aarch64-apple-ios --locked -- -D warnings

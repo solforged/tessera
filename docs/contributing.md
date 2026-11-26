@@ -111,9 +111,11 @@ open.
 | `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                         |
 
 [CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
-macOS, plus `web:lint`, `web:build`, `web:test`, `demo:lint`, `demo:test`,
+Clippy for macOS and iOS, plus `web:lint`, `web:build`, `web:test`, `demo:lint`, `demo:test`,
 `android:lint`, `cli:lint`, `cli:test`, the prose checks and `commit:lint` over
-the pull request's commits.
+the pull request's commits. The macOS runners are slow at the disk syncs
+every test workshop makes, so the Rust tests run there only in the weekly
+scheduled run, which also runs the rest of CI on `main`.
 
 `web:test` builds the debug command line first, because the document tests
 save through a real service. Each test file starts its own through

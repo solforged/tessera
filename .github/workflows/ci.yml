@@ -2,9 +2,15 @@ name: CI
 
 # CI runs on pull requests only. main changes only by fast-forwarding to a
 # head that already passed here (fast-forward.yml), so it never reruns there.
+#
+# Pull requests run the Rust tests on Linux only; macOS checks Clippy for macOS
+# and iOS there. The weekly run tests on both, and it and the rust-cache
+# workflow save the dependency builds that pull requests restore.
 on:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
@@ -67,12 +73,23 @@ jobs:
         with:
           version: 2026.10.1
 
-      - name: Format and Clippy
+      - name: Cache Rust builds
         if: needs.changes.outputs.rust == 'true'
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: rust
+          save-if: ${{ github.event_name != 'pull_request' }}
+
+      - name: Format and Clippy
+        if: needs.changes.outputs.rust == 'true' && matrix.os == 'ubuntu-latest'
         run: mise run lint
 
+      - name: Clippy for macOS
+        if: needs.changes.outputs.rust == 'true' && matrix.os == 'macos-latest'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
       - name: Test
-        if: needs.changes.outputs.rust == 'true'
+        if: needs.changes.outputs.rust == 'true' && (matrix.os == 'ubuntu-latest' || github.event_name != 'pull_request')
         run: mise run test
 
       - name: Clippy for iOS

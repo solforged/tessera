@@ -9,8 +9,9 @@ name: Fast-forward
 # key in the FAST_FORWARD_KEY secret; the green ruleset still checks the
 # signatures and the required checks on the commit main moves to.
 #
-# Nothing else runs on main: CI already passed on this exact commit, and this
-# workflow dispatches the demo deploy itself.
+# CI does not rerun on main: it already passed on this exact commit, and this
+# workflow dispatches the demo deploy itself. The push does start rust-cache
+# when the dependencies changed.
 
 on:
   workflow_run:
