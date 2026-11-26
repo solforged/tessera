@@ -30,6 +30,7 @@ extern "C" {
 const LIVE_DB: &str = "/demo/notebook.db";
 const STAGED_DIR: &str = "/demo-restore";
 const STAGED_DB: &str = "/demo-restore/notebook.db";
+const EXPORT_DB: &str = "/demo-export/notebook.db";
 const UPGRADE_PREFIX: &str = "/demo-upgrade-";
 const NOT_TESSERA: &str = "This file is not a Tessera backup.";
 const NEWER_BACKUP: &str = "This backup comes from a newer version of Tessera than this page runs.";
@@ -322,8 +323,8 @@ pub async fn open() -> Result<String, JsValue> {
         .await
         .map_err(pool_error)?;
         // Live and staged databases can each need a journal; flushing the
-        // upgrade copy can also need one.
-        pool.ensure_capacity(6).await.map_err(pool_error)?;
+        // upgrade copy can also need one, and an export writes one more file.
+        pool.ensure_capacity(7).await.map_err(pool_error)?;
         RUNTIME.with(|runtime| runtime.borrow_mut().pool = Some(pool));
     } else {
         let pool = RUNTIME.with(|runtime| runtime.borrow_mut().pool.take().unwrap());
@@ -359,8 +360,15 @@ pub fn export_notebook() -> Result<Uint8Array, JsValue> {
         // Workshop methods finish their transactions before releasing this mutex.
         // The worker serializes requests and this synchronous export cannot yield.
         with_pool(|pool| {
-            let bytes = pool.export_db(LIVE_DB).map_err(pool_error)?;
-            Ok(Uint8Array::from(bytes.as_slice()))
+            // The pool exports only closed files and the workshop keeps its
+            // database open, so VACUUM INTO writes a closed copy to export.
+            delete_workshop(pool, EXPORT_DB)?;
+            let bytes = connection(LIVE_DB)
+                .and_then(|conn| conn.execute("VACUUM INTO ?1", [EXPORT_DB]))
+                .map_err(internal)
+                .and_then(|_| pool.export_db(EXPORT_DB).map_err(pool_error));
+            delete_workshop(pool, EXPORT_DB)?;
+            Ok(Uint8Array::from(bytes?.as_slice()))
         })
     })
 }

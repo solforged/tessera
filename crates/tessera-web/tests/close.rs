@@ -29,11 +29,13 @@ async fn close_releases_handles_and_reopen_keeps_the_last_write() {
     close().unwrap();
     close().unwrap();
 
-    // A new pool really acquires the released handles, not just the old SQLite connection.
+    // Installing again in this worker hands back the same pool, paused with
+    // its handles released; resuming it really reacquires them from OPFS.
     let second = install::<sqlite_wasm_rs::WasmOsCallback>(&OpfsSAHPoolCfg::default(), true)
         .await
         .unwrap();
-    assert!(!second.is_paused());
+    assert!(second.is_paused());
+    second.resume().await.unwrap();
     assert!(second.contains("/demo/notebook.db").unwrap());
     second.pause().unwrap();
 
