@@ -9,8 +9,10 @@ import {
   type ChangeSocket,
 } from './client';
 
+// Later test files in the same process open real streams through the module.
 afterEach(() => {
   setTransport((url, init) => fetch(url, init));
+  setStreamFactory(undefined);
 });
 
 describe('createApi', () => {

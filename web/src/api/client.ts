@@ -124,7 +124,8 @@ export interface ChangeSocket {
 }
 type StreamFactory = (after: number) => ChangeSocket;
 let streamFactory: StreamFactory | undefined;
-export function setStreamFactory(value: StreamFactory): void {
+/** Replaces how change streams open; `undefined` restores the WebSocket. */
+export function setStreamFactory(value: StreamFactory | undefined): void {
   streamFactory = value;
 }
 export const exportExtensions: Record<ExportFormat, string> = { bibtex: 'bib', csl: 'json', markdown: 'md' };
