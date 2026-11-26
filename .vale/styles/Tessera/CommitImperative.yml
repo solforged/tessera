@@ -1,0 +1,35 @@
+# A lexical check, not a parser: regular -ed forms and listed irregulars.
+# Base forms that end in -ed (seed, embed, shed) pass.
+extends: existence
+message: 'Start the summary with an imperative verb (Add, Fix, Keep), not the past tense.'
+level: error
+scope: subject
+nonword: true
+raw:
+  - '\A(?:(?!(?:[A-Za-z]*eed|Embed|Shed|Shred|Wed|Bed|Red)\b)[A-Z][a-z]+ed|Became|Began|Bought|Broke|Brought|Built|Caught|Chose|Dealt|Did|Drew|Drove|Fell|Felt|Fled|Forgot|Found|Froze|Gave|Got|Grew|Had|Heard|Held|Hid|Hung|Kept|Knew|Laid|Led|Left|Lent|Lost|Made|Meant|Met|Paid|Ran|Rebuilt|Redid|Remade|Reran|Rewrote|Said|Sat|Saw|Sent|Shook|Showed|Sold|Sought|Spent|Spoke|Stood|Stole|Struck|Stuck|Swept|Taught|Thought|Threw|Told|Took|Tore|Undid|Understood|Upheld|Went|Withdrew|Won|Wore|Wrote)\b'
+tests:
+  - name: accepts an imperative
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Fix the parser"
+    want: ''
+  - name: accepts a base form ending in ed
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Seed the demo workshop"
+    want: ''
+  - name: accepts embed
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Embed the editor in the binary"
+    want: ''
+  - name: rejects a regular past tense
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Fixed the parser"
+    contains: Tessera.CommitImperative
+  - name: rejects an irregular past tense
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Kept the parser"
+    contains: Tessera.CommitImperative

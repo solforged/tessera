@@ -259,6 +259,11 @@ what the rules cannot check.
   whose case matters to `.vale/styles/config/vocabularies/Tessera/accept.txt`.
 - Keep a quoted source's spelling: exempt it in place with
   `<!-- vale Tessera.Spelling["colour"] = NO -->` and the matching `= YES`.
+- Write each commit subject as a short imperative sentence, such as
+  `Keep reader scroll when the pane reopens`: a capital letter, no
+  `type(scope):` prefix and no closing period, within 72 characters. Explain
+  why in the body when the change doesn't show it, in prose or `- ` bullets
+  wrapped at 72 columns. Keep one logical change per commit.
 - Run `mise run hooks:install` once per clone to check commit messages as you
   write them.
 - Prefer lists and tables for parallel rules.

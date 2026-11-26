@@ -76,7 +76,7 @@ mutation.
 
 ## Changelog
 
-`release:prepare` inserts a draft of capitalized commit subjects after
+`release:prepare` inserts a draft of the commit subjects after
 `<!-- releases -->` and leaves the hand-written `## Unreleased` section below
 it. Do not publish that draft. The curated Unreleased section is the release
 notes.
@@ -90,8 +90,8 @@ throughout the published notes.
 
 Add user-visible work committed after the last changelog touch: use
 `git -C "$TASK_SOURCE" log vPREV..origin/main --oneline`, and for each
-`feat`/`fix` that did not touch CHANGELOG.md, search Unreleased before writing a
-bullet in its voice. Skip commit-subject wording.
+user-visible commit that did not touch CHANGELOG.md, search Unreleased before
+writing a bullet in its voice. Skip commit-subject wording.
 
 `mise run release:notes -- X.Y.Z --published` must succeed before `release:cut`
 (it fails with "still a draft" while the draft marker remains).

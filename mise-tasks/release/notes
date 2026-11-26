@@ -53,41 +53,22 @@ if [ -n "$from" ]; then
   range="${from}..HEAD"
 fi
 
-capitalize() {
-  local text=${1%.}
-  printf '%s%s.' "$(printf '%s' "${text:0:1}" | tr '[:lower:]' '[:upper:]')" "${text:1}"
-}
-
-added=()
-fixed=()
-faster=()
-documented=()
-other=0
+# Subjects are already plain sentences, so the draft lists them as they are;
+# curating them into Added, Changed and Fixed is the editor's job.
+changes=()
+bumps=0
 seen=$'\n'
 
 while IFS= read -r subject; do
   [ -n "$subject" ] || continue
   case $subject in
-    'chore(release):'*) continue ;;
+    'Release '[0-9]*|'chore(release):'*) continue ;;
+    'Bump '*)
+      bumps=$((bumps + 1))
+      continue
+      ;;
   esac
-  kind=other
-  summary=$subject
-  for prefix in feat fix perf docs refactor style test chore build ci; do
-    case $subject in
-      "$prefix: "*)
-        kind=$prefix
-        summary=${subject#"$prefix: "}
-        break
-        ;;
-      "$prefix("*)
-        kind=$prefix
-        summary=${subject#*: }
-        summary=${summary# }
-        break
-        ;;
-    esac
-  done
-  line="- $(capitalize "$summary")"
+  line="- ${subject%.}."
   case $seen in
     *"
 $line
@@ -95,34 +76,20 @@ $line
   esac
   seen="$seen$line
 "
-  case $kind in
-    feat) added+=("$line") ;;
-    fix) fixed+=("$line") ;;
-    perf) faster+=("$line") ;;
-    docs) documented+=("$line") ;;
-    *) other=$((other + 1)) ;;
-  esac
-done < <(git log --format='%s' $range)
+  changes+=("$line")
+done < <(git log --reverse --format='%s' "$range")
 
 date=$(date -u +%Y-%m-%d)
 printf '## %s, %s\n\n' "$version" "$date"
 echo '<!-- draft: edit this section, then delete this line before release:cut -->'
 echo
 
-print_section() {
-  local title=$1
-  shift
-  [ "$#" -gt 0 ] || return 0
-  printf '### %s\n\n' "$title"
-  printf '%s\n' "$@"
+if [ "${#changes[@]}" -gt 0 ]; then
+  printf '### Changes\n\n'
+  printf '%s\n' "${changes[@]}"
   echo
-}
+fi
 
-print_section Added "${added[@]+"${added[@]}"}"
-print_section Fixed "${fixed[@]+"${fixed[@]}"}"
-print_section Faster "${faster[@]+"${faster[@]}"}"
-print_section Documentation "${documented[@]+"${documented[@]}"}"
-
-if [ "$other" -gt 0 ]; then
-  printf '%s other commits are build, test or formatting changes.\n' "$other"
+if [ "$bumps" -gt 0 ]; then
+  printf '%s Dependabot updates are left out.\n' "$bumps"
 fi

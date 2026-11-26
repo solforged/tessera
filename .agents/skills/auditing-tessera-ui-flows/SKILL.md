@@ -287,9 +287,9 @@ cross-lane contract, tokens-only styling and sentence case.
   `mise run lint` once after crate changes are integrated: CI runs `fmt --check`
   and `clippy` -D warnings. Build/install under normal host HOME and isolate test
   runtime HOME/XDG; lanes skip checks mid-flight.
-- When committing is authorized, assemble coherent area commits (`feat(core)`,
-  `fix(tasks)`, `fix(outline)`, `fix(shell)`, `fix(library)`, `fix(fields)`,
-  `fix(review)`, `docs`) only in the owned integration checkout with Git bound
+- When committing is authorized, assemble one commit per coherent area (core,
+  tasks, outline, shell, library, fields, review, docs), each with a plain
+  imperative subject, only in the owned integration checkout with Git bound
   by `-C` or tool `cwd`. Follow the commit hook rather than leave `fixup!`
   commits. Update CHANGELOG Unreleased and applicable `docs/surfaces/*.md` in
   that integration; never rewrite a shared branch/index to fold corrections.

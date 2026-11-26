@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Lint commit messages with the shared Voice convention"
+#MISE description="Lint commit messages against the commit convention"
 #USAGE arg "[range]" help="Revision range to lint. Defaults to origin/main..HEAD."
 set -euo pipefail
 

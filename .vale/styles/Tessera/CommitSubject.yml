@@ -1,0 +1,38 @@
+# Tessera's commit subjects are plain sentences, not Conventional Commits.
+extends: occurrence
+message: 'Write the summary as a sentence that starts with a capital letter, without a type(scope): prefix.'
+level: error
+scope: subject
+token: '\A(?![A-Za-z]+(?:\([^)]*\))?!?: )[A-Z].*\z'
+min: 1
+tests:
+  - name: accepts a plain imperative
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Fix the parser"
+    want: ''
+  - name: rejects a type prefix
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fix the parser"
+    contains: Tessera.CommitSubject
+  - name: rejects a scoped prefix
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix(web/editor): fix the parser"
+    contains: Tessera.CommitSubject
+  - name: rejects a capitalized prefix
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "Fix: the parser"
+    contains: Tessera.CommitSubject
+  - name: rejects a lowercase start
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix the parser"
+    contains: Tessera.CommitSubject
+  - name: rejects an empty message
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: ""
+    contains: Tessera.CommitSubject

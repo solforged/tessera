@@ -23,5 +23,5 @@ Follow [managing-tessera-task-workspaces](../../../.agents/skills/managing-tesse
 ## Apply
 - Edit markup and CSS with tokens only; keep user-facing strings short.
 - Rebuild, re-screenshot the same states, drop anything that duplicates a pane-header indicator.
-- Update the matching section of docs/design.md and run the requested checks once after edits integrate in the owned source. Commit only explicit owned paths with scoped Git commands and the applicable Conventional Commit rules. An audit/apply request does not authorize push, landing or shipping; use the protected-main procedure only when separately authorized.
+- Update the matching section of docs/design.md and run the requested checks once after edits integrate in the owned source. Commit only explicit owned paths with scoped Git commands and the commit-message rules in docs/contributing.md. An audit/apply request does not authorize push, landing or shipping; use the protected-main procedure only when separately authorized.
 - Retain matched before/after captures and structural evidence in `TASK_EVIDENCE`, then follow shared teardown. Name next surfaces without starting new scope automatically.

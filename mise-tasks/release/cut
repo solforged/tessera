@@ -38,9 +38,10 @@ fi
 if [ -n "$(git status --porcelain)" ]; then
   git add Cargo.toml Cargo.lock CHANGELOG.md
   git commit -m "$(cat <<EOF
-chore(release): bumped workspace version to $version
+Release $version
 
-- Recorded the changelog section the release notes are taken from.
+Bump the workspace version and record the changelog section the release
+notes are taken from.
 EOF
 )"
 fi
