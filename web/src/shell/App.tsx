@@ -2732,7 +2732,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
               <Button
                 ref={searchButton}
                 class="global-search"
-                icon="find"
+                icon="search"
                 label="Find or create"
                 shortcut="⌃⇧F"
                 aria-haspopup="dialog"

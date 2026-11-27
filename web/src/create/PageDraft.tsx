@@ -2,6 +2,7 @@ import { For, Show, createMemo, createResource, createSignal, createUniqueId, on
 import type { NoteKind } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import { pendingCaretInput } from '../ui/pending-caret';
+import { besideKey, opensBeside } from '../core/beside';
 import type { OpenTarget } from '../core/contract';
 import { Button } from '../ui/Button';
 import type { CreateKind } from './request';
@@ -158,7 +159,9 @@ export function PageDraft(props: {
       return;
     event.preventDefault();
     event.stopPropagation();
-    void submit(event.shiftKey && !event.metaKey && !event.ctrlKey, event.shiftKey && (event.metaKey || event.ctrlKey));
+    const beside = opensBeside(event) && !event.shiftKey;
+    const again = event.shiftKey && !event.altKey;
+    void submit(beside, again);
   }
   return (
     <form
@@ -250,7 +253,7 @@ export function PageDraft(props: {
                 when={recipes()?.length}
                 fallback={
                   <Show when={!props.sheet}>
-                    <kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close
+                    <kbd>↵</kbd> Create <kbd>{besideKey}↵</kbd> Beside <kbd>⇧↵</kbd> Another <kbd>esc</kbd> Close
                   </Show>
                 }
               >
@@ -263,7 +266,7 @@ export function PageDraft(props: {
         </span>
         <Button
           type="submit"
-          class="bordered"
+          class="bordered create-add"
           disabled={!query() || busy() || typePage() || (mode() === 'type' && (!props.noteKind || recipes.loading))}
         >
           {busy()

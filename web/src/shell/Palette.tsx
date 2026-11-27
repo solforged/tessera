@@ -93,9 +93,13 @@ export function Palette(props: {
     if (section) section.push(command);
     else sections.set(command.section, [command]);
   }
+  const sectionOrder: Command['section'][] = ['Page', 'Create', 'Navigation', 'Editing', 'View'];
   const orderedCommands = [
+    ...sectionOrder.flatMap(section => sections.get(section) ?? []),
+    ...[...sections]
+      .filter(([section]) => !sectionOrder.includes(section) && section !== 'Go to')
+      .flatMap(([, commands]) => commands),
     ...(sections.get('Go to') ?? []),
-    ...[...sections].filter(([section]) => section !== 'Go to').flatMap(([, commands]) => commands),
   ];
   const [query, setQuery] = createSignal(props.mode === 'commands' ? '>' : '');
   const [debounced, setDebounced] = createSignal('');
@@ -556,7 +560,9 @@ export function Palette(props: {
       <Picker<Entry>
         anchor={props.anchor}
         placement="top"
-        width={frame === 'search' ? 1060 : 560}
+        width={frame === 'search' ? (wide() ? 980 : 620) : 560}
+        maxHeight={frame === 'search' ? 720 : 560}
+        scrim={!phone}
         label={mode() === 'search' ? 'Find or create' : 'Find command'}
         class={`palette ${frame === 'search' ? 'palette-search' : ''} ${keyed() ? 'palette-keyed' : ''}`}
         onDismiss={props.onDismiss}

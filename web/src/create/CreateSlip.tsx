@@ -98,7 +98,7 @@ export function CreateSlip(props: CreateSlipProps) {
   return (
     <Popup
       anchor={props.anchor ?? document.body}
-      placement={cover() ? 'sheet' : props.anchor ? 'anchor' : 'top'}
+      placement={cover() ? 'sheet' : 'top'}
       title={cover() ? 'New' : undefined}
       width={560}
       fitContent
@@ -553,10 +553,14 @@ export function CreateSlipBody(
             <span>
               <span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span>
             </span>
-            <span class="capture-where">
-              {relativeDate(props.workshop.todayDate(), props.workshop.todayDate())} ·{' '}
-              <span class="capture-clock">{clock()}</span>
-            </span>
+            <Show when={(!pageDraft() && kind() !== 'source') || !!recipes()?.length}>
+              <span class="capture-where">
+                <Show
+                  when={atom()}
+                >{`${relativeDate(props.workshop.todayDate(), props.workshop.todayDate())} · `}</Show>
+                <span class="capture-clock">{clock()}</span>
+              </span>
+            </Show>
           </header>
         </Show>
         <Show when={!lineBody() && !phoneControls()}>
@@ -731,7 +735,9 @@ export function CreateSlipBody(
                           {value => <span role="status">{value()}</span>}
                         </Show>
                       </span>
-                      <Button onClick={cancel}>Cancel</Button>
+                      <Button class="create-cancel" onClick={cancel}>
+                        Cancel
+                      </Button>
                       <Button
                         class="bordered create-add"
                         disabled={state.busy() || !text().trim()}
