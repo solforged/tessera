@@ -399,7 +399,7 @@
   }
   /* Adding sits under the week strip on Day, in the same place however many tasks are overdue. */
   .agenda-add {
-    margin-block: var(--space-4) var(--space-12);
+    margin-block: var(--space-16);
   }
   /* The one task row: clock gutter, status glyph, a title over its facts line, then a reserved slot for rescheduling. */
   .agenda-row {
@@ -684,9 +684,12 @@
     .agenda-heading > p {
       display: none;
     }
+    .agenda-heading > h1 {
+      font: var(--weight-title) var(--text-h2) / var(--line-h2) var(--font-display);
+    }
     .agenda-title-date {
-      font: var(--apparatus);
-      letter-spacing: var(--tracking-apparatus);
+      font: inherit;
+      letter-spacing: inherit;
     }
     .agenda-date {
       flex-wrap: nowrap;

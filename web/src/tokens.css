@@ -174,12 +174,12 @@
 
   /* Week planning has a half-hour card and a readable column at narrow widths. */
   --week-measure: 1200px;
-  --week-hour-height: 96px;
+  --week-hour-height: 60px;
   --week-grid-height: calc(24 * var(--week-hour-height));
   --week-task-height: calc(var(--week-hour-height) / 2);
   --week-day-min-width: 144px;
   --week-time-gutter: var(--space-48);
-  --week-scroll-height: 560px;
+  --week-scroll-height: max(560px, calc(100dvh - 220px));
   --week-all-day-max-height: 144px;
   --week-rule-width: 1px;
   --week-drag-threshold: var(--space-4);

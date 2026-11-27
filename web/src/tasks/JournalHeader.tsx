@@ -558,7 +558,6 @@ function JournalPlan(props: {
                 date={props.date}
                 workshop={props.workshop}
                 timetable
-                gutter={gutter()}
                 plan
                 onOpen={props.onOpen}
                 onChanged={() => {}}

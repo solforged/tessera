@@ -1317,7 +1317,6 @@ export function AgendaPane(props: AgendaPaneProps) {
                     workshop={props.workshop}
                     history={taskHistory}
                     timetable
-                    gutter={dayGutter()}
                     plan
                     disabled={busy() || loading() || !!error()}
                     onOpen={props.onOpen}
@@ -1400,7 +1399,6 @@ export function AgendaPane(props: AgendaPaneProps) {
                       workshop={props.workshop}
                       history={taskHistory}
                       timetable
-                      gutter={dayGutter()}
                       plan
                       disabled={busy() || loading() || !!error()}
                       onOpen={props.onOpen}
@@ -1427,7 +1425,6 @@ export function AgendaPane(props: AgendaPaneProps) {
                       workshop={props.workshop}
                       history={taskHistory}
                       timetable
-                      gutter={dayGutter()}
                       disabled={busy() || loading() || !!error()}
                       onOpen={props.onOpen}
                       onChanged={() => setRefresh(value => value + 1)}

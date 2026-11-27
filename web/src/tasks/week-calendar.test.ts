@@ -20,6 +20,7 @@ import {
   shiftCalendarDate,
   snapWeekMinutes,
   timeMinutes,
+  weekHourBounds,
   weekRangeQuery,
   weekTaskEntries,
 } from './week-calendar';
@@ -151,6 +152,14 @@ describe('week task scheduling', () => {
     expect(snapWeekMinutes(1439)).toBe(1425);
     expect(snapWeekMinutes(2000)).toBe(1425);
     expect(timeMinutes('23:59')).toBe(1439);
+  });
+
+  test('computes compact week hour bounds around timed tasks and now', () => {
+    expect(weekHourBounds([], null, true)).toEqual({ start: 0, end: 24 });
+    expect(weekHourBounds([], null, false)).toEqual({ start: 8, end: 18 });
+    expect(weekHourBounds([7 * 60, 17 * 60 + 30], 10 * 60 + 45, false)).toEqual({ start: 6, end: 19 });
+    expect(weekHourBounds([9 * 60], 9 * 60 + 30, false)).toEqual({ start: 8, end: 14 });
+    expect(weekHourBounds([30, 23 * 60 + 15], null, false)).toEqual({ start: 0, end: 24 });
   });
 
   test('a timed or all-day drop changes only scheduled fields in the full task', () => {

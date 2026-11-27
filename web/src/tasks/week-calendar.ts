@@ -64,6 +64,25 @@ export function timeMinutes(time: string): number {
   return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 }
 
+/**
+ * Compact hour bounds for the desktop week grid: span every timed task in the week (and the current
+ * hour when today is visible) with an hour of breathing room, instead of cutting off late tasks.
+ */
+export function weekHourBounds(
+  timedMinutes: readonly number[],
+  nowMinute: number | null,
+  showAllHours: boolean,
+): { start: number; end: number } {
+  if (showAllHours) return { start: 0, end: 24 };
+  const points = nowMinute === null ? [...timedMinutes] : [...timedMinutes, nowMinute];
+  if (!points.length) return { start: 8, end: 18 };
+  const minHour = Math.floor(Math.min(...points) / 60);
+  const maxHour = Math.floor(Math.max(...points) / 60);
+  const start = Math.max(0, minHour - 1);
+  const end = Math.min(24, Math.max(start + 6, maxHour + 2));
+  return { start, end };
+}
+
 export function snapWeekMinutes(minutes: number): number {
   return Math.max(0, Math.min(minutesPerDay - 15, Math.round(minutes / 15) * 15));
 }

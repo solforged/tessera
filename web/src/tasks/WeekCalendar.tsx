@@ -22,6 +22,7 @@ import {
   scheduleWeekTask,
   snapWeekMinutes,
   timeMinutes,
+  weekHourBounds,
   weekTaskEntries,
 } from './week-calendar';
 import type { IncompleteWeekRange, TimedWeekEntry, WeekEntry } from './week-calendar';
@@ -161,12 +162,9 @@ export function WeekCalendar(props: WeekCalendarProps) {
     }),
   );
   const hours = createMemo(() => {
-    if (props.showAllHours) return { start: 0, end: 24 };
     const timed = days().flatMap(day => day.timed.map(item => item.minute));
-    return {
-      start: Math.floor(Math.min(6 * 60, ...timed) / 60),
-      end: Math.min(24, Math.max(22, ...timed.map(minute => Math.floor(minute / 60) + 1))),
-    };
+    const currentNow = dates().includes(props.workshop.todayDate()) ? nowMinute() : null;
+    return weekHourBounds(timed, currentNow, props.showAllHours);
   });
   const sheetStyle = createMemo(
     (): JSX.CSSProperties => ({
@@ -258,11 +256,9 @@ export function WeekCalendar(props: WeekCalendarProps) {
             if (!current || !scroll) return;
             const firstDay = root.querySelector<HTMLElement>('[data-week-drop="timed"]');
             if (!firstDay) return;
-            const earliest = Math.max(
-              untrack(hours).start * 60,
-              Math.min(8 * 60, ...untrack(days).flatMap(day => day.timed.map(item => item.minute))),
-            );
             const range = untrack(hours);
+            const timed = untrack(days).flatMap(day => day.timed.map(item => item.minute));
+            const earliest = timed.length ? Math.max(range.start * 60, Math.min(...timed) - 60) : range.start * 60;
             scroll.scrollTop =
               ((earliest - range.start * 60) / ((range.end - range.start) * 60)) *
               firstDay.getBoundingClientRect().height;
