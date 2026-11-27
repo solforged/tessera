@@ -29,12 +29,16 @@ export function editText(doc: DocumentInternals, session: EditSession, edit: Ext
 }
 
 export function editHeading(
-  _doc: DocumentInternals,
+  doc: DocumentInternals,
   session: EditSession,
   edit: Extract<Edit, { kind: 'heading' }>,
 ): void {
   const { actions } = session;
-  actions.push({ kind: 'heading', id: edit.id, heading: edit.level });
+  const targets = 'ids' in edit ? edit.ids : [edit.id];
+  for (const id of new Set(targets)) {
+    if (doc.snapshot(id).heading === edit.level) continue;
+    actions.push({ kind: 'heading', id, heading: edit.level });
+  }
 }
 
 export function editSplit(doc: DocumentInternals, session: EditSession, edit: Extract<Edit, { kind: 'split' }>): void {

@@ -31,8 +31,13 @@ export function editArchive(
   edit: Extract<Edit, { kind: 'archive' }>,
 ): void {
   const { actions } = session;
-  if (edit.archived) doc.guardHide(edit.id);
-  actions.push({ kind: 'archive', id: edit.id, archived: edit.archived });
+  const targets = 'ids' in edit ? edit.ids : [edit.id];
+  for (const id of new Set(targets)) {
+    const block = doc.snapshot(id);
+    if (block.archived === edit.archived) continue;
+    if (edit.archived) doc.guardHide(id);
+    actions.push({ kind: 'archive', id, archived: edit.archived });
+  }
 }
 
 export function editInsert(

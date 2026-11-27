@@ -51,7 +51,7 @@ import {
 } from './edits/inquiry';
 import { editCardHeld, editCardTemplate, editImage, editImages, editOcclusion } from './edits/cards';
 import { editManualType, editTypePresentation } from './edits/tags';
-import { editTaskProject, editTaskWork } from './edits/tasks';
+import { editBulkTask, editTaskProject, editTaskWork } from './edits/tasks';
 import {
   editDeleteRange,
   editHeading,
@@ -2156,6 +2156,9 @@ export class Document implements PageDocument {
           break;
         case 'assessment':
           editAssessment(doc, session, edit);
+          break;
+        case 'bulkTask':
+          editBulkTask(doc, session, edit);
           break;
         case 'task':
         case 'planTask':

@@ -31,6 +31,7 @@ import type {
   SourceRecord,
   SourceState,
   TaskState,
+  TaskStatus,
   Topic,
   WorkSession,
 } from '../api/types';
@@ -181,6 +182,18 @@ export type Edit =
   /** Resolve a version kept beside its original, in one batch and undo step. */
   | { kind: 'keptCopy'; id: string; choice: 'use' | 'discard' | 'both' }
   | { kind: 'task'; id: string; value: TaskState | null }
+  | {
+      kind: 'bulkTask';
+      ids: string[];
+      /** Set status (`null` removes task capability), or omit to keep each atom's status (creating an appointment if absent). */
+      status?: TaskStatus | null;
+      /** Optional planning fields merged onto each selected task. */
+      patch?: Partial<Pick<TaskState, 'scheduled' | 'deadline' | 'priority' | 'repeater'>>;
+      /** Required when `status === 'done'`. */
+      completedOn?: string;
+      /** Stop an active work session if one of the completed tasks owns it. */
+      stopWork?: WorkSession;
+    }
   | { kind: 'planTask'; id: string; text: string; value: TaskState }
   | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }
   | { kind: 'project'; id: string; value: ProjectState | null }
@@ -307,6 +320,7 @@ export type Edit =
       zoomRoot?: string | null;
     }
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
+  | { kind: 'heading'; ids: string[]; level: 1 | 2 | 3 | null }
   /** Append a definition to the Fields page with its kind in one undo step. */
   | { kind: 'addField'; name: string; value: FieldKind; role?: FieldRole }
   /** The definition snapshot supplies the previous kind and revision for undo. */
@@ -341,7 +355,9 @@ export type Edit =
   /** Convert a block to a field entry, keeping the text after `from` in its first value; one undo step. */
   | { kind: 'fieldEntry'; id: string; fieldId: string; from: number }
   | { kind: 'archive'; id: string; archived: boolean }
-  | { kind: 'addType' | 'removeType'; id: string; title: string };
+  | { kind: 'archive'; ids: string[]; archived: boolean }
+  | { kind: 'addType' | 'removeType'; id: string; title: string }
+  | { kind: 'addType' | 'removeType'; ids: string[]; title: string };
 
 /** What a new citation needs; `quote`, `locator` and `ordinal` make the optimistic state complete until the receipt replaces it. */
 export interface NewCitation {

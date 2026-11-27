@@ -1,9 +1,106 @@
 import { ulid } from 'ulid';
+import type { TaskState } from '../../api/types';
 import { fieldEntryId } from '../../core/field-entry';
+import { newTask } from '../../model/tasks';
 import { sameState } from '../types';
 import type { Edit } from '../contract';
 import type { DocumentInternals } from './internals';
 import type { EditSession } from './session';
+
+function hasPendingRecurringCompletion(doc: DocumentInternals, id: string): boolean {
+  return doc.host
+    .commands(doc.pageId)
+    .some(command =>
+      command.actions.some(action => action.kind === 'completeTask' && action.id === id && action.previous.repeater),
+    );
+}
+
+export function editBulkTask(
+  doc: DocumentInternals,
+  session: EditSession,
+  edit: Extract<Edit, { kind: 'bulkTask' }>,
+): void {
+  const { actions } = session;
+  const targets = [...new Set(edit.ids)];
+  if (!targets.length) return;
+  for (const id of targets) {
+    if (hasPendingRecurringCompletion(doc, id))
+      throw new Error('Wait for the recurring completion before changing this task.');
+  }
+  for (const id of targets) {
+    const block = doc.snapshot(id);
+    const state = doc.capabilities(id);
+    const baseRevision = block.revision;
+    let currentTask: TaskState | null = state.task ? (JSON.parse(JSON.stringify(state.task)) as TaskState) : null;
+    if (edit.status === null) {
+      if (!currentTask) continue;
+      session.removeCapabilityTags(id, 'task');
+      actions.push({ kind: 'task', id, value: null, previous: currentTask, baseRevision });
+      continue;
+    }
+    if (edit.status === 'done') {
+      if (!edit.completedOn) throw new Error('A completion date is required.');
+      if (currentTask?.status === 'done' && !currentTask.repeater) continue;
+      if (!currentTask?.status) {
+        const started: TaskState = { ...(currentTask ?? newTask()), status: 'todo', completed_on: null };
+        actions.push({ kind: 'task', id, value: started, previous: currentTask, baseRevision });
+        currentTask = started;
+      }
+      if (edit.patch) {
+        const patched: TaskState = { ...currentTask, ...edit.patch };
+        if (!sameState(currentTask, patched)) {
+          actions.push({ kind: 'task', id, value: patched, previous: currentTask, baseRevision });
+          currentTask = patched;
+        }
+      }
+      if (edit.stopWork && edit.stopWork.block_id === id) {
+        if (edit.stopWork.ended_at !== null || edit.stopWork.reversed)
+          throw new Error('Refresh the running work session before completing.');
+        const known = doc.work.get(edit.stopWork.id);
+        if (known && known.revision >= edit.stopWork.revision && !sameState(known, edit.stopWork))
+          throw new Error('The work session changed. Refresh before completing.');
+        actions.push({
+          kind: 'stopWork',
+          id,
+          session: { ...edit.stopWork },
+          endedAt: Date.now(),
+          note: edit.stopWork.note,
+          baseRevision,
+        });
+      }
+      actions.push({
+        kind: 'completeTask',
+        id,
+        occurrenceId: ulid(),
+        completedOn: edit.completedOn,
+        previous: currentTask,
+        baseRevision,
+      });
+      continue;
+    }
+    if (edit.status !== undefined) {
+      if (!currentTask?.status && edit.status !== 'todo') {
+        const started: TaskState = { ...(currentTask ?? newTask()), status: 'todo', completed_on: null };
+        actions.push({ kind: 'task', id, value: started, previous: currentTask, baseRevision });
+        currentTask = started;
+      }
+      const next: TaskState = {
+        ...(currentTask ?? newTask()),
+        ...(edit.patch ?? {}),
+        status: edit.status,
+        completed_on: null,
+      };
+      if (!sameState(currentTask, next))
+        actions.push({ kind: 'task', id, value: next, previous: currentTask, baseRevision });
+      continue;
+    }
+    if (edit.patch) {
+      const next: TaskState = { ...(currentTask ?? newTask()), ...edit.patch };
+      if (!sameState(currentTask, next))
+        actions.push({ kind: 'task', id, value: next, previous: currentTask, baseRevision });
+    }
+  }
+}
 
 export function editTaskWork(
   doc: DocumentInternals,
@@ -16,15 +113,7 @@ export function editTaskWork(
   const { actions } = session;
   const block = doc.snapshot(edit.id);
   const state = doc.capabilities(edit.id);
-  if (
-    doc.host
-      .commands(doc.pageId)
-      .some(command =>
-        command.actions.some(
-          action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater,
-        ),
-      )
-  )
+  if (hasPendingRecurringCompletion(doc, edit.id))
     throw new Error('Wait for the recurring completion before changing this task.');
   const baseRevision = block.revision;
   if (edit.kind === 'task' || edit.kind === 'planTask') {

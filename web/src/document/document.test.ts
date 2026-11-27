@@ -5069,6 +5069,77 @@ describe('durable Action and Learning document commands', () => {
       globalThis.fetch = actualFetch;
     }
   });
+
+  test('bulk task, heading, archive, and manual tag edits apply and undo atomically', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'First bulk item');
+    const second = success(doc.edit({ kind: 'insert', parentId: doc.pageId, after: first, text: 'Second bulk item' }))
+      .created[0]!;
+    const third = success(doc.edit({ kind: 'insert', parentId: doc.pageId, after: second, text: 'Third bulk item' }))
+      .created[0]!;
+    await doc.flush();
+
+    // 1. Make all three todo tasks in one undoable batch.
+    success(doc.edit({ kind: 'bulkTask', ids: [first, second, third], status: 'todo' }));
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.task?.status).toBe('todo');
+
+    // 2. Schedule all three together, then complete all three in one batch.
+    success(doc.edit({ kind: 'bulkTask', ids: [first, second, third], patch: { scheduled: '2026-11-28' } }));
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.task?.scheduled).toBe('2026-11-28');
+
+    success(doc.edit({ kind: 'bulkTask', ids: [first, second, third], status: 'done', completedOn: '2026-11-27' }));
+    await doc.flush();
+    for (const id of [first, second, third]) {
+      expect(doc.block(id)?.task?.status).toBe('done');
+      expect((await api.capabilities(id)).task?.status).toBe('done');
+    }
+    // One undo reopens all three tasks atomically.
+    doc.undo();
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.task?.status).toBe('todo');
+
+    // 3. Transition mixed non-task + existing task directly to waiting in one batch.
+    success(doc.edit({ kind: 'bulkTask', ids: [third], status: null }));
+    await doc.flush();
+    expect(doc.block(third)?.task).toBeNull();
+    success(doc.edit({ kind: 'bulkTask', ids: [first, second, third], status: 'waiting' }));
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.task?.status).toBe('waiting');
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(first)?.task?.status).toBe('todo');
+    expect(doc.block(third)?.task).toBeNull();
+
+    // 4. Bulk heading, manual tag add/remove, and archive each undo in one step.
+    success(doc.edit({ kind: 'heading', ids: [first, second, third], level: 2 }));
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.heading).toBe(2);
+    doc.undo();
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.heading).toBeNull();
+
+    success(doc.edit({ kind: 'addType', ids: [first, second], title: 'Reading' }));
+    await doc.flush();
+    expect(doc.block(first)?.manual_types).toEqual(['Reading']);
+    expect(doc.block(second)?.manual_types).toEqual(['Reading']);
+    // Adding to all three skips the two that already have the tag without error.
+    success(doc.edit({ kind: 'addType', ids: [first, second, third], title: 'Reading' }));
+    await doc.flush();
+    expect(doc.block(third)?.manual_types).toEqual(['Reading']);
+    success(doc.edit({ kind: 'removeType', ids: [first, second, third], title: 'Reading' }));
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.manual_types).toEqual([]);
+
+    success(doc.edit({ kind: 'archive', ids: [first, second, third], archived: true }));
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.archived).toBe(true);
+    doc.undo();
+    await doc.flush();
+    for (const id of [first, second, third]) expect(doc.block(id)?.archived).toBe(false);
+    doc.release();
+  });
 });
 
 async function sourcePage(instance: Workshop) {
