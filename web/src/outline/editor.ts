@@ -611,12 +611,21 @@ export class PaneEditor {
           keymap.of(standardKeymap),
           EditorView.theme({
             '&': { background: 'transparent', color: 'inherit', font: 'inherit' },
-            '.cm-content': { padding: '0', minHeight: '24px', fontFamily: 'inherit', caretColor: 'var(--accent)' },
+            '.cm-content': {
+              padding: '0',
+              minHeight: 'var(--cm-min-height, 24px)',
+              fontFamily: 'inherit',
+              caretColor: 'var(--accent)',
+            },
+            '.cm-content:focus-visible': { outline: 'none' },
             '.cm-line': { padding: '0' },
             '&.cm-focused': { outline: 'none' },
             '.cm-scroller': { font: 'inherit', overflow: 'visible', lineHeight: 'inherit' },
             '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { background: 'var(--text-selection)' },
-            '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'currentColor', borderLeftWidth: '2px' },
+            '.cm-cursor, .cm-dropCursor': {
+              borderLeftColor: 'var(--cm-cursor-color, currentColor)',
+              borderLeftWidth: '2px',
+            },
             '&.cm-focused .cm-fat-cursor': { background: 'currentColor', color: 'var(--canvas)', outline: 'none' },
             '&:not(.cm-focused) .cm-fat-cursor': { outline: '1px solid currentColor' },
           }),

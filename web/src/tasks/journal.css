@@ -1,633 +1,635 @@
-/* Journal header trail, Today tiles, Plan band and resurfaced reading slip. */
-.agenda-late {
-  color: var(--danger);
-}
-.agenda-error {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-8);
-  color: var(--danger);
-  font-size: var(--text-control);
-  line-height: var(--line-control);
-  margin: 0;
-}
-.journal-agenda-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--card-gap);
-  margin-top: var(--section-item-gap);
-}
-/* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
-.resurface-heading,
-.resurface-navigation {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-.resurface-heading > .section-head {
-  flex: 1;
-  min-width: 0;
-}
-/* The journal's authored writing heading retains its display voice; highlight disclosure uses the shared apparatus. */
-.resurface-card {
-  position: relative;
-  min-width: 0;
-  padding: var(--card-padding);
-  border: 0;
-  border-radius: var(--radius-workspace);
-  background: var(--raised);
-}
-.resurface-color {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--space-2);
-}
-.resurface-quote {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  margin: 0;
-  font: var(--weight-body) var(--text-quote) / var(--line-quote) var(--font-display);
-}
-.resurface-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4) var(--space-12);
-  margin-top: var(--space-4);
-}
-.resurface-meta {
-  flex: 1;
-  min-width: 12rem;
-  margin: 0;
-  color: var(--muted);
-  font: var(--apparatus);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: var(--tracking-apparatus);
-  overflow-wrap: anywhere;
-}
-/* Open, Keep and Mute remain the existing actions, in quiet mono at the source line's edge. */
-.resurface-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--faint);
-}
-.resurface-actions .button {
-  padding-inline: var(--space-4);
-  color: var(--muted);
-  font: var(--apparatus);
-  font-weight: var(--weight-body);
-}
-.resurface-keep-mark {
-  display: inline-flex;
-  width: var(--icon-size);
-  flex: 0 0 var(--icon-size);
-}
-.resurface-actions .button:hover:not(:disabled) {
-  color: var(--text);
-}
-
-/* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
-.outline-heading:has(.journal-header) > .outline-title-row {
-  display: none;
-}
-.journal-trail {
-  display: flex;
-  align-items: center;
-  height: var(--line-apparatus);
-  gap: var(--space-4);
-  color: var(--faint);
-  font: var(--apparatus);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: var(--tracking-apparatus);
-}
-.journal-trail-today {
-  color: var(--accent);
-}
-/* A figure in the trail (`Week 44`) is a count: mono, like every other number the workshop reports. */
-.journal-fig {
-  font-family: var(--font-mono);
-  font-size: var(--text-apparatus);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-}
-/* Segments rest quietly; hover or focus brightens one to gilt over a hairline, and the open one carries the 2 px rule. */
-.journal-trail-segment.button {
-  position: relative;
-  min-height: 0;
-  padding: 0 0 var(--space-2);
-  margin-bottom: calc(-1 * var(--space-2) - 2px);
-  color: var(--faint);
-  font: inherit;
-  border-radius: 0;
-  border-bottom: 2px solid transparent;
-}
-/* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
-.journal-trail-segment.button::before {
-  content: "";
-  position: absolute;
-  inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0;
-}
-.journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  inset-inline: 0;
-  border-bottom: var(--rule-width) solid var(--accent);
-}
-.journal-trail-segment.button:is(:hover, :focus-visible) {
-  outline: none;
-  color: var(--accent);
-  background: transparent;
-}
-.journal-trail-segment.button[aria-expanded="true"] {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-  background: transparent;
-}
-.journal-trail-separator {
-  padding-inline: var(--space-4);
-}
-/* Previous day, the month ledger and next day form one bordered group at the title's right edge. */
-.journal-title-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-16);
-  margin: var(--page-eyebrow-gap) 0 var(--page-head-gap);
-}
-.journal-title-row > h1 {
-  margin: 0;
-}
-.journal-day-stepper {
-  display: flex;
-  flex: none;
-  margin-bottom: var(--space-4);
-  border: var(--rule-width) solid var(--line);
-  border-radius: var(--radius-control);
-}
-.journal-day-stepper > .button {
-  min-height: var(--row-height);
-  border: 0;
-  border-radius: 0;
-  color: var(--muted);
-}
-.journal-day-stepper > .button + .button {
-  border-left: var(--rule-width) solid var(--line);
-}
-.journal-day-stepper > .button[aria-expanded="true"] {
-  color: var(--accent);
-}
-.journal-ledger {
-  margin-block: 0 var(--space-16);
-  padding-block: var(--space-12);
-  border-block: var(--rule-width) solid var(--line);
-}
-.journal-week-ledger {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.journal-ledger-month > h2,
-.journal-overview-title {
-  display: block;
-  margin: 0 0 var(--space-8);
-  color: var(--muted);
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.journal-ledger-month > h2 > span {
-  color: var(--faint);
-}
-.journal-month-grid {
-  display: grid;
-  grid-template-columns: 40px repeat(7, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-.journal-mini-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-.journal-ledger-weekday {
-  display: block;
-  color: var(--faint);
-  font: var(--apparatus);
-  text-align: center;
-}
-.journal-ledger-day.button {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-height: 32px;
-  padding: var(--space-4) var(--space-2) var(--space-8);
-  color: var(--muted);
-  font: var(--figures);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-}
-.journal-ledger-day.button[aria-pressed="true"] {
-  background: transparent;
-}
-.journal-mini-grid .journal-ledger-day.button {
-  padding-inline: 0;
-}
-.journal-mini-grid .journal-day-numeral {
-  min-width: 20px;
-  min-height: 20px;
-}
-.journal-week-ledger .journal-ledger-day {
-  min-height: 64px;
-}
-.journal-day-numeral {
-  display: grid;
-  place-items: center;
-  min-width: 24px;
-  min-height: 24px;
-  border: var(--rule-width) solid transparent;
-  border-radius: 50%;
-}
-.journal-ledger-day[aria-current="date"] .journal-day-numeral,
-.journal-day-today {
-  border-color: var(--accent);
-}
-.journal-ledger-day.button.journal-day-current,
-.journal-overview-day.journal-day-current {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-.journal-day-mark {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  bottom: var(--space-2);
-  left: calc(50% - 1.5px);
-  border-radius: 50%;
-  background: transparent;
-}
-.journal-day-written > .journal-day-mark {
-  background: var(--muted);
-}
-.journal-week-number.button {
-  padding: 0;
-  color: var(--faint);
-  font: var(--figures);
-}
-.journal-mini-months {
-  display: grid;
-  align-items: start;
-  gap: var(--space-16);
-}
-.journal-quarter-ledger {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.journal-year-ledger {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.journal-month-overview.button {
-  display: block;
-  min-width: 0;
-  padding: var(--space-8);
-  border: var(--rule-width) solid var(--line);
-  border-radius: 0;
-  background: transparent;
-}
-.journal-month-overview > .journal-mini-grid {
-  grid-template-rows: var(--line-apparatus) repeat(6, 24px);
-}
-.journal-overview-title {
-  color: var(--text);
-}
-.journal-overview-day {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-width: 0;
-  height: 24px;
-  padding-bottom: var(--space-2);
-  color: var(--muted);
-  font: var(--figures);
-  border: var(--rule-width) solid transparent;
-  border-bottom: 2px solid transparent;
-}
-.journal-overview-day.journal-day-today {
-  border-color: var(--accent);
-  border-radius: 50%;
-}
-.journal-ledger-error {
-  color: var(--danger);
-  font: var(--apparatus);
-}
-/* Trail segments, calendar days, week numbers and ledger links are text: hover changes their ink, never paints the shared button box. */
-:is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview).button:hover:not(
-  :disabled
-) {
-  background: transparent;
-}
-.journal-ledger-day.button:hover:not(:disabled) {
-  color: var(--text);
-}
-.journal-ledger-day.button:hover:not(:disabled):not([aria-current="date"]) .journal-day-numeral {
-  border-color: var(--line);
-}
-.journal-ledger-day.button.journal-day-current:hover {
-  color: var(--accent);
-}
-.journal-week-number.button:hover:not(:disabled) {
-  color: var(--accent);
-}
-.journal-month-overview.button:hover:not(:disabled) {
-  border-color: var(--control-border);
-}
-@media (pointer: coarse) {
-  /* A fingertip's box: 44 px tall, and 8 px of padding each side cancelled by margin, so the text and its gaps stay where they were.
-     The open segment's rule and the hover hairline span the text, not the padding. */
-  .journal-trail-segment.button {
-    min-height: var(--touch-target);
-    padding-inline: var(--space-8);
-    margin-inline: calc(-1 * var(--space-8));
-    justify-content: flex-start;
+@layer surfaces {
+  /* Journal header trail, Today tiles, Plan band and resurfaced reading slip. */
+  .agenda-late {
+    color: var(--danger);
   }
+  .agenda-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-8);
+    color: var(--danger);
+    font-size: var(--text-control);
+    line-height: var(--line-control);
+    margin: 0;
+  }
+  .journal-agenda-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+    margin-top: var(--section-item-gap);
+  }
+  /* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
+  .resurface-heading,
+  .resurface-navigation {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+  .resurface-heading > .section-head {
+    flex: 1;
+    min-width: 0;
+  }
+  /* The journal's authored writing heading retains its display voice; highlight disclosure uses the shared apparatus. */
+  .resurface-card {
+    position: relative;
+    min-width: 0;
+    padding: var(--card-padding);
+    border: 0;
+    border-radius: var(--radius-workspace);
+    background: var(--raised);
+  }
+  .resurface-color {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--space-2);
+  }
+  .resurface-quote {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0;
+    font: var(--weight-body) var(--text-quote) / var(--line-quote) var(--font-display);
+  }
+  .resurface-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4) var(--space-12);
+    margin-top: var(--space-4);
+  }
+  .resurface-meta {
+    flex: 1;
+    min-width: 12rem;
+    margin: 0;
+    color: var(--muted);
+    font: var(--apparatus);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-apparatus);
+    overflow-wrap: anywhere;
+  }
+  /* Open, Keep and Mute remain the existing actions, in quiet mono at the source line's edge. */
+  .resurface-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--faint);
+  }
+  .resurface-actions .button {
+    padding-inline: var(--space-4);
+    color: var(--muted);
+    font: var(--apparatus);
+    font-weight: var(--weight-body);
+  }
+  .resurface-keep-mark {
+    display: inline-flex;
+    width: var(--icon-size);
+    flex: 0 0 var(--icon-size);
+  }
+  .resurface-actions .button:hover:not(:disabled) {
+    color: var(--text);
+  }
+
+  /* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
+  .outline-heading:has(.journal-header) > .outline-title-row {
+    display: none;
+  }
+  .journal-trail {
+    display: flex;
+    align-items: center;
+    height: var(--line-apparatus);
+    gap: var(--space-4);
+    color: var(--faint);
+    font: var(--apparatus);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .journal-trail-today {
+    color: var(--accent);
+  }
+  /* A figure in the trail (`Week 44`) is a count: mono, like every other number the workshop reports. */
+  .journal-fig {
+    font-family: var(--font-mono);
+    font-size: var(--text-apparatus);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  /* Segments rest quietly; hover or focus brightens one to gilt over a hairline, and the open one carries the 2 px rule. */
+  .journal-trail-segment.button {
+    position: relative;
+    min-height: 0;
+    padding: 0 0 var(--space-2);
+    margin-bottom: calc(-1 * var(--space-2) - 2px);
+    color: var(--faint);
+    font: inherit;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+  }
+  /* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
   .journal-trail-segment.button::before {
     content: "";
     position: absolute;
-    inset-block: 0;
-    left: 50%;
-    width: max(100%, var(--touch-target));
-    transform: translateX(-50%);
+    inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0;
   }
   .journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after {
-    inset-inline: var(--space-8);
-  }
-  .journal-trail-segment.button[aria-expanded="true"] {
-    border-bottom-color: transparent;
-  }
-  .journal-trail-segment.button[aria-expanded="true"]::after {
     content: "";
     position: absolute;
-    bottom: -2px;
-    inset-inline: var(--space-8);
-    border-bottom: 2px solid var(--accent);
+    bottom: 0;
+    inset-inline: 0;
+    border-bottom: var(--rule-width) solid var(--accent);
   }
-  .journal-ledger-day.button,
-  .journal-week-number.button {
-    min-height: 40px;
+  .journal-trail-segment.button:is(:hover, :focus-visible) {
+    outline: none;
+    color: var(--accent);
+    background: transparent;
+  }
+  .journal-trail-segment.button[aria-expanded="true"] {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: transparent;
+  }
+  .journal-trail-separator {
+    padding-inline: var(--space-4);
+  }
+  /* Previous day, the month ledger and next day form one bordered group at the title's right edge. */
+  .journal-title-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-16);
+    margin: var(--page-eyebrow-gap) 0 var(--page-head-gap);
+  }
+  .journal-title-row > h1 {
+    margin: 0;
+  }
+  .journal-day-stepper {
+    display: flex;
+    flex: none;
+    margin-bottom: var(--space-4);
+    border: var(--rule-width) solid var(--line);
+    border-radius: var(--radius-control);
+  }
+  .journal-day-stepper > .button {
+    min-height: var(--row-height);
+    border: 0;
+    border-radius: 0;
+    color: var(--muted);
+  }
+  .journal-day-stepper > .button + .button {
+    border-left: var(--rule-width) solid var(--line);
+  }
+  .journal-day-stepper > .button[aria-expanded="true"] {
+    color: var(--accent);
+  }
+  .journal-ledger {
+    margin-block: 0 var(--space-16);
+    padding-block: var(--space-12);
+    border-block: var(--rule-width) solid var(--line);
+  }
+  .journal-week-ledger {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+  .journal-ledger-month > h2,
+  .journal-overview-title {
+    display: block;
+    margin: 0 0 var(--space-8);
+    color: var(--muted);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .journal-ledger-month > h2 > span {
+    color: var(--faint);
+  }
+  .journal-month-grid {
+    display: grid;
+    grid-template-columns: 40px repeat(7, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .journal-mini-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .journal-ledger-weekday {
+    display: block;
+    color: var(--faint);
+    font: var(--apparatus);
+    text-align: center;
+  }
+  .journal-ledger-day.button {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-height: 32px;
+    padding: var(--space-4) var(--space-2) var(--space-8);
+    color: var(--muted);
+    font: var(--figures);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+  }
+  .journal-ledger-day.button[aria-pressed="true"] {
+    background: transparent;
+  }
+  .journal-mini-grid .journal-ledger-day.button {
+    padding-inline: 0;
+  }
+  .journal-mini-grid .journal-day-numeral {
+    min-width: 20px;
+    min-height: 20px;
   }
   .journal-week-ledger .journal-ledger-day {
     min-height: 64px;
   }
-}
-@container outline-pane (max-width: 640px) {
+  .journal-day-numeral {
+    display: grid;
+    place-items: center;
+    min-width: 24px;
+    min-height: 24px;
+    border: var(--rule-width) solid transparent;
+    border-radius: 50%;
+  }
+  .journal-ledger-day[aria-current="date"] .journal-day-numeral,
+  .journal-day-today {
+    border-color: var(--accent);
+  }
+  .journal-ledger-day.button.journal-day-current,
+  .journal-overview-day.journal-day-current {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .journal-day-mark {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    bottom: var(--space-2);
+    left: calc(50% - 1.5px);
+    border-radius: 50%;
+    background: transparent;
+  }
+  .journal-day-written > .journal-day-mark {
+    background: var(--muted);
+  }
+  .journal-week-number.button {
+    padding: 0;
+    color: var(--faint);
+    font: var(--figures);
+  }
+  .journal-mini-months {
+    display: grid;
+    align-items: start;
+    gap: var(--space-16);
+  }
   .journal-quarter-ledger {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .journal-year-ledger {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-}
-/* Today is a three-tile hub, using real agenda, due-card and recently read book data, never session-time samples. */
-.journal-tiles {
-  display: grid;
-  grid-template-columns: repeat(var(--journal-tiles, 3), minmax(0, 1fr));
-  gap: var(--card-gap);
-}
-.journal-tile.button {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: var(--space-4);
-  width: 100%;
-  min-width: 0;
-  min-height: 120px;
-  padding: var(--card-padding);
-  border: var(--rule-width) solid transparent;
-  border-radius: var(--radius-popup);
-  color: var(--text);
-  font-weight: var(--weight-body);
-  white-space: normal;
-  text-align: left;
-  overflow: hidden;
-  /* A leaf laid on the page, with registration ticks at its corners; hovering lifts it and gilds the ticks. */
-  background:
-    linear-gradient(var(--tick), var(--tick)) left top / var(--tick-length) var(--rule-width) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) left top / var(--rule-width) var(--tick-length) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) right top / var(--tick-length) var(--rule-width) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) right top / var(--rule-width) var(--tick-length) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) left bottom / var(--tick-length) var(--rule-width) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) left bottom / var(--rule-width) var(--tick-length) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) right bottom / var(--tick-length) var(--rule-width) no-repeat,
-    linear-gradient(var(--tick), var(--tick)) right bottom / var(--rule-width) var(--tick-length) no-repeat,
-    var(--leaf);
-  box-shadow:
-    inset 0 1px 0 var(--lit-edge),
-    0 1px 2px var(--contact-shadow),
-    0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 55%, transparent);
-  transition:
-    box-shadow var(--motion-fast) var(--motion-ease),
-    translate var(--motion-fast) var(--motion-ease);
-}
-.journal-tile.button:hover:not(:disabled) {
-  --tick: var(--accent);
-  border-color: transparent;
-  box-shadow:
-    inset 0 1px 0 var(--lit-edge),
-    0 3px 8px var(--contact-shadow),
-    0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 80%, transparent);
-  translate: 0 -1px;
-}
-.journal-tile-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-8);
-  color: var(--faint);
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.journal-tile-action {
-  color: var(--accent);
-  font: var(--weight-control) var(--text-library-title) / var(--line-control) var(--font-body);
-}
-.journal-tile-count {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-4);
-  font: var(--weight-title) var(--text-h1) / var(--line-h1) var(--font-display);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-.journal-tile-count small {
-  color: var(--muted);
-  font: var(--weight-body) var(--text-control) / var(--line-control) var(--font-body);
-}
-.journal-tile-meta {
-  display: block;
-  color: var(--muted);
-  font: var(--weight-body) var(--text-meta) / var(--line-control) var(--font-body);
-  overflow-wrap: anywhere;
-}
-.journal-tile > .journal-tile-meta {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-.journal-tile-clock {
-  color: var(--calendar-scheduled);
-  font: var(--figures);
-  font-variant-numeric: tabular-nums;
-}
-.journal-tile-placeholder {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  padding-top: var(--space-8);
-  min-height: 72px;
-}
-.journal-tile-placeholder > span {
-  height: var(--space-12);
-  width: 70%;
-  background: var(--line);
-}
-.journal-tile-placeholder > span + span {
-  width: 45%;
-}
-/* Plan is generated from Agenda: carried work folds to one danger band above today's rows. */
-.journal-plan {
-  margin-top: var(--section-gap);
-}
-.journal-plan-body {
-  margin-top: var(--space-4);
-}
-.journal-plan-open {
-  margin-left: var(--space-4);
-  color: var(--accent);
-}
-.journal-carried {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  min-height: var(--row-height);
-  margin-block: var(--space-4);
-  padding: var(--space-4) var(--space-12);
-  border: var(--rule-width) solid color-mix(in srgb, var(--danger) 30%, transparent);
-  border-radius: var(--radius-control);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  font-size: var(--text-control);
-  line-height: var(--line-control);
-}
-.journal-carried-count {
-  flex: none;
-  color: var(--danger);
-  font-weight: var(--weight-control);
-}
-.journal-carried-titles {
-  flex: 1;
-  min-width: 0;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.journal-carried-action.button {
-  flex: none;
-  min-height: var(--target-size);
-  padding-inline: var(--space-4);
-  color: var(--text);
-  font: inherit;
-}
-.journal-carried-action.button:hover:not(:disabled) {
-  background: transparent;
-  color: var(--accent);
-}
-.agenda-moved {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
-.agenda-moved > .button {
-  min-height: var(--target-size);
-  padding-inline: var(--space-4);
-  color: var(--accent);
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.journal-reading-book {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-8);
-  min-width: 0;
-}
-.journal-reading-book .library-cover {
-  flex: none;
-  width: var(--resume-cover-width);
-}
-.journal-reading-text {
-  flex: 1;
-  min-width: 0;
-}
-.journal-reading-title {
-  display: block;
-  color: var(--text);
-  font: italic var(--weight-display-heading) var(--text-library-title) / var(--line-source-title) var(--font-display);
-}
-.journal-reading-text > .journal-tile-meta {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.journal-reading-tile .book-map {
-  width: 100%;
-  margin-top: var(--space-4);
-}
-/* A narrow journal keeps the three tiles in one row: label, figure or short title, and one detail line. */
-@container outline-pane (max-width: 640px) {
+  .journal-month-overview.button {
+    display: block;
+    min-width: 0;
+    padding: var(--space-8);
+    border: var(--rule-width) solid var(--line);
+    border-radius: 0;
+    background: transparent;
+  }
+  .journal-month-overview > .journal-mini-grid {
+    grid-template-rows: var(--line-apparatus) repeat(6, 24px);
+  }
+  .journal-overview-title {
+    color: var(--text);
+  }
+  .journal-overview-day {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    height: 24px;
+    padding-bottom: var(--space-2);
+    color: var(--muted);
+    font: var(--figures);
+    border: var(--rule-width) solid transparent;
+    border-bottom: 2px solid transparent;
+  }
+  .journal-overview-day.journal-day-today {
+    border-color: var(--accent);
+    border-radius: 50%;
+  }
+  .journal-ledger-error {
+    color: var(--danger);
+    font: var(--apparatus);
+  }
+  /* Trail segments, calendar days, week numbers and ledger links are text: hover changes their ink, never paints the shared button box. */
+  :is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview).button:hover:not(
+    :disabled
+  ) {
+    background: transparent;
+  }
+  .journal-ledger-day.button:hover:not(:disabled) {
+    color: var(--text);
+  }
+  .journal-ledger-day.button:hover:not(:disabled):not([aria-current="date"]) .journal-day-numeral {
+    border-color: var(--line);
+  }
+  .journal-ledger-day.button.journal-day-current:hover {
+    color: var(--accent);
+  }
+  .journal-week-number.button:hover:not(:disabled) {
+    color: var(--accent);
+  }
+  .journal-month-overview.button:hover:not(:disabled) {
+    border-color: var(--control-border);
+  }
+  @media (pointer: coarse) {
+    /* A fingertip's box: 44 px tall, and 8 px of padding each side cancelled by margin, so the text and its gaps stay where they were.
+     The open segment's rule and the hover hairline span the text, not the padding. */
+    .journal-trail-segment.button {
+      min-height: var(--touch-target);
+      padding-inline: var(--space-8);
+      margin-inline: calc(-1 * var(--space-8));
+      justify-content: flex-start;
+    }
+    .journal-trail-segment.button::before {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      left: 50%;
+      width: max(100%, var(--touch-target));
+      transform: translateX(-50%);
+    }
+    .journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after {
+      inset-inline: var(--space-8);
+    }
+    .journal-trail-segment.button[aria-expanded="true"] {
+      border-bottom-color: transparent;
+    }
+    .journal-trail-segment.button[aria-expanded="true"]::after {
+      content: "";
+      position: absolute;
+      bottom: -2px;
+      inset-inline: var(--space-8);
+      border-bottom: 2px solid var(--accent);
+    }
+    .journal-ledger-day.button,
+    .journal-week-number.button {
+      min-height: 40px;
+    }
+    .journal-week-ledger .journal-ledger-day {
+      min-height: 64px;
+    }
+  }
+  @container outline-pane (max-width: 640px) {
+    .journal-quarter-ledger {
+      grid-template-columns: 1fr;
+    }
+    .journal-year-ledger {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  /* Today is a three-tile hub, using real agenda, due-card and recently read book data, never session-time samples. */
   .journal-tiles {
-    gap: var(--space-8);
+    display: grid;
+    grid-template-columns: repeat(var(--journal-tiles, 3), minmax(0, 1fr));
+    gap: var(--card-gap);
   }
   .journal-tile.button {
-    min-height: 0;
-    padding: var(--space-8) var(--space-12);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: var(--space-4);
+    width: 100%;
+    min-width: 0;
+    min-height: 120px;
+    padding: var(--card-padding);
+    border: var(--rule-width) solid transparent;
+    border-radius: var(--radius-popup);
+    color: var(--text);
+    font-weight: var(--weight-body);
+    white-space: normal;
+    text-align: left;
+    overflow: hidden;
+    /* A leaf laid on the page, with registration ticks at its corners; hovering lifts it and gilds the ticks. */
+    background:
+      linear-gradient(var(--tick), var(--tick)) left top / var(--tick-length) var(--rule-width) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left top / var(--rule-width) var(--tick-length) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right top / var(--tick-length) var(--rule-width) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right top / var(--rule-width) var(--tick-length) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left bottom / var(--tick-length) var(--rule-width) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) left bottom / var(--rule-width) var(--tick-length) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right bottom / var(--tick-length) var(--rule-width) no-repeat,
+      linear-gradient(var(--tick), var(--tick)) right bottom / var(--rule-width) var(--tick-length) no-repeat,
+      var(--leaf);
+    box-shadow:
+      inset 0 1px 0 var(--lit-edge),
+      0 1px 2px var(--contact-shadow),
+      0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 55%, transparent);
+    transition:
+      box-shadow var(--motion-fast) var(--motion-ease),
+      translate var(--motion-fast) var(--motion-ease);
+  }
+  .journal-tile.button:hover:not(:disabled) {
+    --tick: var(--accent);
+    border-color: transparent;
+    box-shadow:
+      inset 0 1px 0 var(--lit-edge),
+      0 3px 8px var(--contact-shadow),
+      0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 80%, transparent);
+    translate: 0 -1px;
+  }
+  .journal-tile-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-8);
+    color: var(--faint);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .journal-tile-action {
+    color: var(--accent);
+    font: var(--weight-control) var(--text-library-title) / var(--line-control) var(--font-body);
   }
   .journal-tile-count {
-    font-size: var(--text-h2);
-    line-height: var(--line-h2);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-4);
+    font: var(--weight-title) var(--text-h1) / var(--line-h1) var(--font-display);
+    font-variant-numeric: lining-nums tabular-nums;
   }
-  .journal-tile > .journal-tile-meta,
-  .journal-reading-text > .journal-tile-meta {
+  .journal-tile-count small {
+    color: var(--muted);
+    font: var(--weight-body) var(--text-control) / var(--line-control) var(--font-body);
+  }
+  .journal-tile-meta {
     display: block;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    color: var(--muted);
+    font: var(--weight-body) var(--text-meta) / var(--line-control) var(--font-body);
+    overflow-wrap: anywhere;
   }
-  .journal-reading-text > .journal-reading-chapter {
-    display: none;
+  .journal-tile > .journal-tile-meta {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .journal-tile-clock {
+    color: var(--calendar-scheduled);
+    font: var(--figures);
+    font-variant-numeric: tabular-nums;
   }
   .journal-tile-placeholder {
-    min-height: var(--space-32);
-    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+    padding-top: var(--space-8);
+    min-height: 72px;
+  }
+  .journal-tile-placeholder > span {
+    height: var(--space-12);
+    width: 70%;
+    background: var(--line);
   }
   .journal-tile-placeholder > span + span {
-    display: none;
+    width: 45%;
   }
-  .journal-reading-book .library-cover,
-  .journal-reading-tile .book-map {
-    display: none;
+  /* Plan is generated from Agenda: carried work folds to one danger band above today's rows. */
+  .journal-plan {
+    margin-top: var(--section-gap);
   }
-  .journal-reading-title {
+  .journal-plan-body {
+    margin-top: var(--space-4);
+  }
+  .journal-plan-open {
+    margin-left: var(--space-4);
+    color: var(--accent);
+  }
+  .journal-carried {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+    min-height: var(--row-height);
+    margin-block: var(--space-4);
+    padding: var(--space-4) var(--space-12);
+    border: var(--rule-width) solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     font-size: var(--text-control);
     line-height: var(--line-control);
+  }
+  .journal-carried-count {
+    flex: none;
+    color: var(--danger);
+    font-weight: var(--weight-control);
+  }
+  .journal-carried-titles {
+    flex: 1;
+    min-width: 0;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .journal-carried-action.button {
+    flex: none;
+    min-height: var(--target-size);
+    padding-inline: var(--space-4);
+    color: var(--text);
+    font: inherit;
+  }
+  .journal-carried-action.button:hover:not(:disabled) {
+    background: transparent;
+    color: var(--accent);
+  }
+  .agenda-moved {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+  .agenda-moved > .button {
+    min-height: var(--target-size);
+    padding-inline: var(--space-4);
+    color: var(--accent);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .journal-reading-book {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-8);
+    min-width: 0;
+  }
+  .journal-reading-book .library-cover {
+    flex: none;
+    width: var(--resume-cover-width);
+  }
+  .journal-reading-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .journal-reading-title {
+    display: block;
+    color: var(--text);
+    font: italic var(--weight-display-heading) var(--text-library-title) / var(--line-source-title) var(--font-display);
+  }
+  .journal-reading-text > .journal-tile-meta {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .journal-title-row {
-    align-items: center;
+  .journal-reading-tile .book-map {
+    width: 100%;
+    margin-top: var(--space-4);
+  }
+  /* A narrow journal keeps the three tiles in one row: label, figure or short title, and one detail line. */
+  @container outline-pane (max-width: 640px) {
+    .journal-tiles {
+      gap: var(--space-8);
+    }
+    .journal-tile.button {
+      min-height: 0;
+      padding: var(--space-8) var(--space-12);
+    }
+    .journal-tile-count {
+      font-size: var(--text-h2);
+      line-height: var(--line-h2);
+    }
+    .journal-tile > .journal-tile-meta,
+    .journal-reading-text > .journal-tile-meta {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .journal-reading-text > .journal-reading-chapter {
+      display: none;
+    }
+    .journal-tile-placeholder {
+      min-height: var(--space-32);
+      padding: 0;
+    }
+    .journal-tile-placeholder > span + span {
+      display: none;
+    }
+    .journal-reading-book .library-cover,
+    .journal-reading-tile .book-map {
+      display: none;
+    }
+    .journal-reading-title {
+      font-size: var(--text-control);
+      line-height: var(--line-control);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .journal-title-row {
+      align-items: center;
+    }
   }
 }

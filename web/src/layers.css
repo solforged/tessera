@@ -1,0 +1,2 @@
+/* Cascade layer order: imported first by every entrypoint so lazy chunks never depend on load order. */
+@layer tokens, reset, primitives, layout, surfaces, overlays;

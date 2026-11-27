@@ -3,6 +3,7 @@ import '@fontsource-variable/ibm-plex-sans';
 import '../ui/keys.css';
 import '@fontsource-variable/piazzolla/standard.css';
 import '@fontsource-variable/piazzolla/standard-italic.css';
+import '../styles.css';
 import { render } from 'solid-js/web';
 import { invoke } from '@tauri-apps/api/core';
 import { setOpenedFilesInbox } from '../library/opened-files';
@@ -14,7 +15,6 @@ import { setSystemBarsHandler } from '../ui/system-bars';
 import { App } from '../shell/App';
 import { installIosViewport } from '../ui/ios-viewport';
 import { workshopFetch, workshopStream } from './transport';
-import '../styles.css';
 
 installIosViewport();
 

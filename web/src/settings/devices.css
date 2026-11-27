@@ -1,365 +1,367 @@
-/* Health grows inside each paired-device row. Review belongs to the workshop on both sides. */
-.settings-pane .devices-url {
-  color: var(--text);
-  font: var(--figures);
-  letter-spacing: var(--tracking-apparatus);
-  overflow-wrap: anywhere;
-}
-.settings-pane p.devices-hub {
-  margin: var(--space-8) 0 var(--space-4);
-  color: var(--muted);
-}
-.settings-pane .devices-hub .devices-url {
-  color: inherit;
-}
-.devices-retained {
-  margin: var(--space-12) 0 0;
-  color: var(--muted);
-}
-.devices-pair {
-  margin-top: var(--space-12);
-}
-.devices-disclosure {
-  border-top: var(--rule-width) solid var(--line);
-}
-/* The same small chevron as Stored backups, turning as the device opens. */
-.devices-disclosure summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  padding: var(--space-12) 0;
-  cursor: pointer;
-  list-style: none;
-}
-.devices-disclosure summary::-webkit-details-marker {
-  display: none;
-}
-.devices-disclosure summary > .icon {
-  flex: none;
-  width: var(--icon-size-small);
-  height: var(--icon-size-small);
-  color: var(--muted);
-  transition: rotate var(--motion-fast) var(--motion-ease);
-}
-.devices-disclosure[open] > summary > .icon {
-  rotate: 90deg;
-}
-.devices-name {
-  flex: 1;
-  min-width: 0;
-  font: var(--apparatus);
-  color: var(--text);
-}
-.devices-row-status {
-  color: var(--muted);
-  font: var(--apparatus);
-}
-.devices-row-status[data-tone="wait"] {
-  color: var(--warning);
-}
-.devices-row-status[data-tone="act"],
-.devices-attempts td[data-tone="rubric"] {
-  color: var(--danger);
-}
-.devices-expanded {
-  margin-left: var(--space-24);
-  padding-bottom: var(--space-16);
-}
-.devices-versions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-24);
-  padding-bottom: var(--space-12);
-}
-.settings-pane .devices-versions h3,
-.settings-pane .devices-attempts h3 {
-  margin: 0 0 var(--space-4);
-  color: var(--text);
-  font: var(--weight-control) var(--text-control) / var(--line-control) var(--font-body);
-}
-.settings-pane .devices-versions p {
-  margin: 0;
-  color: var(--muted);
-}
-.devices-fix {
-  padding: var(--space-12) 0 var(--space-12) var(--space-16);
-  border-left: calc(2 * var(--rule-width)) solid var(--line);
-  margin-bottom: var(--space-16);
-}
-.devices-fix[data-tone="wait"] {
-  border-left-color: var(--warning);
-}
-.devices-fix[data-tone="act"] {
-  border-left-color: var(--danger);
-}
-.settings-pane .devices-fix h3 {
-  margin: 0 0 var(--space-8);
-  color: var(--text);
-  font: var(--weight-display-heading) var(--text-h3) / var(--line-h3) var(--font-display);
-}
-.settings-pane .devices-fix p {
-  color: var(--text);
-  margin: 0 0 var(--space-8);
-  font-size: var(--text-control);
-  line-height: var(--line-control);
-}
-.settings-pane .devices-fix p.sync-waiting {
-  color: var(--muted);
-}
-.devices-facts {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
-  gap: var(--space-4) var(--space-16);
-  margin: var(--space-12) 0;
-  font-size: var(--text-control);
-  line-height: var(--line-control);
-}
-.devices-facts dt {
-  color: var(--muted);
-}
-.devices-facts dd {
-  margin: 0;
-}
-.devices-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-  margin-top: var(--space-8);
-}
-/* Forget has no box of its own, so its label sits on the column the facts above it follow. */
-.devices-actions > .button.danger:only-child {
-  margin-left: calc(-1 * (var(--space-8) + var(--rule-width)));
-}
-.devices-attempts {
-  margin: var(--space-16) 0;
-}
-/* Fixed columns keep When, Result and Attempts in the same place from one device to the next. */
-.devices-attempts table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: var(--text-control);
-  line-height: var(--line-control);
-}
-.devices-attempts th:first-child {
-  width: 11rem;
-}
-.devices-attempts th:last-child {
-  width: 5rem;
-}
-.devices-attempts th {
-  color: var(--faint);
-  font: var(--apparatus);
-  text-align: left;
-  font-weight: var(--weight-body);
-}
-.devices-attempts td,
-.devices-attempts th {
-  padding: var(--space-8) var(--space-12) var(--space-8) 0;
-  border-bottom: var(--rule-width) solid var(--line);
-  vertical-align: top;
-}
-.devices-attempts td:first-child {
-  white-space: nowrap;
-}
-.devices-attempts td:last-child,
-.devices-attempts th:last-child {
-  padding-right: 0;
-}
-.settings-pane .devices-ledger-note {
-  font-size: var(--text-meta);
-  color: var(--faint);
-}
-.devices-review {
-  margin-top: var(--space-24);
-}
-.devices-review-item {
-  border-top: var(--rule-width) solid var(--line);
-  padding: var(--space-12) 0;
-}
-.settings-pane .devices-review-item > p {
-  margin: 0 0 var(--space-4);
-  color: var(--muted);
-}
-.settings-pane .devices-review-item > p.devices-rejection-reason {
-  margin: 0 0 var(--space-8);
-  font-size: var(--text-meta);
-  line-height: var(--line-meta);
-}
-.devices-review-item h4 {
-  margin: var(--space-8) 0;
-  font: var(--weight-display-heading) var(--text-h2) / var(--line-h2) var(--font-display);
-  color: var(--text);
-}
-.devices-review-item blockquote {
-  margin: var(--space-8) 0;
-  padding-left: var(--space-16);
-  border-left: var(--rule-width) solid var(--line);
-  font: var(--weight-body) var(--text-body) / var(--line-body) var(--font-display);
-  color: var(--text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.devices-undo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
-  padding: var(--space-12) 0;
-}
-@media (max-width: 599px) {
+@layer surfaces {
+  /* Health grows inside each paired-device row. Review belongs to the workshop on both sides. */
+  .settings-pane .devices-url {
+    color: var(--text);
+    font: var(--figures);
+    letter-spacing: var(--tracking-apparatus);
+    overflow-wrap: anywhere;
+  }
+  .settings-pane p.devices-hub {
+    margin: var(--space-8) 0 var(--space-4);
+    color: var(--muted);
+  }
+  .settings-pane .devices-hub .devices-url {
+    color: inherit;
+  }
+  .devices-retained {
+    margin: var(--space-12) 0 0;
+    color: var(--muted);
+  }
+  .devices-pair {
+    margin-top: var(--space-12);
+  }
+  .devices-disclosure {
+    border-top: var(--rule-width) solid var(--line);
+  }
+  /* The same small chevron as Stored backups, turning as the device opens. */
+  .devices-disclosure summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+    padding: var(--space-12) 0;
+    cursor: pointer;
+    list-style: none;
+  }
+  .devices-disclosure summary::-webkit-details-marker {
+    display: none;
+  }
+  .devices-disclosure summary > .icon {
+    flex: none;
+    width: var(--icon-size-small);
+    height: var(--icon-size-small);
+    color: var(--muted);
+    transition: rotate var(--motion-fast) var(--motion-ease);
+  }
+  .devices-disclosure[open] > summary > .icon {
+    rotate: 90deg;
+  }
+  .devices-name {
+    flex: 1;
+    min-width: 0;
+    font: var(--apparatus);
+    color: var(--text);
+  }
+  .devices-row-status {
+    color: var(--muted);
+    font: var(--apparatus);
+  }
+  .devices-row-status[data-tone="wait"] {
+    color: var(--warning);
+  }
+  .devices-row-status[data-tone="act"],
+  .devices-attempts td[data-tone="rubric"] {
+    color: var(--danger);
+  }
   .devices-expanded {
-    margin-left: var(--space-16);
+    margin-left: var(--space-24);
+    padding-bottom: var(--space-16);
   }
   .devices-versions {
-    gap: var(--space-12);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-24);
+    padding-bottom: var(--space-12);
+  }
+  .settings-pane .devices-versions h3,
+  .settings-pane .devices-attempts h3 {
+    margin: 0 0 var(--space-4);
+    color: var(--text);
+    font: var(--weight-control) var(--text-control) / var(--line-control) var(--font-body);
+  }
+  .settings-pane .devices-versions p {
+    margin: 0;
+    color: var(--muted);
+  }
+  .devices-fix {
+    padding: var(--space-12) 0 var(--space-12) var(--space-16);
+    border-left: calc(2 * var(--rule-width)) solid var(--line);
+    margin-bottom: var(--space-16);
+  }
+  .devices-fix[data-tone="wait"] {
+    border-left-color: var(--warning);
+  }
+  .devices-fix[data-tone="act"] {
+    border-left-color: var(--danger);
+  }
+  .settings-pane .devices-fix h3 {
+    margin: 0 0 var(--space-8);
+    color: var(--text);
+    font: var(--weight-display-heading) var(--text-h3) / var(--line-h3) var(--font-display);
+  }
+  .settings-pane .devices-fix p {
+    color: var(--text);
+    margin: 0 0 var(--space-8);
+    font-size: var(--text-control);
+    line-height: var(--line-control);
+  }
+  .settings-pane .devices-fix p.sync-waiting {
+    color: var(--muted);
   }
   .devices-facts {
-    grid-template-columns: 112px minmax(0, 1fr);
-    gap: var(--space-4) var(--space-8);
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: var(--space-4) var(--space-16);
+    margin: var(--space-12) 0;
+    font-size: var(--text-control);
+    line-height: var(--line-control);
+  }
+  .devices-facts dt {
+    color: var(--muted);
+  }
+  .devices-facts dd {
+    margin: 0;
+  }
+  .devices-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+    margin-top: var(--space-8);
+  }
+  /* Forget has no box of its own, so its label sits on the column the facts above it follow. */
+  .devices-actions > .button.danger:only-child {
+    margin-left: calc(-1 * (var(--space-8) + var(--rule-width)));
+  }
+  .devices-attempts {
+    margin: var(--space-16) 0;
+  }
+  /* Fixed columns keep When, Result and Attempts in the same place from one device to the next. */
+  .devices-attempts table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: var(--text-control);
+    line-height: var(--line-control);
+  }
+  .devices-attempts th:first-child {
+    width: 11rem;
+  }
+  .devices-attempts th:last-child {
+    width: 5rem;
+  }
+  .devices-attempts th {
+    color: var(--faint);
+    font: var(--apparatus);
+    text-align: left;
+    font-weight: var(--weight-body);
   }
   .devices-attempts td,
   .devices-attempts th {
-    padding-block: var(--space-12);
+    padding: var(--space-8) var(--space-12) var(--space-8) 0;
+    border-bottom: var(--rule-width) solid var(--line);
+    vertical-align: top;
   }
-}
+  .devices-attempts td:first-child {
+    white-space: nowrap;
+  }
+  .devices-attempts td:last-child,
+  .devices-attempts th:last-child {
+    padding-right: 0;
+  }
+  .settings-pane .devices-ledger-note {
+    font-size: var(--text-meta);
+    color: var(--faint);
+  }
+  .devices-review {
+    margin-top: var(--space-24);
+  }
+  .devices-review-item {
+    border-top: var(--rule-width) solid var(--line);
+    padding: var(--space-12) 0;
+  }
+  .settings-pane .devices-review-item > p {
+    margin: 0 0 var(--space-4);
+    color: var(--muted);
+  }
+  .settings-pane .devices-review-item > p.devices-rejection-reason {
+    margin: 0 0 var(--space-8);
+    font-size: var(--text-meta);
+    line-height: var(--line-meta);
+  }
+  .devices-review-item h4 {
+    margin: var(--space-8) 0;
+    font: var(--weight-display-heading) var(--text-h2) / var(--line-h2) var(--font-display);
+    color: var(--text);
+  }
+  .devices-review-item blockquote {
+    margin: var(--space-8) 0;
+    padding-left: var(--space-16);
+    border-left: var(--rule-width) solid var(--line);
+    font: var(--weight-body) var(--text-body) / var(--line-body) var(--font-display);
+    color: var(--text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .devices-undo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-12);
+    padding: var(--space-12) 0;
+  }
+  @media (max-width: 599px) {
+    .devices-expanded {
+      margin-left: var(--space-16);
+    }
+    .devices-versions {
+      gap: var(--space-12);
+    }
+    .devices-facts {
+      grid-template-columns: 112px minmax(0, 1fr);
+      gap: var(--space-4) var(--space-8);
+    }
+    .devices-attempts td,
+    .devices-attempts th {
+      padding-block: var(--space-12);
+    }
+  }
 
-/* The pairing dialog: the QR on white with the code under it, three numbered steps beside it, the wait on a hairline. */
-.popup.pair-dialog,
-.popup-exit.pair-dialog {
-  padding: 0;
-  font: var(--weight-body) var(--text-control) / var(--line-control) var(--font-body);
-}
-.pair-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-12);
-  padding: var(--space-16) var(--space-16) var(--space-8) var(--space-24);
-}
-.pair-register {
-  margin: 0;
-  color: var(--faint);
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.pair-head h2 {
-  margin: var(--space-4) 0 0;
-  font: var(--weight-display-heading) var(--text-h2) / var(--line-h2) var(--font-display);
-}
-.pair-dialog .error {
-  margin: 0 var(--space-24) var(--space-8);
-}
-.pair-body {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-32);
-  padding: var(--space-8) var(--space-24) var(--space-24);
-}
-.pair-code {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-12);
-  margin: 0;
-}
-/* QR scanners need dark modules on a light ground in either theme. */
-.pair-qr {
-  width: calc(var(--space-48) * 4.5);
-  aspect-ratio: 1;
-  padding: var(--space-12);
-  background: #fff;
-}
-.pair-qr > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.pair-code figcaption {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  color: var(--muted);
-  font-size: var(--text-meta);
-  line-height: var(--line-meta);
-}
-.pair-display {
-  color: var(--text);
-  font: var(--weight-body) var(--text-h1) / var(--line-h1) var(--font-mono);
-  letter-spacing: var(--tracking-notebook);
-}
-.pair-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-24);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-body);
-  line-height: var(--line-body);
-}
-.pair-steps li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-12);
-}
-.pair-paired {
-  margin: 0;
-  padding: var(--space-16) var(--space-24) var(--space-24);
-  font-size: var(--text-body);
-  line-height: var(--line-body);
-}
-/* A code that can no longer be used gives way to New code. The paired message takes the QR's place, so the dialog keeps its height. */
-.pair-body[data-ended] :is(.pair-qr, .pair-display) {
-  opacity: 0.2;
-}
-.pair-body[data-paired] > :not(.pair-paired) {
-  visibility: hidden;
-}
-.pair-body > .pair-paired {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: var(--space-16) var(--space-24);
-  text-align: center;
-}
-.pair-foot {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-16);
-  padding: var(--space-12) var(--space-16) var(--space-16) var(--space-24);
-  border-top: var(--rule-width) solid var(--line);
-}
-.pair-wait p {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  margin: 0;
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.pair-wait p + p {
-  margin-top: var(--space-4);
-  padding-left: calc(var(--space-4) + var(--space-8));
-  color: var(--muted);
-}
-.pair-wait[data-ended] p + p {
-  padding-left: 0;
-}
-.pair-dot {
-  width: var(--space-4);
-  height: var(--space-4);
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-}
-@media (max-width: 599px) {
+  /* The pairing dialog: the QR on white with the code under it, three numbered steps beside it, the wait on a hairline. */
+  .popup.pair-dialog,
+  .popup-exit.pair-dialog {
+    padding: 0;
+    font: var(--weight-body) var(--text-control) / var(--line-control) var(--font-body);
+  }
+  .pair-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-12);
+    padding: var(--space-16) var(--space-16) var(--space-8) var(--space-24);
+  }
+  .pair-register {
+    margin: 0;
+    color: var(--faint);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .pair-head h2 {
+    margin: var(--space-4) 0 0;
+    font: var(--weight-display-heading) var(--text-h2) / var(--line-h2) var(--font-display);
+  }
+  .pair-dialog .error {
+    margin: 0 var(--space-24) var(--space-8);
+  }
   .pair-body {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-32);
+    padding: var(--space-8) var(--space-24) var(--space-24);
+  }
+  .pair-code {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-12);
+    margin: 0;
+  }
+  /* QR scanners need dark modules on a light ground in either theme. */
+  .pair-qr {
+    width: calc(var(--space-48) * 4.5);
+    aspect-ratio: 1;
+    padding: var(--space-12);
+    background: #fff;
+  }
+  .pair-qr > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .pair-code figcaption {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    color: var(--muted);
+    font-size: var(--text-meta);
+    line-height: var(--line-meta);
+  }
+  .pair-display {
+    color: var(--text);
+    font: var(--weight-body) var(--text-h1) / var(--line-h1) var(--font-mono);
+    letter-spacing: var(--tracking-notebook);
+  }
+  .pair-steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-24);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-body);
+    line-height: var(--line-body);
+  }
+  .pair-steps li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-12);
+  }
+  .pair-paired {
+    margin: 0;
+    padding: var(--space-16) var(--space-24) var(--space-24);
+    font-size: var(--text-body);
+    line-height: var(--line-body);
+  }
+  /* A code that can no longer be used gives way to New code. The paired message takes the QR's place, so the dialog keeps its height. */
+  .pair-body[data-ended] :is(.pair-qr, .pair-display) {
+    opacity: 0.2;
+  }
+  .pair-body[data-paired] > :not(.pair-paired) {
+    visibility: hidden;
+  }
+  .pair-body > .pair-paired {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: var(--space-16) var(--space-24);
+    text-align: center;
+  }
+  .pair-foot {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-16);
+    padding: var(--space-12) var(--space-16) var(--space-16) var(--space-24);
+    border-top: var(--rule-width) solid var(--line);
+  }
+  .pair-wait p {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    margin: 0;
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .pair-wait p + p {
+    margin-top: var(--space-4);
+    padding-left: calc(var(--space-4) + var(--space-8));
+    color: var(--muted);
+  }
+  .pair-wait[data-ended] p + p {
+    padding-left: 0;
+  }
+  .pair-dot {
+    width: var(--space-4);
+    height: var(--space-4);
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+  }
+  @media (max-width: 599px) {
+    .pair-body {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+    }
   }
 }

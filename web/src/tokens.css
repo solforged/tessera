@@ -224,6 +224,27 @@
   --icon-hover-scale: 1.08;
   --icon-press-scale: 0.94;
 
+  /* Stacking layers: local content stays below 10; chrome, drawers, notices, sheets and overlays share one scale. */
+  --z-floating-bar: 12;
+  --z-drawer-scrim: 29;
+  --z-drawer: 30;
+  --z-toast: 40;
+  --z-sheet: 45;
+  --z-scrim-exit: 48;
+  --z-scrim: 49;
+  --z-popup: 50;
+  --z-blocking: 60;
+  --z-cover-toast: 75;
+  --z-cover-scrim-exit: 79;
+  --z-cover-scrim: 80;
+  --z-cover-lift: 92;
+  --z-cover-popup-exit: 94;
+  --z-cover-popup: 95;
+  --z-fullscreen: 100;
+
+  /* Bottom bar clearance: zero on desktop, computed from the floating tab bar on phones below. */
+  --bottom-nav-height: 0px;
+
   font: var(--weight-body) var(--text-body) / var(--line-body) var(--font-body);
   font-optical-sizing: auto;
   background: var(--canvas);
@@ -343,10 +364,12 @@
     --phone-tabbar-height: 62px;
     --phone-tabbar-bottom: max(calc(var(--bottom-inset) - 13px), var(--space-12));
     --phone-tabbar-top: calc(var(--phone-tabbar-bottom) + var(--phone-tabbar-height));
+    --bottom-nav-height: calc(var(--phone-tabbar-top) + var(--space-8) - var(--bottom-inset));
     --page-top-space: calc(var(--phone-top) + var(--space-12));
     --page-bottom-space: calc(var(--phone-tabbar-top) + var(--space-32));
     --phone-title-font:
       var(--weight-title) 34px / 40px var(--font-display); /* a large title on a phone: the plates' 34 pt Piazzolla */
+    --cm-cursor-color: var(--accent);
   }
   :root[data-theme="light"] {
     --glass-fill: color-mix(in srgb, var(--raised) 60%, transparent);

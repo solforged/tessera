@@ -1,0 +1,952 @@
+/* Shared UI primitives: buttons, tabs, popups, menus, inputs, pickers and phone materials. */
+.icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: none;
+  vertical-align: middle;
+}
+:is(.button, .conflict-actions button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: var(--target-size);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
+  background: transparent;
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  font-weight: var(--weight-control);
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+}
+:is(.button, .conflict-actions button):hover:not(:disabled) {
+  background: var(--hover);
+}
+/* A press sinks the control a hair into the sheet. */
+:is(.button, .conflict-actions button):active:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  box-shadow: inset 0 1px 2px var(--contact-shadow);
+}
+.button[aria-pressed="true"],
+.button.selected {
+  background: var(--selection);
+  color: var(--accent);
+}
+/* Bordered controls (menu triggers, date ranges) are blind stamps: a leaf with a hairline, not a frame. */
+:is(.button.bordered, .button.tint, .conflict-actions button) {
+  border-color: var(--line);
+  background: var(--leaf);
+  box-shadow:
+    inset 0 1px 0 var(--lit-edge),
+    0 1px 0 var(--contact-shadow);
+}
+/* A primary action is a gilt stamp; a press drives it into the sheet. */
+.button.stamp {
+  border-color: color-mix(in srgb, var(--accent) 75%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 18%, transparent),
+    color-mix(in srgb, var(--accent) 7%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent),
+    0 1px 1px var(--contact-shadow);
+  color: var(--accent);
+}
+.button.stamp:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 24%, transparent),
+    color-mix(in srgb, var(--accent) 10%, transparent)
+  );
+}
+.button.stamp:active:not(:disabled) {
+  translate: 0 1px;
+  box-shadow: inset 0 1px 2px var(--contact-shadow);
+}
+:is(.button.bordered, .button.tint, .conflict-actions button):hover:not(:disabled) {
+  border-color: var(--control-border);
+}
+.button.danger {
+  color: var(--danger);
+}
+.button.icon-only {
+  width: var(--row-height);
+  padding: var(--space-4);
+}
+/* Icon and padding and the hairline come to 26; the row is 28, so an icon button is square with its neighbours. Coarse
+   pointers keep their own target (the phone's 44 px circles included): row-height there is the row, not this control. */
+@media (pointer: fine) {
+  .button.icon-only {
+    height: var(--row-height);
+  }
+}
+.button > .icon {
+  transition:
+    scale var(--motion-fast) var(--motion-ease),
+    rotate var(--motion-fast) var(--motion-ease);
+}
+/* A menu trigger's trailing chevron turns while its menu is open. */
+.button[aria-haspopup][aria-expanded="true"] > .icon:last-child:not(:first-child) {
+  rotate: 180deg;
+}
+.button:hover:not(:disabled) > .icon,
+.button:focus-visible > .icon {
+  scale: var(--icon-hover-scale);
+}
+.button:active:not(:disabled) > .icon {
+  scale: var(--icon-press-scale);
+}
+/* Modes and tabs: Plex labels with a faint mono count; the current one is gilt with a 2 px rule beneath the whole tab,
+   label and count alike, never a box. */
+.mode-tabs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.mode-tabs > .button {
+  position: relative;
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+  color: var(--muted);
+}
+.mode-tabs > .button:hover:not(:disabled) {
+  color: var(--text);
+}
+.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) {
+  background: transparent;
+  color: var(--accent);
+}
+/* A one-pixel pen scales to the tab's width, so the glide never animates layout. */
+.mode-tabs > .tab-rule {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: calc(2 * var(--rule-width));
+  background: var(--accent);
+  opacity: var(--tab-rule-visible, 0);
+  pointer-events: none;
+  transform-origin: left;
+  transform: translateX(var(--tab-rule-x, 0px)) scaleX(var(--tab-rule-w, 0));
+  transition: transform var(--tab-rule-duration, 0ms) var(--motion-ease);
+}
+/* Keyboard focus on a tab is a faint rule; the current tab already carries its gilt rule, so there focus is an inset gilt ring
+   with the label brightened, which a rule it already has could not show. */
+.mode-tabs > .button:focus-visible {
+  outline: none;
+  color: var(--text);
+  box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint);
+}
+.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-offset));
+  color: var(--text);
+  box-shadow: none;
+}
+/* A tab's count is a figure: faint, in the mono voice, whichever surface's class names it (`-count`, or the shared `faint`). Surfaces may recolour it. */
+:where(.mode-tabs > .button > :is([class$="-count"], [class*="-count "], .faint)) {
+  color: var(--faint);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+:where(
+  .mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) > :is([class$="-count"], [class*="-count "])
+) {
+  color: inherit;
+}
+/* A strip that switches views (Library states, Review queues, Agenda modes) stands on a hairline baseline, and every
+   tab's rule lands on that same line. */
+.mode-tabs.tab-strip {
+  align-items: stretch;
+  box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line);
+}
+.mode-tabs.tab-strip > .button {
+  border-bottom: 0;
+  border-radius: 0;
+}
+:is(.popup, .popup-exit) {
+  position: fixed;
+  z-index: var(--z-popup);
+  max-width: calc(100vw - var(--space-16));
+  overflow: auto;
+  background: var(--paper-grain), var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popup);
+  box-shadow:
+    inset 0 1px 0 var(--lit-edge),
+    var(--popup-shadow);
+  padding: var(--space-8);
+}
+:is(.popup, .popup-exit)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-12);
+  width: var(--rubric-width);
+  height: var(--rubric-height);
+  background: var(--danger);
+  pointer-events: none;
+}
+/* The panel itself takes focus when nothing inside can; the ring belongs on controls, not on the box. */
+.popup:is(:focus, :focus-visible) {
+  outline: none;
+}
+/* A popup opened over another (a date picker over its slip) is the higher leaf: the dialog's deeper shadow lifts it off the one beneath.
+   It sets no z-index: it mounts after its parent, so at the layer's own level (50 here, 95 on a phone in ui/overlays.css) it paints
+   above it on every layout. A phone's popups keep their own material. */
+@media not all and (max-width: 599px) and (pointer: coarse) {
+  .popup[data-stacked] {
+    box-shadow:
+      inset 0 1px 0 var(--lit-edge),
+      var(--dialog-shadow);
+  }
+}
+/* A popup placed above its trigger rises out of it: the shift's sign follows the side it opened on, in and out. */
+.popup[data-side="above"],
+.popup-exit[data-side="above"] {
+  --popup-shift: 1;
+}
+.popup-enter {
+  animation: popup-in var(--motion-ui) var(--motion-ease) both;
+}
+.popup-exit {
+  z-index: var(--z-scrim);
+  pointer-events: none;
+  animation: popup-out var(--motion-fast) var(--motion-ease) both;
+}
+.popup-exit-shield {
+  position: fixed;
+  pointer-events: auto;
+  touch-action: none;
+}
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--popup-shift, -1) * var(--motion-distance)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes popup-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--popup-shift, -1) * var(--motion-distance)));
+  }
+}
+/* A sheet rises from the bottom edge at full width, its top corners rounded, clear of the home indicator. */
+.popup-sheet {
+  max-width: none;
+  border-width: 1px 0 0;
+  border-radius: var(--radius-popup) var(--radius-popup) 0 0;
+  padding: var(--space-16) var(--space-16) calc(var(--space-16) + var(--bottom-inset));
+}
+.popup-sheet.popup-enter {
+  animation-name: sheet-in;
+}
+.popup-sheet.popup-exit {
+  animation-name: sheet-out;
+}
+/* One popup replacing another in the same tick crossfades in place instead of replaying the full entrance. */
+.popup-enter.popup-swap {
+  animation-name: popup-swap-in;
+  animation-duration: var(--motion-fast);
+}
+@keyframes popup-swap-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Content that grows after the popup is up (rows arriving, a confirm opening) glides away from the trigger; shrinking snaps. */
+.popup-growing {
+  transition:
+    max-height var(--motion-ui) var(--motion-ease),
+    height var(--motion-ui) var(--motion-ease),
+    top var(--motion-ui) var(--motion-ease);
+}
+/* A released drag glides back to rest; while held the sheet follows the finger with no easing. */
+.popup-sheet {
+  transition: translate var(--motion-fast) var(--motion-ease);
+}
+.popup-sheet.popup-growing {
+  transition:
+    translate var(--motion-fast) var(--motion-ease),
+    max-height var(--motion-ui) var(--motion-ease),
+    height var(--motion-ui) var(--motion-ease),
+    top var(--motion-ui) var(--motion-ease);
+}
+.popup-sheet-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-8);
+  margin-bottom: var(--space-8);
+}
+.popup-sheet-grab {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target);
+  touch-action: none;
+  cursor: grab;
+}
+.popup-sheet-grab::before {
+  content: "";
+  width: var(--space-32);
+  height: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--faint);
+}
+.popup-sheet-close.button {
+  flex: none;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+}
+.popup-sheet-dragging {
+  user-select: none;
+  transition: none;
+}
+.popup-sheet-dragging .popup-sheet-grab {
+  cursor: grabbing;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+/* The scrim behind a sheet dims the page and fades with the sheet; it sits just under it, and leaves with it. */
+.popup-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-scrim);
+  background: color-mix(in srgb, var(--shell) 72%, transparent);
+}
+.popup-scrim-enter {
+  animation: scrim-in var(--motion-ui) var(--motion-ease) both;
+}
+.popup-scrim-exit {
+  z-index: var(--z-scrim-exit);
+  pointer-events: none;
+  animation: scrim-out var(--motion-fast) var(--motion-ease) both;
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scrim-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.menu {
+  min-width: 220px;
+}
+/* A drill-in swaps pages inside one box: the box glides between their widths and heights while the old page fades out over
+   the new one fading in (Menu measures and animates it; reduced motion swaps at once). Focus can rest on the box itself
+   after a tap. The box is a block formatting context of its own, so a last row's margin counts in its height whether or
+   not it is clipping; otherwise the clip during a glide would absorb a margin that the box takes back when it ends. */
+.menu-viewport {
+  position: relative;
+  display: flow-root;
+}
+.menu-viewport:focus {
+  outline: none;
+}
+.menu-gliding,
+.menu-gliding .menu-viewport {
+  overflow: hidden;
+}
+/* The glide already follows the new height frame by frame; the popup's own growth transition would lag behind it. */
+.menu.menu-gliding {
+  transition: none;
+}
+.menu-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-8);
+  min-height: var(--row-height);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  text-align: left;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+/* Keyboard focus in a menu is the selection fill with a gilt edge, the same as a selected row, not a ring. */
+.menu-item:hover {
+  background: var(--selection);
+}
+.menu-item:focus-visible {
+  outline: none;
+  background: var(--selection);
+  box-shadow: inset var(--rule-width) 0 var(--accent);
+}
+.menu-item.danger {
+  color: var(--danger);
+}
+.menu-label {
+  flex: 1;
+}
+.menu-item[aria-disabled="true"] {
+  cursor: default;
+  color: var(--muted);
+}
+.menu-disabled-reason {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+  font-weight: var(--weight-body);
+  white-space: normal;
+}
+.menu-item > .menu-check {
+  color: var(--accent);
+}
+.menu-item > .menu-drill {
+  color: var(--faint);
+}
+.menu-divider {
+  height: 0;
+  margin: var(--space-4) var(--space-8);
+  border: 0;
+  border-top: var(--rule-width) solid var(--line);
+}
+/* A titled menu names itself in Piazzolla, the thing it acts on in mono, and closes or steps back from the same corner. */
+.menu-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-16);
+  padding: var(--space-4) var(--space-8) var(--space-8);
+}
+.menu-head h2 {
+  margin: 0;
+  font: var(--weight-display-heading) var(--text-h3) / var(--line-h3) var(--font-display);
+}
+.menu-head-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  cursor: pointer;
+}
+.menu-head-control:hover {
+  color: var(--text);
+}
+.menu-context {
+  grid-column: 1 / -1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-width: 36ch;
+  margin-top: var(--space-8);
+  color: var(--faint);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  overflow-wrap: anywhere;
+}
+.menu-note {
+  max-width: 36ch;
+  margin: var(--space-4) var(--space-8) 0;
+  padding-top: var(--space-8);
+  border-top: var(--rule-width) solid var(--line);
+  color: var(--faint);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+/* A menu a caller places as a sheet (a long list on the cover): full-width rows a thumb can hit, its head clear of the rows.
+   Every other phone menu is a pull-down at its button (ui/overlays.css). */
+.menu-sheet .menu-item {
+  min-height: var(--touch-target);
+}
+.menu-sheet .menu-head {
+  padding-bottom: var(--space-12);
+}
+.menu-sheet :is(.menu-context, .menu-note) {
+  max-width: none;
+}
+.menu-sheet .menu-head-control {
+  min-height: var(--touch-target);
+  padding-inline: var(--space-8);
+  margin-right: calc(-1 * var(--space-8));
+}
+.page-menu-info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-8);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4) var(--space-8) var(--space-8);
+  border-bottom: var(--rule-width) solid var(--line);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+}
+.page-menu-info b {
+  font-weight: inherit;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.page-menu-info .button {
+  grid-row: 1 / 3;
+  grid-column: 2;
+  padding: 0 var(--space-8);
+  color: var(--text);
+  font: var(--weight-control) var(--text-meta) / var(--line-meta) var(--font-body);
+}
+/* Keys use the sans voice: the mono face lacks ⌃⇧⌘⌥↵, and fallback glyphs came out mismatched in size. */
+kbd {
+  color: var(--muted);
+  font: var(--weight-body) var(--text-apparatus) / var(--line-apparatus) var(--font-body);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* A touch screen without a hovering pointer has no keyboard to speak of; its hints are noise. */
+@media (hover: none) and (pointer: coarse) {
+  kbd {
+    display: none;
+  }
+}
+.muted {
+  color: var(--muted);
+}
+.error {
+  color: var(--danger);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* Fields sit in a dark well with a hairline; the frame brightens only while hovered or typed in. */
+/* A field is a well pressed into the sheet, shaded at its upper lip; focus draws a gilt baseline, not a frame. */
+.input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: var(--space-4) var(--space-8);
+  background: var(--well);
+  box-shadow:
+    var(--well-shade),
+    inset 0 -1px 0 var(--lit-edge);
+  transition: box-shadow var(--motion-fast) var(--motion-ease);
+}
+/* Focus turns the hairline gilt instead of adding a ring outside it, so a field never shows two frames. */
+.input:is(:focus, :focus-visible):not(:disabled) {
+  outline: none;
+  box-shadow:
+    var(--well-shade),
+    inset 0 -2px 0 var(--accent);
+}
+/* WebKit draws its own grey clear button in search fields; redraw it as a faint cross in the text colour. */
+.input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  background: var(--faint);
+  cursor: pointer;
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.input[type="search"]::-webkit-search-cancel-button:hover {
+  background: var(--text);
+}
+.input::placeholder {
+  color: var(--faint);
+}
+.empty-state {
+  margin: var(--space-12) 0;
+  color: var(--muted);
+  font-size: var(--text-control);
+}
+/* The phone's shared vocabulary (docs/design.md, Phone). Glass is the material of floating controls: the nav bar's
+   circles, the tab bar, a title over text. A leaf is a tile or a group of rows, lit along its top. A search well is a
+   capsule with its glyph inside and a gilt baseline on focus. */
+.glass,
+.button.glass {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 0 0 0.5px var(--glass-edge),
+    inset 0 1px 0 var(--lit-edge);
+}
+.leaf {
+  border-radius: var(--leaf-radius);
+  background: var(--leaf);
+  box-shadow:
+    inset 0 1px 0 var(--lit-edge),
+    0 1px 2px var(--contact-shadow),
+    0 0 0 0.5px color-mix(in srgb, var(--line) 70%, transparent);
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--well);
+  box-shadow: var(--well-shade);
+  color: var(--faint);
+  font: var(--weight-body) 17px / 22px var(--font-body);
+  transition:
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+.search > .icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.search:focus-within {
+  color: var(--text);
+  box-shadow:
+    var(--well-shade),
+    inset 0 -2px 0 var(--accent);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+.search input::placeholder {
+  color: var(--faint);
+}
+.search > .button {
+  flex: none;
+  width: 32px;
+  min-height: 32px;
+  margin-right: -8px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+}
+.search > .button > .icon {
+  width: 20px;
+  height: 20px;
+}
+.search input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  background: var(--faint);
+  cursor: pointer;
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+:is(.popup, .popup-exit) p {
+  margin: 4px 0 12px;
+}
+:is(.popup, .popup-exit) label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: var(--text-control);
+}
+/* A form's title is the menu head's size, one step of the written scale (--text-h3). */
+.popup-title {
+  margin: 0 0 var(--space-12);
+  font: var(--weight-display-heading) var(--text-h3) / var(--line-h3) var(--font-display);
+}
+/* A confirm (a sentence and its buttons) reads at control size. */
+.popup:has(> .popup-actions) > p {
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.calendar-today {
+  display: flex;
+  margin: 8px auto 0;
+}
+/* Picker: input on top, 28 px rows below. Palettes centre near the top of the viewport. */
+.picker {
+  padding: 0;
+}
+/* The picker is an input on top and rows below. Where the popup is placed from its natural height (Picker without placement="top"),
+   the room it was given bounds the list (a scroller, so it shrinks to fit), which scrolls under a query, status line and Skip that never leave. */
+.picker-column {
+  display: flex;
+  flex-direction: column;
+}
+.picker-column > :not(.picker-list) {
+  flex: none;
+}
+.picker.popup-sheet {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--bottom-inset);
+}
+.picker.popup-sheet > :not(.picker-list) {
+  flex-shrink: 0;
+}
+.picker.popup-sheet > .popup-sheet-tools {
+  padding-inline: var(--space-12);
+  margin-bottom: 0;
+}
+.picker.popup-sheet > .picker-list {
+  min-height: 0;
+}
+.picker-query {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--line);
+}
+.picker-prefix {
+  color: var(--muted);
+}
+.picker-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+}
+.palette:not(.palette-search) .picker-input {
+  min-height: var(--row-height);
+}
+.picker-input:focus-visible {
+  outline: none;
+}
+.picker-list {
+  overflow: auto;
+  overflow-anchor: none;
+  padding: var(--space-4);
+}
+/* A list that is loading keeps its rows, dimmed, and shows the wait as a gilt line sliding along its top edge, so no row moves. */
+.picker-group {
+  transition: opacity var(--motion-ui) var(--motion-ease);
+}
+.picker-list[data-stale] > :is(.picker-row, .picker-group) {
+  opacity: 0.6;
+}
+.picker-list[aria-busy="true"] {
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) -67% 0 / 40% var(--rule-width) no-repeat;
+  animation: picker-loading 1100ms linear infinite;
+}
+@keyframes picker-loading {
+  from {
+    background-position: -67% 0;
+  }
+  to {
+    background-position: 167% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .picker-list[aria-busy="true"] {
+    background-position: 0 0;
+    background-size: 100% var(--rule-width);
+    animation: none;
+  }
+}
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-control);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  cursor: default;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-ui) var(--motion-ease);
+}
+.picker-row > .icon {
+  flex: none;
+  color: var(--muted);
+}
+.picker-row.selected {
+  background: var(--selection);
+  box-shadow: inset var(--rule-width) 0 var(--accent);
+}
+.picker-row[aria-disabled="true"] {
+  color: var(--muted);
+}
+.picker-row kbd {
+  margin-left: auto;
+}
+.picker-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-text small {
+  color: var(--muted);
+}
+.picker-meta {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+/* Dates, ids, paths and counts in picker metadata keep the figures' mono; names of things stay in Plex. */
+.picker-meta.fig,
+.picker-meta .fig {
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.picker-hint {
+  flex: none;
+  color: var(--faint);
+}
+.picker-section {
+  padding: var(--space-8) var(--space-12) var(--space-4);
+  color: var(--muted);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.picker-section:not(:first-child),
+.picker-group + .picker-group > .picker-section {
+  border-top: var(--rule-width) solid var(--line);
+  margin-top: var(--space-4);
+}
+/* Commands keep their query in view above the longer destination and action lists. */
+.palette:not(.palette-search) > .picker-query {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--raised);
+}
+.palette:not(.palette-search) > .picker-query::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-12);
+  width: var(--rubric-width);
+  height: var(--rubric-height);
+  background: var(--danger);
+  pointer-events: none;
+}
+.picker-disabled-reason {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+}
+.picker .empty-state,
+.picker .error {
+  margin: var(--space-8) var(--space-12);
+}
+.scope-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-12);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.scope-bar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scope-bar kbd {
+  margin-left: auto;
+}
+mark {
+  background: var(--selection);
+  color: var(--accent);
+  font-weight: var(--weight-heading);
+}

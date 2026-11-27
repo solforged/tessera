@@ -7,7 +7,7 @@ import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 
 export default defineConfig(({ mode }) => ({
-  plugins: [solid(), themeBoot(), ...(mode === 'demo' ? [demoOffline()] : [])],
+  plugins: [solid(), themeBoot(), cssLayers(), ...(mode === 'demo' ? [demoOffline()] : [])],
   define: { __TESSERA_DEMO__: mode === 'demo', __TESSERA_MOBILE__: mode === 'mobile' },
   ...(mode === 'demo'
     ? {
@@ -52,6 +52,28 @@ function themeBoot(): Plugin {
       this.emitFile({ type: 'asset', fileName: 'theme-boot.js', source });
     },
     transformIndexHtml: () => [{ tag: 'script', attrs: { src: '/theme-boot.js' }, injectTo: 'head-prepend' }],
+  };
+}
+
+/**
+ * Declares the cascade layer order before every bundled or lazy stylesheet so chunk load order never decides precedence.
+ */
+function cssLayers(): Plugin {
+  const source = readFileSync(new URL('./src/layers.css', import.meta.url), 'utf8');
+  return {
+    name: 'tessera-css-layers',
+    configureServer(server) {
+      server.middlewares.use('/layers.css', (_request, response) => {
+        response.setHeader('content-type', 'text/css; charset=utf-8');
+        response.end(source);
+      });
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'layers.css', source });
+    },
+    transformIndexHtml: () => [
+      { tag: 'link', attrs: { rel: 'stylesheet', href: '/layers.css' }, injectTo: 'head-prepend' },
+    ],
   };
 }
 

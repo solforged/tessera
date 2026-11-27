@@ -3,6 +3,8 @@ import '@fontsource-variable/ibm-plex-sans';
 import '../ui/keys.css';
 import '@fontsource-variable/piazzolla/standard.css';
 import '@fontsource-variable/piazzolla/standard-italic.css';
+import '../styles.css';
+import './demo.css';
 import { render } from 'solid-js/web';
 import { Show, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
@@ -16,8 +18,6 @@ import { persistOwnWorkshop } from './offline';
 import type { Workshop } from '../document';
 import { WorkshopHandoff } from './takeover';
 import { installIosViewport } from '../ui/ios-viewport';
-import '../styles.css';
-import './demo.css';
 
 installIosViewport();
 

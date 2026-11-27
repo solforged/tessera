@@ -1,90 +1,92 @@
-/* Shared apparatus sheet, numbered section heads and rubric labels used by field pages and settings. */
-.field-page-pane {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-gutter: stable;
-  padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space);
-  outline: none;
-}
-.field-sheet {
-  width: 100%;
-  max-width: var(--measure);
-  margin-inline: auto;
-  font-size: var(--text-control);
-  line-height: var(--line-control);
-}
-/* The sheet only receives programmatic focus, so Undo and Redo keep working after an edit; it is no control to ring. */
-.field-sheet:focus {
-  outline: none;
-}
-.field-eyebrow {
-  margin-bottom: var(--page-eyebrow-gap);
-  color: var(--faint);
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.field-eyebrow .button {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  font: inherit;
-  color: var(--muted);
-}
-.field-heading {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-16);
-}
-.field-heading h1 {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-  font: var(--page-title-font);
-}
-.field-heading > .button,
-.field-heading-actions {
-  flex: none;
-}
-.field-heading-actions {
-  margin-inline-start: auto;
-}
-.field-built-in {
-  flex: none;
-  color: var(--faint);
-  font: var(--apparatus);
-}
-.field-summary {
-  margin: var(--page-title-gap) 0 var(--page-head-gap);
-  color: var(--muted);
-  font: var(--apparatus);
-}
-.field-section {
-  margin-top: var(--section-gap);
-}
-.field-section-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  margin: 0 0 var(--section-item-gap);
-  color: var(--muted);
-  font: var(--apparatus);
-  letter-spacing: var(--tracking-apparatus);
-}
-.field-section-head > :last-child {
-  color: var(--faint);
-}
-.field-section-head .section-rule {
-  flex: 1;
-  min-width: var(--space-16);
-}
-.field-rubric,
-.field-sheet .field-rubric {
-  color: var(--danger);
-}
-.field-apparatus {
-  color: var(--faint);
-  font: var(--apparatus);
-  font-variant-numeric: tabular-nums;
+@layer primitives {
+  /* Shared apparatus sheet, numbered section heads and rubric labels used by field pages and settings. */
+  .field-page-pane {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space);
+    outline: none;
+  }
+  .field-sheet {
+    width: 100%;
+    max-width: var(--measure);
+    margin-inline: auto;
+    font-size: var(--text-control);
+    line-height: var(--line-control);
+  }
+  /* The sheet only receives programmatic focus, so Undo and Redo keep working after an edit; it is no control to ring. */
+  .field-sheet:focus {
+    outline: none;
+  }
+  .field-eyebrow {
+    margin-bottom: var(--page-eyebrow-gap);
+    color: var(--faint);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .field-eyebrow .button {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    color: var(--muted);
+  }
+  .field-heading {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-16);
+  }
+  .field-heading h1 {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font: var(--page-title-font);
+  }
+  .field-heading > .button,
+  .field-heading-actions {
+    flex: none;
+  }
+  .field-heading-actions {
+    margin-inline-start: auto;
+  }
+  .field-built-in {
+    flex: none;
+    color: var(--faint);
+    font: var(--apparatus);
+  }
+  .field-summary {
+    margin: var(--page-title-gap) 0 var(--page-head-gap);
+    color: var(--muted);
+    font: var(--apparatus);
+  }
+  .field-section {
+    margin-top: var(--section-gap);
+  }
+  .field-section-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-12);
+    margin: 0 0 var(--section-item-gap);
+    color: var(--muted);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .field-section-head > :last-child {
+    color: var(--faint);
+  }
+  .field-section-head .section-rule {
+    flex: 1;
+    min-width: var(--space-16);
+  }
+  .field-rubric,
+  .field-sheet .field-rubric {
+    color: var(--danger);
+  }
+  .field-apparatus {
+    color: var(--faint);
+    font: var(--apparatus);
+    font-variant-numeric: tabular-nums;
+  }
 }

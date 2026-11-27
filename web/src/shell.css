@@ -1,0 +1,2240 @@
+/* Application shell: rail, sidebar, workspace, pane row, headers, banners, view transitions and phone chrome. */
+/* The dock's track is always there and grows from nothing, so the workspace glides with it instead of snapping. */
+.app {
+  --dock-track: 0px;
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--dock-track);
+  grid-template-rows: var(--rail-height) minmax(0, 1fr);
+  overflow: hidden;
+  padding: var(--top-inset) env(safe-area-inset-right) var(--bottom-inset) env(safe-area-inset-left);
+  background: var(--shell);
+  transition: grid-template-columns var(--motion-ui) var(--motion-ease);
+}
+.app.has-dock {
+  --dock-track: var(--dock-width);
+}
+/* The rail: the wordmark at the left, the finder centred on the window, layout at the right. */
+.global-rail {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-16);
+  padding: 0 var(--space-12);
+  min-width: 0;
+}
+.rail-start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+/* The rail and sidebar are navigation, not text: a drag, right-click or long press never selects a label. */
+.global-rail,
+.sidebar {
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* In the macOS app the rail is the window's title bar: it moves the window, and the window buttons sit over its left end except in full screen. */
+:root[data-window-controls="inset"] .global-rail {
+  padding-left: var(--window-controls-width);
+}
+/* Reader full screen in the macOS app keeps the rail's height as an empty title bar, so the window buttons have room and the window still moves. */
+:root[data-window-controls="inset"] .app.is-immersive {
+  grid-template-rows: var(--rail-height) minmax(0, 1fr);
+}
+:root[data-window-controls="inset"] .app.is-immersive > .global-rail {
+  display: grid;
+}
+:root[data-window-controls="inset"] .app.is-immersive > .global-rail > * {
+  visibility: hidden;
+}
+:root[data-window-controls="inset"] .app.is-immersive .workspace {
+  grid-row: 2;
+}
+/* Browser window controls can occupy either end of the title bar, independently of the native inset. */
+:root[data-titlebar="overlay"] .app {
+  grid-template-rows: max(var(--rail-height), env(titlebar-area-height, 0px)) minmax(0, 1fr);
+}
+:root[data-titlebar="overlay"] .global-rail {
+  min-height: env(titlebar-area-height, 0px);
+  padding-left: env(titlebar-area-x, 0px);
+  padding-right: max(0px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)));
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+:root[data-titlebar="overlay"]
+  .global-rail
+  :is(button, a, input, textarea, select, [role="button"], [tabindex], [contenteditable]) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+:root[data-titlebar="overlay"] .app.is-immersive > .global-rail {
+  display: grid;
+}
+:root[data-titlebar="overlay"] .app.is-immersive > .global-rail > * {
+  visibility: hidden;
+}
+:root[data-titlebar="overlay"] .app.is-immersive .workspace {
+  grid-row: 2;
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: var(--oculus-gap);
+  min-width: 0;
+  color: var(--text);
+  font: var(--weight-display-heading) var(--text-control) / var(--line-meta) var(--font-display);
+  letter-spacing: var(--tracking-notebook);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wordmark::before {
+  content: "";
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle, var(--accent) 0 27%, transparent 28% 50%, var(--accent) 51% 66%, transparent 67%);
+}
+.rail-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  min-width: 0;
+}
+.rail-finder {
+  display: flex;
+  align-items: stretch;
+  width: var(--search-width);
+  min-width: calc(2 * var(--row-height));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--faint);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+.rail-finder:has([aria-expanded="true"]) {
+  border-color: var(--accent);
+}
+.global-search {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  color: inherit;
+  font-weight: var(--weight-body);
+}
+/* Two classes: the base button rule's :is() carries a type selector and would otherwise erase this divider. */
+.global-commands.button {
+  flex: none;
+  border-block: 0;
+  border-right: 0;
+  border-left-color: var(--line);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  color: inherit;
+}
+.global-commands .icon {
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+}
+.global-commands:hover {
+  color: var(--text);
+}
+.global-search > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rail-end > .button {
+  flex-shrink: 0;
+}
+/* Sidebar rows share one left edge; document controls stay in their panes. */
+.sidebar {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  min-height: 0;
+  padding: var(--space-12) var(--space-8);
+  overflow: hidden;
+  transition:
+    transform var(--motion-ui) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease),
+    visibility 0s;
+}
+.sidebar .button {
+  position: relative;
+  width: 100%;
+  justify-content: flex-start;
+  min-height: var(--row-height);
+  padding: 0 var(--space-8);
+  gap: var(--space-8);
+  border-left: calc(2 * var(--rule-width)) solid transparent;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--muted);
+  font-weight: var(--weight-body);
+}
+.sidebar .button::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(2 * var(--rule-width));
+  background: var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-ui) var(--motion-ease);
+}
+.sidebar .button.selected::before {
+  opacity: 1;
+}
+.sidebar .button > .icon {
+  color: var(--faint);
+}
+/* A flex button cannot ellipsize its own text; the label span can. */
+.sidebar .button > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar .button.icon-only {
+  width: var(--row-height);
+  padding: 0;
+  justify-content: center;
+}
+.sidebar .button.selected {
+  background: var(--selection);
+  color: var(--text);
+}
+.sidebar .button.selected > .icon {
+  color: var(--accent);
+}
+/* The desk: four landmarks, each with its live state at the right. */
+.primary-navigation {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: var(--space-8);
+}
+.sidebar-foot {
+  flex: none;
+}
+.primary-navigation .button {
+  color: var(--text);
+}
+.primary-navigation .button > .icon {
+  color: var(--muted);
+}
+.sidebar .button > .desk-count {
+  flex: none;
+  color: var(--faint);
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.sidebar .button > .desk-count.late {
+  color: var(--danger);
+}
+/* A built-in kind with nothing filed but a saved view keeps its row, named faintly and without a count. */
+.sidebar .index-kind.empty:not(.selected),
+.sidebar .index-kind.empty:not(.selected) > .icon {
+  color: var(--faint);
+}
+.sidebar .index-kind.empty:not(.selected):hover {
+  color: var(--muted);
+}
+.journal-navigation {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  margin-inline: var(--space-4);
+}
+/* Sections: a rubric numeral, the name, a hairline rule and a count. */
+.page-list {
+  margin-top: var(--space-16);
+}
+.page-list h2,
+.page-list > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--target-size);
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-8) 0 var(--space-12);
+  color: var(--faint);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.section-number {
+  color: var(--danger);
+  font: var(--figures);
+}
+.page-list .section-count {
+  font: var(--figures);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+.section-rule {
+  flex: 1;
+  border-top: var(--rule-width) solid var(--line);
+}
+/* The heading row is target height; the link fills it so touch can hit it. */
+.index-directory-link {
+  align-self: stretch;
+  margin-inline: calc(-1 * var(--space-4));
+  padding: 0 var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.index-directory-link:hover,
+.index-directory-link[aria-current="page"] {
+  color: var(--text);
+}
+.index-directory-link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+.page-list > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.page-list > summary::-webkit-details-marker {
+  display: none;
+}
+.page-list > summary .icon {
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.page-list:is(:not([open]), [data-closing]) > summary .icon {
+  transform: rotate(-90deg);
+}
+.sidebar-empty {
+  margin: 0 0 0 var(--space-32);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+  color: var(--muted);
+}
+/* The foot names the open workshop and how it reaches other devices, apart from the places you work in. */
+.sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-8);
+  border-top: var(--rule-width) solid var(--line);
+}
+.sidebar-foot > .button:first-child {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+.sidebar-foot > .button.icon-only {
+  flex: none;
+  border-left: 0;
+}
+.sidebar .sidebar-settings {
+  flex: none;
+  width: var(--row-height);
+  padding: 0;
+  justify-content: center;
+  border-left: 0;
+}
+.sidebar .sidebar-settings > span {
+  display: none;
+}
+/* One line: the workshop's name. A workshop other than the default is named in the warning colour, so a test
+   workshop is never taken for the usual one; long names shorten. Sync lives in the rail's sync mark. */
+.notebook-switcher-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.notebook-switcher-name.notebook-switcher-other {
+  color: var(--warning);
+}
+/* A saved view and its pin have separate slots, so each focus ring encloses only its own control. */
+.sidebar-view {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.sidebar-view > .view-link {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.sidebar-view > .view-pin {
+  flex: 0 0 var(--row-height);
+  width: var(--row-height);
+  padding-inline: 0;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+.sidebar-view:hover > .view-pin,
+.sidebar-view:focus-within > .view-pin {
+  opacity: 1;
+}
+/* Without hover the pin would stay invisible yet tappable. */
+@media (hover: none) {
+  .sidebar-view > .view-pin {
+    opacity: 1;
+  }
+}
+/* Saved views hang under the kind whose type they list, on a hairline elbow. */
+.index-views .sidebar-view {
+  position: relative;
+  padding-left: calc(var(--space-24) + var(--space-4));
+}
+.index-views .sidebar-view::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--space-12) + var(--space-2));
+  top: 0;
+  bottom: 50%;
+  width: var(--space-8);
+  border-left: var(--rule-width) solid var(--line);
+  border-bottom: var(--rule-width) solid var(--line);
+}
+.index-views .view-link > .icon {
+  display: none;
+}
+/* The Index is a finding aid: kinds sit under small mono shelf heads, in the interface voice with their glyphs.
+   Heads align with the kind names. */
+.index-shelf {
+  margin: var(--space-12) 0 var(--space-2);
+  padding-left: calc(var(--space-8) + 2 * var(--rule-width));
+  color: var(--faint);
+  font: var(--caps);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.index-list > h2 + .index-shelf {
+  margin-top: var(--space-4);
+}
+/* Index is a document on the phone: a large title over the grouped lists of shell/PhoneIndex.tsx. */
+.directory-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior-y: contain;
+  padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space);
+}
+.directory-pane:focus {
+  outline: none;
+}
+.workspace {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 var(--space-12) var(--space-12) 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-workspace);
+  background: var(--canvas);
+  box-shadow: inset 0 1px 0 var(--lit-edge);
+  transition: margin-left var(--motion-ui) var(--motion-ease);
+}
+.sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr) var(--dock-track);
+}
+.sidebar-collapsed .sidebar {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-100%);
+  transition-delay: 0s, 0s, var(--motion-ui);
+}
+.sidebar-collapsed .workspace {
+  margin-left: var(--space-12);
+}
+.pane-tabs {
+  display: none;
+  align-items: stretch;
+  gap: var(--space-8);
+  padding-inline: var(--space-8) var(--space-4);
+  box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line);
+  transition: opacity var(--motion-ui) var(--motion-ease);
+}
+/* While a book reads with its chrome away, the pane tabs fade with it and keep their room, so the page never moves. */
+.app:has(.pane.active .reader-chrome-hidden) .pane-tabs {
+  opacity: 0;
+  pointer-events: none;
+}
+/* Where the reader's chrome lies over the page (touch), the pane tabs lie over it too, as the top of that band: the page has the whole pane, and the reader's own band starts below them. */
+.app:has(.pane.active .reader-chrome-over) .workspace {
+  position: relative;
+}
+.app:has(.pane.active .reader-chrome-over) .pane-tabs {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 3;
+  height: var(--target-size);
+  background: var(--canvas);
+}
+/* Pane tabs use the mode-tab vocabulary: mono labels, a rubric pane number, and the gilt rule under the current pane. */
+.pane-tab-strip.tab-strip {
+  flex: 1;
+  min-width: 0;
+  box-shadow: none;
+}
+.pane-tab-strip > .button {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: var(--space-8);
+}
+.pane-tab-number {
+  flex: none;
+  color: var(--danger);
+}
+.pane-tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Each tab carries its own close, so the pane that goes is the one named beside it, not whichever pane is showing. */
+.pane-tab-close.button {
+  flex: none;
+  align-self: center;
+  margin-right: var(--space-4);
+  color: var(--faint);
+}
+.pane-tab-close.button:hover {
+  color: var(--text);
+}
+/* The workspace is a row of panes; dividers share widths, and panes the window cannot fit stand as spines at its ends. */
+.panes {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pane {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas);
+  container: pane / inline-size;
+}
+.pane.folded {
+  display: none;
+}
+/* The sheet's grain lies over its contents, so rows and sections that paint the canvas take the same fibre. */
+.pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-image: var(--paper-grain);
+  pointer-events: none;
+}
+.pane-divider {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  width: var(--rule-width);
+  background: var(--line);
+  cursor: col-resize;
+  touch-action: none;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+/* A wider grip than the hairline it draws. */
+.pane-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(-1 * var(--space-4));
+}
+.pane-divider:hover,
+.pane-divider.dragging {
+  background: var(--accent);
+}
+.pane-divider:focus-visible {
+  outline: none;
+  background: var(--accent);
+  box-shadow: 0 0 0 var(--rule-width) var(--accent);
+}
+.pane-follows {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: var(--space-16);
+  height: var(--space-16);
+  translate: -50% -50%;
+  border: var(--rule-width) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--canvas);
+  color: var(--faint);
+  pointer-events: none;
+}
+.pane-follows > .icon {
+  width: var(--space-12);
+  height: var(--space-12);
+}
+.pane-snap {
+  position: absolute;
+  top: var(--space-8);
+  left: var(--space-8);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  color: var(--accent);
+  font: var(--apparatus);
+  white-space: nowrap;
+  box-shadow: var(--popup-shadow);
+  pointer-events: none;
+}
+.pane-spine {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  width: calc(var(--target-size) + var(--space-8));
+  padding: var(--space-12) 0;
+  border: 0;
+  border-right: var(--rule-width) solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+.pane:not(.folded) ~ .pane-spine {
+  border-right: 0;
+  border-left: var(--rule-width) solid var(--line);
+}
+.pane-spine:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.pane-spine:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-offset));
+}
+.pane-spine-number {
+  color: var(--danger);
+  font: var(--figures);
+}
+.pane-spine-title {
+  overflow: hidden;
+  max-height: 60vh;
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  rotate: 180deg;
+}
+/* Where an open lands: a gilt frame over the pane it replaces, a hatched ghost where a new pane will stand. */
+.pane-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  border: calc(2 * var(--rule-width)) solid var(--accent);
+  background: var(--accent-tint);
+  pointer-events: none;
+  animation: pane-guide var(--motion-fast) var(--motion-ease);
+}
+.pane-guide.pane-guide-new {
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(135deg, var(--accent-tint) 0 var(--space-8), transparent var(--space-8) var(--space-16)),
+    var(--accent-tint);
+}
+.pane-guide > span {
+  position: absolute;
+  top: calc(var(--pane-header-height) + var(--space-12));
+  left: 50%;
+  max-width: calc(100% - var(--space-16));
+  overflow: hidden;
+  translate: -50% 0;
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-popup);
+  background: var(--raised);
+  color: var(--accent);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: var(--popup-shadow);
+}
+@keyframes pane-guide {
+  from {
+    opacity: 0;
+  }
+}
+.pane-drag-chip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-blocking);
+  max-width: 280px;
+  overflow: hidden;
+  padding: var(--space-2) var(--space-8);
+  border: var(--rule-width) solid var(--control-border);
+  border-radius: var(--radius-popup);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: var(--popup-shadow);
+  pointer-events: none;
+}
+.pane-dragging,
+.pane-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+/* Full screen: the reader pane fills the window; the rail, sidebar, pane tabs, pane header and the other panes step aside. */
+.app.is-immersive {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--canvas);
+}
+.app.is-immersive > .global-rail,
+.app.is-immersive > .sidebar,
+.app.is-immersive .pane-tabs,
+.app.is-immersive .pane:not(.immersive),
+.app.is-immersive .pane-divider,
+.app.is-immersive .pane-spine,
+.app.is-immersive .pane.immersive > .pane-header {
+  display: none;
+}
+.app.is-immersive .workspace {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+/* Pane headers carry document navigation and actions, never global search. */
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: var(--pane-header-height);
+  padding: var(--space-4) var(--space-8);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.pane-header > .button,
+.pane-save-state,
+.vim-mode {
+  flex-shrink: 0;
+}
+/* The header's start, end and slot wrappers only matter on a phone, where they lay out the nav bar; elsewhere they vanish. */
+.pane-bar-start,
+.pane-bar-end,
+.pane-bar-surface,
+.pane-bar-group,
+.pane-bar-portal {
+  display: contents;
+}
+:is(.pane-bar-start, .pane-bar-end, .pane-bar-group) > .button {
+  flex-shrink: 0;
+}
+.pane-navigation {
+  display: flex;
+  flex-shrink: 0;
+  margin-right: var(--space-2);
+}
+.pane-kind {
+  flex: none;
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+  margin-right: var(--space-4);
+  color: var(--muted);
+}
+.pane.active .pane-kind {
+  color: var(--accent);
+}
+/* In a split each header carries its pane's number, as Opens in pane 3 and the spines name it, and the active pane's
+   header a gilt rule along its top. */
+.pane-number {
+  flex: none;
+  margin-right: var(--space-4);
+  color: var(--faint);
+  font: var(--figures);
+}
+.is-split .pane.active > .pane-header {
+  box-shadow: inset 0 calc(2 * var(--rule-width)) var(--accent);
+}
+/* Inactive panes keep their tabs legible but hand the gilt to the active pane. */
+.is-split .pane:not(.active) .mode-tabs > .tab-rule {
+  background: var(--control-border);
+}
+.is-split .pane:not(.active) .mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) {
+  color: var(--text);
+}
+.pane-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex: 1 1 12ch;
+  min-width: 12ch;
+  overflow: hidden;
+  color: var(--muted);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+/* Block, not inline-flex: a centred flex button clips both ends of a long title instead of showing an ellipsis. */
+.pane-breadcrumbs .button {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 28px;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+span.pane-breadcrumbs {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Ancestors keep a bounded label while the current title always retains a readable ellipsis. */
+.pane-breadcrumbs .button:not(:last-child) {
+  flex-shrink: 1;
+  max-width: 10em;
+}
+.pane-breadcrumbs .button:last-child {
+  min-width: 12ch;
+  color: var(--text);
+}
+.is-split .pane:not(.active) .pane-header {
+  color: var(--muted);
+}
+.is-split .pane:not(.active) .pane-breadcrumbs .button:last-child {
+  color: var(--muted);
+}
+.breadcrumb-separator {
+  color: var(--faint);
+}
+/* Save state speaks only when something needs attention; saved is a quiet dot. */
+.pane-save-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-inline: var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  white-space: nowrap;
+}
+.pane-save-state:is([data-state="error"], [data-state="conflict"]) {
+  color: var(--danger);
+}
+.pane-save-state:is([data-state="saving"], [data-state="queued"]) > .icon {
+  animation: spin calc(var(--motion-ui) * 7) linear infinite;
+}
+.save-dot {
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--control-border);
+}
+@keyframes spin {
+  to {
+    rotate: -360deg;
+  }
+}
+/* The depth dial: four irises, the current one gilt in a well, and only its name spoken. */
+.depth-dial {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.depth-dial[data-held] {
+  visibility: hidden;
+}
+.depth-stop {
+  display: grid;
+  place-items: center;
+  width: var(--target-size);
+  height: var(--target-size);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+}
+.depth-stop .icon {
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+}
+.depth-stop:hover {
+  color: var(--text);
+}
+.depth-stop[aria-pressed="true"] {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--accent);
+}
+.depth-label {
+  min-width: 84px;
+  margin-left: var(--space-4);
+  color: var(--text);
+  font-size: var(--text-meta);
+  line-height: var(--line-meta);
+  white-space: nowrap;
+}
+/* Pane width, not the window, decides how much apparatus the title can afford. */
+@container pane (max-width: 839px) {
+  .depth-label,
+  .depth-stop:not([aria-pressed="true"]),
+  .page-projection-tabs .button:disabled,
+  .read-reason,
+  .pane-header > .vim-mode {
+    display: none;
+  }
+  /* Collapsed to one iris, the dial has no other stop to set it apart from, so it drops the gilt well and reads as a header control. */
+  .depth-stop[aria-pressed="true"] {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+  }
+}
+@container pane (max-width: 599px) {
+  .pane-kind,
+  .pane-navigation .button:disabled,
+  .pane-breadcrumbs .button:not(:last-child),
+  .breadcrumb-separator {
+    display: none;
+  }
+}
+@container pane (max-width: 479px) {
+  .pane-header {
+    padding-inline: var(--space-4);
+    gap: var(--space-2);
+  }
+}
+/* Vim mode is a fixed-width tag beside the save dot: gilt while inserting, filled while selecting. All four labels are six letters, so switching never moves the header. */
+.vim-mode {
+  min-width: 8ch;
+  margin-left: var(--space-4);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+.vim-mode[data-mode="normal"] {
+  color: var(--text);
+}
+.vim-mode[data-mode="insert"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.vim-mode[data-mode="visual"] {
+  border-color: var(--accent);
+  background: var(--selection);
+  color: var(--text);
+}
+.pane-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.pane-content::before,
+.pane-content::after {
+  content: "";
+  position: absolute;
+  width: var(--registration-size);
+  height: var(--registration-size);
+  pointer-events: none;
+  z-index: 1;
+  border: 0 solid var(--line);
+}
+/* The marks sit in the corner gutter, clear of toolbars that start 8 px in. */
+.pane-content::before {
+  top: var(--space-4);
+  left: var(--space-4);
+  border-width: var(--rule-width) 0 0 var(--rule-width);
+}
+.pane-content::after {
+  bottom: var(--space-4);
+  right: var(--space-4);
+  border-width: 0 var(--rule-width) var(--rule-width) 0;
+}
+.pane.active .pane-content::before,
+.pane.active .pane-content::after {
+  border-color: var(--accent);
+}
+/* While a book reads with its chrome away, the registration corners go with it, so nothing but the page and its foot remains. */
+.pane-content::before,
+.pane-content::after {
+  transition: opacity var(--motion-ui) var(--motion-ease);
+}
+.pane-content:has(.reader-chrome-hidden)::before,
+.pane-content:has(.reader-chrome-hidden)::after {
+  opacity: 0;
+}
+.save-banner,
+.shell-error,
+.pane-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  color: var(--warning);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+}
+.save-banner > span,
+.shell-error > span {
+  flex: 1;
+}
+.save-banner details {
+  max-width: 30%;
+}
+.save-banner details[open] {
+  flex-basis: 100%;
+  max-width: none;
+  overflow-wrap: anywhere;
+}
+.save-banner summary {
+  min-height: var(--target-size);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.save-banner summary:hover {
+  background: var(--hover);
+}
+.save-banner {
+  flex-wrap: wrap;
+}
+.rejected-changes {
+  display: flex;
+  align-items: flex-start;
+  flex: 0 0 100%;
+  gap: 8px;
+}
+.rejected-changes pre {
+  flex: 1;
+  min-width: 0;
+  max-height: 140px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  color: var(--text);
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: var(--text-body) / var(--line-body) var(--font-body);
+}
+.shell-error,
+.save-banner.error,
+.pane-error {
+  color: var(--danger);
+}
+.pane-error {
+  display: block;
+}
+.startup-state {
+  padding: 48px 24px;
+  color: var(--muted);
+}
+.undo-toast {
+  position: fixed;
+  bottom: calc(24px + var(--bottom-inset));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-popup);
+  box-shadow: var(--popup-shadow);
+  font-size: var(--text-control);
+  animation: rise-in var(--motion-ui) var(--motion-ease) both;
+}
+/* Between a workshop switch and the reload, the window is covered so nothing is edited in the workshop being left. */
+.notebook-opening {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-blocking);
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--canvas) 86%, transparent);
+  color: var(--muted);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+  animation: fade-in var(--motion-ui) var(--motion-ease) both;
+}
+/* Toasts and anchored toolbars rise into place; `translate` leaves their positioning transforms alone. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    translate: 0 var(--motion-distance);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes rise-out {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+  to {
+    opacity: 0;
+    translate: 0 var(--motion-distance);
+  }
+}
+/* A pane navigation turns one leaf (navigatePane in ui/pane-motion.ts): the outgoing content lifts away toward the
+   side it leaves by, and the incoming one settles from the side it lies on, forward from the right, back from the left.
+   Every pane shares one name, so the turn never depends on a pane's id. The page itself is not captured (no name on the
+   root): only the named parts become snapshots and the rest of the window stays live and changes at once. WebKit
+   hit-tests the snapshot layer as the document, so a captured page swallowed every click and dropped :hover on the
+   sidebar for as long as a turn ran. */
+:root {
+  view-transition-name: none;
+}
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(pane-leaf),
+::view-transition-group(source-cover) {
+  animation-duration: var(--motion-page);
+  animation-timing-function: var(--motion-ease);
+}
+::view-transition-old(pane-leaf) {
+  animation: leaf-out var(--motion-fast) var(--motion-ease) both;
+}
+::view-transition-new(pane-leaf) {
+  animation: leaf-in var(--motion-page) var(--motion-ease) both;
+}
+:root[data-pane-direction="back"]::view-transition-old(pane-leaf) {
+  animation-name: leaf-out-back;
+}
+:root[data-pane-direction="back"]::view-transition-new(pane-leaf) {
+  animation-name: leaf-in-back;
+}
+/* The row of panes changing (reflowPanes, and a pane opening beside): panes, spines and dividers glide to their new
+   place and width, and a pane and its spine share a name, so one gives way to the other. Each snapshot keeps its natural
+   size and its group crops it, so a pane reflowing to a new width shows its old layout shrinking away and its new layout
+   uncovered, never stretched. A pane that only enters settles like a leaf; one that only leaves fades out. */
+::view-transition-group(*.pane-row) {
+  animation-duration: var(--motion-page);
+  animation-timing-function: var(--motion-ease);
+}
+::view-transition-old(*.pane-row),
+::view-transition-new(*.pane-row) {
+  block-size: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+::view-transition-new(*.pane-row):only-child {
+  animation: leaf-in var(--motion-page) var(--motion-ease) both;
+}
+::view-transition-old(*.pane-row):only-child {
+  animation: leaf-out var(--motion-fast) var(--motion-ease) both;
+}
+/* A cover travels between the shelf and its source page above both leaves. */
+::view-transition-group(source-cover) {
+  z-index: 1;
+}
+::view-transition-old(source-cover),
+::view-transition-new(source-cover) {
+  animation-duration: var(--motion-page);
+  animation-timing-function: var(--motion-ease);
+}
+/* A panel swapping its content in place (crossfade in ui/pane-motion.ts) fades the old content out as the new fades in.
+   A toolbar row appearing above it carries it down in the same motion. */
+::view-transition-group(mode-panel) {
+  animation-duration: var(--motion-ui);
+  animation-timing-function: var(--motion-ease);
+}
+@keyframes leaf-in {
+  from {
+    opacity: 0;
+    translate: var(--motion-leaf) 0;
+  }
+}
+@keyframes leaf-in-back {
+  from {
+    opacity: 0;
+    translate: calc(-1 * var(--motion-leaf)) 0;
+  }
+}
+/* A turn that replaces one still settling (ui/pane-motion.ts `leafResume`) sets --leaf-resume (opacity) and --leaf-lean
+   (how far the leaf still lies toward the side it came from, signed) so the old leaf lifts away from where it is. */
+@keyframes leaf-out {
+  from {
+    opacity: var(--leaf-resume, 1);
+    translate: calc(var(--leaf-lean, 0) * var(--motion-leaf)) 0;
+  }
+  to {
+    opacity: 0;
+    translate: calc(-0.5 * var(--motion-leaf)) 0;
+  }
+}
+@keyframes leaf-out-back {
+  from {
+    opacity: var(--leaf-resume, 1);
+    translate: calc(var(--leaf-lean, 0) * var(--motion-leaf)) 0;
+  }
+  to {
+    opacity: 0;
+    translate: calc(0.5 * var(--motion-leaf)) 0;
+  }
+}
+/* Disclosures open and close in place, like Recent. Where `interpolate-size` is missing (WebKit, Firefox) the height
+   cannot ease from CSS, so shell/disclosure.ts glides the element itself. */
+details::details-content {
+  opacity: 0;
+  overflow: clip;
+  block-size: 0;
+  interpolate-size: allow-keywords;
+}
+@supports (interpolate-size: allow-keywords) {
+  details::details-content {
+    transition:
+      block-size var(--motion-ui) var(--motion-ease),
+      opacity var(--motion-fast) var(--motion-ease),
+      content-visibility var(--motion-ui) allow-discrete;
+  }
+}
+details[open]::details-content {
+  opacity: 1;
+  block-size: auto;
+}
+.undo-toast > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.undo-toast > button {
+  flex: none;
+  white-space: nowrap;
+}
+.undo-toast.leaving {
+  animation: rise-out var(--motion-ui) var(--motion-ease) both;
+  pointer-events: none;
+}
+
+/* Find keeps the grouped index and its reading preview on equal halves of one instrument. */
+.palette-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  height: min(720px, calc(100dvh - 96px));
+  max-height: min(720px, calc(100dvh - 96px)) !important;
+  overflow: hidden;
+}
+.palette-search > .picker-query,
+.palette-search > .find-scopes,
+.palette-search > .scope-bar,
+.palette-search > .picker-list {
+  grid-column: 1;
+}
+.palette-search > .picker-query {
+  grid-row: 1;
+}
+.palette-search > .scope-bar {
+  grid-row: 3;
+}
+.palette-search > .picker-list {
+  grid-row: 4;
+  min-height: 0;
+}
+.palette-search .picker-row {
+  align-items: flex-start;
+  padding: var(--space-8) var(--space-12);
+  gap: var(--space-12);
+}
+.palette-search .picker-row > .icon,
+.find-color,
+.find-paragraph {
+  margin-top: var(--space-4);
+  flex: none;
+}
+.palette-search .picker-hint {
+  display: none;
+}
+.palette-search .picker-create-hint {
+  display: block;
+}
+.palette-search .picker-text {
+  white-space: normal;
+}
+.palette-search .picker-section {
+  color: var(--faint);
+}
+.find-result {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.find-result small,
+.find-preview-header small {
+  display: block;
+  color: var(--faint);
+  font: var(--apparatus);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-apparatus);
+}
+/* Quotes and book passages are someone else's words, in the serif; your own blocks keep the writing voice. */
+.find-quote,
+.find-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.find-quote,
+.find-passage {
+  font: var(--weight-body) var(--text-quote) / var(--line-quote) var(--font-display);
+}
+.find-color {
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-pill);
+}
+.find-paragraph {
+  width: var(--icon-size);
+  color: var(--faint);
+  font: var(--apparatus);
+}
+.palette-search mark {
+  background: var(--text-selection);
+  color: var(--accent);
+  font-weight: inherit;
+}
+.find-scopes.mode-tabs {
+  grid-row: 2;
+  gap: var(--space-12);
+  padding: 0 var(--space-12);
+}
+.find-scopes > .button {
+  flex: none;
+  padding: var(--space-4) 0;
+  font-weight: var(--weight-body);
+}
+.find-cancel {
+  display: none;
+}
+.find-title {
+  display: none;
+}
+.find-backdrop {
+  display: none;
+}
+/* Preview text follows the result's voice; source identifiers and keys stay apparatus. */
+.find-preview {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-16) var(--space-24);
+  border-left: 1px solid var(--line);
+}
+.find-preview-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+}
+.find-preview-header img {
+  width: var(--resume-cover-width);
+  max-height: 64px;
+  object-fit: contain;
+  border-radius: var(--radius-control);
+}
+.find-preview-header h2 {
+  margin: 0;
+  font: var(--weight-display-heading) var(--text-h3) / var(--line-h3) var(--font-display);
+}
+.find-preview-prose {
+  font: var(--weight-body) var(--text-body) / var(--line-body) var(--font-body);
+  text-align: left;
+}
+.find-preview-prose p {
+  margin: 0 0 var(--space-12);
+}
+.find-preview-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-12);
+  padding-block: var(--space-4);
+  font-size: var(--text-control);
+  line-height: var(--line-control);
+  overflow-wrap: anywhere;
+}
+.find-preview-field-name {
+  color: var(--faint);
+  font: var(--apparatus);
+  letter-spacing: var(--tracking-apparatus);
+}
+.find-preview-field + p {
+  margin-top: var(--space-12);
+}
+.find-highlight {
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.find-preview-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+  padding-block: var(--space-12);
+  border-top: 1px solid var(--line);
+}
+.find-preview-block {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.find-preview-block > .find-preview-header,
+.find-preview-block > .find-preview-keys {
+  flex: none;
+}
+.find-preview-block > .find-preview-prose {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-inline: var(--space-4);
+}
+.find-preview-block .block-tree-row + .block-tree-row {
+  margin-top: var(--space-8);
+}
+/* On narrow screens the finder is one index, without squeezing its preview into unreadable columns. */
+@media (max-width: 839px) {
+  .palette-search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .find-preview {
+    display: none;
+  }
+}
+@media (max-width: 1047px) {
+  .app {
+    grid-template-columns: 0 minmax(0, 1fr) var(--dock-track);
+  }
+  /* The dock lies over the panes here, as the sidebar does, so it takes no track. */
+  .app.has-dock {
+    --dock-track: 0px;
+  }
+  .sidebar {
+    position: fixed;
+    top: calc(var(--rail-height) + var(--top-inset));
+    bottom: var(--bottom-inset);
+    left: env(safe-area-inset-left);
+    z-index: var(--z-drawer);
+    background: var(--shell);
+    border-right: 1px solid var(--line);
+    box-shadow: var(--popup-shadow);
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-100%);
+    transition-delay: 0s, 0s, var(--motion-ui);
+  }
+  .sidebar-expanded .sidebar {
+    visibility: visible;
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateX(0);
+    transition-delay: 0s;
+  }
+  .sidebar-shade {
+    position: fixed;
+    inset: calc(var(--rail-height) + var(--top-inset)) 0 var(--bottom-inset);
+    z-index: var(--z-drawer-scrim);
+    background: color-mix(in srgb, var(--shell) 72%, transparent);
+    visibility: hidden;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+      opacity var(--motion-ui) var(--motion-ease),
+      visibility 0s var(--motion-ui);
+  }
+  .sidebar-expanded .sidebar-shade {
+    visibility: visible;
+    pointer-events: auto;
+    opacity: 1;
+    transition-delay: 0s;
+  }
+  .workspace {
+    margin-left: var(--space-12);
+  }
+  .rail-finder {
+    width: min(var(--search-width), 36vw);
+  }
+}
+@media (max-width: 839px) {
+  .pane-tabs {
+    display: flex;
+  }
+  .pane:not(.active) {
+    display: none;
+  }
+  /* The tab strip carries Close pane and the pane numbers, so the header leaves them out. */
+  .pane-header > .pane-secondary,
+  .pane-number {
+    display: none;
+  }
+  .is-split .pane.active > .pane-header {
+    box-shadow: none;
+  }
+}
+@media (max-width: 599px) {
+  .global-rail {
+    gap: var(--space-8);
+    padding-inline: var(--space-8);
+  }
+  .rail-end {
+    gap: var(--space-4);
+  }
+  .rail-finder {
+    width: auto;
+  }
+  .global-search {
+    flex: none;
+    width: var(--row-height);
+    padding: var(--space-4);
+    justify-content: center;
+  }
+  .global-search > span,
+  .global-search > kbd {
+    display: none;
+  }
+  .workspace,
+  .sidebar-collapsed .workspace {
+    margin: 0 var(--space-4) var(--space-4);
+  }
+  .journal-navigation {
+    gap: 0;
+    margin-inline: 0;
+  }
+}
+@media (max-width: 479px) {
+  .save-banner {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+  }
+  .save-banner details {
+    max-width: 100%;
+  }
+  .undo-toast {
+    bottom: 12px;
+  }
+}
+@media (pointer: coarse) {
+  .pane-header .button,
+  .mode-tabs > .button,
+  .depth-stop {
+    min-height: var(--touch-target);
+  }
+  .pane-header .button:has(> .icon:only-child),
+  .depth-stop {
+    min-width: var(--touch-target);
+  }
+}
+/* On the cover, the document fills the screen and navigation stays within thumb reach. */
+@media not all and (max-width: 599px) and (pointer: coarse) {
+  .bottom-nav,
+  .pane-header .pane-index,
+  .pane-header .pane-new {
+    display: none;
+  }
+}
+@media (max-width: 599px) and (pointer: coarse) {
+  /* The page runs the full height: the nav bar and tab bar float over it, so the app keeps no top or bottom inset of its own. */
+  .app {
+    --pane-header-height: var(--phone-top);
+    position: relative;
+    height: var(--visual-viewport-height, 100dvh);
+    margin-top: var(--visual-viewport-top, 0px);
+    grid-template-rows: minmax(0, 1fr);
+    padding-block: 0;
+    background: var(--canvas);
+  }
+  html.phone-scroll-sentinel,
+  .phone-scroll-sentinel body {
+    min-height: calc(100dvh + 1px);
+  }
+  .phone-scroll-sentinel .app {
+    position: fixed;
+    inset: 0;
+  }
+  .pane.phone-back-dragging {
+    will-change: transform;
+    user-select: none;
+    box-shadow: var(--popup-shadow);
+  }
+  /* An edge swipe that commits has already slid the pane away; the previous one settles in from the left, starting
+     part visible so the frame after the slide is never an empty canvas (shell/phone-gestures.ts). */
+  .pane-content.phone-back-arrive {
+    animation: phone-back-arrive var(--motion-page) var(--motion-ease) both;
+  }
+  @keyframes phone-back-arrive {
+    from {
+      opacity: 0.4;
+      translate: calc(-1 * var(--motion-leaf)) 0;
+    }
+  }
+  .app > .global-rail,
+  .app > .sidebar,
+  .pane-breadcrumbs .breadcrumb-library,
+  .breadcrumb-library + .breadcrumb-separator {
+    display: none;
+  }
+  .workspace,
+  .sidebar-collapsed .workspace {
+    grid-row: 1;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .pane-content::before,
+  .pane-content::after {
+    display: none;
+  }
+  /* The nav bar floats over the page with no hairline: the page scrolls under it behind a firm scroll-edge blur at the top, and
+     only the bar's controls take taps. Root tabs have the Index capsule at the left, pushed pages a back circle; the pane's
+     own controls are circles at the right, and a surface adds more through NavEnd (ui/NavBar.tsx). */
+  .pane-header {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--phone-top);
+    min-height: 0;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-8);
+    padding: var(--phone-bar-top) var(--space-16) 0;
+    border: 0;
+    box-shadow: none;
+    pointer-events: none;
+  }
+  .pane-header::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0 0 auto;
+    height: var(--page-top-space);
+    pointer-events: none;
+    background: linear-gradient(
+      color-mix(in srgb, var(--canvas) 94%, transparent) calc(var(--phone-top) - var(--space-8)),
+      color-mix(in srgb, var(--canvas) 0%, transparent)
+    );
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    -webkit-mask-image: linear-gradient(#000 calc(100% - var(--space-12) - var(--space-8)), transparent);
+    mask-image: linear-gradient(#000 calc(100% - var(--space-12) - var(--space-8)), transparent);
+  }
+  .pane-header :is(.button, .nav-group) {
+    pointer-events: auto;
+  }
+  .pane-bar-start,
+  .pane-bar-end,
+  .pane-bar-surface {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+  .pane-bar-start {
+    order: 1;
+    flex: none;
+  }
+  .pane-bar-end {
+    order: 4;
+    flex: none;
+    margin-left: auto;
+  }
+  .pane-bar-surface:empty {
+    display: none;
+  }
+  .pane-bar-portal {
+    display: contents;
+  }
+  .journal-navigation {
+    display: contents;
+  }
+  .pane-header .journal-date {
+    order: 3;
+  }
+  .pane-header
+    :is(.pane-kind, .pane-number, .pane-breadcrumbs, .page-projection-tabs, .depth-dial, .vim-mode, .pane-secondary) {
+    display: none;
+  }
+  .button.nav-button {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 22px;
+    color: var(--text);
+    font: var(--weight-control) 15px / 20px var(--font-body);
+  }
+  .button.nav-button:not(.icon-only) {
+    display: inline-flex;
+    width: auto;
+    gap: 6px;
+    padding: 0 16px 0 12px;
+  }
+  .nav-button > .icon {
+    width: 22px;
+    height: 22px;
+    stroke-width: 1.3;
+  }
+  .nav-group,
+  .pane-bar-title-glass,
+  .button.nav-button {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+    box-shadow: var(--glass-ring);
+  }
+  .button.nav-button:is(:hover, :active):not(:disabled) {
+    background: var(--glass-fill);
+    box-shadow: var(--glass-ring);
+  }
+  .button.nav-button:active:not(:disabled) {
+    background: color-mix(in srgb, var(--text) 10%, var(--glass-fill));
+  }
+  .nav-group {
+    flex: none;
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 var(--space-4);
+    border-radius: 22px;
+  }
+  .nav-group:has(> .button:only-child) {
+    padding: 0;
+  }
+  .nav-group:not(:has(> .button)) {
+    display: none;
+  }
+  .nav-group > .button.nav-button,
+  .nav-group > .button.nav-button:is(:hover, :active):not(:disabled) {
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .nav-group > .button.nav-button:active:not(:disabled) {
+    background: var(--ink-wash);
+  }
+  .pane-navigation {
+    margin: 0;
+  }
+  .pane-tab-root .pane-navigation,
+  .pane-navigation .pane-forward,
+  .pane-back:disabled,
+  .journal-navigation .button:not(.journal-date) {
+    display: none;
+  }
+  .app .pane-header:not(.pane-tab-root) .pane-navigation {
+    display: flex;
+  }
+  /* The inline title: the pane's name in prose, which arrives once the large title has scrolled under the bar. */
+  .pane-bar-title {
+    order: 2;
+    flex: 1;
+    min-width: 0;
+    color: var(--text);
+    font: var(--weight-heading) 16px / 20px var(--font-body);
+    text-align: center;
+    opacity: 0;
+    translate: 0 var(--space-4);
+    pointer-events: none;
+    transition:
+      opacity var(--motion-ui) var(--motion-ease),
+      translate var(--motion-ui) var(--motion-ease);
+  }
+  .pane-bar-title > span,
+  .pane-bar-title > small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pane-bar-title > small {
+    color: var(--faint);
+    font: var(--weight-body) 12px / 15px var(--font-body);
+  }
+  .pane-scrolled .pane-bar-title {
+    opacity: 1;
+    translate: 0 0;
+  }
+  .pane-bar-title.pane-bar-title-glass {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-inline: auto;
+    padding: var(--space-4) var(--space-16);
+    border-radius: 22px;
+  }
+  /* A title that opens something is a button, and takes touches where the plain title lets them through. */
+  .pane-bar-title.pane-bar-title-action {
+    pointer-events: auto;
+    border: 0;
+  }
+  .pane-bar-title.pane-bar-title-action:active {
+    background: color-mix(in srgb, var(--text) 10%, var(--glass-fill));
+  }
+  /* In a book the title never waits for a scroll: a glass capsule centred on the screen whatever circles stand beside it, the book's name
+     in Piazzolla italic over the time left in it. The whole bar leaves and returns with the reading tools (reader/reader.css). */
+  .app.is-reading .pane-bar-title {
+    opacity: 1;
+    translate: 0 0;
+  }
+  .app.is-reading .pane-bar-title.pane-bar-title-glass {
+    position: absolute;
+    left: 50%;
+    max-width: calc(100% - 232px);
+    margin: 0;
+    padding: var(--space-4) 14px 0;
+    translate: -50% 0;
+  }
+  .app.is-reading .pane-bar-title > span {
+    font: italic var(--weight-source-title) 17px / 20px var(--font-display);
+  }
+  .app.is-reading .pane-bar-title > small {
+    margin-top: 1px;
+    color: var(--muted);
+    font: var(--weight-body) 12.5px / 15px var(--font-body);
+  }
+  .pane-header {
+    transition:
+      opacity var(--motion-ui) var(--motion-ease),
+      translate var(--motion-ui) var(--motion-ease),
+      visibility 0s;
+  }
+  .pane:has(.reader-chrome-hidden) > .pane-header {
+    opacity: 0;
+    translate: 0 calc(-1 * var(--motion-distance));
+    visibility: hidden;
+    transition:
+      opacity var(--motion-ui) var(--motion-ease),
+      translate var(--motion-ui) var(--motion-ease),
+      visibility 0s var(--motion-ui);
+  }
+  /* Save state speaks only when something needs attention; then it takes the title's place. */
+  .pane-header .pane-save-state {
+    order: 2;
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    overflow: hidden;
+    font: var(--weight-control) var(--text-meta) / var(--line-meta) var(--font-body);
+    text-align: center;
+    white-space: normal;
+  }
+  .pane-save-state:has(.save-dot) {
+    display: none;
+  }
+  .pane-header:has(.pane-save-state:not(:has(.save-dot))) .pane-bar-title {
+    display: none;
+  }
+  :is(.popup, .popup-exit).popup-sheet::before {
+    content: none;
+  }
+  /* The tab bar floats: four places in a glass capsule and Find in its own circle, over a scroll-edge blur at the foot. */
+  .bottom-nav {
+    position: absolute;
+    z-index: 6;
+    inset: auto 0 0;
+    grid-area: auto;
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    padding: 0 var(--space-16) var(--phone-tabbar-bottom);
+    pointer-events: none;
+    transition:
+      opacity var(--motion-ui) var(--motion-ease),
+      translate var(--motion-ui) var(--motion-ease),
+      visibility 0s;
+  }
+  .bottom-nav::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: auto 0 0;
+    height: calc(var(--phone-tabbar-top) + 52px);
+    pointer-events: none;
+    background: linear-gradient(
+      color-mix(in srgb, var(--canvas) 0%, transparent),
+      color-mix(in srgb, var(--canvas) 78%, transparent) 60%
+    );
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    -webkit-mask-image: linear-gradient(transparent, #000 45%);
+    mask-image: linear-gradient(transparent, #000 45%);
+  }
+  /* A review session takes the screen, and its Done screen keeps it: the bar slips away and returns, rather than snapping the pane taller in one frame. */
+  .app:has(.pane.active .review-session-chrome) .bottom-nav {
+    opacity: 0;
+    translate: 0 var(--space-24);
+    visibility: hidden;
+    pointer-events: none;
+    transition-delay: 0s, 0s, var(--motion-ui);
+  }
+  .bottom-tabs {
+    pointer-events: auto;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    height: var(--phone-tabbar-height);
+    padding: var(--space-4);
+    border-radius: calc(var(--phone-tabbar-height) / 2);
+  }
+  .bottom-tabs > .button {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+    border-radius: 27px;
+    color: var(--muted);
+    font: var(--weight-control) 10.5px / 12px var(--font-body);
+    text-align: center;
+  }
+  .bottom-tabs > .button > .icon {
+    width: 22px;
+    height: 22px;
+    stroke-width: 1.3;
+  }
+  .bottom-tabs > .button:is(:hover, :active):not(:disabled) {
+    background: transparent;
+    box-shadow: none;
+  }
+  .bottom-tabs > .button.selected,
+  .bottom-tabs > .button.selected:is(:hover, :active):not(:disabled) {
+    background: var(--ink-wash);
+    color: var(--accent);
+  }
+  .bottom-find.button {
+    pointer-events: auto;
+    flex: none;
+    width: var(--phone-tabbar-height);
+    min-width: var(--phone-tabbar-height);
+    height: var(--phone-tabbar-height);
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: var(--text);
+  }
+  .bottom-find > .icon {
+    width: 22px;
+    height: 22px;
+    stroke-width: 1.3;
+  }
+  .bottom-find.button:is(:hover, :active):not(:disabled) {
+    background: var(--glass-fill);
+    box-shadow: var(--glass-ring);
+  }
+  .bottom-find.selected {
+    color: var(--accent);
+  }
+  .bottom-nav-badge {
+    position: absolute;
+    top: 5px;
+    left: calc(50% + 7px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 var(--space-4);
+    border-radius: 8px;
+    background: var(--danger);
+    color: var(--canvas);
+    font: var(--weight-heading) 10px / 16px var(--font-body);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .app.keyboard-open .bottom-nav,
+  .app.is-immersive .bottom-nav,
+  .app.is-reading .bottom-nav {
+    display: none;
+  }
+  /* A book reads edge to edge, under the nav bar and the reading tools; the reader fades them together (reader/reader.css). */
+  .app.is-reading .workspace {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: var(--canvas);
+    transition: none;
+  }
+  /* The large title carries its count above it in Plex, the figure in mono; the lists begin one group gap below. */
+  .directory-head {
+    margin-bottom: 34px;
+  }
+  .directory-head > p {
+    margin: 0 0 var(--page-eyebrow-gap);
+    color: var(--faint);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .directory-head .fig {
+    font: var(--figures);
+    font-variant-numeric: tabular-nums;
+  }
+  .directory-head > h1 {
+    margin: 0;
+    font: var(--phone-title-font);
+  }
+  .directory-pane .list-group {
+    margin-inline: 0;
+  }
+  .phone-index .list-label > .button {
+    margin-block: -12px -4px;
+    margin-right: -14px;
+  }
+  .phone-index .notebook-switcher {
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    font: var(--weight-control) 15px / 20px var(--font-body);
+  }
+  .phone-index-note {
+    color: var(--faint);
+    font: var(--weight-body) 15px / 20px var(--font-body);
+  }
+  .phone-index-fold > .icon {
+    transition: rotate var(--motion-fast) var(--motion-ease);
+  }
+  .phone-index-fold.open > .icon {
+    rotate: 90deg;
+  }
+  /* Buttons are capsules of three kinds: stamp (the screen's one gilt primary), tint (an ink wash; the old bordered box is one) and plain
+     (text in ink). sm is the 34 pt inline size and lg the 52 pt full-width one at the foot of a screen. */
+  .button:is(.stamp, .tint, .bordered),
+  .conflict-actions button {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    justify-content: center;
+    gap: 6px;
+    font-size: 15px;
+    line-height: 20px;
+    text-align: center;
+  }
+  .button.plain {
+    min-height: 44px;
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    font-size: 15px;
+    line-height: 20px;
+  }
+  .button:is(.tint, .bordered),
+  .conflict-actions button {
+    background: var(--ink-wash);
+    box-shadow: none;
+  }
+  .button:is(.tint, .bordered):is(:hover, :active):not(:disabled),
+  .conflict-actions button:is(:hover, :active):not(:disabled) {
+    background: var(--ink-wash);
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .button:is(.tint, .bordered):active:not(:disabled),
+  .conflict-actions button:active:not(:disabled) {
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+  }
+  .button.stamp,
+  .button.stamp:is(:hover, :active):not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--leaf));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent),
+      inset 0 1px 0 var(--lit-edge),
+      0 1px 2px var(--contact-shadow);
+    font-weight: var(--weight-heading);
+  }
+  .button:is(.stamp, .tint, .bordered).icon-only {
+    width: 44px;
+    padding: 0;
+  }
+  .button.sm {
+    min-height: 34px;
+    padding-inline: 14px;
+    font-size: 14px;
+    line-height: 18px;
+  }
+  .button.plain.sm {
+    padding-inline: 8px;
+  }
+  .button.lg {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 26px;
+    font-size: 17px;
+    line-height: 22px;
+  }
+  /* The strip that switches a screen's views reads in Plex at body size, with the gilt rule under the current one. */
+  .mode-tabs.tab-strip {
+    gap: 22px;
+  }
+  .mode-tabs.tab-strip > .button {
+    padding: 0;
+    font: var(--weight-control) 15px / 20px var(--font-body);
+    letter-spacing: normal;
+  }
+  /* Touch, not keyboard: no key hints, a gilt caret, and no focus ring until a hardware keyboard's Tab. */
+  kbd {
+    display: none;
+  }
+  :root {
+    caret-color: var(--accent);
+  }
+  :root:not([data-keyboard]) :focus-visible {
+    outline: none;
+  }
+  :root:not([data-keyboard]) .mode-tabs > .button:focus-visible {
+    outline: none;
+  }
+  /* A page's scrollers run under both bars; what scrolls into view (a caret, an anchor) stops clear of them. */
+  .pane-content
+  :is(
+    .outline-pane,
+    .directory-pane,
+    .index-pane,
+    .agenda-pane,
+    .library-scroll,
+    .review-scroll,
+    .settings-pane,
+    .notes-review,
+    .field-page-pane,
+    .card-templates-pane,
+    .type-fields-pane,
+    .research-desk,
+    .spread-unsaved
+  ) {
+    scroll-padding-top: var(--phone-top);
+    scroll-padding-bottom: var(--phone-tabbar-top);
+  }
+  /* Banners float under the nav bar instead of pushing the page down. */
+  .workspace {
+    position: relative;
+  }
+  .workspace > :is(.shell-error, .save-banner),
+  .pane > .pane-error {
+    position: absolute;
+    z-index: 5;
+    top: var(--phone-top);
+    left: var(--space-12);
+    right: var(--space-12);
+    margin: 0;
+    padding: var(--space-8) var(--space-16);
+    border: 0;
+    border-radius: 16px;
+    background: var(--raised);
+    box-shadow: var(--popup-shadow);
+  }
+}
+@media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
+  :is(.nav-group, .pane-bar-title-glass, .button.nav-button, .glass, .button.glass) {
+    background: var(--raised);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+.index-kind-row {
+  display: flex;
+  min-width: 0;
+}
+.index-kind-row > .index-kind {
+  flex: 1;
+  min-width: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode-tabs > .tab-rule,
+  .sidebar .button::before {
+    transition: none;
+  }
+}
