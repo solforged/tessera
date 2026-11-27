@@ -112,6 +112,12 @@
       --row-controls: var(--target-size);
     }
   }
+  /* A narrow journal pane also moves the row menu to the right edge, leaving only the fold before the bullet or checkbox. */
+  @container outline-pane (max-width: 856px) {
+    .outline-pane:has(.journal-header) .row-capture-time {
+      --row-controls: var(--target-size);
+    }
+  }
   .outline-row:is(:hover, :focus-within, .row-selected) > .row-capture-time {
     visibility: hidden;
   }
@@ -129,9 +135,29 @@
       }
     }
   }
-  /* Missing sections on Today: the head, then one line that writes the heading with its first entry. */
+  /* Missing sections on Today: the primary capture section keeps its full head; unwritten secondary sections stay a quiet trigger until opened. */
   .journal-missing-section > .section-capture {
     padding-top: var(--space-4);
+  }
+  .journal-missing-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-8);
+    margin-top: var(--space-8);
+  }
+  .journal-missing-secondary > .journal-missing-section {
+    flex: 1 0 100%;
+  }
+  .journal-missing-trigger.button {
+    min-height: 0;
+    padding: var(--space-2) var(--space-8) var(--space-2) var(--space-4);
+    color: var(--faint);
+    font: var(--apparatus);
+    letter-spacing: var(--tracking-apparatus);
+  }
+  .journal-missing-trigger.button:hover:not(:disabled) {
+    color: var(--text);
   }
   .journal-missing-section .capture-line:not(.capture-boxed) .capture-input {
     border-bottom-color: transparent;

@@ -398,18 +398,22 @@ export function JournalHeader(props: {
             {[...new Set([deskError(), readingError()].filter(Boolean))].join(' · ')}
           </p>
         </Show>
-        <Show when={plan()?.on && dayGroups()}>
-          {groups => (
-            <JournalPlan
-              name={plan()!.name}
-              date={props.date}
-              groups={groups()}
-              now={clock()}
-              workshop={props.workshop}
-              carried={carried}
-              onOpen={props.onOpen}
-            />
-          )}
+        <Show
+          when={
+            plan()?.on &&
+            dayGroups() &&
+            (phone() || !tiles().agenda || dayGroups()!.planned.length > 0 || dayGroups()!.overdue.length > 0)
+          }
+        >
+          <JournalPlan
+            name={plan()!.name}
+            date={props.date}
+            groups={dayGroups()!}
+            now={clock()}
+            workshop={props.workshop}
+            carried={carried}
+            onOpen={props.onOpen}
+          />
         </Show>
       </Show>
     </section>

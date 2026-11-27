@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { FieldDefinition } from '../api/types';
 import { newTask } from './quick-date';
-import { taskFieldFormat, taskFieldName, taskFieldText } from './task-fields';
+import { taskFieldFormat, taskFieldLabel, taskFieldName, taskFieldText } from './task-fields';
 import { attributeDefinitions } from '../table/attributes';
 
 const field = (name: string): FieldDefinition => ({
@@ -46,5 +46,7 @@ describe('canonical task fields', () => {
     expect(taskFieldText(task, 'priority')).toBe('High');
     expect(taskFieldText(task, 'repeat')).toBe('Fixed · 2 weeks');
     expect(taskFieldText({ ...task, status: null }, 'status')).toBe('');
+    expect(taskFieldLabel('status')).toBe('Status');
+    expect(taskFieldLabel('scheduled')).toBe('Scheduled');
   });
 });

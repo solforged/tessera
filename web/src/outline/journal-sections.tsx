@@ -237,18 +237,63 @@ export function SectionCapture(props: {
 export function MissingSections(props: { workshop: WorkshopClient; sections: readonly TodaySection[] }) {
   const phone = isPhone;
   const [adding, setAdding] = createSignal<string | null>(null);
+  const primaryId = () => captureSection(props.workshop.todayTemplate()).id;
+  const primary = () => props.sections.filter(section => section.id === primaryId());
+  const secondary = () => props.sections.filter(section => section.id !== primaryId());
   return (
     <Show
       when={phone()}
       fallback={
-        <For each={props.sections}>
-          {section => (
-            <section class="journal-missing-section" aria-label={section.name}>
-              <SectionHead name={section.name} />
-              <SectionCapture workshop={props.workshop} section={section} />
-            </section>
-          )}
-        </For>
+        <>
+          <For each={primary()}>
+            {section => (
+              <section class="journal-missing-section" aria-label={section.name}>
+                <SectionHead name={section.name} />
+                <SectionCapture workshop={props.workshop} section={section} />
+              </section>
+            )}
+          </For>
+          <Show when={secondary().length}>
+            <div class="journal-missing-secondary" role="group" aria-label="Other sections">
+              <For each={secondary()}>
+                {section => (
+                  <Show
+                    when={adding() === section.id}
+                    fallback={
+                      <Button
+                        class="journal-missing-trigger"
+                        icon="plus"
+                        aria-expanded={false}
+                        onClick={() => setAdding(section.id)}
+                      >
+                        {section.name}
+                      </Button>
+                    }
+                  >
+                    <section
+                      class="journal-missing-section"
+                      aria-label={section.name}
+                      onFocusOut={event => {
+                        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))
+                          return;
+                        if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
+                      }}
+                    >
+                      <SectionHead name={section.name} />
+                      <SectionCapture
+                        workshop={props.workshop}
+                        section={section}
+                        inline
+                        autofocus
+                        onCaptured={() => setAdding(null)}
+                      />
+                    </section>
+                  </Show>
+                )}
+              </For>
+            </div>
+          </Show>
+        </>
       }
     >
       <div class="journal-add-to" role="group" aria-label="Add to a section">

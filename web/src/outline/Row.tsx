@@ -506,7 +506,14 @@ export function createOutlineRows(
   function Row(propsRow: { id: string; item?: Accessor<VirtualItem>; natural?: boolean; placeholder?: string }) {
     const id = () => propsRow.id;
     const block = () => doc.block(id());
-    const children = () => doc.outline.children(id()).length > 0;
+    const children = () => {
+      const kids = doc.outline.children(id());
+      if (!kids.length) return false;
+      const isTask = !!block()?.task;
+      if (!isTask) return true;
+      const definitions = definitionsById();
+      return kids.some(child => !definitions.has(fieldEntryId(doc.block(child)?.text ?? '') ?? ''));
+    };
     // Today draws its written sections' headings as section heads, Notes before its first row, and Inbox clocks.
     const sectionHead = () => journal()?.heads.get(id());
     const notesHead = () => {
@@ -1315,15 +1322,17 @@ export function createOutlineRows(
                 </span>
               }
             >
-              <Button
-                class="bordered"
-                onClick={() => {
-                  if (!block()?.task?.status) capabilities.invoke(capabilities.status(id(), 'todo'));
-                  context.openPlanning(id(), 'schedule');
-                }}
-              >
-                Plan
-              </Button>
+              <Show when={!block()?.task?.status}>
+                <Button
+                  class="bordered"
+                  onClick={() => {
+                    capabilities.invoke(capabilities.status(id(), 'todo'));
+                    context.openPlanning(id(), 'schedule');
+                  }}
+                >
+                  Plan
+                </Button>
+              </Show>
               <Button
                 class="bordered"
                 aria-haspopup="listbox"

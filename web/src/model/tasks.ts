@@ -31,7 +31,7 @@ export function taskFieldName(field: Pick<FieldDefinition, 'id' | 'name' | 'buil
           : '';
   return taskFieldNames.includes(name as TaskFieldName) ? (name as TaskFieldName) : undefined;
 }
-export const taskFieldLabel = (name: TaskFieldName) => name;
+export const taskFieldLabel = (name: TaskFieldName) => `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
 export function taskFieldFormat(field: FieldDefinition): string | undefined {
   const name = taskFieldName(field);
   return name === 'repeat' ? 'Repeat' : name === 'scheduled' || name === 'deadline' ? 'Date + time' : undefined;

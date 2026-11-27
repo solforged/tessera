@@ -117,10 +117,11 @@ export function TaskFieldBed(props: {
     setEditor(undefined);
     queueMicrotask(() => {
       const opener = typeof state?.returnTo === 'function' ? state.returnTo() : state?.returnTo;
-      (opener?.isConnected
-        ? opener
-        : bed?.querySelector<HTMLButtonElement>(`[data-task-field="${state?.field.id}"]`)
-      )?.focus({ preventScroll: true });
+      const target =
+        (opener?.isConnected ? opener : null) ??
+        bed?.querySelector<HTMLButtonElement>(`[data-task-field="${state?.field.id}"]`) ??
+        bed?.closest<HTMLElement>('.outline-pane');
+      target?.focus({ preventScroll: true });
     });
   };
   const write = async (text: string, relationPick?: Parameters<typeof writeFieldValue>[4]) => {

@@ -506,7 +506,7 @@
   }
   /* Plan is generated from Agenda: carried work folds to one danger band above today's rows. */
   .journal-plan {
-    margin-top: var(--space-20);
+    margin-top: var(--section-gap);
   }
   .journal-plan-body {
     margin-top: var(--space-4);

@@ -179,7 +179,7 @@ export function createFieldSheet(
       const text = untrack(() => block.text),
         keys = typeKeys(text, []);
       memberships.set(id, keys);
-      if (block.task || block.position || block.manual_types.length || keys.length) owners.add(id);
+      if (block.task || block.project || block.position || block.manual_types.length || keys.length) owners.add(id);
       if (known.has(fieldEntryId(text) ?? '')) owners.add(doc.outline.parentOf(id));
     };
     consider(props.pageId);
@@ -202,6 +202,7 @@ export function createFieldSheet(
         block?.manual_types ?? [],
       ),
       ...(block?.task?.status ? ['task'] : []),
+      ...(block?.project ? ['project'] : []),
     ];
     const apparatus = block?.position
       ? definitions()
@@ -527,13 +528,11 @@ export function createFieldSheet(
   }
   function Area(area: { state: PlacedSheet }) {
     if (doc.block(area.state.owner)?.task) {
-      const multiSelected = () => selectedIds().length > 1;
+      // Keep outline task rows compact by default; expand the full task bed on explicit request or at the root/zoomed task.
       const focused = () =>
         dismissedTask() !== area.state.owner &&
         (taskRequest()?.owner === area.state.owner ||
-          (!isPhone() &&
-            (area.state.owner === props.pageId ||
-              (!multiSelected() && (selected() === area.state.owner || editing() === area.state.owner)))));
+          (!isPhone() && (area.state.owner === props.pageId || zoom() === area.state.owner)));
       return (
         <Show when={focused()}>
           <div
@@ -662,7 +661,11 @@ export function createFieldSheet(
   function pickerTemplateLabel(owner: string) {
     const block = doc.block(owner);
     if (block?.position) return 'From this recipe';
-    const keys = [...typeKeys(block?.text ?? '', block?.manual_types ?? []), ...(block?.task?.status ? ['task'] : [])];
+    const keys = [
+      ...typeKeys(block?.text ?? '', block?.manual_types ?? []),
+      ...(block?.task?.status ? ['task'] : []),
+      ...(block?.project ? ['project'] : []),
+    ];
     const names = new Map<string, string>();
     for (const field of context.fields.error ? [] : (context.fields()?.fields ?? []))
       for (const type of field.types) {
