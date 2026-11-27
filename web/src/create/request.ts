@@ -1,5 +1,6 @@
 import { parseCardText } from '../core/card-text';
 import type { OpenTarget } from '../core/contract';
+import { matchTaskPrefix } from '../model/tasks';
 
 /**
  * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and
@@ -88,7 +89,7 @@ export function inferKind(text: string): CreateKind | null {
   const value = text.trim();
   if (!value) return null;
   if (value.endsWith('?')) return 'question';
-  if (/^\[ ?\] /.test(text.trimStart())) return 'task';
+  if (matchTaskPrefix(text.trimStart())) return 'task';
   if (parseCardText(value).cards.length) return 'card';
   if (/^https?:\/\/\S+$/i.test(value)) {
     try {

@@ -13,6 +13,7 @@ import { completeTypes, typeSpelling, typeTokenAt } from '../outline/type-comple
 import { createPageIcon } from '../outline/source';
 import { noteKindIcon } from '../notes/kinds';
 import { parseCardText } from '../core/card-text';
+import { matchTaskPrefix } from '../model/tasks';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
 import { relativeDate } from '../tasks/relative-date';
 import type { SectionTarget } from '../tasks/today-template';
@@ -78,6 +79,10 @@ export interface CaptureFieldProps {
   /** Escape with no completion open. */
   onCancel?(): void;
   onTaskChange?(task: boolean): void;
+  /** Called when a leading `[] ` or `[ ] ` shorthand is stripped inside a `fixedKind` host such as CreateSlip. */
+  onTaskPrefix?(): void;
+  /** Called on Backspace at offset 0 of an empty field inside a `fixedKind` host. */
+  onBackspaceEmpty?(): void;
   inputRef?(input: HTMLInputElement | HTMLTextAreaElement): void;
   /** Rendered after the field, before the preview, such as the sheet's footer. */
   children?: (state: { task: () => boolean; busy: () => boolean; submit(again: boolean): void }) => JSX.Element;
@@ -101,9 +106,7 @@ export function CaptureField(props: CaptureFieldProps) {
   // Escape closes a completion until the text changes.
   const [dismissed, setDismissed] = createSignal<string | null>(null);
   const picked: TitleTargets = new Map();
-  const taskPrefix = createMemo(() =>
-    !props.fixedKind || props.taskOnly ? (/^\[ ?\] /.exec(draft())?.[0] ?? '') : '',
-  );
+  const taskPrefix = createMemo(() => (!props.fixedKind || props.taskOnly ? matchTaskPrefix(draft()) : ''));
   const bodyText = createMemo(() => draft().slice(taskPrefix().length).trim());
   const hasCards = createMemo(() => parseCardText(bodyText()).cards.length > 0);
   const isTask = () => !!props.taskOnly || (!props.fixedKind && (task() || !!taskPrefix()));
@@ -302,14 +305,14 @@ export function CaptureField(props: CaptureFieldProps) {
       void submit(event.shiftKey);
     } else if (
       event.key === 'Backspace' &&
-      !props.taskOnly &&
-      task() &&
       !draft() &&
       input.selectionStart === 0 &&
-      input.selectionEnd === 0
+      input.selectionEnd === 0 &&
+      ((!props.taskOnly && task()) || (props.fixedKind && props.onBackspaceEmpty))
     ) {
       event.preventDefault();
-      setTask(false);
+      if (!props.fixedKind) setTask(false);
+      else props.onBackspaceEmpty?.();
     } else if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -326,11 +329,12 @@ export function CaptureField(props: CaptureFieldProps) {
       input.setSelectionRange(at, at);
     }
     const text = input.value;
-    const prefix = /^\[ ?\] /.exec(text)?.[0] ?? '';
+    const prefix = matchTaskPrefix(text);
     const start = Math.max(0, (input.selectionStart ?? text.length) - prefix.length);
     const end = Math.max(0, (input.selectionEnd ?? text.length) - prefix.length);
-    if (prefix && !props.fixedKind) {
-      setTask(true);
+    if (prefix && (!props.fixedKind || props.taskOnly || props.onTaskPrefix)) {
+      if (!props.fixedKind) setTask(true);
+      else props.onTaskPrefix?.();
       input.value = text.slice(prefix.length);
       input.setSelectionRange(start, end);
     }
@@ -354,31 +358,47 @@ export function CaptureField(props: CaptureFieldProps) {
         class="capture-line"
         classList={{ 'capture-boxed': !!props.boxed }}
         onPointerDown={event => {
-          if (props.boxed && event.target !== input) {
+          if (
+            props.boxed &&
+            event.target !== input &&
+            !(event.target instanceof Element && event.target.closest('button'))
+          ) {
             event.preventDefault();
             input.focus();
           }
         }}
       >
-        <Show when={!props.boxed} fallback={<Icon name="plus" class="capture-plus" />}>
-          <Show
-            when={!props.taskOnly && !props.fixedKind}
-            fallback={props.leading ?? <Icon name={props.taskOnly ? 'select' : 'bullet'} />}
+        <Show
+          when={!props.taskOnly && !props.fixedKind}
+          fallback={
+            props.boxed ? (
+              <Icon name="plus" class="capture-plus" />
+            ) : (
+              (props.leading ?? <Icon name={props.taskOnly ? 'select' : 'bullet'} />)
+            )
+          }
+        >
+          <button
+            type="button"
+            class="capture-kind"
+            aria-pressed={task()}
+            aria-label={task() ? 'Task' : 'Make task'}
+            title={task() ? 'Task' : 'Make task'}
+            onMouseDown={event => event.preventDefault()}
+            onClick={() => setTask(value => !value)}
           >
-            <button
-              type="button"
-              class="capture-kind"
-              aria-pressed={task()}
-              aria-label="Task"
-              title="Task"
-              onMouseDown={event => event.preventDefault()}
-              onClick={() => setTask(value => !value)}
-            >
-              <Icon
-                name={isTask() || (plan()?.explicit && plan()?.choice) ? 'select' : hasCards() ? 'card' : 'bullet'}
-              />
-            </button>
-          </Show>
+            <Icon
+              name={
+                isTask() || (plan()?.explicit && plan()?.choice)
+                  ? 'select'
+                  : hasCards()
+                    ? 'card'
+                    : props.boxed
+                      ? 'plus'
+                      : 'bullet'
+              }
+            />
+          </button>
         </Show>
         <Dynamic
           component={field}
@@ -416,7 +436,7 @@ export function CaptureField(props: CaptureFieldProps) {
                 <Icon name="calendar" />
               </Show>
               <span class="capture-inline-plan">{state().label}</span>
-              <Show when={!state().warning}>
+              <Show when={!state().warning && !props.children}>
                 <span class="capture-inline-enter">↵ add</span>
               </Show>
             </span>

@@ -145,7 +145,8 @@
   .capture-line.capture-boxed:focus-within {
     --tick: var(--accent);
   }
-  .capture-boxed > .capture-plus {
+  .capture-boxed > .capture-plus,
+  .capture-boxed > .capture-kind {
     width: var(--icon-size);
     height: var(--icon-size);
     color: var(--accent);

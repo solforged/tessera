@@ -305,8 +305,12 @@ export function CreateSlipBody(
     ([value, roots]) => completeNames(props.workshop, value, roots),
   );
   let body!: HTMLDivElement;
+  let taskFromPrefix = false;
   function changeKind(next: CreateKind, explicit: boolean) {
-    if (explicit) chosen = true;
+    if (explicit) {
+      chosen = true;
+      taskFromPrefix = false;
+    }
     if (kind() === next) return;
     setKind(next);
     if (!destinationChosen) setInto(defaultInto(next));
@@ -315,9 +319,11 @@ export function CreateSlipBody(
       const field = body.querySelector<HTMLInputElement | HTMLTextAreaElement>(
         next === 'card' && !explicit ? '.card-composer-back textarea' : 'textarea,input:not([type="file"])',
       );
-      field?.focus();
-      if (field && (field instanceof HTMLTextAreaElement || ['text', 'search', 'url'].includes(field.type)))
-        field.setSelectionRange(field.value.length, field.value.length);
+      if (field && document.activeElement !== field) {
+        field.focus();
+        if (field instanceof HTMLTextAreaElement || ['text', 'search', 'url'].includes(field.type))
+          field.setSelectionRange(field.value.length, field.value.length);
+      }
     });
   }
   function changeText(value: string) {
@@ -327,7 +333,7 @@ export function CreateSlipBody(
       const inferred = inferKind(value);
       changeKind(
         (inferred === 'source' && webAddress(value) && template().links === 'link' ? 'link' : inferred) ??
-          props.request.kind,
+          (taskFromPrefix ? 'task' : props.request.kind),
         false,
       );
     }
@@ -673,6 +679,24 @@ export function CreateSlipBody(
               placeholder={kind() === 'link' ? 'Paste a link' : 'Write a line'}
               onSaved={saved}
               onCancel={cancel}
+              onTaskPrefix={
+                props.request.lockKind
+                  ? undefined
+                  : () => {
+                      taskFromPrefix = true;
+                      changeKind('task', false);
+                    }
+              }
+              onBackspaceEmpty={
+                props.request.lockKind
+                  ? undefined
+                  : () => {
+                      if (taskFromPrefix && !chosen) {
+                        taskFromPrefix = false;
+                        changeKind(props.request.kind, false);
+                      }
+                    }
+              }
               leading={props.request.lockKind || phoneControls() ? undefined : chip()}
               prepare={
                 kind() === 'link' ? value => (webAddress(value) ? titledLink(value, linkTitle()) : value) : undefined

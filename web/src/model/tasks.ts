@@ -12,6 +12,12 @@ export const newTask = (status: TaskStatus | null = null): TaskState => ({
   completed_on: null,
 });
 
+const TASK_PREFIX = /^\[ ?\] /;
+/** Leading `[] ` or `[ ] ` shorthand that starts a task across outline and capture inputs. */
+export function matchTaskPrefix(text: string): string {
+  return TASK_PREFIX.exec(text)?.[0] ?? '';
+}
+
 export const taskFieldNames = ['status', 'scheduled', 'deadline', 'priority', 'repeat', 'project'] as const;
 export type TaskFieldName = (typeof taskFieldNames)[number];
 export function taskFieldName(field: Pick<FieldDefinition, 'id' | 'name' | 'built_in'>): TaskFieldName | undefined {

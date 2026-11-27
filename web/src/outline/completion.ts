@@ -2,6 +2,7 @@ import type { Block, QuoteState } from '../api/types';
 import { insideProtectedSyntax } from '../core/syntax';
 import type { WorkshopClient } from '../document/contract';
 import { mapTextOffset } from '../document/text-patch';
+import { matchTaskPrefix } from '../model/tasks';
 import { titleKey } from '../model/title-key';
 
 export interface CapturedQuoteCompletion {
@@ -42,8 +43,10 @@ export function headingPrefix(
 
 /** `[] ` or `[ ] ` typed at the start of a block makes it a task; the caret keeps its place in the rest. */
 export function taskPrefixInput(previous: string, text: string, caret: number): { text: string; caret: number } | null {
-  const prefix = completedPrefix(/^\[ ?\] /, previous, text, caret);
-  return prefix ? { text: text.slice(prefix[0].length), caret: caret - prefix[0].length } : null;
+  const prefix = matchTaskPrefix(text);
+  return prefix && caret >= prefix.length && !matchTaskPrefix(previous)
+    ? { text: text.slice(prefix.length), caret: caret - prefix.length }
+    : null;
 }
 
 /** Only unmodified Enter or Tab accepts a completion; editing chords retain their own meaning. */
