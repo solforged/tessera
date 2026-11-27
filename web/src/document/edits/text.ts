@@ -43,7 +43,7 @@ export function editHeading(
 
 export function editSplit(doc: DocumentInternals, session: EditSession, edit: Extract<Edit, { kind: 'split' }>): void {
   const old = doc.snapshot(edit.id);
-  if (old.kind !== 'block') throw new Error('Only outline atoms can split.');
+  if (old.kind !== 'block') throw new Error('Only outline notes can split.');
   const at = Math.max(0, Math.min(edit.offset, old.text.length));
   const offset = splitToken(old.text, at)?.end ?? at;
   session.split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot, edit.fieldEntry);
@@ -53,7 +53,7 @@ export function editMerge(doc: DocumentInternals, session: EditSession, edit: Ex
   const { actions } = session;
   const source = doc.snapshot(edit.sourceId);
   const destination = doc.snapshot(edit.destinationId);
-  if (source.kind !== 'block') throw new Error('A titled atom cannot merge into an outline atom.');
+  if (source.kind !== 'block') throw new Error('A titled note cannot merge into an outline note.');
   let parent = destination.id;
   while (parent !== doc.pageId) {
     if (parent === source.id) throw new Error('Cannot merge into a descendant.');
@@ -65,7 +65,7 @@ export function editMerge(doc: DocumentInternals, session: EditSession, edit: Ex
       break;
     }
   doc.guardMerge(source.id);
-  if (doc.block(destination.id)?.image) throw new Error("Image atoms can't be merged.");
+  if (doc.block(destination.id)?.image) throw new Error("Image notes can't be merged.");
   actions.push({
     kind: 'merge',
     id: source.id,

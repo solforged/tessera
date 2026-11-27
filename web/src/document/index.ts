@@ -507,7 +507,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
   private receiveRemoval(id: string) {
     this.publish(null, id);
     this.updateRoot(null, id);
-    this.docs.get(id)?.markMissing('This atom was removed because nothing uses it any more.');
+    this.docs.get(id)?.markMissing('This note was removed because nothing uses it any more.');
   }
   updateRoot(block: Block | null, id = block?.id) {
     if (!id) return;
@@ -665,7 +665,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
       capture: structuredClone({ date: this.todayDate(), text, task, picked: [...picked], ...options }),
       operations: [],
       reason: options.targetPageId
-        ? 'Add to atom'
+        ? 'Add to note'
         : options.section
           ? `Add to ${options.section.name}`
           : 'Add to today',
@@ -859,7 +859,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
   }
   compilePageActions(pageId: string, actions: readonly Action[]): Operation[] {
     const doc = this.docs.get(pageId);
-    if (!doc) throw new Error('This atom is not open.');
+    if (!doc) throw new Error('This note is not open.');
     return this.compile(
       { id: '', order: 0, pageId, actions: [...actions], inverse: [], before: null, after: null },
       doc,
@@ -955,7 +955,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
       if (!block) {
         const cached = this.cache.get(id)?.[0]();
         const saved = doc.baseBlocks.get(id) ?? (cached && this.docs.get(cached.page_id)?.baseBlocks.get(id)) ?? cached;
-        if (!saved) throw new Error('The atom no longer exists.');
+        if (!saved) throw new Error('The note no longer exists.');
         block = { ...saved };
         working.set(id, block);
         initialRevisions.set(id, saved.revision);
@@ -1048,7 +1048,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         case 'workState': {
           const block = current(action.id);
           if (action.baseRevision !== initialRevisions.get(action.id))
-            throw new Error('The atom changed. Rejected command kept; refresh before applying it again.');
+            throw new Error('The note changed. Rejected command kept; refresh before applying it again.');
           let value = capabilities.get(action.id);
           if (!value) {
             value = doc.capabilities(action.id, true);
@@ -1684,7 +1684,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
         for (const id of removed) {
           this.publish(null, id);
           this.updateRoot(null, id);
-          this.docs.get(id)?.markMissing('This atom was merged into another atom.');
+          this.docs.get(id)?.markMissing('This note was merged into another note.');
         }
         // Own change-stream events are skipped. Reload here, including after an
         // outbox replay, so moved rows and rewritten manual memberships arrive.
@@ -2565,7 +2565,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
   async createPage(title: string) {
     await this.ready;
     if (!title.trim()) throw new Error('A title is required.');
-    if (!this.titleAvailable(title.trim(), '')) throw new Error('That atom title is already taken.');
+    if (!this.titleAvailable(title.trim(), '')) throw new Error('That note title is already taken.');
     return this.createRoot('page', title.trim());
   }
   async pageByTitle(title: string, create: boolean) {
@@ -2665,7 +2665,7 @@ export class Workshop implements WorkshopClient, DocumentHost {
     const action = this.deletedPages.get(pageId);
     if (!action) {
       const page = (await this.api.deletedPages()).find(page => page.block.id === pageId);
-      if (!page) throw new Error('This atom deletion is no longer available to restore.');
+      if (!page) throw new Error('This note deletion is no longer available to restore.');
       await this.commit([{ op: 'restore', id: pageId, deletion_id: page.deletion_id, revision: page.block.revision }]);
       return;
     }

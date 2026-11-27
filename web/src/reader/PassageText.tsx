@@ -139,8 +139,8 @@ export function PassageText(props: {
                 <Button
                   class="reader-highlight-note"
                   icon="note"
-                  label="Open atom"
-                  title="Open atom"
+                  label="Open note"
+                  title="Open note"
                   onPointerDown={event => event.preventDefault()}
                   onClick={event => {
                     event.stopPropagation();

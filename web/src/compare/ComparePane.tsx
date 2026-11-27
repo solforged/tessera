@@ -364,7 +364,7 @@ export function ComparePane(props: ComparePaneProps) {
               when={perspectives().length >= 2}
               fallback={
                 <p class="empty-state">
-                  Compare needs two or more perspectives filed under this atom. Make an atom a perspective from its menu
+                  Compare needs two or more perspectives filed under this note. Make a note a perspective from its menu
                   and write its Gist beneath it.
                 </p>
               }
@@ -485,8 +485,8 @@ export function ComparePane(props: ComparePaneProps) {
             </Show>
           </Show>
           <Show when={questions().length}>
-            <section class="compare-questions" aria-label="Questions on this atom">
-              <h3>Questions on this atom</h3>
+            <section class="compare-questions" aria-label="Questions on this note">
+              <h3>Questions on this note</h3>
               <For each={questions()}>
                 {question => (
                   <div class="compare-question">

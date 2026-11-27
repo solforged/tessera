@@ -247,8 +247,8 @@ export function TablePhoneFind(props: {
         fallback={
           <SearchWell
             class="table-phone-find"
-            label={`Find in ${props.title || 'atoms'}`}
-            placeholder={`Find in ${props.title || 'atoms'}`}
+            label={`Find in ${props.title || 'notes'}`}
+            placeholder={`Find in ${props.title || 'notes'}`}
             value={props.query.text ?? ''}
             onInput={event => {
               const value = event.currentTarget.value;
@@ -295,7 +295,7 @@ export function TablePhoneOptions(props: {
         <ListRow
           push
           aria-haspopup="menu"
-          value={props.savedName ?? (props.title ? `All ${props.title}` : 'All atoms')}
+          value={props.savedName ?? (props.title ? `All ${props.title}` : 'All notes')}
           onClick={event => props.onViewMenu(event.currentTarget)}
         >
           Views

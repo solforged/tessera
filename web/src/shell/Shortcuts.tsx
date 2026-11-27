@@ -7,22 +7,22 @@ import './shortcuts.css';
 
 /** What can be written into a block. Operators come from the card parser so the sheet cannot drift from it. */
 const syntax: { write: string; means: string }[] = [
-  { write: '#tag', means: 'What this atom is. A new name makes a new tag.' },
+  { write: '#tag', means: 'What this note is. A new name makes a new tag.' },
   { write: '#task', means: 'A checkbox, status, schedule, deadline, priority and repeat.' },
   { write: '#question', means: 'A revisit date, criteria and assessments.' },
   { write: '#project', means: 'An outcome, deadline and active state.' },
   { write: '#source', means: 'A snapshot, reading state and citation key.' },
-  { write: 'name:: value', means: 'A field on this atom. A name no field has makes one.' },
+  { write: 'name:: value', means: 'A field on this note. A name no field has makes one.' },
   {
     write: '>>  <<  <>  {{c1::…}}',
     means: `A card: ${(['>>', '<<', '<>'] as const).map(op => cardOperators[op].label).join(', ')}, cloze. Its tags are its decks. Also ${(['>>>', '>>1.', ';;'] as const).map(op => `${op} ${cardOperators[op].label}`).join(', ')}.`,
   },
   {
     write: '@friday  @due monday',
-    means: 'Schedule or deadline on this atom. It is not a task until it is tagged one.',
+    means: 'Schedule or deadline on this note. It is not a task until it is tagged one.',
   },
-  { write: '[[', means: 'A reference to another atom.' },
-  { write: '((', means: 'A frozen quote of another atom.' },
+  { write: '[[', means: 'A reference to another note.' },
+  { write: '((', means: 'A frozen quote of another note.' },
   { write: '/', means: 'Everything else: tags, fields, task states, images, views.' },
 ];
 
@@ -31,7 +31,7 @@ const sections: Command['section'][] = [
   'Create',
   'Editing',
   'Outline',
-  'Atom',
+  'Note',
   'Page',
   'View',
   'Vim',
@@ -83,7 +83,7 @@ export function Shortcuts(props: { commands: CommandRegistry; onDismiss(): void 
           <For each={groups()}>
             {group => (
               <>
-                <h4 class="shortcuts-group">{group.section === 'Page' ? 'This atom' : group.section}</h4>
+                <h4 class="shortcuts-group">{group.section === 'Page' ? 'This note' : group.section}</h4>
                 <dl>
                   <For each={group.commands}>
                     {command => (
@@ -100,7 +100,7 @@ export function Shortcuts(props: { commands: CommandRegistry; onDismiss(): void 
             )}
           </For>
           <Show when={!groups().some(group => group.section === 'Outline')}>
-            <p class="muted shortcuts-note">Open an atom to see its outline keys.</p>
+            <p class="muted shortcuts-note">Open a note to see its outline keys.</p>
           </Show>
         </section>
       </div>

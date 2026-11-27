@@ -72,10 +72,10 @@ export function createMoveToPage(
             <Picker
               anchor={current.anchor}
               placement={isPhone() ? 'sheet' : undefined}
-              label="Move to atom"
+              label="Move to note"
               query={query()}
               onQuery={setQuery}
-              placeholder="Find a destination atom"
+              placeholder="Find a destination note"
               items={names()?.rows ?? []}
               key={match => match.page.id}
               onDismiss={dismiss}
@@ -84,7 +84,7 @@ export function createMoveToPage(
               }}
               busy={names.loading || busy()}
               error={error() || (names.error ? String(names.error) : undefined)}
-              empty="No matching atoms. Try another name."
+              empty="No matching notes. Try another name."
               row={match => (
                 <>
                   <Icon name="note" />

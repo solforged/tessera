@@ -62,7 +62,7 @@ const vimLabels: Record<Exclude<VimMode, null>, string> = {
   insert: 'Insert',
   normal: 'Normal',
   visual: 'Visual',
-  outline: 'Atoms',
+  outline: 'Notes',
 };
 
 const SAVE_NOTICE_DELAY = 1000;
@@ -236,7 +236,7 @@ export function Pane(props: {
         return {
           title:
             readableText(zoomed.text, id => workshop.workshop.lookup(id), zoomed.position?.deleted_holder) ||
-            'Empty atom',
+            'Empty note',
         };
       const page = root();
       return page?.kind === 'journal' && /^\d{4}-\d{2}-\d{2}$/.test(page.text)
@@ -438,7 +438,7 @@ export function Pane(props: {
           <Show when={pageId()}>
             <nav
               class="pane-breadcrumbs"
-              aria-label="Atom breadcrumbs"
+              aria-label="Note breadcrumbs"
               style={{ visibility: root() ? undefined : 'hidden' }}
             >
               <Show when={root()?.source && !breadcrumbs().length}>
@@ -459,7 +459,7 @@ export function Pane(props: {
                   const title = createMemo(
                     () =>
                       readableText(block.text, id => workshop.workshop.lookup(id), block.position?.deleted_holder) ||
-                      'Empty atom',
+                      'Empty note',
                   );
                   return (
                     <>
@@ -517,12 +517,12 @@ export function Pane(props: {
                 data-mode={props.vimMode ?? 'outline'}
                 title={
                   props.vimMode === 'insert'
-                    ? 'Vim: typing into the atom'
+                    ? 'Vim: typing into the note'
                     : props.vimMode === 'visual'
                       ? 'Vim: selecting text'
                       : props.vimMode === 'normal'
-                        ? 'Vim: commands inside the atom'
-                        : 'Vim: moving between atoms'
+                        ? 'Vim: commands inside the note'
+                        : 'Vim: moving between notes'
                 }
               >
                 {vimLabels[props.vimMode ?? 'outline']}
@@ -622,7 +622,7 @@ export function Pane(props: {
                   ref={menuButton}
                   class="page-menu-button nav-button"
                   icon="more"
-                  label="Atom menu"
+                  label="Note menu"
                   aria-haspopup="menu"
                   aria-expanded={!!pageChrome.menu()}
                   onClick={event => pageChrome.setMenu(value => (value ? null : event.currentTarget))}

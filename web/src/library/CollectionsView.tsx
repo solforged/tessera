@@ -56,7 +56,7 @@ export function CollectionsToolbarHeading(props: {
             disabled={!props.collection}
             onClick={event => props.onOpenPage({ kind: 'page', pageId: props.collectionId! }, opensBeside(event))}
           >
-            Open atom
+            Open note
           </Button>
           <Button
             disabled={!props.collection}

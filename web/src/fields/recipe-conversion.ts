@@ -66,7 +66,7 @@ export async function convertSyntax(
   templates: readonly CardTemplateInfo[],
   field: FieldDefinition | { name: string },
 ): Promise<DocumentChange> {
-  if (!atoms.length) throw new Error('No simple syntax atoms to convert.');
+  if (!atoms.length) throw new Error('No simple syntax notes to convert.');
   await workshop.flush();
   const steps: Step[] = [];
   const pages = new Set([type.page.id]);
@@ -112,7 +112,7 @@ export async function convertSyntax(
           op: 'create_card_template',
           id,
           type_id: type.page.id,
-          name: direction === 'forward' ? `Atom text → ${field.name}` : `${field.name} → Atom text`,
+          name: direction === 'forward' ? `Note text → ${field.name}` : `${field.name} → Note text`,
           front,
           back,
           hint: null,
@@ -133,7 +133,7 @@ export async function convertSyntax(
     pages.add(block.page_id);
     const [tree, cards] = await Promise.all([workshop.api.subtree(block.id), workshop.api.sourceCards(block.id)]);
     if (tree.truncated || tree.rows.find(row => row.block.id === block.id)?.block.revision !== block.revision)
-      throw new Error('An atom changed or its children could not be fully loaded. Reopen the preview.');
+      throw new Error('A note changed or its children could not be fully loaded. Reopen the preview.');
     const rows = tree.rows.map(row => row.block);
     const entries = rows.filter(row => row.parent_id === block.id && fieldEntryId(row.text) === fieldId);
     if (entries.some(entry => rows.some(row => row.parent_id === entry.id && row.text.trim())))
@@ -149,7 +149,7 @@ export async function convertSyntax(
     for (const { direction, key } of pair) {
       const old = cards.find(card => card.key === direction);
       if (cards.some(card => card.key === key))
-        throw new Error('This atom already has a retained recipe card. Choose a different recipe pair.');
+        throw new Error('This note already has a retained recipe card. Choose a different recipe pair.');
       steps.push({
         cardId: old?.id,
         forward: {

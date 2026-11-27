@@ -36,7 +36,7 @@ export function DirectoryPane(props: {
             'Loading…'
           ) : (
             <>
-              <span class="fig">{props.atomCount.toLocaleString()}</span> {props.atomCount === 1 ? 'atom' : 'atoms'}
+              <span class="fig">{props.atomCount.toLocaleString()}</span> {props.atomCount === 1 ? 'note' : 'notes'}
             </>
           )}
         </p>

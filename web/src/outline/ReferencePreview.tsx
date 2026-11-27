@@ -672,7 +672,7 @@ function ReferenceCard(props: {
         when={target()}
         fallback={
           <p class="reference-preview-message">
-            This reference points to an atom that was deleted or never synced here.
+            This reference points to a note that was deleted or never synced here.
           </p>
         }
       >
@@ -712,7 +712,7 @@ function ReferenceCard(props: {
                 <Show
                   when={state()?.position}
                   fallback={
-                    <Show when={isPage()} fallback={<span class="reference-preview-kind">Atom</span>}>
+                    <Show when={isPage()} fallback={<span class="reference-preview-kind">Note</span>}>
                       <h2>{displayTitle(block().text, id => props.workshop.lookup(id)) || 'Untitled'}</h2>
                     </Show>
                   }
@@ -779,7 +779,7 @@ function ReferenceCard(props: {
                     </Show>
                     <Show when={props.pinned && positions.error}>
                       <p class="reference-preview-message" role="alert">
-                        Couldn’t load perspectives. The atom preview is still available.
+                        Couldn’t load perspectives. The note preview is still available.
                       </p>
                     </Show>
                     <Show when={fieldList.error}>
@@ -801,9 +801,9 @@ function ReferenceCard(props: {
                           <p class="reference-preview-message">
                             {isPage()
                               ? summary()
-                                ? 'No further text on this atom.'
-                                : 'Empty atom.'
-                              : 'Atom not found in its outline.'}
+                                ? 'No further text on this note.'
+                                : 'Empty note.'
+                              : 'Note not found in its outline.'}
                           </p>
                         }
                       >
@@ -860,7 +860,7 @@ function ReferenceCard(props: {
                 </Show>
               </Button>
               <Button class="primary" onClick={() => props.onOpen(false)}>
-                {isPage() ? 'Open' : 'Go to atom'}
+                {isPage() ? 'Open' : 'Go to note'}
                 <Show when={props.keyboard}>
                   <kbd>↵</kbd>
                 </Show>

@@ -117,7 +117,7 @@ export function FilterPopup(props: {
       return [...members.pages, ...members.blocks.map(row => row.block)];
     },
   );
-  const label = (block: Block) => targetLabel(block.text, id => props.workshop.lookup(id)) || 'Empty atom';
+  const label = (block: Block) => targetLabel(block.text, id => props.workshop.lookup(id)) || 'Empty note';
   const [names] = createResource(
     () => (identity() && pages() ? { pages: pages()!, query: query() } : false),
     async ({ pages, query }) => {

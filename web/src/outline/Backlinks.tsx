@@ -163,7 +163,7 @@ export function BlockReferenceCount(props: {
         {element => (
           <Popup
             anchor={element()}
-            label="Atom backlinks"
+            label="Note backlinks"
             class="block-backlinks-popup"
             onDismiss={() => setAnchor(undefined)}
           >

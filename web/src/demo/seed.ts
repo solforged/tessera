@@ -93,21 +93,21 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
     'Your workshop stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.',
   );
   const outline = insert(welcome, 'Make room for a thought', 2);
-  insert(outline, 'Click an atom to edit it. Enter makes another atom; Tab nests it and Shift+Tab brings it back out.');
-  insert(outline, `Try undo and redo, fold a branch, or open a linked atom beside this one: ${besideHint}.`);
+  insert(outline, 'Click a note to edit it. Enter makes another note; Tab nests it and Shift+Tab brings it back out.');
+  insert(outline, `Try undo and redo, fold a branch, or open a linked note beside this one: ${besideHint}.`);
   insert(
     welcome,
     `Follow ${link(ideas, 'Small ideas')} for an outline with typed fields and a saved table, or ${link(learning, 'Learning by doing')} for a few flashcards.`,
   );
   insert(
     welcome,
-    'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your atoms; the command palette lists the rest.',
+    'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your notes; the command palette lists the rest.',
   );
   insert(
     welcome,
     book
-      ? `Open ${link(book.id, 'Meditations')} by Marcus Aurelius and choose Read. A few passages are already highlighted; select another to highlight it, then turn it into an atom or a card. Library lists your sources and highlights; add an EPUB of your own there.`
-      : 'Library lists your sources and opens them in the reader; add an EPUB there to highlight passages and turn them into atoms or cards.',
+      ? `Open ${link(book.id, 'Meditations')} by Marcus Aurelius and choose Read. A few passages are already highlighted; select another to highlight it, then turn it into a note or a card. Library lists your sources and highlights; add an EPUB of your own there.`
+      : 'Library lists your sources and opens them in the reader; add an EPUB there to highlight passages and turn them into notes or cards.',
   );
   insert(
     welcome,
@@ -160,7 +160,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(journal, '');
 
   insert(learning, 'A few cards to try', 1);
-  insert(learning, 'Cards come from ordinary atom text. Edit these examples to see their syntax, then open Review.');
+  insert(learning, 'Cards come from ordinary note text. Edit these examples to see their syntax, then open Review.');
   insert(learning, 'Where does this demo store your workshop? >> In this browser, on this device.');
   insert(learning, 'Outline <> A thought with room for smaller thoughts beneath it.');
   insert(learning, 'A linked workshop connects {{c1::ideas}} rather than isolating them.');
@@ -174,7 +174,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(ideas, 'Small experiments, connected', 1);
   insert(
     ideas,
-    'These ideas have a Demo idea tag and two typed fields. Open the Small experiments view in the sidebar to see the same atoms as a table.',
+    'These ideas have a Demo idea tag and two typed fields. Open the Small experiments view in the sidebar to see the same notes as a table.',
   );
   const sample = (text: string, cost: string) => {
     const id = insert(ideas, text);

@@ -27,17 +27,17 @@ export function DeletedPages(props: {
   return (
     <Picker
       anchor={props.anchor}
-      label="Restore deleted atom"
+      label="Restore deleted note"
       query={query()}
       onQuery={setQuery}
-      placeholder="Find a deleted atom…"
+      placeholder="Find a deleted note…"
       items={matches()}
       key={page => page.block.id}
       busy={pages.loading || busy()}
       error={error() || (pages.error ? String(pages.error) : '')}
-      empty="No deleted atoms"
+      empty="No deleted notes"
       onDismiss={props.onDismiss}
-      disabledReason={() => (busy() ? 'Restoring atom…' : undefined)}
+      disabledReason={() => (busy() ? 'Restoring note…' : undefined)}
       row={page => (
         <>
           <Icon name={page.block.kind === 'journal' ? 'today' : 'page'} />

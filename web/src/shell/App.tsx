@@ -975,7 +975,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     const pageId = pageIdOf(entry(pane));
     if (!pageId) return;
     const title =
-      workshop.lookup(pageId)()?.text ?? workshop.roots().find(block => block.id === pageId)?.text ?? 'Atom';
+      workshop.lookup(pageId)()?.text ?? workshop.roots().find(block => block.id === pageId)?.text ?? 'Note';
     try {
       await deletePages([{ id: pageId, title }], undefined, true);
       setPopup(null);
@@ -986,7 +986,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   /** Delete pages in one undoable step, and move panes showing them, or reading their sources, to another page. Undo reopens a page deleted from its own menu. */
   const deletePages = async (
     pages: { id: string; title: string }[],
-    label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} atoms`,
+    label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} notes`,
     reopen = false,
   ) => {
     const capabilities = await Promise.all(pages.map(page => workshop.api.capabilities(page.id)));
@@ -1004,8 +1004,8 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       }
     } finally {
       if (done.length) {
-        const message = `${done.length === pages.length ? label : `${done.length} atoms`} deleted`;
-        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} atoms`, reopen });
+        const message = `${done.length === pages.length ? label : `${done.length} notes`} deleted`;
+        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} notes`, reopen });
         showNotice({ message, actions: [{ label: 'Undo', run: restorePage }] });
         const remaining = workshop.roots().find(block => !ids.has(block.id));
         const previousDay = new Date(`${todayDate()}T12:00:00`);
@@ -1042,7 +1042,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     return deleteCapabilities.error
       ? String(deleteCapabilities.error)
       : !deleteCapabilities()
-        ? 'Atom is still loading.'
+        ? 'Note is still loading.'
         : builtInTagReason(title, deleteCapabilities(), 'delete');
   };
   const restorePage = async () => {
@@ -1610,7 +1610,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       title: 'Back',
       section: 'Navigation',
       keys: ['⌃⇧H'],
-      disabledReason: () => ((sessions()[active()]?.index ?? 0) <= 0 ? 'No earlier atom in this pane' : undefined),
+      disabledReason: () => ((sessions()[active()]?.index ?? 0) <= 0 ? 'No earlier note in this pane' : undefined),
       run: () => travel(active(), -1),
     },
     {
@@ -1620,7 +1620,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       keys: ['⌃⇧L'],
       disabledReason: () => {
         const session = sessions()[active()];
-        return !session || session.index >= session.entries.length - 1 ? 'No later atom in this pane' : undefined;
+        return !session || session.index >= session.entries.length - 1 ? 'No later note in this pane' : undefined;
       },
       run: () => travel(active(), 1),
     },
@@ -1658,7 +1658,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     },
     {
       id: 'shell.new',
-      title: 'New atom',
+      title: 'New note',
       section: 'Create',
       keys: document.documentElement.dataset.windowControls ? ['⌘N'] : undefined,
       keywords: ['page', 'note', 'create'],
@@ -1713,7 +1713,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     },
     {
       id: 'shell.pin',
-      title: 'Pin / unpin atom',
+      title: 'Pin / unpin note',
       section: 'Page',
       run: () => {
         const root = activeRoot();
@@ -1722,7 +1722,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     },
     {
       id: 'shell.delete',
-      title: 'Delete atom',
+      title: 'Delete note',
       section: 'Page',
       run: () => {
         const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`);
@@ -1731,25 +1731,25 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     },
     {
       id: 'shell.restore-page',
-      title: 'Undo atom deletion',
+      title: 'Undo note deletion',
       section: 'Page',
       disabledReason: () =>
         deleted()
           ? undefined
           : retainedDeletions.error
-            ? 'Could not read deleted atoms'
+            ? 'Could not read deleted notes'
             : retainedDeletions.loading
-              ? 'Loading deleted atoms…'
+              ? 'Loading deleted notes…'
               : retainedDeletions()?.length
                 ? undefined
-                : 'No deleted atom to restore',
+                : 'No deleted note to restore',
       run: () => {
         void restorePage();
       },
     },
     {
       id: 'shell.deleted-pages',
-      title: 'Restore deleted atom…',
+      title: 'Restore deleted note…',
       section: 'Page',
       run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }),
     },
@@ -1757,7 +1757,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       id: 'shell.review-conflict',
       title: 'Review workshop conflict',
       section: 'Editing',
-      disabledReason: () => (workshop.conflictedPages().length ? undefined : 'No conflicting atoms'),
+      disabledReason: () => (workshop.conflictedPages().length ? undefined : 'No conflicting notes'),
       run: reviewConflict,
     },
     {
@@ -2655,8 +2655,8 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
                   <Popup
                     anchor={state.anchor}
                     placement={cover() ? 'sheet' : 'anchor'}
-                    label="Delete atom"
-                    title="Delete atom"
+                    label="Delete note"
+                    title="Delete note"
                     onDismiss={() => setPopup(null)}
                     width={300}
                     fitContent
@@ -2665,10 +2665,10 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
                       Delete “
                       {workshop.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ??
                         rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}
-                      ” and {state.source ? 'its highlights' : 'all its atoms'}?
+                      ” and {state.source ? 'its highlights' : 'all its notes'}?
                     </p>
                     <HolderDeletionImpact workshop={workshop} pageId={pageIdOf(entry(state.pane))} />
-                    <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
+                    <p class="muted">Undo this deletion, or use Restore deleted note in Commands after reloading.</p>
                     <div class="popup-actions">
                       <Button onClick={() => setPopup(null)}>Cancel</Button>
                       <Button
@@ -2680,7 +2680,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
                           void deletePage(state.pane);
                         }}
                       >
-                        Delete atom
+                        Delete note
                       </Button>
                     </div>
                   </Popup>

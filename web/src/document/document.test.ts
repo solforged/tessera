@@ -859,7 +859,7 @@ describe('real workshop operations and recovery', () => {
           const queued = instance.queuedChanges();
           expect(doc.edit({ kind: 'keptCopy', id: copy.id, choice: 'use' })).toEqual({
             ok: false,
-            reason: 'The original is not on this atom. Both versions are unchanged.',
+            reason: 'The original is not on this note. Both versions are unchanged.',
           });
           expect(instance.queuedChanges()).toBe(queued);
           expect((await api.block(first)).text).toBe('Workshop wording');

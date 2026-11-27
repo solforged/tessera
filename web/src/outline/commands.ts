@@ -331,7 +331,7 @@ export function createOutlineCommands(
                 : assessment
                   ? 'Remove the assessment first.'
                   : block.kind === 'journal'
-                    ? 'Make a non-journal atom a question.'
+                    ? 'Make a non-journal note a question.'
                     : undefined,
               action: () =>
                 edit({
@@ -440,8 +440,8 @@ export function createOutlineCommands(
     const types = doc.root()?.manual_types ?? [];
     setMenu({
       anchor: context.heading,
-      label: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom',
-      title: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom',
+      label: removeOnly ? 'Remove tag from this note' : 'Tags on this note',
+      title: removeOnly ? 'Remove tag from this note' : 'Tags on this note',
       context: doc.root()?.text,
       items: [
         ...(!removeOnly ? [{ label: 'Add tag…', icon: 'plus' as const, action: addPageType }] : []),
@@ -463,20 +463,20 @@ export function createOutlineCommands(
     const ids = roots();
     const parent = ids[0] ? doc.outline.parentOf(ids[0]) : null;
     return ids.some(id => doc.outline.parentOf(id) !== parent)
-      ? 'Select atoms with the same parent to move them up or down.'
+      ? 'Select notes with the same parent to move them up or down.'
       : undefined;
   };
   const commandsFor = (selected = context.selected): Command[] => [
     {
       id: 'copy-page-reference',
-      title: 'Copy atom reference',
+      title: 'Copy note reference',
       section: 'Page',
-      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      disabledReason: () => (doc.status() !== 'ready' ? 'Note is unavailable.' : undefined),
       run: () => copy(`[[${props.pageId}]]`),
     },
     {
       id: 'rename',
-      title: 'Rename atom',
+      title: 'Rename note',
       section: 'Page',
       disabledReason: () => (doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.'),
       run: rename,
@@ -500,28 +500,28 @@ export function createOutlineCommands(
       id: 'add-field-root',
       title: 'Add field…',
       section: 'Page',
-      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      disabledReason: () => (doc.status() !== 'ready' ? 'Note is unavailable.' : undefined),
       run: () => pickField(props.pageId, context.heading),
     },
     {
       id: 'types-root',
-      title: 'Tags on this atom…',
+      title: 'Tags on this note…',
       section: 'Page',
-      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      disabledReason: () => (doc.status() !== 'ready' ? 'Note is unavailable.' : undefined),
       run: () => pageTypes(),
     },
     {
       id: 'add-type-root',
-      title: 'Add tag to this atom…',
+      title: 'Add tag to this note…',
       section: 'Page',
-      disabledReason: () => (doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined),
+      disabledReason: () => (doc.status() !== 'ready' ? 'Note is unavailable.' : undefined),
       run: addPageType,
     },
     {
       id: 'remove-type-root',
-      title: 'Remove tag from this atom…',
+      title: 'Remove tag from this note…',
       section: 'Page',
-      disabledReason: () => (!doc.root()?.manual_types.length ? 'This atom has no manual tags.' : undefined),
+      disabledReason: () => (!doc.root()?.manual_types.length ? 'This note has no manual tags.' : undefined),
       run: () => pageTypes(true),
     },
     {
@@ -529,7 +529,7 @@ export function createOutlineCommands(
       title: 'Task',
       section: 'Page',
       disabledReason: () =>
-        doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined,
+        doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Note is unavailable.' : undefined,
       run: () => {
         if (!doc.root()?.task?.status) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
         capabilities.open(props.pageId, 'task');
@@ -540,7 +540,7 @@ export function createOutlineCommands(
       title: 'Project',
       section: 'Page',
       disabledReason: () =>
-        doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined,
+        doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Note is unavailable.' : undefined,
       run: () => {
         if (!doc.root()?.project)
           capabilities.invoke(
@@ -560,7 +560,7 @@ export function createOutlineCommands(
       section: 'Page',
       disabledReason: () =>
         doc.status() !== 'ready'
-          ? 'Atom is unavailable.'
+          ? 'Note is unavailable.'
           : doc.root()?.kind !== 'page'
             ? 'Journal days cannot be streams.'
             : undefined,
@@ -576,7 +576,7 @@ export function createOutlineCommands(
       section: 'Page',
       disabledReason: () =>
         doc.status() !== 'ready'
-          ? 'Atom is unavailable.'
+          ? 'Note is unavailable.'
           : doc.root()?.kind !== 'page'
             ? 'Journal days have no gloss.'
             : undefined,
@@ -588,7 +588,7 @@ export function createOutlineCommands(
       section: 'Page',
       disabledReason: () =>
         doc.status() !== 'ready'
-          ? 'Atom is unavailable.'
+          ? 'Note is unavailable.'
           : doc.root()?.kind !== 'page'
             ? 'Journal days have no aliases.'
             : undefined,
@@ -603,14 +603,14 @@ export function createOutlineCommands(
           ? props.projectionReason('read')
           : doc.root()?.kind === 'page'
             ? undefined
-            : 'Only titled atoms have projections.',
+            : 'Only titled notes have projections.',
       run: () => props.onProjection?.('read'),
     },
     {
       id: 'outline',
       title: 'Outline',
       section: 'Page',
-      disabledReason: () => (doc.root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.'),
+      disabledReason: () => (doc.root()?.kind === 'page' ? undefined : 'Only titled notes have projections.'),
       run: () => props.onProjection?.('outline'),
     },
     {
@@ -619,9 +619,9 @@ export function createOutlineCommands(
       section: 'Page',
       disabledReason: () =>
         doc.status() !== 'ready'
-          ? 'Atom is unavailable.'
+          ? 'Note is unavailable.'
           : localPositions() < 2
-            ? 'Compare needs two perspectives on this atom.'
+            ? 'Compare needs two perspectives on this note.'
             : undefined,
       run: () => props.onProjection?.('compare'),
     },
@@ -634,7 +634,7 @@ export function createOutlineCommands(
           ? 'Add perspectives on the concept or question they are about.'
           : doc.root()?.kind === 'page'
             ? undefined
-            : 'Add perspectives on a titled atom.',
+            : 'Add perspectives on a titled note.',
       run: () => context.openRelation(props.pageId, 'reading', context.heading),
     },
     ...depthStops.map(
@@ -648,7 +648,7 @@ export function createOutlineCommands(
     ),
     {
       id: 'depth-less',
-      title: 'Show less of the atom',
+      title: 'Show less of the note',
       section: 'Page',
       keys: ['['],
       disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined),
@@ -656,10 +656,10 @@ export function createOutlineCommands(
     },
     {
       id: 'depth-more',
-      title: 'Show more of the atom',
+      title: 'Show more of the note',
       section: 'Page',
       keys: [']'],
-      disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole atom is showing.' : undefined),
+      disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole note is showing.' : undefined),
       run: () => stepDepth(1),
     },
     {
@@ -668,9 +668,9 @@ export function createOutlineCommands(
       section: 'Page',
       disabledReason: () =>
         !doc.root()?.question
-          ? 'Make the atom a question first.'
+          ? 'Make the note a question first.'
           : capabilities.busy(props.pageId)
-            ? 'Atom is unavailable.'
+            ? 'Note is unavailable.'
             : undefined,
       run: () => {
         if (context.heading)
@@ -704,12 +704,12 @@ export function createOutlineCommands(
     },
     {
       id: 'previous-row',
-      title: 'Select previous atom',
+      title: 'Select previous note',
       section: 'Navigation',
       keys: ['↑', 'k'],
       run: () => adjacent(-1),
     },
-    { id: 'next-row', title: 'Select next atom', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
+    { id: 'next-row', title: 'Select next note', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     {
       id: 'parent',
       title: 'Fold children / select parent',
@@ -726,45 +726,45 @@ export function createOutlineCommands(
     },
     {
       id: 'first-row',
-      title: 'Select first atom',
+      title: 'Select first note',
       section: 'Navigation',
       keys: ['gg'],
       run: () => ids()[0] && rowFocus(ids()[0]!),
     },
     {
       id: 'last-row',
-      title: 'Select last atom',
+      title: 'Select last note',
       section: 'Navigation',
       keys: ['G'],
       run: () => ids().at(-1) && rowFocus(ids().at(-1)!),
     },
     {
       id: 'extend-up',
-      title: 'Extend atom selection up',
+      title: 'Extend note selection up',
       section: 'Outline',
       keys: ['⇧↑'],
       run: () => adjacent(-1, true),
     },
     {
       id: 'extend-down',
-      title: 'Extend atom selection down',
+      title: 'Extend note selection down',
       section: 'Outline',
       keys: ['⇧↓'],
       run: () => adjacent(1, true),
     },
     {
       id: 'edit',
-      title: 'Edit atom',
+      title: 'Edit note',
       section: 'Editing',
       keys: ['Enter', 'i'],
       run: () => selected() && editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true),
     },
     {
       id: 'split',
-      title: 'Split atom',
+      title: 'Split note',
       section: 'Editing',
       keys: ['Enter'],
-      disabledReason: () => (editing() ? undefined : 'Edit an atom first.'),
+      disabledReason: () => (editing() ? undefined : 'Edit a note first.'),
       run: () => editing() && context.editor && split(context.editor.view),
     },
     {
@@ -772,12 +772,12 @@ export function createOutlineCommands(
       title: 'Insert newline',
       section: 'Editing',
       keys: ['⇧Enter'],
-      disabledReason: () => (editing() ? undefined : 'Edit an atom first.'),
+      disabledReason: () => (editing() ? undefined : 'Edit a note first.'),
       run: () => editing() && context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')),
     },
     {
       id: 'insert-below',
-      title: 'Insert atom below',
+      title: 'Insert note below',
       section: 'Editing',
       keys: ['o'],
       run: () =>
@@ -785,7 +785,7 @@ export function createOutlineCommands(
     },
     {
       id: 'insert-above',
-      title: 'Insert atom above',
+      title: 'Insert note above',
       section: 'Editing',
       keys: ['O'],
       run: () => {
@@ -798,21 +798,21 @@ export function createOutlineCommands(
     },
     {
       id: 'indent',
-      title: 'Indent atoms',
+      title: 'Indent notes',
       section: 'Outline',
       keys: ['Tab', '>>'],
       run: () => apply({ kind: 'indent', ids: roots() }),
     },
     {
       id: 'outdent',
-      title: 'Outdent atoms',
+      title: 'Outdent notes',
       section: 'Outline',
       keys: ['⇧Tab', '<<'],
       run: () => apply({ kind: 'outdent', ids: roots() }),
     },
     {
       id: 'move-up',
-      title: 'Move atoms up',
+      title: 'Move notes up',
       section: 'Outline',
       keys: ['⌥↑'],
       disabledReason: moveReason,
@@ -820,23 +820,23 @@ export function createOutlineCommands(
     },
     {
       id: 'move-down',
-      title: 'Move atoms down',
+      title: 'Move notes down',
       section: 'Outline',
       keys: ['⌥↓'],
       disabledReason: moveReason,
       run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }),
     },
-    { id: 'move-to-page', title: 'Move to atom…', section: 'Outline', run: () => context.openMoveToPage() },
+    { id: 'move-to-page', title: 'Move to note…', section: 'Outline', run: () => context.openMoveToPage() },
     {
       id: 'select',
-      title: 'Select atoms',
+      title: 'Select notes',
       section: 'Outline',
       keys: ['V', '⇧↑/↓'],
       run: () => selected() && rowFocus(selected()!, true),
     },
     {
       id: 'select-all',
-      title: 'Select all visible atoms',
+      title: 'Select all visible notes',
       section: 'Outline',
       run: () => {
         const first = ids()[0];
@@ -856,7 +856,7 @@ export function createOutlineCommands(
     },
     {
       id: 'zoom',
-      title: 'Zoom into atom',
+      title: 'Zoom into note',
       section: 'Navigation',
       keys: ['⌘.', 'Space z'],
       run: () => selected() && zoomTo(selected()),
@@ -881,7 +881,7 @@ export function createOutlineCommands(
     },
     {
       id: 'copy-reference',
-      title: 'Copy atom reference',
+      title: 'Copy note reference',
       section: 'Editing',
       run: () => selected() && copy(`[[${selected()}]]`),
     },
@@ -1024,11 +1024,11 @@ export function createOutlineCommands(
     {
       id: 'make-perspective',
       title: 'Make perspective',
-      section: 'Atom',
+      section: 'Note',
       keys: ['Space v'],
       disabledReason: () =>
         doc.block(selected() ?? '')?.kind !== 'block'
-          ? 'Select an ordinary atom.'
+          ? 'Select an ordinary note.'
           : doc.block(selected()!)?.relation
             ? 'Remove the relation first.'
             : doc.block(selected()!)?.position
@@ -1041,11 +1041,11 @@ export function createOutlineCommands(
     {
       id: 'remove-perspective',
       title: 'Remove perspective',
-      section: 'Atom',
+      section: 'Note',
       keys: ['Space v'],
       disabledReason: () =>
         doc.block(selected() ?? '')?.kind !== 'block'
-          ? 'Select an ordinary atom.'
+          ? 'Select an ordinary note.'
           : !doc.block(selected()!)?.position
             ? 'Select a perspective.'
             : undefined,
@@ -1056,14 +1056,14 @@ export function createOutlineCommands(
     {
       id: 'change-holder',
       title: 'Change holder…',
-      section: 'Atom',
+      section: 'Note',
       disabledReason: () => context.positionReason(selected() ?? ''),
       run: () => selected() && context.openRelation(selected()!, 'holder'),
     },
     {
       id: 'file-under',
       title: 'File under…',
-      section: 'Atom',
+      section: 'Note',
       disabledReason: () =>
         context.positionReason(selected() ?? '') ??
         (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference')
@@ -1074,7 +1074,7 @@ export function createOutlineCommands(
     {
       id: 'use-place',
       title: 'Use place',
-      section: 'Atom',
+      section: 'Note',
       disabledReason: () => context.placeReason(selected() ?? ''),
       run: () => selected() && context.usePlace(selected()!),
     },
@@ -1083,9 +1083,9 @@ export function createOutlineCommands(
           {
             id: 'integrate',
             title: 'Integrate…',
-            section: 'Atom' as const,
+            section: 'Note' as const,
             disabledReason: () =>
-              doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal atom.' : undefined,
+              doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal note.' : undefined,
             run: () => selected() && context.openRelation(selected()!, 'integrate'),
           },
         ]
@@ -1094,7 +1094,7 @@ export function createOutlineCommands(
       (kind): Command => ({
         id: `relation-${kind}`,
         title: `${relationLabels[kind]}…`,
-        section: 'Atom',
+        section: 'Note',
         disabledReason: () => relationReason(doc.block(selected() ?? '')),
         run: () => {
           const id = selected();
@@ -1105,7 +1105,7 @@ export function createOutlineCommands(
     {
       id: 'relation-kind',
       title: 'Change relation',
-      section: 'Atom',
+      section: 'Note',
       disabledReason: () => (doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.'),
       run: () => {
         const id = selected();
@@ -1115,7 +1115,7 @@ export function createOutlineCommands(
     {
       id: 'remove-relation',
       title: 'Remove argument',
-      section: 'Atom',
+      section: 'Note',
       disabledReason: () => (doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.'),
       run: () => {
         const id = selected();
@@ -1125,7 +1125,7 @@ export function createOutlineCommands(
     {
       id: 'add-relation',
       title: 'Add argument…',
-      section: 'Atom',
+      section: 'Note',
       disabledReason: () => addRelationReason(doc.block(selected() ?? '')),
       run: () => {
         const id = selected();
@@ -1183,7 +1183,7 @@ export function createOutlineCommands(
     },
     {
       id: 'archive',
-      title: 'Archive / unarchive atom',
+      title: 'Archive / unarchive note',
       section: 'Outline',
       run: () => {
         const targets = roots();
@@ -1199,7 +1199,7 @@ export function createOutlineCommands(
     },
     {
       id: 'show-archived',
-      title: 'Show / hide archived atoms',
+      title: 'Show / hide archived notes',
       section: 'View',
       run: () => {
         anchored(() => setShowArchived(value => !value));
@@ -1290,7 +1290,7 @@ export function createOutlineCommands(
         doc.outline.version();
         for (let index = 0; index < doc.outline.size(); index++)
           if (doc.block(doc.outline.idAt(index))?.conflict) return undefined;
-        return 'No conflicting atoms.';
+        return 'No conflicting notes.';
       },
       run: () => {
         for (let index = 0; index < doc.outline.size(); index++) {
@@ -1333,7 +1333,7 @@ export function createOutlineCommands(
             (command.section !== 'Page' &&
             !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) &&
             !selected()
-              ? 'Select an atom first.'
+              ? 'Select a note first.'
               : undefined)),
       ...(['add-field-root', 'change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id)
         ? {
@@ -1346,7 +1346,7 @@ export function createOutlineCommands(
                 return {
                   ...bound,
                   id: `outline.${props.pane}.${command.id}`,
-                  section: id ? 'Atom' : 'Page',
+                  section: id ? 'Note' : 'Page',
                   title: `${bound.title}${label ? ` · ${label}` : ''}`,
                   disabledReason: () => reason,
                   run: () => {
@@ -1600,8 +1600,8 @@ export function createOutlineCommands(
     });
     setMenu({
       anchor,
-      label: `${count} atoms selected`,
-      title: `${count} atoms selected`,
+      label: `${count} notes selected`,
+      title: `${count} notes selected`,
       items: [
         {
           label: bulkTaskToggleLabel(targets),
@@ -1642,11 +1642,11 @@ export function createOutlineCommands(
           divider: true,
         },
         {
-          label: allArchived ? `Unarchive ${count} atoms` : `Archive ${count} atoms`,
+          label: allArchived ? `Unarchive ${count} notes` : `Archive ${count} notes`,
           divider: true,
           action: () => apply({ kind: 'archive', ids: [...targets], archived: !allArchived }, false),
         },
-        { ...cmdItem('delete', `Delete ${count} atoms…`), danger: true },
+        { ...cmdItem('delete', `Delete ${count} notes…`), danger: true },
       ],
     });
   }
@@ -1661,8 +1661,8 @@ export function createOutlineCommands(
     const { entry, item, group, managers, makeItems } = model;
     setMenu({
       anchor,
-      label: 'Atom actions',
-      title: 'Atom actions',
+      label: 'Note actions',
+      title: 'Note actions',
       context: plainText(entry.text, target => props.workshop.lookup(target)),
       items: [
         item('edit', 'Edit'),
@@ -1681,7 +1681,7 @@ export function createOutlineCommands(
         { label: 'Add field…', divider: !managers.length, action: () => pickField(id, anchor) },
         {
           label: 'Make…',
-          submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this atom and keeps its text.' }),
+          submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this note and keeps its text.' }),
         },
         { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true },
         { ...item('delete', 'Delete…'), danger: true },
@@ -1740,7 +1740,7 @@ export function createOutlineCommands(
         },
       ],
       [
-        act('move-to-page', 'Move to atom', 'moveto'),
+        act('move-to-page', 'Move to note', 'moveto'),
         ...(doc.root()?.kind === 'journal' ? [act('integrate', 'File to…', 'moveto')] : []),
         act('copy-reference', 'Copy reference', 'link'),
         act('archive', entry.archived ? 'Unarchive' : 'Archive', 'archive'),
@@ -1749,7 +1749,7 @@ export function createOutlineCommands(
     ];
     openContextMenu({
       source,
-      label: 'Atom actions',
+      label: 'Note actions',
       items: groups.flatMap(rows => rows.map((row, at) => (at ? row : { ...row, divider: true }))),
       onClose: restoreFocus,
     });
@@ -1816,7 +1816,7 @@ export function createOutlineCommands(
   async function promoteToProject(id: string) {
     const title = plainText(doc.block(id)?.text ?? '', target => props.workshop.lookup(target)).trim();
     if (!title) {
-      setMessage('Write the project’s name in the atom, then make it a project.');
+      setMessage('Write the project’s name in the note, then make it a project.');
       return;
     }
     // The block's sentence ends with a stop that a page title does not carry, and the notice supplies its own.
@@ -1847,7 +1847,7 @@ export function createOutlineCommands(
     if (!id) return;
     const range = context.activeRange();
     if (range && range.anchor.id !== range.head.id) {
-      setMessage('Select text in one atom.');
+      setMessage('Select text in one note.');
       return;
     }
     const text = doc.block(id)?.text ?? '';
@@ -1898,12 +1898,12 @@ export function createOutlineCommands(
       const anchor = rowAnchor(id);
       const count = targets.length;
       const allArchived = targets.every(target => doc.block(target)?.archived);
-      keyboardMenu(id, `${count} atoms selected`, [
+      keyboardMenu(id, `${count} notes selected`, [
         {
           key: 't',
           shortcut: 't',
           label: 'Task status…',
-          section: `${count} atoms`,
+          section: `${count} notes`,
           action: () => statusMenu(id),
         },
         {
@@ -1933,13 +1933,13 @@ export function createOutlineCommands(
         {
           key: 'm',
           shortcut: 'm',
-          label: 'Move to atom…',
+          label: 'Move to note…',
           action: () => context.openMoveToPage(),
         },
         {
           key: 'a',
           shortcut: 'a',
-          label: allArchived ? `Unarchive ${count} atoms` : `Archive ${count} atoms`,
+          label: allArchived ? `Unarchive ${count} notes` : `Archive ${count} notes`,
           action: () => apply({ kind: 'archive', ids: [...targets], archived: !allArchived }, false),
         },
       ]);
@@ -1993,7 +1993,7 @@ export function createOutlineCommands(
       ...(block?.question
         ? [leader('q', 'Question…', () => keyboardMenu(id, 'Question', investigationItems(id, true)), 'Question')]
         : [commandItem('q', ancestor ? 'make-assessment' : 'make-question', 'Question')]),
-      commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Atom'),
+      commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Note'),
       leader('c', 'Add card', () => cardMenu(id)),
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);

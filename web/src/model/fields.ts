@@ -38,7 +38,7 @@ export const kindDescriptions: Record<FieldKind, string> = {
   span: 'A range of dates, such as 1914–1918',
   checkbox: 'Yes or no',
   choice: 'One of a set of options',
-  instance: 'A link to another atom',
+  instance: 'A link to another note',
   url: 'A web address',
   identifier: 'An ISBN, DOI or arXiv ID',
 };
@@ -124,7 +124,7 @@ export const roleLabels: Record<FieldRole, string> = {
   citation: 'Citation',
 };
 export const roleDescriptions: Record<FieldRole, string> = {
-  standfirst: 'A sentence below the atom, without a label.',
+  standfirst: 'A sentence below the note, without a label.',
   attribute: 'A compact label and value in the field bed.',
   prose: 'A full-width passage below the field bed.',
   citation: 'References as siglum and locator in the field bed.',

@@ -113,7 +113,7 @@ export function Apparatus(props: {
         class="constellation"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="group"
-        aria-label="Perspectives and linked atoms"
+        aria-label="Perspectives and linked notes"
       >
         <circle class="constellation-orbit" cx={CX} cy={CY} r={INNER} />
         <Show when={props.linked.length}>

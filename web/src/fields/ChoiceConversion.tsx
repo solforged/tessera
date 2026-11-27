@@ -91,10 +91,10 @@ export function ChoiceConversion(props: {
                                       return value.mode === 'page'
                                         ? (props.workshop.lookup(value.value)()?.text ?? value.value)
                                         : value.mode === 'create'
-                                          ? `Create atom: ${value.value}`
+                                          ? `Create note: ${value.value}`
                                           : row.reading.ok
                                             ? readingLabel(row.reading)
-                                            : 'No unique atom; left as written';
+                                            : 'No unique note; left as written';
                                     })()}
                                   </span>
                                   <Button
@@ -104,13 +104,13 @@ export function ChoiceConversion(props: {
                                       setPicker({ anchor: event.currentTarget, text: row.text });
                                     }}
                                   >
-                                    Choose atom…
+                                    Choose note…
                                   </Button>
                                   <Button
                                     disabled={props.disabled}
                                     onClick={() => change(row.text, { mode: 'create', value: row.text.trim() })}
                                   >
-                                    Create atom
+                                    Create note
                                   </Button>
                                   <Show when={mapping().mode !== 'keep'}>
                                     <Button onClick={() => change(row.text, { mode: 'keep' })}>Leave as written</Button>
@@ -182,8 +182,8 @@ export function ChoiceConversion(props: {
         {state => (
           <Picker
             anchor={state().anchor}
-            label="Interpret as atom"
-            placeholder="Atom name"
+            label="Interpret as note"
+            placeholder="Note name"
             query={query()}
             onQuery={setQuery}
             items={matches()?.rows ?? []}
@@ -203,10 +203,10 @@ export function ChoiceConversion(props: {
             onDismiss={() => setPicker(undefined)}
             empty={
               pages.error || matches.error
-                ? 'Could not load atoms.'
+                ? 'Could not load notes.'
                 : pages.loading || matches.loading
                   ? 'Loading…'
-                  : 'No matching atoms.'
+                  : 'No matching notes.'
             }
           />
         )}

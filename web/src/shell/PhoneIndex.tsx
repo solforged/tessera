@@ -183,7 +183,7 @@ export function PhoneIndex(props: {
       <ListGroup label="Recent">
         <Show
           when={props.recent.length}
-          fallback={<ListRow class="phone-index-note">Atoms you open appear here</ListRow>}
+          fallback={<ListRow class="phone-index-note">Notes you open appear here</ListRow>}
         >
           <PageRows roots={props.recent} workshop={props.workshop} onOpen={props.onOpen} />
         </Show>

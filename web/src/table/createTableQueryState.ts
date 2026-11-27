@@ -239,7 +239,7 @@ export function createTableQueryState(options: TableQueryStateOptions) {
   );
   const summary = createMemo(() => {
     const count = result()?.total ?? 0;
-    const plural = typeKind()?.plural ?? (title() || 'atoms');
+    const plural = typeKind()?.plural ?? (title() || 'notes');
     const noun =
       count === 1
         ? (typeKind()?.name ??

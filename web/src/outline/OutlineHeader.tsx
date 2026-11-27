@@ -430,7 +430,7 @@ export function OutlineHeader(props: {
                       props.doc.block(id)?.text ?? '',
                       reference => props.workshop.lookup(reference),
                       props.doc.block(id)?.position?.deleted_holder,
-                    ) || 'Empty atom'}
+                    ) || 'Empty note'}
                   </button>
                 </>
               )}
@@ -549,7 +549,7 @@ export function OutlineHeader(props: {
               <input
                 ref={props.bindTitleInput}
                 class="title-input"
-                aria-label="Atom title"
+                aria-label="Note title"
                 value={props.title}
                 onInput={event => props.setTitle(event.currentTarget.value)}
                 onKeyDown={event => {
@@ -786,7 +786,7 @@ export function OutlineHeader(props: {
         </Show>
         <Show when={props.showArchived}>
           <p class="archive-notice">
-            Showing archived atoms{' '}
+            Showing archived notes{' '}
             <button
               type="button"
               class="text-button"
@@ -811,7 +811,7 @@ export function OutlineHeader(props: {
           <p role="alert">{props.doc.statusMessage()}</p>
         </Show>
         <Show when={props.doc.status() === 'ready' && props.depth === 'gloss' && !props.zoom && !props.glossId}>
-          <p class="empty-state">No gloss yet. Choose Gloss in the atom menu to write a one-line summary.</p>
+          <p class="empty-state">No gloss yet. Choose Gloss in the note menu to write a one-line summary.</p>
         </Show>
         <Show when={!props.zoom && props.doc.root()?.kind === 'journal'}>
           <JournalHeader

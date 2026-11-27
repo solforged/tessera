@@ -10,7 +10,7 @@ export function editCardHeld(
 ): void {
   const { actions } = session;
   for (const card of edit.cards) {
-    if (!card.active || !doc.block(card.source_block_id)) throw new Error('The card is no longer active on this atom.');
+    if (!card.active || !doc.block(card.source_block_id)) throw new Error('The card is no longer active on this note.');
     if (card.held !== edit.held)
       actions.push({
         kind: 'cardHeld',

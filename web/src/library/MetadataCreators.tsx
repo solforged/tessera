@@ -109,10 +109,10 @@ export function MetadataCreators(props: {
   );
   const countText = createMemo(() =>
     counts.error
-      ? 'Book and atom counts unavailable.'
+      ? 'Book and note counts unavailable.'
       : counts.loading || !counts()
-        ? 'Counting books and linked atoms…'
-        : `${counts()!.books} ${counts()!.books === 1 ? 'book' : 'books'} · ${counts()!.notes}${counts()!.capped ? '+' : ''} linked ${counts()!.notes === 1 && !counts()!.capped ? 'atom' : 'atoms'}`,
+        ? 'Counting books and linked notes…'
+        : `${counts()!.books} ${counts()!.books === 1 ? 'book' : 'books'} · ${counts()!.notes}${counts()!.capped ? '+' : ''} linked ${counts()!.notes === 1 && !counts()!.capped ? 'note' : 'notes'}`,
   );
   const fail = (reason: unknown) => {
     const message = reason instanceof Error ? reason.message : String(reason);

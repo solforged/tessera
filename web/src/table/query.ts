@@ -261,7 +261,7 @@ export function filterLabel(
   const name = definition ? fieldLabel(definition) : (names?.[filter.field] ?? 'Missing field');
   const value =
     definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
-      ? (target => (!target ? filter.value : targetLabel(target.text, id => workshop.lookup(id)) || 'Empty atom'))(
+      ? (target => (!target ? filter.value : targetLabel(target.text, id => workshop.lookup(id)) || 'Empty note'))(
           workshop.lookup(filter.value)(),
         )
       : definition?.kind === 'choice' && definition.id.startsWith('@')

@@ -156,7 +156,7 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
   if (first !== undefined) {
     const last = operators[operators.length - 1]!;
     if (operators.length > 1)
-      result.problems.push(problem('Use only one card operator per atom.', first, last + operator(text, last)!.length));
+      result.problems.push(problem('Use only one card operator per note.', first, last + operator(text, last)!.length));
     if (firstCloze !== null)
       result.problems.push(problem('Do not mix card operators and clozes.', Math.min(first, firstCloze), text.length));
   }
@@ -168,7 +168,7 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
     const right = trim(literal(text, first + op.length, text.length));
     if (op === '>>>' || op === '>>1.') {
       if (!left) result.problems.push(problem('The front of a card needs text.', first, first + op.length));
-      else if (right) result.problems.push(problem('Child-answer operators must end the atom.', first, text.length));
+      else if (right) result.problems.push(problem('Child-answer operators must end the note.', first, text.length));
       else {
         const kind = op === '>>>' ? 'multiline' : 'list';
         result.cards.push({ key: kind, kind, front: left, back: '' });

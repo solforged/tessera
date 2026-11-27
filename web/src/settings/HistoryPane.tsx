@@ -140,7 +140,7 @@ export function HistoryPane(props: {
                                   <button
                                     type="button"
                                     class="settings-page-link"
-                                    title={`Open atom · ${besideHint}`}
+                                    title={`Open note · ${besideHint}`}
                                     onClick={event =>
                                       props.onOpen({ kind: 'page', pageId: page().id }, opensBeside(event))
                                     }

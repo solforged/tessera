@@ -106,19 +106,19 @@ export function createPageChrome(options: PageChromeOptions) {
     if (value !== 'read' || options.readerTarget()) return undefined;
     if (options.doc()?.status() !== 'ready')
       return options.doc()?.status() === 'missing' || options.doc()?.status() === 'error'
-        ? 'The atom is unavailable.'
-        : 'Read is unavailable while the atom is loading.';
+        ? 'The note is unavailable.'
+        : 'Read is unavailable while the note is loading.';
     const zoom = options.outlineView().zoom;
-    if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.';
+    if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled notes have projections.';
     const block = options.doc()?.block(zoom);
-    if (!block?.position) return 'Read is unavailable for this atom.';
+    if (!block?.position) return 'Read is unavailable for this note.';
     if (options.doc()?.isArchived(zoom)) return 'This perspective is archived. Restore it to use Read.';
     const subject = readSubject();
     if (subject === undefined) return 'The perspective’s subject is loading.';
     if (!subject || subject.archived) return 'The perspective’s subject is unavailable.';
     const page = subject.id === subject.page_id ? subject : workshop.workshop.lookup(subject.page_id)();
-    if (page === undefined) return 'The perspective’s subject atom is loading.';
-    if (!page || page.archived) return 'The perspective’s subject atom is unavailable.';
+    if (page === undefined) return 'The perspective’s subject note is loading.';
+    if (!page || page.archived) return 'The perspective’s subject note is unavailable.';
     if (page.kind !== 'page') return 'Read needs a titled subject. File this perspective under a concept or question.';
     return undefined;
   };
@@ -178,9 +178,9 @@ export function createPageChrome(options: PageChromeOptions) {
     const page = options.doc();
     if (!options.readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
     return page?.status() !== 'ready'
-      ? 'Atom is unavailable'
+      ? 'Note is unavailable'
       : localPositionCount(page) < 2
-        ? 'Compare needs two perspectives on this atom'
+        ? 'Compare needs two perspectives on this note'
         : undefined;
   };
   // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
@@ -233,7 +233,7 @@ export function createPageChrome(options: PageChromeOptions) {
           {
             label: 'Question',
             icon: 'question-open',
-            disabledReason: root() ? undefined : 'Atom is still loading',
+            disabledReason: root() ? undefined : 'Note is still loading',
             action: () => {
               const result = options.doc()?.edit({
                 kind: 'question',
@@ -347,7 +347,7 @@ export function createPageChrome(options: PageChromeOptions) {
           {
             label: 'Make…',
             icon: 'plus',
-            submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this atom and keeps its text.' }),
+            submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this note and keeps its text.' }),
           } satisfies MenuItem,
         ]
       : []),
@@ -413,7 +413,7 @@ export function createPageChrome(options: PageChromeOptions) {
               {
                 label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets',
                 icon: 'bullet',
-                disabledReason: root() ? undefined : 'Atom is still loading',
+                disabledReason: root() ? undefined : 'Note is still loading',
                 action: () =>
                   workshop.onPagePresentation(options.pageId()!, {
                     ...presentation(),
@@ -442,7 +442,7 @@ export function createPageChrome(options: PageChromeOptions) {
         ]
       : [];
   const deleteItem = (): MenuItem => ({
-    label: 'Delete atom…',
+    label: 'Delete note…',
     icon: 'trash',
     danger: true,
     disabledReason: builtInTagReason(root()?.text ?? '', options.doc()?.capabilities(options.pageId()!), 'delete'),
@@ -503,7 +503,7 @@ export function createPageChrome(options: PageChromeOptions) {
       class="mode-tabs tab-strip page-projection-tabs"
       data-mode-panel=".outline-pane"
       role="tablist"
-      aria-label="Atom projection"
+      aria-label="Note projection"
     >
       <For each={['read', 'outline', 'compare'] as const}>
         {value => (
@@ -561,8 +561,8 @@ export function createPageChrome(options: PageChromeOptions) {
         {anchor => (
           <Menu
             anchor={anchor()}
-            label="Atom actions"
-            title="Atom actions"
+            label="Note actions"
+            title="Note actions"
             context={
               root()?.kind === 'page' ? displayTitle(root()!.text, id => workshop.workshop.lookup(id)) : root()?.text
             }

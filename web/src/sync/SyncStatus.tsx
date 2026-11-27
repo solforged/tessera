@@ -239,7 +239,7 @@ export function SyncExplanation(props: { health: SyncHealth; where?: 'summary' |
             <Show when={value().kept}>
               <p>
                 <span class="sync-rubric sync-mono">{value().kept}</span>{' '}
-                {value().kept === 1 ? 'version kept beside its atom' : 'versions kept beside their atoms'}
+                {value().kept === 1 ? 'version kept beside its note' : 'versions kept beside their notes'}
               </p>
             </Show>
             <Show when={value().rejected}>
@@ -251,7 +251,7 @@ export function SyncExplanation(props: { health: SyncHealth; where?: 'summary' |
           </div>
         </Show>
         <p>
-          <Show when={value().kept}>The kept versions are still beside their atoms. </Show>
+          <Show when={value().kept}>The kept versions are still beside their notes. </Show>
           <Show when={value().rejected}>
             {props.where === 'settings'
               ? 'Rejected changes are listed under Needs review below.'

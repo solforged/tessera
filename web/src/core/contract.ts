@@ -44,7 +44,7 @@ export interface Command {
   id: string;
   title: string;
   description?: string;
-  section: 'Go to' | 'Navigation' | 'Create' | 'Outline' | 'Atom' | 'Editing' | 'Vim' | 'Page' | 'View';
+  section: 'Go to' | 'Navigation' | 'Create' | 'Outline' | 'Note' | 'Editing' | 'Vim' | 'Page' | 'View';
   keys?: string[];
   keywords?: string[];
   /** Why it cannot run now; shown in the palette. Undefined when enabled. */

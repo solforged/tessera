@@ -284,7 +284,7 @@ export function MetadataInspector(props: {
           .then(() => {
             if (cancelled) return;
             if (selected.docs.some(doc => !doc.root()?.source))
-              throw new Error('One of the selected atoms is no longer a source.');
+              throw new Error('One of the selected notes is no longer a source.');
             solidBatch(() => {
               setRequested(selected);
               setLoading(false);
@@ -780,7 +780,7 @@ export function MetadataInspector(props: {
                 class="metadata-open"
                 onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, opensBeside(event))}
               >
-                Open atom
+                Open note
                 <Icon name="right" />
               </Button>
             </Show>
@@ -915,7 +915,7 @@ export function MetadataInspector(props: {
         {anchor => (
           <Popup anchor={anchor()} label="Catalog fields" onDismiss={() => setVisibilityMenu(undefined)}>
             <h2 class="popup-title">Catalog fields</h2>
-            <p class="metadata-hint">Visibility is kept for each selected atom on this device.</p>
+            <p class="metadata-hint">Visibility is kept for each selected note on this device.</p>
             <For each={(Object.keys(labels) as SourceField[]).filter(field => field !== 'cover' && field !== 'siglum')}>
               {field => (
                 <label class="menu-item">

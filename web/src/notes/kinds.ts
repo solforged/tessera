@@ -65,7 +65,7 @@ export function kindPlural(kind: Pick<NoteKind, 'key' | 'plural'>): string {
 
 /** A kind's member count in its own noun: tasks, questions, sources and projects count themselves, the rest count atoms. */
 export function kindTally(count: number, key: string): string {
-  const noun = ['task', 'question', 'source', 'project'].includes(key) ? key : 'atom';
+  const noun = ['task', 'question', 'source', 'project'].includes(key) ? key : 'note';
   return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`;
 }
 
@@ -85,7 +85,7 @@ export function indexKindTarget(kind: IndexKind): OpenTarget {
 
 /** The Index's finding-aid heads, in order; spreads follow under their own head. */
 export const shelves: readonly (readonly [Shelf, string])[] = [
-  ['notes', 'Atoms'],
+  ['notes', 'Notes'],
   ['sources', 'Sources'],
   ['work', 'Work'],
   ['tags', 'Tags'],

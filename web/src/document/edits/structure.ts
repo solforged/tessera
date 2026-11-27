@@ -12,13 +12,13 @@ export function editKeptCopy(
   const { actions } = session;
   const block = doc.snapshot(edit.id);
   const copy = block.kept_copy;
-  if (!copy) throw new Error('This atom is not a kept copy.');
+  if (!copy) throw new Error('This note is not a kept copy.');
   if (edit.choice === 'both') {
     actions.push({ kind: 'settleSyncCopy', id: edit.id, settled: true, copy });
   } else {
     doc.guardHide(edit.id);
     if (edit.choice === 'use') {
-      if (!doc.block(copy.of)) throw new Error('The original is not on this atom. Both versions are unchanged.');
+      if (!doc.block(copy.of)) throw new Error('The original is not on this note. Both versions are unchanged.');
       actions.push({ kind: 'text', id: copy.of, text: block.text });
     }
     actions.push({ kind: 'delete', id: edit.id });

@@ -33,7 +33,7 @@ async function commitSourceActions(
       docs.map(async doc => {
         if (doc.status() === 'loading') await doc.reload(false);
         await doc.flush();
-        if (doc.status() !== 'ready') throw new Error(doc.statusMessage() || 'This atom is not ready.');
+        if (doc.status() !== 'ready') throw new Error(doc.statusMessage() || 'This note is not ready.');
       }),
     );
     const operations: Operation[] = [];
@@ -126,16 +126,16 @@ export async function integrateBlock(
       const sourceDoc = docs[pages.indexOf(source.page_id)]!;
       const destinationDoc = docs[pages.indexOf(destination.page_id)]!;
       if (sourceDoc.root()?.kind !== 'journal' || source.kind !== 'block')
-        throw new Error('Integrate an atom from a journal day.');
+        throw new Error('Integrate a note from a journal day.');
       const block = await workshop.api.block(id);
       if (!block.parent_id || block.page_id !== source.page_id)
-        throw new Error('The atom moved while choosing its destination.');
+        throw new Error('The note moved while choosing its destination.');
       const parentId = block.parent_id;
       const siblings = sourceDoc.outline.children(parentId);
       const after = siblings[siblings.indexOf(id) - 1] ?? null;
       let ancestor: string | null = destinationId;
       while (ancestor) {
-        if (ancestor === id) throw new Error('An atom cannot move into its own subtree.');
+        if (ancestor === id) throw new Error('A note cannot move into its own subtree.');
         ancestor = destinationDoc.block(ancestor)?.parentId ?? null;
       }
       const referenceId = ulid();
@@ -155,7 +155,7 @@ export async function integrateBlock(
           );
           const current = await workshop.api.block(id);
           if (current.parent_id !== (forward ? parentId : destinationId))
-            throw new Error('The atom moved since this change. Its current place was kept.');
+            throw new Error('The note moved since this change. Its current place was kept.');
           const operations: Operation[] = [];
           if (forward) {
             const dest = opened[pages.indexOf(destination.page_id)]!;
@@ -189,7 +189,7 @@ export async function integrateBlock(
           }
           const receipt = await workshop.commit(
             operations,
-            forward ? 'Integrate journal atom' : 'Undo integration',
+            forward ? 'Integrate journal note' : 'Undo integration',
             pages,
             { retainRejection: false },
           );
@@ -217,9 +217,9 @@ export async function moveBlocks(
   destinationId: string,
 ): Promise<DocumentChange> {
   return serializeSourceChange(workshop, async () => {
-    if (!ids.length) throw new Error('Select atoms to move.');
+    if (!ids.length) throw new Error('Select notes to move.');
     const first = await workshop.api.block(ids[0]!);
-    if (first.page_id === destinationId) throw new Error('Choose another atom.');
+    if (first.page_id === destinationId) throw new Error('Choose another note.');
     const pages = [first.page_id, destinationId];
     const opened = pages.map(pageId => workshop.open(pageId) as Document);
     try {
@@ -232,7 +232,7 @@ export async function moveBlocks(
       );
       const source = await workshop.api.page(first.page_id);
       const destination = await workshop.api.block(destinationId);
-      if (destination.kind !== 'page') throw new Error('Choose a titled atom.');
+      if (destination.kind !== 'page') throw new Error('Choose a titled note.');
       const selected = new Set(ids);
       const blocks = new Map(source.rows.map(row => [row.block.id, row.block]));
       const predecessors = new Map<string, string | null>();
@@ -241,7 +241,7 @@ export async function moveBlocks(
         predecessors.set(block.id, previous.get(block.parent_id!) ?? null);
         previous.set(block.parent_id!, block.id);
       }
-      if (ids.some(id => !blocks.has(id))) throw new Error('A selected atom moved or was deleted.');
+      if (ids.some(id => !blocks.has(id))) throw new Error('A selected note moved or was deleted.');
       const roots = source.rows
         .filter(({ block }) => {
           if (!selected.has(block.id)) return false;
@@ -274,7 +274,7 @@ export async function moveBlocks(
                 block.page_id !== (forward ? first.page_id : destinationId),
             )
           )
-            throw new Error('An atom moved since this change. Its current place was kept.');
+            throw new Error('A note moved since this change. Its current place was kept.');
           const target = forward ? await workshop.api.page(destinationId) : null;
           let after = target?.rows.filter(row => row.depth === 0).at(-1)?.block.id ?? null;
           const operations: Operation[] = roots.map((root, index) => {
@@ -288,7 +288,7 @@ export async function moveBlocks(
             after = root.id;
             return operation;
           });
-          await workshop.commit(operations, forward ? 'Move atoms' : 'Undo atom move', pages, {
+          await workshop.commit(operations, forward ? 'Move notes' : 'Undo note move', pages, {
             retainRejection: false,
           });
           applied = forward;
@@ -321,9 +321,9 @@ export async function promoteToProject(
       if (journal.status() === 'loading') await journal.reload(false);
       await journal.flush();
       if (journal.root()?.kind !== 'journal' || source.kind !== 'block')
-        throw new Error('Promote an atom from a journal day.');
+        throw new Error('Promote a note from a journal day.');
       const row = await workshop.api.block(id);
-      if (row.page_id !== source.page_id) throw new Error('The atom moved while making it a project.');
+      if (row.page_id !== source.page_id) throw new Error('The note moved while making it a project.');
       const children = [...journal.outline.children(id)];
       const found = await workshop.pageByTitle(name, false);
       const existing = found ? await workshop.api.block(found) : null;
@@ -343,7 +343,7 @@ export async function promoteToProject(
         const current = await workshop.api.block(id);
         if (forward) {
           if (current.text !== originalText)
-            throw new Error('The journal atom changed since this change. Its current text was kept.');
+            throw new Error('The journal note changed since this change. Its current text was kept.');
           if (created)
             operations.push(
               deletionId

@@ -216,7 +216,7 @@ export function TableGrid(props: TableGridProps) {
                     <tr class="table-member-group">
                       <th colSpan={1 + props.columns.length + (props.refs ? 1 : 0)}>
                         <span class="table-member-group-label">
-                          Tagged atoms <span>{props.tagged?.count}</span>
+                          Tagged notes <span>{props.tagged?.count}</span>
                         </span>
                       </th>
                     </tr>
@@ -251,7 +251,7 @@ export function TableGrid(props: TableGridProps) {
                       </Show>
                       <Button
                         class="table-row-beside"
-                        label={row.block.block.kind === 'block' ? 'Open atom beside' : 'Open atom beside'}
+                        label={row.block.block.kind === 'block' ? 'Open note beside' : 'Open note beside'}
                         onClick={event => {
                           event.stopPropagation();
                           props.onOpen(row, true);
@@ -358,7 +358,7 @@ export function TableGrid(props: TableGridProps) {
                 <Show when={!props.grouped && props.tagged?.rowId === row.block.block.id}>
                   <div class="table-card-group" role="presentation">
                     <span class="table-member-group-label">
-                      Tagged atoms <span>{props.tagged?.count}</span>
+                      Tagged notes <span>{props.tagged?.count}</span>
                     </span>
                   </div>
                 </Show>

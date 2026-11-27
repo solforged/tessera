@@ -264,7 +264,7 @@ export function SidebarNav(props: SidebarNavProps) {
                     {notes => (
                       <span
                         class="section-count"
-                        title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed under ${props.index()!.kinds.length.toLocaleString()} ${props.index()!.kinds.length === 1 ? 'type' : 'types'}`}
+                        title={`${notes().toLocaleString()} ${notes() === 1 ? 'note' : 'notes'} filed under ${props.index()!.kinds.length.toLocaleString()} ${props.index()!.kinds.length === 1 ? 'type' : 'types'}`}
                       >
                         {notes().toLocaleString()}
                       </span>
@@ -323,7 +323,7 @@ export function SidebarNav(props: SidebarNavProps) {
               </summary>
               <Show
                 when={props.recentRoots().length}
-                fallback={<p class="sidebar-empty">Atoms you open appear here</p>}
+                fallback={<p class="sidebar-empty">Notes you open appear here</p>}
               >
                 <PageLinks
                   roots={props.recentRoots()}

@@ -99,8 +99,8 @@ export function TemplateEditor(props: {
     ),
   );
   const atomNames = createMemo(() => ({
-    singular: props.type.page.text.trim().toLocaleLowerCase() || 'atom',
-    plural: (props.pluralName?.trim() || props.type.plural?.trim() || 'atoms').toLocaleLowerCase(),
+    singular: props.type.page.text.trim().toLocaleLowerCase() || 'note',
+    plural: (props.pluralName?.trim() || props.type.plural?.trim() || 'notes').toLocaleLowerCase(),
   }));
   async function run(action: () => Promise<unknown>) {
     if (busy()) return;
@@ -142,7 +142,7 @@ export function TemplateEditor(props: {
   const kindSummary = (field: FieldDefinition) =>
     taskFieldFormat(field) ??
     (field.kind === 'instance'
-      ? `${kindLabels.instance} → ${linksToSummary(props.workshop, field.targets, 'any atom')}`
+      ? `${kindLabels.instance} → ${linksToSummary(props.workshop, field.targets, 'any note')}`
       : field.kind === 'choice'
         ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}`
         : kindLabels[field.kind]);
@@ -281,7 +281,7 @@ export function TemplateEditor(props: {
             when={template().length}
             fallback={
               <p class="template-note">
-                Fields added here become this tag’s table columns and wait as empty slots on its atoms.
+                Fields added here become this tag’s table columns and wait as empty slots on its notes.
               </p>
             }
           >
@@ -296,7 +296,7 @@ export function TemplateEditor(props: {
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">Format</th>
-                  <th scope="col" class="template-field-usage" title="Atoms using this field across the workshop">
+                  <th scope="col" class="template-field-usage" title="Notes using this field across the workshop">
                     Uses
                   </th>
                   <th scope="col">
@@ -381,10 +381,10 @@ export function TemplateEditor(props: {
                           <td class="template-field-usage">
                             <Show
                               when={summaries().get(id)?.owners}
-                              fallback={<span title="No atom uses this field yet">Unused</span>}
+                              fallback={<span title="No note uses this field yet">Unused</span>}
                             >
                               <Button
-                                title={`Atoms using ${fieldLabel(field())}: ${summaries().get(id)!.owners} · ${besideHint}`}
+                                title={`Notes using ${fieldLabel(field())}: ${summaries().get(id)!.owners} · ${besideHint}`}
                                 onClick={event =>
                                   props.onOpen(
                                     {
@@ -554,7 +554,7 @@ export function TemplateEditor(props: {
                   const current = field();
                   setLinksMenu(null);
                   void run(async () =>
-                    remember(`${fieldLabel(current)} links to ${linksToSummary(props.workshop, targets, 'any atom')}.`)(
+                    remember(`${fieldLabel(current)} links to ${linksToSummary(props.workshop, targets, 'any note')}.`)(
                       await setFieldTargets(props.workshop, current, targets),
                     ),
                   );

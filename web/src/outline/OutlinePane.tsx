@@ -1541,7 +1541,7 @@ function Pane(props: OutlinePaneProps) {
   }
   const depthReason = () =>
     doc.root()?.kind !== 'page'
-      ? 'Only titled atoms have depth.'
+      ? 'Only titled notes have depth.'
       : props.projection && props.projection !== 'outline'
         ? 'Choose Outline to change depth.'
         : zoom()
@@ -1555,7 +1555,7 @@ function Pane(props: OutlinePaneProps) {
     gloss: 'Show the gloss only',
     opening: 'Show the opening',
     perspectives: 'Show perspectives',
-    full: 'Show the full atom',
+    full: 'Show the full note',
   };
   const headerActions = createOutlineHeaderActions({
     pageId: props.pageId,
@@ -2019,10 +2019,10 @@ function Pane(props: OutlinePaneProps) {
         if (editor?.id && matches && matches.length > 1)
           setMenu({
             anchor,
-            label: 'Choose an atom',
+            label: 'Choose a note',
             header: (
               <div class="menu-section">
-                “{token.id}” names {matches.length} atoms
+                “{token.id}” names {matches.length} notes
               </div>
             ),
             items: nameMenuItems(props.workshop, editor.id, token, matches, setMessage),
@@ -2286,7 +2286,7 @@ function Pane(props: OutlinePaneProps) {
         if (initial.reveal === anchor.id) highlightReading(anchor.id);
       } else {
         if (caret()?.id === anchor.id && !doc.block(anchor.id)) setCaret(null);
-        if (initial.reveal === anchor.id) setMessage('This perspective is no longer available on its subject atom.');
+        if (initial.reveal === anchor.id) setMessage('This perspective is no longer available on its subject note.');
       }
       setPendingReadAnchor(null);
       scheduleReport();
@@ -2366,7 +2366,7 @@ function Pane(props: OutlinePaneProps) {
         data-multi-select={selectedIds().length > 1 ? '' : undefined}
         tabIndex={0}
         role="tree"
-        aria-label={reading() ? 'Atom reading register' : 'Atom outline'}
+        aria-label={reading() ? 'Note reading register' : 'Note outline'}
         aria-owns={ids()
           .map(id => `outline-${props.pane}-${id}`)
           .join(' ')}
@@ -2664,7 +2664,7 @@ function Pane(props: OutlinePaneProps) {
             onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}
           >
             <Icon name="plus" />
-            Add an atom
+            Add a note
           </button>
         </Show>
         {/* Generated sections follow the outline on Today alone, as the workshop's template switches them. */}
@@ -2744,7 +2744,7 @@ function Pane(props: OutlinePaneProps) {
               <UnlinkedMentions />
             </Show>
             <Show when={relatedError() || related()?.tagged.length}>
-              <Related title="Tagged atoms" rows={relatedError() ? [] : (related()?.tagged ?? [])} />
+              <Related title="Tagged notes" rows={relatedError() ? [] : (related()?.tagged ?? [])} />
             </Show>
           </div>
         </Show>
@@ -2867,7 +2867,7 @@ function Pane(props: OutlinePaneProps) {
             <div
               class="outline-bulk-bar"
               role="toolbar"
-              aria-label="Selected atoms actions"
+              aria-label="Selected notes actions"
               onMouseDown={event => event.preventDefault()}
               onKeyDown={event => {
                 if (event.key === 'Escape') {

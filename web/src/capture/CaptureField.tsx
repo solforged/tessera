@@ -464,7 +464,7 @@ export function CaptureField(props: CaptureFieldProps) {
         <Popup
           anchor={line}
           role="listbox"
-          label={token()?.kind === 'type' ? 'Tags' : 'Atoms'}
+          label={token()?.kind === 'type' ? 'Tags' : 'Notes'}
           class="picker capture-choices"
           width={line.offsetWidth}
           autofocus={false}
@@ -504,7 +504,7 @@ export function CaptureField(props: CaptureFieldProps) {
                     <Icon name={icon()} />
                     <span class="picker-text">
                       {choice.create
-                        ? `${token()?.kind === 'type' ? 'Create tag' : 'Create atom'} “${choice.title}”`
+                        ? `${token()?.kind === 'type' ? 'Create tag' : 'Create note'} “${choice.title}”`
                         : choice.title}
                     </span>
                     <Show when={choice.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>

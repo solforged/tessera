@@ -131,7 +131,7 @@ export class WorkshopChangeStream {
       // Refresh it before resuming, including structural changes and sync rebases.
       for (const id of this.host.recoveryPages().keys()) await this.host.reloadPage(id);
     }
-    if (this.host.recoveryPages().size) throw new Error('Cached atoms still need a server snapshot.');
+    if (this.host.recoveryPages().size) throw new Error('Cached notes still need a server snapshot.');
     this.reloadRequired = false;
   }
   async connect() {

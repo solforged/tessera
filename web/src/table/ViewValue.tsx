@@ -66,7 +66,7 @@ export function ViewValue(props: {
     if (busy()) return;
     const doc = props.doc;
     if (!doc || doc.status() !== 'ready') {
-      props.onError('The atom is still loading.');
+      props.onError('The note is still loading.');
       return;
     }
     setBusy(true);
@@ -116,7 +116,7 @@ export function ViewValue(props: {
     if (busy()) return;
     if (taskField()) {
       if (props.doc?.status() !== 'ready') {
-        props.onError('The atom is still loading.');
+        props.onError('The note is still loading.');
         return;
       }
       setPicker(true);
@@ -132,7 +132,7 @@ export function ViewValue(props: {
     if (!value && filling) {
       const doc = props.doc;
       if (!doc || doc.status() !== 'ready') {
-        props.onError('The atom is still loading.');
+        props.onError('The note is still loading.');
         return;
       }
       try {

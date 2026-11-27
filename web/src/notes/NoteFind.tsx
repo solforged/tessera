@@ -112,7 +112,7 @@ export function NoteFind(props: {
       }
       if (token !== generation) return;
       if (ids.size !== 1) {
-        missing = `No atom named “${term.value}”`;
+        missing = `No note named “${term.value}”`;
         continue;
       }
       const id = [...ids][0]!;
@@ -209,7 +209,7 @@ export function NoteFind(props: {
               anchor={field}
               placement="below"
               role="listbox"
-              label="Atom names"
+              label="Note names"
               class="picker"
               width={Math.max(field.offsetWidth, 280)}
               autofocus={false}

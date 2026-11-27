@@ -460,7 +460,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       <thead>
         <tr>
           <th scope="col">Written value</th>
-          <th scope="col">Atom</th>
+          <th scope="col">Note</th>
           <th scope="col">Problem</th>
         </tr>
       </thead>
@@ -514,7 +514,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                     register()?.fields.find(field => taskFieldName(field) === 'status')?.owners ?? value.owners_total,
                     'task',
                   )
-                : plural(template.members, 'atom')}
+                : plural(template.members, 'note')}
             </span>
             <Show when={!props.inspector}>
               <Button onClick={event => props.onOpen({ kind: 'fields', typeId: template.type_id }, opensBeside(event))}>
@@ -614,7 +614,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                   class="field-heading-actions"
                   onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, opensBeside(event))}
                 >
-                  Open atom ↗
+                  Open note ↗
                 </Button>
                 <Show when={props.onClose}>
                   <Button
@@ -645,7 +645,7 @@ export function FieldDetails(props: FieldDetailsProps) {
             </Show>
             <p class="field-summary">
               {taskFieldFormat(value().field) ?? kindLabels[value().field.kind]} ·{' '}
-              {plural(value().owners_total, 'atom')}
+              {plural(value().owners_total, 'note')}
             </p>
             <div class="field-kind-row">
               <span>{preview() ? 'Change format' : 'Format'}</span>
@@ -680,7 +680,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                     if (ready()) setTargetsMenu(event.currentTarget);
                   }}
                 >
-                  {linksToSummary(props.workshop, value().field.targets, 'Any atom')} <Icon name="down" />
+                  {linksToSummary(props.workshop, value().field.targets, 'Any note')} <Icon name="down" />
                 </Button>
               </div>
             </Show>
@@ -750,7 +750,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                           <tr>
                             <th scope="col">Value</th>
                             <Show when={!value().field.built_in}>
-                              <th scope="col">Atoms</th>
+                              <th scope="col">Notes</th>
                               <th scope="col">
                                 <span class="visually-hidden">Actions</span>
                               </th>
@@ -890,7 +890,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                       <SectionHead
                         number={sectionNumber('owners')}
                         title="Used by"
-                        count={plural(value().owners_total, 'atom')}
+                        count={plural(value().owners_total, 'note')}
                       />
                       <div class="field-owners">
                         <For
@@ -899,7 +899,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                             <p class="field-note">
                               {value().owners_total
                                 ? 'Tasks inherit this value from their containing project.'
-                                : 'No atoms yet.'}
+                                : 'No notes yet.'}
                             </p>
                           }
                         >
@@ -946,7 +946,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                             )
                           }
                         >
-                          View all {plural(value().owners_total, 'atom')} →
+                          View all {plural(value().owners_total, 'note')} →
                         </Button>
                       </Show>
                     </section>
@@ -966,8 +966,8 @@ export function FieldDetails(props: FieldDetailsProps) {
                       </Show>
                       <p class="field-note">
                         {value().kind === 'choice'
-                          ? 'Make it an option, or open the atom to edit it.'
-                          : 'The value stays as written. Open the atom to edit it.'}
+                          ? 'Make it an option, or open the note to edit it.'
+                          : 'The value stays as written. Open the note to edit it.'}
                       </p>
                     </section>
                   </Show>
@@ -989,7 +989,7 @@ export function FieldDetails(props: FieldDetailsProps) {
                     ? `${value().problems_total} of ${plural(value().values_total, 'value')} would stay unreadable`
                     : `All ${plural(value().values_total, 'value')} read as ${kindLabels[value().kind]}`}
                 </h2>
-                <p class="field-note">Atoms and their children stay in place.</p>
+                <p class="field-note">Notes and their children stay in place.</p>
               </section>
               <Show
                 when={!props.inspector}

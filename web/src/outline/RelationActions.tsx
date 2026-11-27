@@ -183,10 +183,10 @@ export function createRelationActions(
                 alias,
                 section:
                   current.kind === 'integrate'
-                    ? 'Atoms'
+                    ? 'Notes'
                     : preferred.ids.has(page.id)
                       ? 'Questions and concepts'
-                      : 'Atoms',
+                      : 'Notes',
               }));
               if (current.kind === 'subject') {
                 // Question pages use the shared name resolver; inline questions use reference search below.
@@ -202,13 +202,13 @@ export function createRelationActions(
                 const found = await props.workshop.api.search(text, 100);
                 for (const row of found)
                   if (row.block.kind === 'block' && !row.block.archived)
-                    result.push({ block: row.block, section: 'Atoms' });
+                    result.push({ block: row.block, section: 'Notes' });
               }
               const sorted = result.sort(
                 (a, b) =>
-                  Number(a.section === 'Atoms') - Number(b.section === 'Atoms') ||
-                  Number(a.section === 'Atoms' && a.block.kind === 'block') -
-                    Number(b.section === 'Atoms' && b.block.kind === 'block'),
+                  Number(a.section === 'Notes') - Number(b.section === 'Notes') ||
+                  Number(a.section === 'Notes' && a.block.kind === 'block') -
+                    Number(b.section === 'Notes' && b.block.kind === 'block'),
               );
               return sorted;
             },
@@ -244,7 +244,7 @@ export function createRelationActions(
                   change.undo,
                 );
               } else {
-                if (!doc.block(current.id)?.position) throw new Error('This atom is no longer a perspective.');
+                if (!doc.block(current.id)?.position) throw new Error('This note is no longer a perspective.');
                 let text = doc.block(current.id)!.text;
                 if (current.kind === 'holder') {
                   const alias = positionLinks(text)[0]?.alias;
@@ -303,8 +303,8 @@ export function createRelationActions(
                 holding
                   ? 'Find a person or group'
                   : current.kind === 'subject'
-                    ? 'Find a question, concept or atom'
-                    : 'Find an atom'
+                    ? 'Find a question, concept or note'
+                    : 'Find a note'
               }
               items={choices() ?? []}
               key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`}
@@ -324,7 +324,7 @@ export function createRelationActions(
                   : choices.loading || preferred.loading
                     ? 'Loading destinations…'
                     : current.kind === 'integrate' && choice.block.id === current.id
-                      ? 'An atom cannot move into itself.'
+                      ? 'A note cannot move into itself.'
                       : undefined
               }
               row={choice => (

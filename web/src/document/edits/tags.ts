@@ -35,7 +35,7 @@ export function editManualType(
   let matched = 0;
   for (const id of targets) {
     const block = doc.block(id);
-    if (!block) throw new Error('The atom no longer exists.');
+    if (!block) throw new Error('The note no longer exists.');
     const exists = block.manual_types.some(title => titleKey(title) === titleKey(edit.title));
     if (edit.kind === 'addType') {
       if (exists) continue;

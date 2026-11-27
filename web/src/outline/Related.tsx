@@ -345,12 +345,12 @@ export function createOutlineRelated(
               ? section.cited
                 ? 'No citations yet'
                 : zoom()
-                  ? 'No links to this atom yet'
+                  ? 'No links to this note yet'
                   : 'No backlinks yet'
               : section.cited
                 ? 'Cited in'
                 : zoom()
-                  ? 'Linked to this atom'
+                  ? 'Linked to this note'
                   : 'Backlinks'}
           </span>
           <span class="section-rule" aria-hidden="true" />
@@ -395,7 +395,7 @@ export function createOutlineRelated(
                               {plainText(
                                 doc.block(target)?.text ?? props.workshop.lookup(target)()?.text ?? '',
                                 reference => props.workshop.lookup(reference),
-                              ) || 'Empty atom'}
+                              ) || 'Empty note'}
                             </Button>
                           )}
                         </For>
@@ -587,7 +587,7 @@ export function createOutlineRelated(
           <Icon name="down" />
         </summary>
         <Show when={mounted()}>
-          <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related atoms.</p>}>
+          <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related notes.</p>}>
             <For each={propsRelated.rows}>
               {result => {
                 const live = props.workshop.lookup(result.block.id);

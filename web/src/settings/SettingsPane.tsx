@@ -484,7 +484,7 @@ export function SettingsPane(props: {
                     <label for={`settings-vim-${props.pane}`}>Vim keys</label>
                     <span class="settings-scope">Workshop</span>
                   </span>
-                  <p>Normal, insert and visual modes inside an atom; j and k move between atoms.</p>
+                  <p>Normal, insert and visual modes inside a note; j and k move between notes.</p>
                 </div>
                 <input
                   id={`settings-vim-${props.pane}`}

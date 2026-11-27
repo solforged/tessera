@@ -5,7 +5,7 @@ import { displayTitle, readableText } from './names';
 /** Where a block sits: its root's tagless title, then its ancestors as a reader sees them. A descriptor card already names its parent, so it can omit it. */
 export function blockTrail(block: Block, lookup: WorkshopClient['lookup'], omitParent = false): string {
   if (block.kind !== 'block')
-    return displayTitle(block.text, lookup) || (block.kind === 'journal' ? 'Journal' : 'Untitled atom');
+    return displayTitle(block.text, lookup) || (block.kind === 'journal' ? 'Journal' : 'Untitled note');
   const ancestors: string[] = [];
   const seen = new Set<string>();
   let parent = block.parent_id;
@@ -13,11 +13,11 @@ export function blockTrail(block: Block, lookup: WorkshopClient['lookup'], omitP
     seen.add(parent);
     const ancestor = lookup(parent)();
     if (!ancestor) break;
-    ancestors.unshift(readableText(ancestor.text, lookup) || 'Empty atom');
+    ancestors.unshift(readableText(ancestor.text, lookup) || 'Empty note');
     parent = ancestor.parent_id;
   }
   const page = lookup(block.page_id)();
-  const segments = [page ? displayTitle(page.text, lookup) || 'Untitled atom' : 'Loading atom…', ...ancestors];
+  const segments = [page ? displayTitle(page.text, lookup) || 'Untitled note' : 'Loading note…', ...ancestors];
   // Keep the page title when it is the parent: the source button needs a label.
   if (omitParent && segments.length > 1) segments.pop();
   return segments.join(' › ');

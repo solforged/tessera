@@ -32,7 +32,7 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
                 ? props.workshop.lookup(holder)()?.text
                 : (props.workshop.lookup(source.id)()?.text ?? source.text);
               return (
-                plainText(text ?? '', id => props.workshop.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom')
+                plainText(text ?? '', id => props.workshop.lookup(id)) || (holder ? 'Loading holder…' : 'Empty note')
               );
             });
             return (
@@ -88,7 +88,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
   });
   const [expanded, setExpanded] = createSignal(new Set<string>());
   const label = (owner: FieldOwner) =>
-    targetLabel(props.workshop.lookup(owner.id)()?.text ?? owner.text, id => props.workshop.lookup(id)) || 'Empty atom';
+    targetLabel(props.workshop.lookup(owner.id)()?.text ?? owner.text, id => props.workshop.lookup(id)) || 'Empty note';
   return (
     <Show when={groups().length}>
       <div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
@@ -175,7 +175,7 @@ function MentionedIn(
         : (props.workshop.lookup(source.id)()?.text ?? source.text);
       result.push({
         key: `relation:${source.id}:${row.kind}`,
-        name: plainText(text ?? '', id => props.workshop.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom'),
+        name: plainText(text ?? '', id => props.workshop.lookup(id)) || (holder ? 'Loading holder…' : 'Empty note'),
         relation: incomingRelationLabels[row.kind],
         pageId: row.source.block.page.id,
         blockId: source.kind === 'block' ? source.id : undefined,
@@ -190,7 +190,7 @@ function MentionedIn(
         key,
         name:
           targetLabel(props.workshop.lookup(owner.id)()?.text ?? owner.text, id => props.workshop.lookup(id)) ||
-          'Empty atom',
+          'Empty note',
         relation: row.field_name,
         pageId: owner.page_id,
         blockId: owner.id === owner.page_id ? undefined : owner.id,
@@ -300,7 +300,7 @@ export function OutgoingRelations(props: RelationProps & { rows: readonly BlockS
                 const label = () => {
                   const block = target();
                   return block
-                    ? plainText(block.text, id => props.workshop.lookup(id)) || 'Empty atom'
+                    ? plainText(block.text, id => props.workshop.lookup(id)) || 'Empty note'
                     : relation().target_id
                       ? 'Loading reference…'
                       : 'No target';

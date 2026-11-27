@@ -133,7 +133,7 @@ export function CardSummary(props: {
     try {
       const source = props.workshop.lookup(props.blockId)() ?? (await props.workshop.api.block(props.blockId));
       doc = props.workshop.open(source.page_id);
-      if (doc.status() !== 'ready') throw new Error('The atom is not ready.');
+      if (doc.status() !== 'ready') throw new Error('The note is not ready.');
       const result = doc.edit({ kind: 'cardHeld', cards, held });
       if (!result.ok) throw new Error(result.reason);
       await doc.flush();
@@ -350,7 +350,7 @@ export function CardSummary(props: {
               <Button
                 class="bordered"
                 disabled={!ordered().some(card => !card.held)}
-                title={`Review this atom's cards · ${besideHint}`}
+                title={`Review this note's cards · ${besideHint}`}
                 onClick={event => {
                   dismiss();
                   props.onOpen({ kind: 'review', blockId: props.blockId }, opensBeside(event));

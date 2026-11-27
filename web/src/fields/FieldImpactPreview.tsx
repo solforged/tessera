@@ -48,12 +48,12 @@ export function FieldImpactPreview(props: {
       </h2>
       <p class="field-impact-summary">
         {plural(props.impact.detail.owners_total, 'owner')} on{' '}
-        {plural(new Set(props.impact.entries.map(entry => entry.page_id)).size, 'atom')} ·{' '}
+        {plural(new Set(props.impact.entries.map(entry => entry.page_id)).size, 'note')} ·{' '}
         {plural(props.impact.templates.length, 'template')} · {plural(props.impact.views.length, 'view')}
       </p>
       <dl class="field-impact-list">
         <Names
-          label="Atoms"
+          label="Notes"
           none="None"
           names={props.impact.pages
             .filter(page => page.root.id !== props.impact.definition.page_id)
@@ -96,7 +96,7 @@ export function FieldImpactPreview(props: {
                   checked={confirmed()}
                   onChange={event => setConfirmed(event.currentTarget.checked)}
                 />
-                Delete every value and its child atoms
+                Delete every value and its child notes
               </label>
               <Button
                 class="bordered danger"

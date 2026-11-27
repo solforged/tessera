@@ -347,7 +347,7 @@ function TokenText(props: Props) {
                     data-reference={isStableReference(token) ? token.id : undefined}
                     data-citation={citationSources()?.has(token.id!) && (token.alias || token.locator) ? '' : undefined}
                     data-locator={token.locator}
-                    aria-label={token.matches ? `“${token.id}” names ${token.matches.length} atoms` : undefined}
+                    aria-label={token.matches ? `“${token.id}” names ${token.matches.length} notes` : undefined}
                     aria-haspopup={token.matches ? 'menu' : undefined}
                     onMouseDown={event => event.stopPropagation()}
                     onKeyDown={event => {
@@ -471,10 +471,10 @@ function TokenText(props: Props) {
         {state => (
           <Menu
             anchor={state().anchor}
-            label="Choose an atom"
+            label="Choose a note"
             header={
               <div class="menu-section">
-                “{state().token.id}” names {state().token.matches!.length} atoms
+                “{state().token.id}” names {state().token.matches!.length} notes
               </div>
             }
             items={nameMenuItems(props.workshop, props.blockId!, state().token, state().token.matches!, message =>

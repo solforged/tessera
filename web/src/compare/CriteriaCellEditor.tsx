@@ -206,7 +206,7 @@ export function CriteriaCellEditor(props: {
           }}
           width={480}
           class="picker"
-          label={quoteCompletion() ? 'Quote' : completion()?.blocks ? 'Atom reference' : 'Reference completion'}
+          label={quoteCompletion() ? 'Quote' : completion()?.blocks ? 'Note reference' : 'Reference completion'}
           role="listbox"
           autofocus={false}
           onDismiss={() => setCompletion(null)}
@@ -252,7 +252,7 @@ export function CriteriaCellEditor(props: {
               )}
             </For>
             <Show when={!matches.loading && !matches.error && !rows().length}>
-              <p class="empty-state">No matching atoms.</p>
+              <p class="empty-state">No matching notes.</p>
             </Show>
           </div>
         </Popup>

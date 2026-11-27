@@ -111,7 +111,7 @@ const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? 
 const apparatus = (summary: NoteSummary | undefined) =>
   summary
     ? [
-        summary.block_count ? tally(summary.block_count, 'prose atom') : '',
+        summary.block_count ? tally(summary.block_count, 'prose note') : '',
         summary.backlinks ? tally(summary.backlinks, 'backlink') : '',
       ]
         .filter(Boolean)
@@ -190,7 +190,7 @@ export function IndexDirectory(props: IndexPaneProps) {
           <Show when={index.latest}>
             {list => (
               <span class="index-tally">
-                {tally(list().notes, 'atom')} · {tally(list().kinds.length, 'type')}
+                {tally(list().notes, 'note')} · {tally(list().kinds.length, 'type')}
               </span>
             )}
           </Show>
@@ -571,7 +571,7 @@ function KindIndexPane(props: IndexPaneProps) {
   const entryApparatus = (value: NoteSummary) => {
     const field = value.field ? plainText(value.field.value, lookup) : '';
     const counted = value.block_count
-      ? figured(value.block_count, 'prose atom')
+      ? figured(value.block_count, 'prose note')
       : value.backlinks
         ? figured(value.backlinks, 'backlink')
         : undefined;
@@ -636,7 +636,7 @@ function KindIndexPane(props: IndexPaneProps) {
     return actionCapabilities.error
       ? String(actionCapabilities.error)
       : !capabilities
-        ? 'Atom is still loading.'
+        ? 'Note is still loading.'
         : builtInTagReason(note.title, capabilities, action);
   };
   const openNote = (note: NoteEntry, event: MouseEvent) =>
@@ -766,7 +766,7 @@ function KindIndexPane(props: IndexPaneProps) {
               ...Object.entries({
                 letter: 'Letter',
                 source: 'Source cited',
-                link: 'Atom linked',
+                link: 'Note linked',
                 created: 'Created month',
               }).map(([key, label]) => ({
                 label,
@@ -903,7 +903,7 @@ function KindIndexPane(props: IndexPaneProps) {
         </Show>
         <Show when={noteMode()}>
           <Show when={!typeId()}>
-            <div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view">
+            <div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view">
               <Button aria-pressed="true">
                 List <span class="faint">{missingFields().length ? undefined : count()}</span>
               </Button>
@@ -976,7 +976,7 @@ function KindIndexPane(props: IndexPaneProps) {
               <Show when={props.onSpread}>
                 <Button
                   disabled={picked().length < 2 || picked().length > 5}
-                  title={picked().length < 2 || picked().length > 5 ? 'Select two to five atoms' : undefined}
+                  title={picked().length < 2 || picked().length > 5 ? 'Select two to five notes' : undefined}
                   onClick={event => props.onSpread?.(picked(), opensBeside(event))}
                 >
                   Spread
@@ -1017,7 +1017,7 @@ function KindIndexPane(props: IndexPaneProps) {
             fallback={
               <Show when={slow()}>
                 <p class="empty-state" role="status">
-                  Loading atoms…
+                  Loading notes…
                 </p>
               </Show>
             }
@@ -1044,7 +1044,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <Show when={filed()}>
                   {change => (
                     <div class="index-filing-status" role="status">
-                      <span>Filed {tally(change().count, 'atom')}.</span>
+                      <span>Filed {tally(change().count, 'note')}.</span>
                       <Button disabled={busy()} onClick={() => void undoFiling()}>
                         Undo
                       </Button>
@@ -1056,11 +1056,11 @@ function KindIndexPane(props: IndexPaneProps) {
                     {error()}
                   </p>
                 </Show>
-                <Show when={index.latest!.notes.length} fallback={<p class="empty-state">No unfiled atoms.</p>}>
+                <Show when={index.latest!.notes.length} fallback={<p class="empty-state">No unfiled notes.</p>}>
                   <div class="index-queue-layout">
                     <div class="index-queue-list">
                       <Show when={selectedForFiling().length}>
-                        <div class="index-filing-selection" role="group" aria-label="Selected atoms">
+                        <div class="index-filing-selection" role="group" aria-label="Selected notes">
                           <span>{selectedForFiling().length} selected</span>
                           <Button
                             class="bordered"
@@ -1186,15 +1186,15 @@ function KindIndexPane(props: IndexPaneProps) {
                     <Show
                       when={selectedNote()}
                       fallback={
-                        <aside class="index-inspector index-inspector-empty" aria-label="Selected atom">
-                          <p class="index-eyebrow">Selected atom</p>
-                          <p class="index-apparatus">Select an atom to read its opening and file it.</p>
+                        <aside class="index-inspector index-inspector-empty" aria-label="Selected note">
+                          <p class="index-eyebrow">Selected note</p>
+                          <p class="index-apparatus">Select a note to read its opening and file it.</p>
                         </aside>
                       }
                     >
                       {note => (
-                        <aside class="index-inspector" aria-label="Selected atom">
-                          <p class="index-eyebrow">Selected atom</p>
+                        <aside class="index-inspector" aria-label="Selected note">
+                          <p class="index-eyebrow">Selected note</p>
                           <h2>{note().title}</h2>
                           <p class="index-apparatus">{apparatus(summary(note()))}</p>
                           <Show when={preview(note())}>
@@ -1209,7 +1209,7 @@ function KindIndexPane(props: IndexPaneProps) {
                             <Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>
                               File under a tag…
                             </Button>
-                            <Button onClick={event => openNote(note(), event)}>Open atom</Button>
+                            <Button onClick={event => openNote(note(), event)}>Open note</Button>
                             <Button
                               disabled={!!actionReason(note(), 'merge')}
                               title={actionReason(note(), 'merge')}
@@ -1327,13 +1327,13 @@ function KindIndexPane(props: IndexPaneProps) {
                                       source().published?.match(/^\d{4}/)?.[0],
                                       source().citation_key,
                                       source().highlights ? tally(source().highlights, 'highlight') : '',
-                                      summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'atom backlink') : '',
+                                      summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'note backlink') : '',
                                     ]
                                       .filter(Boolean)
                                       .join(' · ')}
                                   </p>
                                   <div class="index-source-actions">
-                                    <Button onClick={event => openNote(note, event)}>Open source atoms</Button>
+                                    <Button onClick={event => openNote(note, event)}>Open source notes</Button>
                                     <Show when={readableSources.latest?.has(note.id)}>
                                       <Button
                                         onClick={event =>
@@ -1372,7 +1372,7 @@ function KindIndexPane(props: IndexPaneProps) {
                         />
                       }
                     >
-                      <p class="empty-state">No atoms found.</p>
+                      <p class="empty-state">No notes found.</p>
                     </Show>
                   }
                 >
@@ -1542,7 +1542,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 closeOptions();
               }}
             >
-              Select atoms
+              Select notes
             </Button>
             <InlinePopups>{optionEditors()}</InlinePopups>
             <div class="popup-actions">
@@ -1562,12 +1562,12 @@ function KindIndexPane(props: IndexPaneProps) {
                 anchor={state.anchor}
                 returnFocus={() => noteOpener(state)}
                 label={`Actions for ${state.note.title}`}
-                title="Atom actions"
+                title="Note actions"
                 onDismiss={() => setPopup(undefined)}
                 header={
                   cover() ? undefined : (
                     <div class="index-action-header">
-                      <p class="index-eyebrow">Atom actions</p>
+                      <p class="index-eyebrow">Note actions</p>
                       <h2>{state.note.title}</h2>
                       <p class="index-apparatus">{apparatus(summary(state.note))}</p>
                       <Show when={!summary(state.note)?.text_blocks}>
@@ -1659,13 +1659,13 @@ function KindIndexPane(props: IndexPaneProps) {
                 anchor={state.anchor}
                 placement={cover() ? 'sheet' : 'anchor'}
                 class="index-note-popup"
-                label="Delete atom"
+                label="Delete note"
                 returnFocus={() => noteOpener(state)}
                 onDismiss={() => {
                   if (!busy()) setPopup(undefined);
                 }}
               >
-                <p>Delete “{state.note.title}” and all its atoms?</p>
+                <p>Delete “{state.note.title}” and all its notes?</p>
                 <p class="muted">You can undo this deletion.</p>
                 <Show when={error()}>
                   <p class="error" role="alert">
@@ -1682,7 +1682,7 @@ function KindIndexPane(props: IndexPaneProps) {
                     title={actionReason(state.note, 'delete')}
                     onClick={() => void deleteNote(state.note)}
                   >
-                    Delete atom
+                    Delete note
                   </Button>
                 </div>
               </Popup>
@@ -1710,13 +1710,13 @@ function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'onCreate' |
     const name = props.kind?.name ?? '';
     switch (mode()) {
       case 'type':
-        return `File an atom under ${name} from Unfiled, or start one here.`;
+        return `File a note under ${name} from Unfiled, or start one here.`;
       case 'task':
-        return 'Add task behavior to any atom with #task, or start one here.';
+        return 'Add task behavior to any note with #task, or start one here.';
       case 'question':
-        return 'Make an atom a question from its atom menu, or start one here.';
+        return 'Make a note a question from its note menu, or start one here.';
       case 'project':
-        return 'Make an atom a project from its atom menu, or start one here.';
+        return 'Make a note a project from its note menu, or start one here.';
       default:
         return undefined;
     }
@@ -1727,7 +1727,7 @@ function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'onCreate' |
         when={tagged()}
         fallback={
           <>
-            <p class="index-empty-title">{props.kind ? `No ${plural()} yet.` : 'No atoms of this tag yet.'}</p>
+            <p class="index-empty-title">{props.kind ? `No ${plural()} yet.` : 'No notes of this tag yet.'}</p>
             <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
             <NewKindAction {...props} />
           </>
@@ -1735,10 +1735,10 @@ function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'onCreate' |
       >
         {kind => (
           <>
-            <p class="index-empty-title">No atoms filed as {kind().name}.</p>
+            <p class="index-empty-title">No notes filed as {kind().name}.</p>
             <p class="index-empty-hint">
               {kindLabel(kind())} tags{' '}
-              {kind().tagged_block_count === 1 ? 'one atom' : `${kind().tagged_block_count.toLocaleString()} atoms`},
+              {kind().tagged_block_count === 1 ? 'one note' : `${kind().tagged_block_count.toLocaleString()} notes`},
               listed in its table.
             </p>
             <Button
@@ -1869,7 +1869,7 @@ function FilingPicker(props: {
       }
       const receipt = await props.workshop.commit(
         operations,
-        targets.length === 1 ? 'File atom under a tag' : 'File atoms under a tag',
+        targets.length === 1 ? 'File note under a tag' : 'File notes under a tag',
       );
       const revisions = new Map(receipt.revisions.map(block => [block.id, block.revision]));
       const inverse: Operation[] = targets.map(page => ({
@@ -1881,7 +1881,7 @@ function FilingPicker(props: {
       props.onFiled({
         count: targets.length,
         undo: async () => {
-          await props.workshop.commit(inverse, 'Undo filing atoms');
+          await props.workshop.commit(inverse, 'Undo filing notes');
         },
       });
     } catch (reason) {
@@ -1916,7 +1916,7 @@ function FilingPicker(props: {
       empty="No matching tags."
       status={
         <div class="index-filing-head">
-          <p class="index-eyebrow">{props.notes.length === 1 ? 'File an atom' : `File ${props.notes.length} atoms`}</p>
+          <p class="index-eyebrow">{props.notes.length === 1 ? 'File a note' : `File ${props.notes.length} notes`}</p>
           <h2>{heading()}</h2>
         </div>
       }
@@ -1983,7 +1983,7 @@ function RenameNote(props: {
         anchor={props.anchor}
         placement={cover() ? 'sheet' : 'anchor'}
         class="index-note-popup"
-        label="Rename atom"
+        label="Rename note"
         returnFocus={props.returnFocus}
         dirty={() => title() !== props.note.title}
         onDismiss={() => {

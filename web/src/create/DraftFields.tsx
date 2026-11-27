@@ -220,7 +220,7 @@ export function DraftFields(props: {
             </For>
           </div>
           <Show when={!previews().length}>
-            <p class="create-fields-more">This atom keeps its syntax cards instead.</p>
+            <p class="create-fields-more">This note keeps its syntax cards instead.</p>
           </Show>
         </section>
       </Show>

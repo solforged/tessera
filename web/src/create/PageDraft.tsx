@@ -49,7 +49,7 @@ export function PageDraft(props: {
   const id = createUniqueId();
   let title!: HTMLTextAreaElement;
   const mode = () => (props.kind.startsWith('type:') ? 'type' : props.kind);
-  const noun = () => (props.noteKind ? kindNoun(props.noteKind) : props.kind === 'note' ? 'atom' : props.kind);
+  const noun = () => (props.noteKind ? kindNoun(props.noteKind) : props.kind === 'note' ? 'note' : props.kind);
   const query = () => props.text.trim();
   const [existing] = createResource(
     () => query() || false,
@@ -180,7 +180,7 @@ export function PageDraft(props: {
         </div>
       </Show>
       <label class={recipes()?.length ? 'create-field-label' : 'visually-hidden'} for={`${id}-title`}>
-        {recipes()?.length ? 'Atom text' : 'Title'}
+        {recipes()?.length ? 'Note text' : 'Title'}
       </label>
       <textarea
         ref={title}
@@ -219,8 +219,8 @@ export function PageDraft(props: {
         <p class="new-kind-note">
           “{query()}”{' '}
           {member()
-            ? `is already ${noun() === 'atom' ? 'an' : 'a'} ${noun()}.`
-            : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made ${noun() === 'atom' ? 'an' : 'a'} ${noun()}`}.`}
+            ? `is already ${/^[aeiou]/i.test(noun()) ? 'an' : 'a'} ${noun()}.`
+            : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made ${/^[aeiou]/i.test(noun()) ? 'an' : 'a'} ${noun()}`}.`}
         </p>
       </Show>
       <Show when={typePage()}>
@@ -257,7 +257,7 @@ export function PageDraft(props: {
                   </Show>
                 }
               >
-                Atom and cards saved together
+                Note and cards saved together
               </Show>
             }
           >
@@ -286,8 +286,8 @@ export function PageDraft(props: {
         </Show>
       </footer>
       <Show when={matches().length}>
-        <div class="create-matches" role="group" aria-label="Similar atoms">
-          <p class="new-kind-matches-label">Similar atoms</p>
+        <div class="create-matches" role="group" aria-label="Similar notes">
+          <p class="new-kind-matches-label">Similar notes</p>
           <For each={matches()}>
             {row => (
               <div class="create-match">

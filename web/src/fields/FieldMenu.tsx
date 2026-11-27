@@ -281,7 +281,7 @@ export function createFieldMenu(
             ]
           : []),
         {
-          label: 'Remove from this atom',
+          label: 'Remove from this note',
           divider: true,
           danger: true,
           action: () => apply({ kind: 'delete', ids: [entry.id] }, false),

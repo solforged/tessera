@@ -24,24 +24,24 @@ export function pageMergeDisabledReason(
   root: BlockState | undefined,
   capabilities?: Pick<BlockCapabilities, 'built_in_tag'>,
 ): string | undefined {
-  if (!root) return 'Atom is still loading.';
+  if (!root) return 'Note is still loading.';
   const system = builtInTagReason(root.text, capabilities, 'merge');
   if (system) return system;
   if (root.source) return 'Sources cannot merge.';
-  if (root.kind !== 'page') return 'Only titled atoms can merge.';
+  if (root.kind !== 'page') return 'Only titled notes can merge.';
   if (titleKey(root.text) === 'fields') return 'Fields cannot merge.';
   if (root.spread) return "A spread can't be merged.";
   if (root.project) return "A project can't be merged.";
-  if (root.task) return "An atom with a task can't be merged.";
+  if (root.task) return "A note with a task can't be merged.";
   if (root.question) return 'A question cannot be merged.';
   if (root.position) return 'A perspective cannot be merged.';
-  if (root.assessment) return "An atom with an assessment can't be merged.";
-  if (root.relation) return "An atom with an argument can't be merged.";
-  if (root.quote) return "An atom with a quoted copy can't be merged.";
-  if (root.citations.length) return "An atom with citations on its title can't be merged.";
-  if (root.reviewedCards) return "An atom with card review history can't be merged.";
-  if (root.templateCards) return "An atom with card templates can't be merged.";
-  if (root.mergeProtected) return "An atom with task or review history can't be merged.";
+  if (root.assessment) return "A note with an assessment can't be merged.";
+  if (root.relation) return "A note with an argument can't be merged.";
+  if (root.quote) return "A note with a quoted copy can't be merged.";
+  if (root.citations.length) return "A note with citations on its title can't be merged.";
+  if (root.reviewedCards) return "A note with card review history can't be merged.";
+  if (root.templateCards) return "A note with card templates can't be merged.";
+  if (root.mergeProtected) return "A note with task or review history can't be merged.";
   return undefined;
 }
 
@@ -65,7 +65,7 @@ export function PageMergeConfirmation(props: {
     capabilities.error
       ? String(capabilities.error)
       : !capabilities()
-        ? 'Atom is still loading.'
+        ? 'Note is still loading.'
         : builtInTagReason(props.from.text, capabilities(), 'merge');
   const merge = async () => {
     if (busy()) return;
@@ -98,7 +98,7 @@ export function PageMergeConfirmation(props: {
         Merge “{props.from.text}” into “{props.into.text}”?
       </h3>
       <p class="muted">
-        References and atoms will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an
+        References and notes will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an
         alias.
       </p>
       <Show when={error()}>
@@ -123,7 +123,7 @@ export function PageMergeConfirmation(props: {
             void merge();
           }}
         >
-          Merge atoms
+          Merge notes
         </Button>
       </div>
     </Popup>
@@ -173,13 +173,13 @@ export function PageMergePicker(props: {
           onDismiss={props.onDismiss}
           query={query()}
           onQuery={setQuery}
-          placeholder="Find an atom"
+          placeholder="Find a note"
           items={matches()}
           key={page => page.id}
           onPick={page => setTarget(page)}
           busy={pages.loading}
           error={pages.error ? String(pages.error) : undefined}
-          empty="No matching atoms."
+          empty="No matching notes."
           row={page => (
             <>
               <Icon name="page" />

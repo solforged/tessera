@@ -283,7 +283,7 @@ export function AgentDock(props: {
       <div class="agent-context">
         <p class="agent-context-label">
           {included().length
-            ? `Reads ${included().length} ${included().length === 1 ? 'atom' : 'atoms'}`
+            ? `Reads ${included().length} ${included().length === 1 ? 'note' : 'notes'}`
             : 'Reads nothing in view'}{' '}
           · drag links here to add
         </p>
@@ -335,7 +335,7 @@ export function AgentDock(props: {
               >
                 <div class="agent-empty">
                   <p>
-                    Ask about the atoms in view, or ask for a change. Edits land in the panes, marked, and each one can
+                    Ask about the notes in view, or ask for a change. Edits land in the panes, marked, and each one can
                     be undone.
                   </p>
                 </div>
@@ -359,7 +359,7 @@ export function AgentDock(props: {
           class="input"
           rows={3}
           aria-label="Message the agent"
-          placeholder="Ask about these atoms, or ask for a change…"
+          placeholder="Ask about these notes, or ask for a change…"
           value={draft()}
           disabled={!provider()}
           onInput={event => setDraft(event.currentTarget.value)}

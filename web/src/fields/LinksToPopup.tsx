@@ -48,7 +48,7 @@ export function LinksToPopup(props: {
       onDismiss={props.onDismiss}
     >
       <h2 class="popup-title">Links to</h2>
-      <p class="field-note">No selection means Any atom.</p>
+      <p class="field-note">No selection means Any note.</p>
       <Show when={types.error}>
         <p class="error" role="alert">
           Could not load tags.

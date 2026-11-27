@@ -529,7 +529,7 @@ function TableContent(props: TablePaneProps) {
         <>
           <div class="table-popup-heading">Views</div>
           <div class="table-popup-note">
-            {title() || 'All atoms'} ·{' '}
+            {title() || 'All notes'} ·{' '}
             {query().filters.length
               ? `${query().filters.length} ${query().filters.length === 1 ? 'filter' : 'filters'}`
               : 'No filters'}
@@ -539,7 +539,7 @@ function TableContent(props: TablePaneProps) {
       ),
       items: [
         {
-          label: title() ? `All ${title()}` : 'All atoms',
+          label: title() ? `All ${title()}` : 'All notes',
           checked: atDefault(),
           shortcut: !props.target.viewId && !atDefault() ? 'Modified' : undefined,
           action: () => switchView(null),
@@ -596,7 +596,7 @@ function TableContent(props: TablePaneProps) {
                 action: () => setPopup({ kind: 'name', anchor, action: 'rename' }),
               },
               {
-                label: 'Embed on atom…',
+                label: 'Embed on note…',
                 disabledReason: !saved() ? 'Loading…' : undefined,
                 action: () => {
                   const view = saved();
@@ -833,7 +833,7 @@ function TableContent(props: TablePaneProps) {
         : current.row.block.block.kind === 'journal' &&
           props.workshop.roots().some(root => root.kind === 'journal' && root.id !== id && root.text === text);
     if (duplicate) {
-      setError('An atom already has that title.');
+      setError('A note already has that title.');
       return;
     }
     setRenaming(null);
@@ -866,7 +866,7 @@ function TableContent(props: TablePaneProps) {
     const block = row.block.block;
     try {
       if (block.kind !== 'block') {
-        if (!props.onDeletePages) throw new Error('Atom deletion is unavailable.');
+        if (!props.onDeletePages) throw new Error('Note deletion is unavailable.');
         await props.onDeletePages([{ id: block.id, title: block.text }]);
       } else
         await withDocument(row.block.page.id, async doc => {
@@ -897,7 +897,7 @@ function TableContent(props: TablePaneProps) {
       icon: 'trash',
       danger: true,
       disabledReason:
-        row.block.block.kind !== 'block' && !props.onDeletePages ? 'Atom deletion is unavailable.' : undefined,
+        row.block.block.kind !== 'block' && !props.onDeletePages ? 'Note deletion is unavailable.' : undefined,
       action: () => {
         setError('');
         setPopup({ kind: 'delete-row', anchor, row });
@@ -932,7 +932,7 @@ function TableContent(props: TablePaneProps) {
     const id = target.pageId;
     await refreshCells();
     const row = result()?.rows.find(row => row.block.block.id === id);
-    setRowNotice({ id, title: props.workshop.lookup(id)()?.text ?? row?.block.block.text ?? 'Atom' });
+    setRowNotice({ id, title: props.workshop.lookup(id)()?.text ?? row?.block.block.text ?? 'Note' });
     if (row) {
       // Read-only attributes and phone cards have no inline field editor to receive focus.
       const field =
@@ -1352,7 +1352,7 @@ function TableContent(props: TablePaneProps) {
   );
   const phoneHead = () => (
     <TablePhoneHead
-      heading={saved()?.name ?? (title() || 'All atoms')}
+      heading={saved()?.name ?? (title() || 'All notes')}
       census={census()}
       changed={changed()}
       purposeShown={purposeShown()}
@@ -1528,14 +1528,14 @@ function TableContent(props: TablePaneProps) {
             <Popup
               anchor={state.anchor}
               placement={narrow() ? 'sheet' : 'anchor'}
-              label={state.row.block.block.kind === 'block' ? 'Delete atom' : 'Delete atom'}
+              label={state.row.block.block.kind === 'block' ? 'Delete note' : 'Delete note'}
               onDismiss={() => {
                 if (!deleting()) setPopup(null);
               }}
             >
               <p>
                 Delete “{plainText(state.row.block.block.text, id => props.workshop.lookup(id))}” and all its{' '}
-                {state.row.block.block.kind === 'block' ? 'children' : 'atoms'}?
+                {state.row.block.block.kind === 'block' ? 'children' : 'notes'}?
               </p>
               <p class="muted">You can undo this deletion.</p>
               <Show when={error()}>
@@ -1554,7 +1554,7 @@ function TableContent(props: TablePaneProps) {
                     void deleteRow(state.row);
                   }}
                 >
-                  Delete {state.row.block.block.kind === 'block' ? 'atom' : 'atom'}
+                  Delete {state.row.block.block.kind === 'block' ? 'note' : 'note'}
                 </Button>
               </div>
             </Popup>
@@ -1790,7 +1790,7 @@ function TableContent(props: TablePaneProps) {
                   onClick={event => viewMenu(event.currentTarget)}
                 >
                   <Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>
-                  <span>{saved()?.name ?? (title() || 'All atoms')}</span>
+                  <span>{saved()?.name ?? (title() || 'All notes')}</span>
                   <Icon name="down" />
                 </Button>
               </h1>
@@ -1890,7 +1890,7 @@ function TableContent(props: TablePaneProps) {
           )}
         </Show>
         <Show when={query().note_kind && !query().type}>
-          <div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view">
+          <div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view">
             <Button
               onClick={event =>
                 props.onOpen(
@@ -1922,8 +1922,8 @@ function TableContent(props: TablePaneProps) {
               <Icon name="search" />
               <input
                 class="input"
-                aria-label={`Find in ${title() || 'atoms'}`}
-                placeholder={`Find in ${title() || 'atoms'}…`}
+                aria-label={`Find in ${title() || 'notes'}`}
+                placeholder={`Find in ${title() || 'notes'}…`}
                 value={query().text ?? ''}
                 onInput={event => {
                   setSearch(event.currentTarget.value);
@@ -2131,7 +2131,7 @@ function TableContent(props: TablePaneProps) {
                           : ' was filed under this tag but does not match the current view.'}
                       </span>
                       <Button onClick={event => props.onOpen({ kind: 'page', pageId: note().id }, opensBeside(event))}>
-                        Open atom
+                        Open note
                       </Button>
                       <Button label="Dismiss row notice" onClick={() => setRowNotice(undefined)}>
                         ×

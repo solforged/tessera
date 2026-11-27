@@ -117,7 +117,7 @@ export async function createPageDraft(
       { op: 'add_type', id: atomId, base_revision: 1, title: request.noteKind!.name },
       ...(await draftFieldOperations(workshop, atomId, [], definitions, request.fields?.values ?? {}, null)),
     ];
-    await workshop.commit(operations, 'Add atom and cards', [pageId]);
+    await workshop.commit(operations, 'Add note and cards', [pageId]);
     return { pageId, caretId: atomId, caretOffset: text.length, created: false };
   }
   const pageId = existingId ?? ulid(),
@@ -215,7 +215,7 @@ export async function createPageDraft(
     if (operations.length)
       await workshop.commit(
         operations,
-        `New ${request.noteKind?.name.toLocaleLowerCase() ?? (request.kind === 'note' ? 'atom' : request.kind)}`,
+        `New ${request.noteKind?.name.toLocaleLowerCase() ?? (request.kind === 'note' ? 'note' : request.kind)}`,
       );
     return { pageId, caretId, caretOffset: line.length, created: !existingId };
   } finally {

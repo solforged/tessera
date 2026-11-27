@@ -54,7 +54,7 @@ export class EditSession {
     });
     if (quote) {
       if (quoteTarget(text) !== quote.target_id || quote.target_id === id)
-        throw new Error('Quote target must match a different atom.');
+        throw new Error('Quote target must match a different note.');
       this.actions.push({ kind: 'quote', id, value: structuredClone(quote), previous: null, baseRevision: 0 });
     }
     return id;
@@ -76,7 +76,7 @@ export class EditSession {
     }
     return ids
       .filter(id => {
-        if (this.doc.outline.indexOf(id) < 0) throw new Error('A selected atom no longer exists.');
+        if (this.doc.outline.indexOf(id) < 0) throw new Error('A selected note no longer exists.');
         let parent = this.doc.outline.parentOf(id);
         while (parent !== this.doc.pageId) {
           if (set.has(parent)) return false;
@@ -91,7 +91,7 @@ export class EditSession {
     for (const id of ids) {
       let parent = parentId;
       while (parent !== this.doc.pageId) {
-        if (parent === id) throw new Error('An atom cannot move into its own subtree.');
+        if (parent === id) throw new Error('A note cannot move into its own subtree.');
         if (!this.doc.block(parent)) throw new Error('The destination no longer exists.');
         parent = this.doc.outline.parentOf(parent);
       }
@@ -122,7 +122,7 @@ export class EditSession {
   guardSplit(block: Block, prefix: string, suffix: string) {
     if (!parseCardText(block.text).cards.length || (!suffix && prefix === block.text)) return;
     if (prefix || this.doc.block(block.id)?.reviewedCards)
-      throw new Error('This split would divide or move a card. Keep its source in one atom.');
+      throw new Error('This split would divide or move a card. Keep its source in one note.');
   }
 
   split(block: Block, prefix: string, suffix: string, zoomRoot?: string | null, fieldEntry?: string | null) {
@@ -260,7 +260,7 @@ export class EditSession {
   ) {
     let { anchor: start, head: end } = range;
     if (this.doc.outline.indexOf(start.id) < 0 || this.doc.outline.indexOf(end.id) < 0)
-      throw new Error('A selected atom no longer exists.');
+      throw new Error('A selected note no longer exists.');
     if (
       this.doc.outline.indexOf(start.id) > this.doc.outline.indexOf(end.id) ||
       (start.id === end.id && start.offset > end.offset)
@@ -287,9 +287,9 @@ export class EditSession {
       .slice(this.doc.outline.indexOf(start.id) + 1, this.doc.outline.indexOf(end.id))
       .map(row => row.id);
     if (between.length !== visible.length || between.some((id, i) => id !== visible[i]))
-      throw new Error('Expand hidden atoms before deleting this text range.');
+      throw new Error('Expand hidden notes before deleting this text range.');
     if (start.id !== end.id) this.doc.guardMerge(end.id);
-    if (start.id !== end.id && this.doc.block(start.id)?.image) throw new Error("Image atoms can't be merged.");
+    if (start.id !== end.id && this.doc.block(start.id)?.image) throw new Error("Image notes can't be merged.");
     const multiline = mode === 'split' || (mode === 'paste' && (rows ? rows.length > 1 : /[\r\n]/.test(text)));
     if (
       multiline &&

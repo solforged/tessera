@@ -47,7 +47,7 @@ export function createOutlineCapabilities(options: {
   const failure = (id: string, reason: unknown) =>
     setErrors(previous => new Map(previous).set(id, reason instanceof Error ? reason.message : String(reason)));
   async function run(id: string, operation: () => Promise<void>) {
-    if (busy(id)) throw new Error('A command is pending for this atom.');
+    if (busy(id)) throw new Error('A command is pending for this note.');
     setPending(previous => new Set(previous).add(id));
     setErrors(previous => {
       const next = new Map(previous);
@@ -70,7 +70,7 @@ export function createOutlineCapabilities(options: {
   async function runMany(ids: readonly string[], operation: () => Promise<void>) {
     const unique = [...new Set(ids)];
     if (!unique.length) return;
-    if (unique.some(id => busy(id))) throw new Error('A command is pending for a selected atom.');
+    if (unique.some(id => busy(id))) throw new Error('A command is pending for a selected note.');
     setPending(previous => {
       const next = new Set(previous);
       for (const id of unique) next.add(id);

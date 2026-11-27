@@ -393,7 +393,7 @@ export function TaskFieldBed(props: {
             {props.sheet ? 'Add field' : 'Field'}
           </Button>
           <Show when={props.sheet}>
-            <span>Each change saves to this atom.</span>
+            <span>Each change saves to this note.</span>
           </Show>
         </footer>
       </Show>

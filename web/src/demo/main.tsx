@@ -265,7 +265,7 @@ function FirstRun() {
                 >
                   Take the tour
                 </Button>
-                <p>Sample atoms, cards and Marcus Aurelius' Meditations to try things on.</p>
+                <p>Sample notes, cards and Marcus Aurelius' Meditations to try things on.</p>
               </div>
               <div>
                 <Button class="bordered" onClick={() => picker.click()}>

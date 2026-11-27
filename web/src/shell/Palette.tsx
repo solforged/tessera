@@ -61,10 +61,10 @@ type FindScope = 'Everything' | 'Highlights' | 'Books' | 'Pages';
 
 function createLabel(entry: CreateEntry, phone = false): string {
   if (entry.action === 'source') return `Add “${entry.title}” to library`;
-  if (entry.action === 'tag') return `Create an atom with ${entry.title}`;
+  if (entry.action === 'tag') return `Create a note with ${entry.title}`;
   if (entry.action === 'choose') return `Create “${entry.title}” as…`;
   if (entry.action === 'page' && phone) return `Create “${entry.title}”`;
-  return `Create ${entry.action === 'page' ? 'atom' : entry.action} “${entry.title}”`;
+  return `Create ${entry.action === 'page' ? 'note' : entry.action} “${entry.title}”`;
 }
 
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
@@ -295,7 +295,7 @@ export function Palette(props: {
     return orderedCommands.filter(
       command =>
         (search || command.section !== 'Page' || !command.disabledReason?.()) &&
-        [command.title, command.section === 'Page' ? 'This atom' : command.section, ...(command.keywords ?? [])].some(
+        [command.title, command.section === 'Page' ? 'This note' : command.section, ...(command.keywords ?? [])].some(
           value => value.toLocaleLowerCase().includes(search),
         ),
     );
@@ -440,7 +440,7 @@ export function Palette(props: {
         // Dismissed while the service was working: the atom exists, so say so and offer it rather than leave it orphaned.
         pending();
         props.onNotice?.({
-          message: `Created ${kind === 'question' ? 'question' : 'atom'} “${title}”`,
+          message: `Created ${kind === 'question' ? 'question' : 'note'} “${title}”`,
           actions: [{ label: 'Open', run: () => props.onOpen({ kind: 'page', pageId }, false) }],
         });
         return;
@@ -519,13 +519,13 @@ export function Palette(props: {
         entry => entry.kind === 'hit' && entry.hit.block.id === entry.hit.page.id && books().has(entry.hit.page.id),
       )
       ? 'Books'
-      : 'Atoms';
+      : 'Notes';
   });
   const noMatches = createMemo(() => !entries().some(entry => entry.kind !== 'create'));
   const group = (entry: Entry) => {
     if (entry.kind === 'highlight') return 'Highlights';
     if (entry.kind === 'passage') return 'In your books';
-    if (entry.kind === 'create') return !busy() && !error() && noMatches() ? 'No matching atoms' : undefined;
+    if (entry.kind === 'create') return !busy() && !error() && noMatches() ? 'No matching notes' : undefined;
     return isDefinition(entry) ? 'Definitions' : pageGroupLabel();
   };
   const groupCounts = createMemo(() => {
@@ -542,11 +542,11 @@ export function Palette(props: {
     return phone && mode() === 'search' && text() && first?.kind === 'hit' && !isDefinition(first) ? first : undefined;
   });
   const sectionsWithCounts = (entry: Entry) => {
-    if (entry.kind === 'command') return entry.command.section === 'Page' ? 'This atom' : entry.command.section;
+    if (entry.kind === 'command') return entry.command.section === 'Page' ? 'This note' : entry.command.section;
     const label = group(entry);
     if (phone && mode() === 'search' && label && label === pageGroupLabel() && entry.kind !== 'create')
       return entry === bestMatch() ? 'Best match' : undefined;
-    return label === 'No matching atoms'
+    return label === 'No matching notes'
       ? label
       : label
         ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}`
@@ -576,7 +576,7 @@ export function Palette(props: {
           setKeyed(false);
           setQuery(value);
         }}
-        placeholder={mode() === 'search' ? 'Find or create an atom' : 'Find a command'}
+        placeholder={mode() === 'search' ? 'Find or create a note' : 'Find a command'}
         inputRef={input => {
           queryInput = input;
           input.enterKeyHint = 'search';
@@ -647,7 +647,7 @@ export function Palette(props: {
                             queryInput?.focus({ preventScroll: true });
                           }}
                         >
-                          {value === 'Pages' ? 'Atoms' : value}
+                          {value === 'Pages' ? 'Notes' : value}
                         </Button>
                       )}
                     </For>
@@ -662,7 +662,7 @@ export function Palette(props: {
                     { value: 'Everything', label: 'Everything' },
                     { value: 'Highlights', label: 'Highlights' },
                     { value: 'Books', label: 'Books' },
-                    { value: 'Pages', label: 'Atoms' },
+                    { value: 'Pages', label: 'Notes' },
                   ]}
                   onChange={value => {
                     setFindScope(value);
@@ -699,7 +699,7 @@ export function Palette(props: {
         }
         section={sectionsWithCounts}
         disabledReason={entry =>
-          creating() ? 'Creating atom…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined
+          creating() ? 'Creating note…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined
         }
         onPick={(entry, event) => pick(entry, opensBeside(event) || (entry.kind === 'create' && event.shiftKey))}
         onPendingPick={event => {
@@ -726,7 +726,7 @@ export function Palette(props: {
         }}
         busy={busy()}
         error={error()}
-        empty={mode() === 'search' ? 'No matching atoms' : 'No matching commands.'}
+        empty={mode() === 'search' ? 'No matching notes' : 'No matching commands.'}
         row={(entry, selected) =>
           entry.kind === 'hit' ? (
             <HitRow
@@ -1159,7 +1159,7 @@ function FindPreview(props: {
               </Show>
             </div>
             <footer class="find-preview-keys">
-              <kbd>↵ {value().passages ? 'Open in the book' : 'Open atom'}</kbd>
+              <kbd>↵ {value().passages ? 'Open in the book' : 'Open note'}</kbd>
               <kbd>{besideKey}↵ Beside</kbd>
             </footer>
           </>
@@ -1183,7 +1183,7 @@ function FindPreview(props: {
               <header class="find-preview-header">
                 <div>
                   <h2>{command().title}</h2>
-                  <small>{command().section === 'Page' ? 'This atom' : command().section}</small>
+                  <small>{command().section === 'Page' ? 'This note' : command().section}</small>
                 </div>
               </header>
               <Show when={command().disabledReason?.() || command().description}>

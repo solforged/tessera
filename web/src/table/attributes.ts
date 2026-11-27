@@ -1,7 +1,7 @@
 import type { FieldDefinition, FieldKind, QuerySource } from '../api/types';
 
 export const querySources: { key: QuerySource; name: string }[] = [
-  { key: 'notes', name: 'Atoms' },
+  { key: 'notes', name: 'Notes' },
   { key: 'questions', name: 'Questions' },
   { key: 'positions', name: 'Perspectives' },
   { key: 'sources', name: 'Sources' },

@@ -236,7 +236,7 @@ export function CreateSlipBody(
   const intoSegment = () => sections().length <= 3;
   const intoOptions = () => [
     ...sections().map(value => ({ value: value.id, label: value.name })),
-    { value: 'atom', label: atom() ? destinationTitle() : 'An atom' },
+    { value: 'atom', label: atom() ? destinationTitle() : 'A note' },
   ];
   const chooseSegment = (value: string) => {
     if (value !== 'atom') {
@@ -260,7 +260,7 @@ export function CreateSlipBody(
       ? displayTitle(
           props.workshop.lookup(atom()!)()?.text ??
             props.workshop.roots().find(page => page.id === atom())?.text ??
-            'Atom',
+            'Note',
           props.workshop.lookup,
         )
       : '';
@@ -273,7 +273,7 @@ export function CreateSlipBody(
   const showsInto = () => ['note', 'question', 'task', 'card', 'link'].includes(kind());
   const action = () =>
     recipes()?.length
-      ? `Add ${noteKind() ? kindNoun(noteKind()!) : 'an atom'}`
+      ? `Add ${noteKind() ? kindNoun(noteKind()!) : 'a note'}`
       : kind() === 'source'
         ? 'Add to library'
         : kind() === 'task'
@@ -283,11 +283,11 @@ export function CreateSlipBody(
             : kind() === 'project'
               ? 'New project'
               : kind().startsWith('type:')
-                ? `New ${noteKind() ? kindNoun(noteKind()!) : 'atom'}`
+                ? `New ${noteKind() ? kindNoun(noteKind()!) : 'note'}`
                 : pageDraft()
                   ? kind() === 'question'
                     ? 'New question'
-                    : 'New atom'
+                    : 'New note'
                   : 'Capture';
   const where = () =>
     recipes()?.length
@@ -432,7 +432,7 @@ export function CreateSlipBody(
       onClick={event => setKindMenu(event.currentTarget)}
     >
       <Icon name={lineKind()?.icon ?? (kind() === 'project' ? 'flag' : 'page')} />
-      <span>{lineKind()?.label ?? (kind() === 'project' ? 'Project' : (noteKind()?.name ?? 'Atom'))}</span>
+      <span>{lineKind()?.label ?? (kind() === 'project' ? 'Project' : (noteKind()?.name ?? 'Note'))}</span>
       <Icon name="down" />
     </Button>
   );
@@ -453,7 +453,7 @@ export function CreateSlipBody(
         </For>
         <Show when={kind() === 'note' || kind() === 'question'}>
           <Button aria-pressed={into().kind === 'page'} onClick={() => chooseInto({ kind: 'page' })}>
-            New atom
+            New note
           </Button>
         </Show>
         <Button
@@ -464,7 +464,7 @@ export function CreateSlipBody(
             setPicker(event.currentTarget);
           }}
         >
-          {atom() ? destinationTitle() : 'Atom…'}
+          {atom() ? destinationTitle() : 'Note…'}
         </Button>
         <Show when={atom()}>
           <Button label="Remove destination" onClick={() => chooseInto(defaultInto(kind()))}>
@@ -517,10 +517,10 @@ export function CreateSlipBody(
         {anchor => (
           <Picker
             anchor={anchor()}
-            label="Atom"
+            label="Note"
             query={query()}
             onQuery={setQuery}
-            placeholder="Find an atom"
+            placeholder="Find a note"
             items={pages()?.rows ?? []}
             key={value => value.page.id}
             onDismiss={() => setPicker(undefined)}
@@ -534,7 +534,7 @@ export function CreateSlipBody(
                 <span class="picker-text">{displayTitle(value.page.text, props.workshop.lookup)}</span>
               </>
             )}
-            empty="No matching atoms."
+            empty="No matching notes."
             error={pages.error ? String(pages.error) : undefined}
           />
         )}
@@ -792,7 +792,7 @@ export function CreateSlipBody(
               onChange={value => changeKind(value, true)}
             />
             <Show when={intoSegment()} fallback={destination()}>
-              <p class="create-into-label">Into {atom() ? 'an atom' : 'today'}</p>
+              <p class="create-into-label">Into {atom() ? 'a note' : 'today'}</p>
               <Seg<string>
                 class="create-into-seg"
                 label="Into"

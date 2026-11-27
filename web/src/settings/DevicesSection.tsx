@@ -640,7 +640,7 @@ function NeedsReview(props: {
         </summary>
         <div class="devices-expanded">
           <p>
-            Kept versions are beside their atoms. Rejected changes are kept here until you copy them back or dismiss
+            Kept versions are beside their notes. Rejected changes are kept here until you copy them back or dismiss
             them.
           </p>
           <Show when={undo()}>
@@ -670,7 +670,7 @@ function NeedsReview(props: {
                 <blockquote>{plainText(copy.text, lookup)}</blockquote>
                 <div class="devices-actions">
                   <Button class="bordered" onClick={() => props.onOpenPage(copy.page_id)}>
-                    Open the atom
+                    Open the note
                   </Button>
                 </div>
               </article>
@@ -683,13 +683,13 @@ function NeedsReview(props: {
                   {change.mine ? 'This device' : (change.origin_name ?? 'Another device')} · rejected{' '}
                   {ago(change.created_at, sync.now())}
                 </p>
-                <h4>{change.page_title ? displayTitle(change.page_title, lookup) : 'Atom no longer available'}</h4>
+                <h4>{change.page_title ? displayTitle(change.page_title, lookup) : 'Note no longer available'}</h4>
                 <For each={change.texts}>{text => <blockquote>{plainText(text, lookup)}</blockquote>}</For>
                 <p class="devices-rejection-reason">{rejectionReason(change.error)}</p>
                 <div class="devices-actions">
                   <Show when={change.page_id}>
                     <Button class="bordered" onClick={() => props.onOpenPage(change.page_id!)}>
-                      Open the atom
+                      Open the note
                     </Button>
                   </Show>
                   <Show when={change.texts.length > 0}>

@@ -263,7 +263,7 @@ export function createOutlineCompletions(
   }
   function applyDateChoice(state: DateToken & { id: string }, text: string, choice: DateSuggestion) {
     const id = state.id;
-    if (doc.block(id)?.text !== text) throw new Error('The atom changed while choosing a date. Its text was kept.');
+    if (doc.block(id)?.text !== text) throw new Error('The note changed while choosing a date. Its text was kept.');
     const plan = planDateToken(text, state, choice, doc.block(id)?.task ?? null);
     setDateCompletion(null);
     const result = doc.edit({ kind: 'planTask', id, text: plan.text, value: plan.value }, caret());
@@ -1112,7 +1112,7 @@ export function createOutlineCompletions(
         section: 'Text',
         icon: 'tag',
         keys: '#',
-        secondary: 'What this atom is; a new name makes a new tag',
+        secondary: 'What this note is; a new name makes a new tag',
         insert: () => ({ text: '#', caret: 1 }),
       },
       {
@@ -1122,7 +1122,7 @@ export function createOutlineCompletions(
         section: 'Text',
         icon: 'field',
         keys: '::',
-        secondary: 'A named value on this atom',
+        secondary: 'A named value on this note',
         run: id => context.pickField(id, context.rowAnchor(id) ?? document.body),
       },
       {
@@ -1230,7 +1230,7 @@ export function createOutlineCompletions(
         id: 'perspective',
         title: 'Make perspective',
         aliases: ['position', 'view'],
-        section: 'Atom',
+        section: 'Note',
         icon: 'link',
         keys: 'Space v',
         when: block => block?.kind === 'block' && !block.position,
@@ -1241,7 +1241,7 @@ export function createOutlineCompletions(
         id: 'remove-perspective',
         title: 'Remove perspective',
         aliases: ['remove position', 'remove view'],
-        section: 'Atom',
+        section: 'Note',
         icon: 'close',
         keys: 'Space v',
         when: block => block?.kind === 'block' && !!block.position,
@@ -1251,7 +1251,7 @@ export function createOutlineCompletions(
         id: 'change-holder',
         title: 'Change holder…',
         aliases: ['holder', 'attribution'],
-        section: 'Atom',
+        section: 'Note',
         icon: 'link',
         when: block => !!block?.position,
         run: id => context.openRelation(id, 'holder'),
@@ -1260,7 +1260,7 @@ export function createOutlineCompletions(
         id: 'file-under',
         title: 'File under…',
         aliases: ['subject', 'file'],
-        section: 'Atom',
+        section: 'Note',
         icon: 'link',
         when: block => !!block?.position,
         disabledReason: id =>
@@ -1271,7 +1271,7 @@ export function createOutlineCompletions(
         id: 'use-place',
         title: 'Use place',
         aliases: ['implicit subject'],
-        section: 'Atom',
+        section: 'Note',
         icon: 'close',
         when: block => !!block?.position,
         disabledReason: context.placeReason,
@@ -1283,7 +1283,7 @@ export function createOutlineCompletions(
               id: 'integrate',
               title: 'Integrate…',
               aliases: ['move', 'file thought'],
-              section: 'Atom',
+              section: 'Note',
               icon: 'link' as const,
               run: (id: string) => context.openRelation(id, 'integrate'),
             },
@@ -1394,12 +1394,12 @@ export function createOutlineCompletions(
         id: 'zoom',
         title: 'Zoom in',
         aliases: ['focus'],
-        section: 'Atom',
+        section: 'Note',
         icon: 'bullet',
         keys: '⌘.',
         run: id => zoomTo(id),
       },
-      { id: 'copy-reference', title: 'Copy reference', section: 'Atom', icon: 'copy', run: id => copy(`[[${id}]]`) },
+      { id: 'copy-reference', title: 'Copy reference', section: 'Note', icon: 'copy', run: id => copy(`[[${id}]]`) },
     ];
   }
   /**
@@ -1452,7 +1452,7 @@ export function createOutlineCompletions(
                       : completion()?.quote
                         ? 'Quote'
                         : completion()?.blocks
-                          ? 'Atom reference'
+                          ? 'Note reference'
                           : 'Reference completion'
             }
             role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'}
@@ -1482,7 +1482,7 @@ export function createOutlineCompletions(
             </Show>
             <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
               <Show when={completion()?.blocks}>
-                <div class="picker-section">{completion()?.quote ? 'Quote' : 'Atom reference'}</div>
+                <div class="picker-section">{completion()?.quote ? 'Quote' : 'Note reference'}</div>
               </Show>
               <Show when={quoteBusy()}>
                 <p class="empty-state" role="status">
@@ -1522,7 +1522,7 @@ export function createOutlineCompletions(
                               {block().text ? (
                                 <BlockText text={block().text} workshop={props.workshop} interactive={false} />
                               ) : (
-                                'Empty atom'
+                                'Empty note'
                               )}
                             </span>
                             <Show when={block().alias}>
@@ -1565,7 +1565,7 @@ export function createOutlineCompletions(
                 >
                   <Icon name="plus" />
                   <span class="picker-text">
-                    {completion()?.fields ? 'Create field' : completion()?.types ? 'Create tag' : 'Create atom'} “
+                    {completion()?.fields ? 'Create field' : completion()?.types ? 'Create tag' : 'Create note'} “
                     {completion()?.query.trim()}”
                   </span>
                 </div>
@@ -1579,8 +1579,8 @@ export function createOutlineCompletions(
                   {completion()?.fields
                     ? 'Type a field name.'
                     : completion()?.blocks && !completion()?.query.trim()
-                      ? 'Type to search atoms.'
-                      : 'No matching atoms.'}
+                      ? 'Type to search notes.'
+                      : 'No matching notes.'}
                 </p>
               </Show>
             </div>

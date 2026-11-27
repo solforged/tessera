@@ -99,6 +99,6 @@ export function revisitKind(row: RevisitRow): string {
     : row.question_status
       ? `${row.question_status.charAt(0).toUpperCase()}${row.question_status.slice(1)} question`
       : row.note.resolved_at
-        ? 'Resolved atom'
-        : 'Atom';
+        ? 'Resolved note'
+        : 'Note';
 }

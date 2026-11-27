@@ -11,7 +11,7 @@ export function editPosition(
 ): void {
   const { actions } = session;
   const block = doc.snapshot(edit.id);
-  if (block.kind !== 'block') throw new Error('Only ordinary atoms can be perspectives.');
+  if (block.kind !== 'block') throw new Error('Only ordinary notes can be perspectives.');
   if (edit.value && doc.block(edit.id)?.relation) throw new Error('Remove the argument first.');
   const previous = !!doc.capabilities(edit.id).position;
   if (previous !== edit.value)
@@ -25,7 +25,7 @@ export function editRelation(
 ): void {
   const { actions } = session;
   const block = doc.snapshot(edit.id);
-  if (block.kind !== 'block') throw new Error('Only ordinary atoms can be arguments.');
+  if (block.kind !== 'block') throw new Error('Only ordinary notes can be arguments.');
   const capability = doc.capabilities(edit.id);
   if (edit.value && (capability.position || capability.question || capability.assessment))
     throw new Error('An argument cannot also be a perspective, question or answer.');
@@ -59,7 +59,7 @@ export function editSpread(
 ): void {
   const { actions } = session;
   const block = doc.snapshot(edit.id);
-  if (block.kind !== 'page') throw new Error('Only a titled atom can be a spread.');
+  if (block.kind !== 'page') throw new Error('Only a titled note can be a spread.');
   const previous = !!doc.capabilities(edit.id).spread;
   if (previous !== edit.value) actions.push({ ...edit, previous, baseRevision: block.revision });
 }
@@ -112,7 +112,7 @@ export function editQuestion(
     value = currentReading({ ...value, accepted: previous.accepted }, value.accepted, doc.host.todayDate());
   }
   if (edit.value && doc.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-  if (edit.value && doc.block(edit.id)?.assessment) throw new Error('An atom cannot be both a question and an answer.');
+  if (edit.value && doc.block(edit.id)?.assessment) throw new Error('A note cannot be both a question and an answer.');
   if (
     (previous?.parked || edit.value?.parked) &&
     (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) &&
@@ -133,7 +133,7 @@ export function editQuote(doc: DocumentInternals, session: EditSession, edit: Ex
   const block = doc.snapshot(edit.id);
   const text = edit.text ?? block.text;
   if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id))
-    throw new Error('Quote target must match a different atom.');
+    throw new Error('Quote target must match a different note.');
   const previous = doc.capabilities(edit.id).quote ?? null;
   session.setText(block, text);
   if (!sameState(previous, edit.value))
@@ -156,7 +156,7 @@ export function editAssessment(
   const previous = doc.capabilities(edit.id).assessment?.state ?? null;
   if (edit.value) {
     if (doc.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-    if (doc.block(edit.id)?.question) throw new Error('An atom cannot be both a question and an answer.');
+    if (doc.block(edit.id)?.question) throw new Error('A note cannot be both a question and an answer.');
     let owner = doc.block(edit.id)?.parentId;
     while (owner && !doc.block(owner)?.question) owner = doc.block(owner)?.parentId;
     if (!owner) throw new Error('Put the answer under a question first.');

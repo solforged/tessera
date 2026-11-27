@@ -118,6 +118,6 @@ export function nameMenuItems(
   };
   return [
     ...matches.map(match => ({ label: match.page.text, action: () => choose(match.page.id) })),
-    { label: `Create atom “${token.id!.trim()}”`, action: () => choose() },
+    { label: `Create note “${token.id!.trim()}”`, action: () => choose() },
   ];
 }

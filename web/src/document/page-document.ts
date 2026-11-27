@@ -418,7 +418,7 @@ export class Document implements PageDocument {
   close() {
     this.closed = true;
   }
-  markMissing(message = 'This atom has been deleted.') {
+  markMissing(message = 'This note has been deleted.') {
     if (this.reloadLog) this.reloadLog.missing = true;
     batch(() => {
       const ids = [...this.cells.keys()];
@@ -510,11 +510,11 @@ export class Document implements PageDocument {
   snapshot(id: string, base = false): Block {
     if (base) {
       const block = this.baseBlocks.get(id);
-      if (!block) throw new Error('The atom no longer exists.');
+      if (!block) throw new Error('The note no longer exists.');
       return { ...block };
     }
     const state = this.cells.get(id)?.state;
-    if (!state) throw new Error('The atom no longer exists.');
+    if (!state) throw new Error('The note no longer exists.');
     const saved = this.baseBlocks.get(id);
     return {
       id,
@@ -634,7 +634,7 @@ export class Document implements PageDocument {
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
-    if (value.image) throw new Error("Image atoms can't be merged.");
+    if (value.image) throw new Error("Image notes can't be merged.");
     if (value.merge_protected)
       throw new Error(
         value.history
@@ -1203,7 +1203,7 @@ export class Document implements PageDocument {
         return [{ kind: 'delete', id: action.id }];
       }
       case 'move': {
-        if (index.indexOf(action.id) < 0) throw new Error('The atom to move no longer exists.');
+        if (index.indexOf(action.id) < 0) throw new Error('The note to move no longer exists.');
         if (!base)
           for (
             let ancestor: string | null = action.parentId;
@@ -1885,7 +1885,7 @@ export class Document implements PageDocument {
   }
   /** Shared by page-local history and acknowledged, cross-page source commands. */
   sourceDetailsActions(edit: SourceDetailsEdit): Action[] {
-    if (this.status() !== 'ready') throw new Error('This atom is not ready.');
+    if (this.status() !== 'ready') throw new Error('This note is not ready.');
     const actions: Action[] = [];
     const text = (id: string, value: string) => {
       if (this.snapshot(id).text !== value) actions.push({ kind: 'text', id, text: value });
@@ -1914,7 +1914,7 @@ export class Document implements PageDocument {
     if (edit.title !== undefined) {
       const title = edit.title.trim();
       if (!title) throw new Error('A title is required.');
-      if (!this.host.titleAvailable(title, this.pageId)) throw new Error('An atom with this title already exists.');
+      if (!this.host.titleAvailable(title, this.pageId)) throw new Error('A note with this title already exists.');
       text(this.pageId, title);
     }
     let after = this.outline.children(this.pageId).at(-1) ?? null;
@@ -2096,7 +2096,7 @@ export class Document implements PageDocument {
     };
   }
   edit(edit: Edit, caretBefore: HistoryCaret | null = null): EditResult {
-    if (this.status() !== 'ready') return { ok: false, reason: 'This atom is not ready.' };
+    if (this.status() !== 'ready') return { ok: false, reason: 'This note is not ready.' };
     const doc = this.internals();
     const session = new EditSession(doc, caretBefore);
     try {
@@ -2370,7 +2370,7 @@ export class Document implements PageDocument {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };
     if (!title.trim()) return { ok: false, reason: 'A title is required.' };
     if (!this.host.titleAvailable(title.trim(), this.pageId))
-      return { ok: false, reason: 'An atom with this title already exists.' };
+      return { ok: false, reason: 'A note with this title already exists.' };
     return this.edit({ kind: 'text', id: this.pageId, text: title.trim() });
   }
   addType(blockId: string, title: string): EditResult {

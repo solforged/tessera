@@ -305,7 +305,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
                 fallback={
                   <p class="empty-state">
                     No fields yet. Task and source fields appear when you add your first task or source. Use New field,
-                    or type <code>name::</code> in an atom.
+                    or type <code>name::</code> in a note.
                   </p>
                 }
               >
@@ -325,7 +325,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
                           Format
                         </th>
                         <th scope="col" class="fields-count">
-                          Atoms
+                          Notes
                         </th>
                         <th scope="col">Templates</th>
                       </tr>
@@ -387,18 +387,18 @@ function DefinitionsPane(props: FieldsPaneProps) {
                                 {taskFieldFormat(field) ?? kindLabels[field.kind]} <Icon name="down" />
                               </Button>
                             </td>
-                            <td data-label="Atoms" class="fields-count">
+                            <td data-label="Notes" class="fields-count">
                               <Show
                                 when={field.owners}
                                 fallback={
-                                  <span class="fields-unused" title="No atom uses this field yet">
+                                  <span class="fields-unused" title="No note uses this field yet">
                                     0
                                   </span>
                                 }
                               >
                                 <Button
-                                  label={`Show atoms with ${fieldLabel(field)}`}
-                                  title={`Atoms using ${fieldLabel(field)}: ${field.owners} · ${besideHint}`}
+                                  label={`Show notes with ${fieldLabel(field)}`}
+                                  title={`Notes using ${fieldLabel(field)}: ${field.owners} · ${besideHint}`}
                                   onClick={event =>
                                     props.onOpen(
                                       {

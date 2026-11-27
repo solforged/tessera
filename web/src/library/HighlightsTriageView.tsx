@@ -674,7 +674,7 @@ export function HighlightsTriageView(props: {
                                       <Show when={(props.triage.highlightActions.noteCount(row) ?? 0) > 0}>
                                         {' '}
                                         · {props.triage.highlightActions.noteCount(row)}{' '}
-                                        {props.triage.highlightActions.noteCount(row) === 1 ? 'atom' : 'atoms'}
+                                        {props.triage.highlightActions.noteCount(row) === 1 ? 'note' : 'notes'}
                                       </Show>
                                       <Show when={!props.unprocessedOnly}>
                                         {' '}
@@ -779,10 +779,10 @@ export function HighlightsTriageView(props: {
                   <p class="library-highlight-meta">
                     {highlightMeta(row(), timeZone())} ·{' '}
                     {props.triage.highlightActions.noteCount(row()) === undefined
-                      ? 'Loading atoms…'
+                      ? 'Loading notes…'
                       : props.triage.highlightActions.noteCount(row())
-                        ? `${props.triage.highlightActions.noteCount(row())} ${props.triage.highlightActions.noteCount(row()) === 1 ? 'atom' : 'atoms'}`
-                        : 'No atoms'}
+                        ? `${props.triage.highlightActions.noteCount(row())} ${props.triage.highlightActions.noteCount(row()) === 1 ? 'note' : 'notes'}`
+                        : 'No notes'}
                   </p>
                   <Show when={row().block.page.id !== row().citation.source_id}>
                     <Button
@@ -863,7 +863,7 @@ export function HighlightsTriageView(props: {
                         if (!props.triage.highlightBusy()) void props.triage.runHighlight(row(), 'note');
                       }}
                     >
-                      {props.triage.highlightActions.noteCount(row()) ? 'Open atom' : 'Add atom'}
+                      {props.triage.highlightActions.noteCount(row()) ? 'Open note' : 'Add note'}
                       <kbd>N</kbd>
                     </Button>
                     <Button

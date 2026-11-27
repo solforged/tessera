@@ -98,10 +98,10 @@ export function EmbedOnPagePicker(props: {
   return (
     <Picker
       anchor={props.anchor}
-      label="Embed on atom"
+      label="Embed on note"
       query={query()}
       onQuery={setQuery}
-      placeholder="Find an atom"
+      placeholder="Find a note"
       items={names()?.rows ?? []}
       key={match => match.page.id}
       onDismiss={() => {
@@ -112,7 +112,7 @@ export function EmbedOnPagePicker(props: {
       }}
       busy={names.loading || busy()}
       error={error() || (names.error ? String(names.error) : undefined)}
-      empty="No matching atoms. Try another name."
+      empty="No matching notes. Try another name."
       row={match => (
         <>
           <Icon name="note" />
@@ -154,7 +154,7 @@ export function createViewEmbedActions(
         !context.props.active
           ? 'This pane is not active.'
           : context.doc.status() !== 'ready'
-            ? 'Atom is unavailable.'
+            ? 'Note is unavailable.'
             : undefined,
       run: () => openViewEmbed(),
     },

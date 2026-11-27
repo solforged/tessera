@@ -851,7 +851,7 @@ export function createOutlineRows(
         <button
           type="button"
           class="row-menu icon-button"
-          aria-label="Atom actions"
+          aria-label="Note actions"
           onMouseDown={event => {
             if (selectedSet().has(id())) event.preventDefault();
           }}
@@ -875,7 +875,7 @@ export function createOutlineRows(
             type="button"
             class="row-bullet icon-button"
             classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }}
-            aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into atom'}
+            aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into note'}
             aria-haspopup={cardMark() ? 'dialog' : undefined}
             onPointerDown={event => drag.start(event, id())}
             onMouseDown={event => {

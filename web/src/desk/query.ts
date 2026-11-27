@@ -73,7 +73,7 @@ export function rowTarget(row: QueryRow): OpenTarget {
 /** A linked question as a reader names it: its title without the trailing type tag. */
 export function linkedQuestionName(id: string, workshop: WorkshopClient): string {
   const target = workshop.lookup(id)();
-  return target ? targetLabel(target.text, value => workshop.lookup(value)) || 'Empty atom' : 'the selected question';
+  return target ? targetLabel(target.text, value => workshop.lookup(value)) || 'Empty note' : 'the selected question';
 }
 /** Restored filters render before query rows arrive; resolve their live references with the workshop receiver intact. */
 export function deskConditionLabel(

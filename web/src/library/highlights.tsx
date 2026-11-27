@@ -257,7 +257,7 @@ export function createHighlightActions(
       });
     secondaryItems.push({ label: 'Remove highlight', danger: true, action: () => fire('remove') });
     const items: MenuItem[] = [
-      { label: hasNote ? 'Open atom' : 'Add atom', action: () => fire('note') },
+      { label: hasNote ? 'Open note' : 'Add note', action: () => fire('note') },
       { label: 'Make card', action: () => fire('card') },
       { label: row.processed ? 'Mark unprocessed' : 'Mark processed', action: () => fire('triage') },
       ...secondaryItems,
@@ -335,7 +335,7 @@ export function createHighlightActions(
               >
                 <h3 class="popup-title">Remove highlight?</h3>
                 <p>
-                  This also deletes {state.written} written child {state.written === 1 ? 'atom' : 'atoms'} and breaks{' '}
+                  This also deletes {state.written} written child {state.written === 1 ? 'note' : 'notes'} and breaks{' '}
                   {state.references} incoming {state.references === 1 ? 'reference' : 'references'}. You can undo this
                   from the highlight actions.
                 </p>

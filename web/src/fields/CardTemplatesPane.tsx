@@ -213,7 +213,7 @@ export function RecipeSection(props: {
       if (document.saveState() === 'error') throw new Error(document.saveMessage());
     });
   }
-  const atomsPhrase = () => (atoms().length === 1 ? 'this atom' : `these ${atoms().length} atoms`);
+  const atomsPhrase = () => (atoms().length === 1 ? 'this note' : `these ${atoms().length} notes`);
   const history = (redo: boolean) =>
     work(async () => {
       if (redo) doc().redo();
@@ -257,7 +257,7 @@ export function RecipeSection(props: {
           fallback={
             <>
               <p class="recipe-explanation">
-                Each atom with this tag makes the cards below. Atoms with card syntax keep their existing cards instead.
+                Each note with this tag makes the cards below. Notes with card syntax keep their existing cards instead.
               </p>
               <For each={templates().map(template => template.id)}>
                 {id => (
@@ -312,7 +312,7 @@ export function RecipeSection(props: {
         >
           <h3>Use fields for {atomsPhrase()}</h3>
           <p class="recipe-explanation">
-            Split the existing card text at its operator. Keep each atom where it is, along with its tags, child atoms
+            Split the existing card text at its operator. Keep each note where it is, along with its tags, child notes
             and review history.
           </p>
           <div class="recipe-back-field">
@@ -384,7 +384,7 @@ export function RecipeSection(props: {
             )}
           </Show>
           <div class="recipe-conversion-counts">
-            <span>{plural(atoms().length, 'atom')}</span>
+            <span>{plural(atoms().length, 'note')}</span>
             <span>
               {plural(
                 atoms().reduce((sum, atom) => sum + atom.directions.length, 0),
@@ -398,7 +398,7 @@ export function RecipeSection(props: {
           <table class="recipe-conversion-table">
             <thead>
               <tr>
-                <th>Atom text</th>
+                <th>Note text</th>
                 <th>
                   {backField() === 'new'
                     ? newField().trim() || 'Back field'
@@ -429,12 +429,12 @@ export function RecipeSection(props: {
           </table>
           <Show when={skipped().length}>
             <details>
-              <summary>{plural(skipped().length, 'atom')} not converted</summary>
+              <summary>{plural(skipped().length, 'note')} not converted</summary>
               <For each={skipped()}>{member => <p>{member.block.text}</p>}</For>
             </details>
           </Show>
           <p class="recipe-explanation">
-            Other card syntax keeps working. Atoms still using syntax are not also given these recipe cards; convert
+            Other card syntax keeps working. Notes still using syntax are not also given these recipe cards; convert
             them when you choose.
           </p>
           <div class="ct-apply-footer">
@@ -458,7 +458,7 @@ export function RecipeSection(props: {
                 })
               }
             >
-              Convert {plural(atoms().length, 'atom')}
+              Convert {plural(atoms().length, 'note')}
             </Button>
           </div>
         </Show>
@@ -498,7 +498,7 @@ function RecipeRow(props: {
   };
   const sideLabel = (key: 'front' | 'back') =>
     props.recipe[key] === '{@text}'
-      ? 'Atom text'
+      ? 'Note text'
       : (nameOf(props.fields.find(field => props.recipe[key] === `{${field.id}}`)?.id ?? '') ?? 'Pattern');
   const editPattern = (key: 'front' | 'back') => {
     setPatternSide(key);
@@ -522,7 +522,7 @@ function RecipeRow(props: {
         ]
       : [
           {
-            label: 'Atom text',
+            label: 'Note text',
             checked: props.recipe[key] === '{@text}',
             action: () => void props.onSave({ ...props.recipe, [key]: '{@text}' }),
           },
@@ -595,7 +595,7 @@ function RecipeRow(props: {
                   />
                 </label>
                 <p class="ct-footnote">
-                  Use {'{@text}'} for atom text or {'{Field name}'} for a field.
+                  Use {'{@text}'} for note text or {'{Field name}'} for a field.
                 </p>
                 <Button type="submit" disabled={props.busy}>
                   Save pattern
@@ -611,7 +611,7 @@ function RecipeRow(props: {
           </Show>
         </div>
         <div class="ct-preview">
-          <Show when={props.recipe.preview} fallback={<p class="ct-apparatus">Waiting for an atom with both sides</p>}>
+          <Show when={props.recipe.preview} fallback={<p class="ct-apparatus">Waiting for a note with both sides</p>}>
             {preview => (
               <>
                 <div class="ct-preview-top">Preview · {preview().member_text}</div>

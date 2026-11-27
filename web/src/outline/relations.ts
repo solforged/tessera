@@ -16,7 +16,7 @@ export const incomingRelationLabels: Record<RelationKind, string> = {
 };
 
 export function relationReason(block: BlockState | undefined): string | undefined {
-  if (block?.kind !== 'block') return 'Select an ordinary atom.';
+  if (block?.kind !== 'block') return 'Select an ordinary note.';
   if (block.position || block.question || block.assessment)
     return 'An argument cannot also be a perspective, question or answer.';
   return undefined;

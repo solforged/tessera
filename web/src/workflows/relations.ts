@@ -76,7 +76,7 @@ export async function relationCandidates(
   const blocks = found
     .flatMap(row => {
       if (row.block.id === owner?.id) return [];
-      const label = targetLabel(row.block.text, lookup) || 'Empty atom';
+      const label = targetLabel(row.block.text, lookup) || 'Empty note';
       return !targeted || foldName(label).includes(needle)
         ? [{ block: row.block, page: row.page, label, alias: null, here: row.page.id === owner?.page }]
         : [];
@@ -111,7 +111,7 @@ export async function resolveRelationPick(workshop: WorkshopClient, intent: Rela
       create = { typeTitle: type?.text };
     }
   }
-  if (!intent.createId) throw new Error('The accepted relation has no atom identity. Its text was kept.');
+  if (!intent.createId) throw new Error('The accepted relation has no note identity. Its text was kept.');
   const id = intent.createId;
   const operations: Operation[] = [
     { op: 'create_page', id, title: intent.query.trim() },
@@ -135,7 +135,7 @@ export async function createInstance(
       ...(typeTitle ? [{ op: 'add_type' as const, id, base_revision: 1, title: typeTitle }] : []),
       ...(source ? [sourceOperation(id, 1)] : []),
     ],
-    'Create linked atom',
+    'Create linked note',
   );
   return workshop.api.block(id);
 }

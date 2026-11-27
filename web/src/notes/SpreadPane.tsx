@@ -112,7 +112,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     setBusy(true);
     setError('');
     try {
-      if (await props.workshop.pageByTitle(name, false)) throw new Error('An atom with this title already exists.');
+      if (await props.workshop.pageByTitle(name, false)) throw new Error('A note with this title already exists.');
       const id = ulid();
       const operations: Operation[] = [
         { op: 'create_page', id, title: name },
@@ -198,7 +198,7 @@ export function SpreadPane(props: SpreadPaneProps) {
             setPicker(event.currentTarget);
           }}
         >
-          Add atom…
+          Add note…
         </Button>
         <Show when={!props.doc}>
           <Button
@@ -221,7 +221,7 @@ export function SpreadPane(props: SpreadPaneProps) {
         </p>
       </Show>
       <Show when={ids().length < 2}>
-        <p class="empty-state">Select two to five atoms to compare them.</p>
+        <p class="empty-state">Select two to five notes to compare them.</p>
       </Show>
       <Show when={result.latest?.columns.length}>
         {count => (
@@ -231,7 +231,7 @@ export function SpreadPane(props: SpreadPaneProps) {
                 <thead>
                   <tr>
                     <th scope="col">
-                      <span class="visually-hidden">Atoms</span>
+                      <span class="visually-hidden">Notes</span>
                     </th>
                     <For each={result.latest!.columns}>
                       {(column, index) => (
@@ -299,10 +299,10 @@ export function SpreadPane(props: SpreadPaneProps) {
         {anchor => (
           <Picker
             anchor={anchor()}
-            label="Add atom"
+            label="Add note"
             query={query()}
             onQuery={setQuery}
-            placeholder="Find an atom…"
+            placeholder="Find a note…"
             items={choices()}
             key={row => row.id}
             row={row => <span>{row.text}</span>}
@@ -310,7 +310,7 @@ export function SpreadPane(props: SpreadPaneProps) {
             onDismiss={() => setPicker(undefined)}
             busy={matches.loading}
             error={matches.error ? String(matches.error) : undefined}
-            empty="No matching atoms."
+            empty="No matching notes."
           />
         )}
       </Show>

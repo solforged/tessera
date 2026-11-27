@@ -678,7 +678,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         candidates = await Promise.all(
           units.filter(card => card.active && !card.held).map(card => loadReviewCard(props.workshop.api, card.id)),
         );
-        nextScope = block ? cardSubject(block.text) || 'Untitled atom' : 'Deleted atom';
+        nextScope = block ? cardSubject(block.text) || 'Untitled note' : 'Deleted note';
       }
       // Another pane on this session undid a grade: this pane's history lost that card, so it shows the card the undo restored.
       // That wins over an older restore this pane made itself, which a later undo elsewhere has superseded.
@@ -1086,7 +1086,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       localStorage.setItem(`tessera.review-block.${id}`, blockId);
       await props.workshop.commit(
         [{ op: 'start_review_session', id, deck_id: null, started_at: Date.now() }],
-        'Review atom cards',
+        'Review note cards',
       );
       if (!disposed) moveTo({ deckId: null, sessionId: id, selection: 'all' });
     } catch (reason) {
@@ -1341,7 +1341,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         <Show when={emptyWorkshop()}>
           <section class="review-empty" aria-label="No cards yet">
             <h2>No cards yet.</h2>
-            <p>Write a question and answer in an atom, or turn a source highlight into a card.</p>
+            <p>Write a question and answer in a note, or turn a source highlight into a card.</p>
             <Button
               class="bordered"
               icon="plus"
@@ -1416,7 +1416,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                     <Show when={!rows().length && value().held_cards}>
                       <p class="review-held">
                         {value().held_cards} {value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not
-                        yet. Start or resume them from their source atoms.
+                        yet. Start or resume them from their source notes.
                       </p>
                     </Show>
                   </div>

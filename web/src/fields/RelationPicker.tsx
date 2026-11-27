@@ -138,12 +138,12 @@ export function RelationPicker(props: {
         row.kind !== 'target'
           ? undefined
           : row.target.here
-            ? 'On this atom'
+            ? 'On this note'
             : !row.target.page
               ? blocks()
-                ? (targetKind()?.plural ?? 'Atoms')
+                ? (targetKind()?.plural ?? 'Notes')
                 : undefined
-              : (targetKind()?.plural ?? 'Atoms')
+              : (targetKind()?.plural ?? 'Notes')
       }
       onPick={row => void pick(row)}
       onDismiss={() => {
@@ -191,7 +191,7 @@ export function RelationPicker(props: {
             : members.loading || matches.loading
               ? 'Loading…'
               : !props.field.targets.length && query().trim().length < 3 && query().trim()
-                ? 'No matching atoms. Keep typing to search atoms.'
+                ? 'No matching notes. Keep typing to search notes.'
                 : 'No matches.'
       }
     />
