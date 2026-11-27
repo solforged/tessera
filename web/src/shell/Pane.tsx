@@ -472,7 +472,7 @@ export function Pane(props: {
                 }}
               </For>
             </nav>
-            <Show when={root()?.kind === 'journal'}>
+            <Show when={root()?.kind === 'journal' && (cover() || !!outlineView().zoom)}>
               <nav class="journal-navigation" aria-label="Journal navigation">
                 <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
                 <Button

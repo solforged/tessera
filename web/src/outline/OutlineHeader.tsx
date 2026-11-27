@@ -599,7 +599,8 @@ export function OutlineHeader(props: {
                 !props.doc.root()?.source &&
                 !props.fields.error &&
                 props.fields() &&
-                props.fields()?.page_id !== props.pageId
+                props.fields()?.page_id !== props.pageId &&
+                (props.isCollection || (!props.doc.root()?.project && !props.type.error && !!props.type()?.members))
               }
             >
               <div class="outline-header-actions">

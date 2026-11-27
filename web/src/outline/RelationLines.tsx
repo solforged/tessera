@@ -102,7 +102,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
                 </Show>
                 <span>
                   <span class="incoming-field-name" title={`Values of ${group.name} that link here`}>
-                    ← {group.name}
+                    ← {group.name}:
                   </span>{' '}
                   <For each={shown()}>
                     {(owner, at) => (

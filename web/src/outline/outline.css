@@ -548,11 +548,11 @@
   .outline-row .row-card-mark:hover {
     color: var(--faint);
   }
-  /* Prose pages read as paragraphs: bullets rest hidden and return on hover or selection, where they
+  /* Prose pages keep bullets quiet at rest and brighten them on hover or selection, where they
    still zoom and drag. Hairline threads under each ancestor's handle show depth. Folded rows keep
-   their marker, since it is the only sign of hidden children. */
+   their marker at full ink, since it is the only sign of hidden children. */
   [data-page-style="prose"] .row-bullet:not(.bullet-collapsed) {
-    opacity: 0;
+    opacity: 0.35;
   }
   [data-page-style="prose"] .outline-row:is(:hover, .row-selected) .row-bullet {
     opacity: 1;

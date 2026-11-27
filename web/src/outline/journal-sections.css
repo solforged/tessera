@@ -78,10 +78,14 @@
     .row-section-head > :is(.row-menu, .row-fold) {
       order: 1;
     }
-  }
-  @container outline-pane (max-width: 856px) {
+    .outline-pane:has(.journal-header) .outline-row:not(.row-section-head) > .row-menu {
+      order: 1;
+    }
     .outline-row > .section-capture.section-capture-boxed {
       padding-left: 0;
+    }
+    .journal-missing-section > .section-capture {
+      padding-left: var(--target-size);
     }
   }
   .journal-missing-end {

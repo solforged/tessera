@@ -121,21 +121,16 @@
     padding: 0;
   }
   /* Agenda's Add a task and the ⌘E section's capture are an index slip laid on the page: a leaf with a gilt
-   spine, ticks at its open end, a gilt plus and a ruled line to write on. Focus gilds the ticks and draws
-   the rule in gilt from the left, as ink is drawn; the shortcut or plan sits at the end as a blind-stamped key. */
+   spine, a gilt plus (or task box) and a ruled line to write on. Focus draws the rule in gilt from the left,
+   as ink is drawn; the shortcut or plan sits at the end as a blind-stamped key. */
   .capture-line.capture-boxed {
     gap: var(--space-8);
-    height: 52px;
+    height: 48px;
     padding-inline: var(--space-16) var(--space-12);
     border: var(--rule-width) solid transparent;
     border-radius: var(--radius-control);
     cursor: text;
-    background:
-      linear-gradient(var(--tick), var(--tick)) right top / var(--tick-length) var(--rule-width) no-repeat,
-      linear-gradient(var(--tick), var(--tick)) right top / var(--rule-width) var(--tick-length) no-repeat,
-      linear-gradient(var(--tick), var(--tick)) right bottom / var(--tick-length) var(--rule-width) no-repeat,
-      linear-gradient(var(--tick), var(--tick)) right bottom / var(--rule-width) var(--tick-length) no-repeat,
-      var(--leaf);
+    background: var(--leaf);
     box-shadow:
       inset 2px 0 0 var(--accent),
       inset 0 1px 0 var(--lit-edge),
@@ -143,7 +138,11 @@
       0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 60%, transparent);
   }
   .capture-line.capture-boxed:focus-within {
-    --tick: var(--accent);
+    box-shadow:
+      inset 2px 0 0 var(--accent),
+      inset 0 1px 0 var(--lit-edge),
+      0 1px 3px var(--contact-shadow),
+      0 0 0 var(--rule-width) color-mix(in srgb, var(--accent) 45%, transparent);
   }
   .capture-boxed > .capture-plus,
   .capture-boxed > .capture-kind {

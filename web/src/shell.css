@@ -990,8 +990,8 @@ span.pane-breadcrumbs {
   min-height: 0;
   min-width: 0;
 }
-.pane-content::before,
-.pane-content::after {
+.is-split .pane-content::before,
+.is-split .pane-content::after {
   content: "";
   position: absolute;
   width: var(--registration-size);
@@ -1001,27 +1001,27 @@ span.pane-breadcrumbs {
   border: 0 solid var(--line);
 }
 /* The marks sit in the corner gutter, clear of toolbars that start 8 px in. */
-.pane-content::before {
+.is-split .pane-content::before {
   top: var(--space-4);
   left: var(--space-4);
   border-width: var(--rule-width) 0 0 var(--rule-width);
 }
-.pane-content::after {
+.is-split .pane-content::after {
   bottom: var(--space-4);
   right: var(--space-4);
   border-width: 0 var(--rule-width) var(--rule-width) 0;
 }
-.pane.active .pane-content::before,
-.pane.active .pane-content::after {
+.is-split .pane.active .pane-content::before,
+.is-split .pane.active .pane-content::after {
   border-color: var(--accent);
 }
 /* While a book reads with its chrome away, the registration corners go with it, so nothing but the page and its foot remains. */
-.pane-content::before,
-.pane-content::after {
+.is-split .pane-content::before,
+.is-split .pane-content::after {
   transition: opacity var(--motion-ui) var(--motion-ease);
 }
-.pane-content:has(.reader-chrome-hidden)::before,
-.pane-content:has(.reader-chrome-hidden)::after {
+.is-split .pane-content:has(.reader-chrome-hidden)::before,
+.is-split .pane-content:has(.reader-chrome-hidden)::after {
   opacity: 0;
 }
 .save-banner,

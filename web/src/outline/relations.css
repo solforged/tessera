@@ -43,16 +43,22 @@
     min-width: 0;
     max-width: 100%;
     padding: 0;
-    color: inherit;
+    color: var(--text);
     font: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+    text-decoration-thickness: var(--rule-width);
+    text-underline-offset: var(--space-2);
     white-space: normal;
     overflow-wrap: anywhere;
     text-align: left;
   }
   .relation-line .button:hover {
     color: var(--accent);
+    text-decoration-color: var(--accent);
   }
   .incoming-field-name {
+    color: var(--faint);
     white-space: nowrap;
   }
   .related-block > .relation-line {
