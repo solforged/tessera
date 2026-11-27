@@ -10,6 +10,7 @@ import { MissingFields } from '../table/MissingFields';
 import { missingQueryFields } from '../table/query';
 import { BlockText } from '../outline/BlockText';
 import { plainText, targetLabel } from '../outline/names';
+import { isPhone } from '../ui/viewport';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { createTopicQuery } from '../ui/loading';
@@ -657,7 +658,7 @@ export function DeskPane(props: TablePaneProps) {
             workshop={props.workshop}
             initialField=""
             initialFilter={state.index === undefined ? undefined : columnQueries[state.column]!().filters[state.index]}
-            sheet={window.matchMedia('(max-width: 599px)').matches}
+            sheet={isPhone()}
             onDismiss={() => setFilter(undefined)}
             onAdd={condition => addFilter(state.column, condition, state.index)}
           />

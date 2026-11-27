@@ -5,7 +5,7 @@ import type { PairingCode, PairingStatus, RejectedChange, SyncAttempt } from '..
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { ListRow } from '../ui/List';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
 import type { WorkshopClient } from '../document/contract';

@@ -5,7 +5,7 @@ import type { WorkshopClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../core/contract';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
 import { createCitationSources } from './source-reads';

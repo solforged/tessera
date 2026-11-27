@@ -1,6 +1,6 @@
 import { For, Show } from 'solid-js';
 import { Button } from '../ui/Button';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Seg } from '../ui/Seg';
 
 /** One choice among a few: the phone's segmented control, or the mode tabs everywhere else. */

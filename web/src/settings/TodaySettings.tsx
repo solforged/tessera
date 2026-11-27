@@ -8,7 +8,7 @@ import type { TodaySection, TodayTemplate } from '../tasks/today-template';
 import { Button } from '../ui/Button';
 import { haptic } from '../ui/haptics';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Choice } from './Choice';
 import { Group } from './Group';
 import { dropIndex, makeRoom, settleOffset } from './reorder';

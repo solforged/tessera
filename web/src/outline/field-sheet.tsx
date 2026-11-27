@@ -17,6 +17,7 @@ import { RelationPicker } from '../fields/RelationPicker';
 import { writeFieldValue } from '../fields/value-editor';
 import type { RelationPickIntent } from '../document/contract';
 import { fieldHide } from '../core/hide';
+import { isPhone } from '../ui/viewport';
 import { entryAnchor, typeKeys } from '../fields/templates';
 import { fieldLabel } from '../fields/kinds';
 import { titleKey } from '../document/title-key';
@@ -527,7 +528,7 @@ export function createFieldSheet(
       const focused = () =>
         dismissedTask() !== area.state.owner &&
         (taskRequest()?.owner === area.state.owner ||
-          (!window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches &&
+          (!isPhone() &&
             (area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner)));
       return (
         <Show when={focused()}>
@@ -543,7 +544,7 @@ export function createFieldSheet(
               fields={definitions()}
               template={area.state.template}
               contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.workshop.todayDate()}
-              sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}
+              sheet={isPhone()}
               initialField={taskRequest()?.owner === area.state.owner ? taskRequest()?.field : undefined}
               opener={taskRequest()?.owner === area.state.owner ? taskRequest()?.opener : undefined}
               onFieldOpened={() =>

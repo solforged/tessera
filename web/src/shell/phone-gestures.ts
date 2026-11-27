@@ -1,4 +1,5 @@
 import { createEffect, onCleanup } from 'solid-js';
+import { matchesReducedMotion } from '../core/viewport';
 
 /** Phone shell gestures stay outside readers, selections and horizontal controls. */
 export function installPhoneGestures(options: {
@@ -7,7 +8,11 @@ export function installPhoneGestures(options: {
   back(): void;
   scrollTop(): void;
 }) {
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const reduced = {
+    get matches() {
+      return matchesReducedMotion();
+    },
+  };
   let gesture:
     | {
         id: number;

@@ -14,7 +14,7 @@ import { RunningClock, workDuration } from '../tasks/WorkSessions';
 import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { longPress } from '../ui/context-menu';
-import { isPhone } from '../ui/phone';
+import { isPhone, matchesCoarsePointer } from '../ui/viewport';
 import { Icon } from '../ui/Icon';
 import { ClockFigure } from '../tasks/Figures';
 import { BlockText } from './BlockText';
@@ -669,7 +669,7 @@ export function createOutlineRows(
     // row being edited, or on one of its controls, is left to the system, so a held press there still selects text.
     let held = false;
     onMount(() => {
-      if (!window.matchMedia('(pointer: coarse)').matches) return;
+      if (!matchesCoarsePointer()) return;
       onCleanup(
         longPress(
           row,

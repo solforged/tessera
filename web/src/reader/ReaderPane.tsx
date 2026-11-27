@@ -54,10 +54,10 @@ import {
 } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
-import { isPhone } from '../ui/phone';
+import { isPhone, matchesCoarsePointer, matchesTouchOnly } from '../ui/viewport';
 import { Figures } from './Figures';
 import { hideEditMenu, nativeEditMenu, onEditMenu, showEditMenu } from './edit-menu';
-import { coarsePointer, createReaderChrome, deferred, touchOnly } from './createReaderChrome';
+import { createReaderChrome, deferred } from './createReaderChrome';
 import {
   characterRect,
   createPagedReader,
@@ -959,7 +959,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (suppressed && userScroll && Math.abs(scroll.scrollTop - jumpOrigin) > scroll.clientHeight) suppressed = false;
     schedulePosition();
     if (!editing() && !rewritingSelection) {
-      if (coarsePointer.matches) selected();
+      if (matchesCoarsePointer()) selected();
       else if (selection()) {
         setSelection(null);
         window.getSelection()?.removeAllRanges();
@@ -1184,7 +1184,7 @@ export function ReaderPane(props: ReaderPaneProps) {
    */
   function composeNote(row: HighlightRow, noteId: string) {
     const citation = row.citation;
-    if (!coarsePointer.matches || citation.source_id !== props.target.sourceId || citation.snapshot_id !== snapshot())
+    if (!matchesCoarsePointer() || citation.source_id !== props.target.sourceId || citation.snapshot_id !== snapshot())
       return false;
     setPopup(null);
     void (async () => {
@@ -1353,7 +1353,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     try {
       const plan = await prepareMerges(value, color),
         range = plan.selectedRange!;
-      if (withNote && coarsePointer.matches)
+      if (withNote && matchesCoarsePointer())
         await Promise.all([loadPage(range.first), loadPage(range.last), loadPage(range.last + 1)]);
       const citationId = plan.merges[0]?.citation.id ?? ulid();
       const result = plan.merges.length
@@ -1384,7 +1384,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       if (!disposed) {
         setSelection(null);
         window.getSelection()?.removeAllRanges();
-        if (withNote && coarsePointer.matches) {
+        if (withNote && matchesCoarsePointer()) {
           composedCitation = citationId;
           setComposing(noteDraft(range, result.created.at(-1)!));
         } else {
@@ -1564,7 +1564,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const readerActions = createMemo<MenuItem[]>(() => {
     const needsSelection = selection() ? undefined : 'Select text first';
     // A touch screen without a keyboard has the selection bar, swipes and taps for these, so only the source's actions show.
-    if (touchOnly.matches)
+    if (matchesTouchOnly())
       return [
         {
           label: 'Open source page',
@@ -2078,7 +2078,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       // beside the selection, and at the head only when the selection runs down there. It keeps to the reading measure.
       // A phone's panel is the capsule the system's own menu is: over the selection, under it where there is no room above,
       // and at the foot above the reading tools where there is none under it either.
-      if (coarsePointer.matches) {
+      if (matchesCoarsePointer()) {
         const height = element.offsetHeight;
         const tools = chromeOverlays() && !chromeHidden() ? header.getBoundingClientRect().top : bottom;
         const foot = Math.min(bottom, tools) - height - gap;
@@ -2638,7 +2638,7 @@ export function ReaderPane(props: ReaderPaneProps) {
             <Show when={state().kind === 'settings'}>
               <ReaderSettingsPopup
                 anchor={state().anchor}
-                sheet={coarsePointer.matches}
+                sheet={matchesCoarsePointer()}
                 room={textRoom()}
                 onDismiss={() => setPopup(null)}
               />
@@ -2680,7 +2680,7 @@ export function ReaderPane(props: ReaderPaneProps) {
                 title="Contents"
                 prefix={coverReading() ? <Icon name="search" /> : undefined}
                 placeholder="Find a section"
-                autofocus={!coarsePointer.matches}
+                autofocus={!matchesCoarsePointer()}
                 query={query()}
                 onQuery={setQuery}
                 items={toc()}
@@ -2711,7 +2711,7 @@ export function ReaderPane(props: ReaderPaneProps) {
                 title="Highlights"
                 prefix={coverReading() ? <Icon name="search" /> : undefined}
                 placeholder="Find a highlight"
-                autofocus={!coarsePointer.matches}
+                autofocus={!matchesCoarsePointer()}
                 query={query()}
                 onQuery={setQuery}
                 items={filteredHighlights()}

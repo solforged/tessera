@@ -1,3 +1,5 @@
+import { matchesReducedMotion } from './viewport';
+
 /** A duration token in milliseconds; reduced motion zeroes the tokens, so waits and animations collapse together. */
 export function motionMilliseconds(token = '--motion-ui') {
   const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
@@ -7,5 +9,5 @@ export function motionMilliseconds(token = '--motion-ui') {
 
 /** `behavior` for a programmatic scroll: smooth, except where the reader asked for reduced motion. */
 export function scrollBehavior(): ScrollBehavior {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
+  return matchesReducedMotion() ? 'instant' : 'smooth';
 }

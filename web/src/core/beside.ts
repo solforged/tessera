@@ -1,3 +1,5 @@
+import { matchesWideTouch } from './viewport';
+
 /**
  * Opening beside has one modifier everywhere: ⌘ on Apple keyboards, Ctrl elsewhere (on a Mac, Ctrl-click is the
  * context menu). Shift stays free for selecting text and ranges.
@@ -21,5 +23,5 @@ export function listOpensBeside(
   event: Pick<MouseEvent, 'metaKey' | 'ctrlKey'> | null | undefined,
   neighbour: boolean,
 ): boolean {
-  return neighbour || opensBeside(event) || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
+  return neighbour || opensBeside(event) || matchesWideTouch();
 }

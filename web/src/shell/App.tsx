@@ -35,6 +35,7 @@ import { dismissNotice, showNotice as showToast } from '../ui/Notice';
 import { Popup, type PopupAnchor } from '../ui/Popup';
 import { crossfade, navigatePane, reflowPanes } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
+import { isNarrow, isPhone, isTabbed, isVirtualKeyboardOpen, matchesReducedMotion } from '../ui/viewport';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { pendingCaretInput } from '../ui/pending-caret';
 import { Calendar } from '../tasks/Calendar';
@@ -245,10 +246,8 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const [active, setActive] = createSignal<PaneId>('main');
   const vim = workshop.vim;
   const [vimModes, setVimModes] = createSignal<Record<PaneId, VimMode>>({});
-  const narrowQuery = window.matchMedia('(max-width: 1047px)');
-  const [narrow, setNarrow] = createSignal(narrowQuery.matches);
-  const coverQuery = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
-  const [cover, setCover] = createSignal(coverQuery.matches);
+  const narrow = isNarrow;
+  const cover = isPhone;
   const [sidebar, setSidebar] = createSignal(false);
   const [sidebarCollapsed, setSidebarCollapsed] = createSignal(false);
   const sidebarVisible = () => !cover() && (narrow() ? sidebar() : !sidebarCollapsed());
@@ -261,7 +260,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
   const overlayOpen = () => !cover() && narrow() && sidebar();
   // Android resizes the WebView; browsers can resize only the visual viewport.
   const viewport = createVisualViewport();
-  const keyboard = () => viewport().height < screen.height * 0.7;
+  const keyboard = () => isVirtualKeyboardOpen(viewport().height);
   // Long-pressing Library in the bottom nav lists the types in use, each opening its table.
   const [typesMenu, setTypesMenu] = createSignal<{ anchor: HTMLElement; types: Type[] } | null>(null);
   const [questionsMenu, setQuestionsMenu] = createSignal<HTMLElement>();
@@ -710,7 +709,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     scrollers.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight);
     scrollers[0]?.scrollTo({
       top: 0,
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      behavior: matchesReducedMotion() ? 'instant' : 'smooth',
     });
   };
   const phoneTabFor = (session: PaneSession | undefined): PhoneTab => {
@@ -860,8 +859,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     });
   };
   // Panes the window cannot fit fold into spines; `start` is the first pane shown. Below 840 px the row becomes tabs.
-  const tabbedQuery = window.matchMedia('(max-width: 839px)');
-  const [tabbed, setTabbed] = createSignal(tabbedQuery.matches);
+  const tabbed = isTabbed;
   const [rowWidth, setRowWidth] = createSignal(0);
   /** Opening beside must leave room for the source and destination; existing narrow panes still fold as before. */
   const canOpenBeside = (owner: PaneId) => {
@@ -1150,25 +1148,16 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       clearTimeout(layoutTimer);
       delete document.documentElement.dataset.layoutSwitching;
     });
-    const onNarrow = () => {
-      layoutSwitched();
-      setNarrow(narrowQuery.matches);
-    };
-    narrowQuery.addEventListener('change', onNarrow);
-    onCleanup(() => narrowQuery.removeEventListener('change', onNarrow));
-    const onCover = () => {
-      layoutSwitched();
-      setCover(coverQuery.matches);
-      if (coverQuery.matches) setSidebar(false);
-    };
-    coverQuery.addEventListener('change', onCover);
-    onCleanup(() => coverQuery.removeEventListener('change', onCover));
-    const onTabbed = () => {
-      layoutSwitched();
-      setTabbed(tabbedQuery.matches);
-    };
-    tabbedQuery.addEventListener('change', onTabbed);
-    onCleanup(() => tabbedQuery.removeEventListener('change', onTabbed));
+    createEffect(
+      on(
+        [narrow, cover, tabbed],
+        () => {
+          layoutSwitched();
+          if (cover()) setSidebar(false);
+        },
+        { defer: true },
+      ),
+    );
     onCleanup(installDisclosureMotion());
     onCleanup(installInputModality());
     // Popups that dismiss on the press that starts a click leave the opener's click unable to see what was open.

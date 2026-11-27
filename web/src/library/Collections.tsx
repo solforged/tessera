@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
+import { matchesReducedMotion } from '../ui/viewport';
 
 /** Like bulk task moves, keep just the last collection action's quiet Undo notice. */
 export interface CollectionActions {
@@ -43,7 +44,7 @@ export function createCollectionActions(): CollectionActions {
     if (hovered() || focused() || busy()) return;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(() => {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (matchesReducedMotion()) {
         setChanged(null);
         return;
       }

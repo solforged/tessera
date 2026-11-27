@@ -1,4 +1,5 @@
 import { opensBeside, listOpensBeside } from '../core/beside';
+import { isPhone, matchesCoarsePointer, matchesWideTouch } from '../ui/viewport';
 import {
   batch,
   createEffect,
@@ -104,7 +105,7 @@ interface FiledNotes {
   count: number;
   undo(): Promise<void>;
 }
-const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
+const cover = isPhone;
 
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 const apparatus = (summary: NoteSummary | undefined) =>
@@ -1579,11 +1580,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 items={[
                   {
                     label: 'Open',
-                    action: () =>
-                      props.onOpen(
-                        { kind: 'page', pageId: state.note.id },
-                        window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches,
-                      ),
+                    action: () => props.onOpen({ kind: 'page', pageId: state.note.id }, matchesWideTouch()),
                   },
                   { label: 'File under…', action: () => showPopup('file', state.note, state.anchor) },
                   { label: 'Rename…', action: () => showPopup('rename', state.note, state.anchor) },
@@ -1797,8 +1794,7 @@ function NewKindAction(
             workshop={props.workshop}
             onDismiss={() => setAnchor(undefined)}
             defaultBeside={
-              window.matchMedia('(pointer: coarse)').matches &&
-              document.querySelectorAll('.panes > .pane:not(.folded)').length > 1
+              matchesCoarsePointer() && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1
             }
             onOpen={props.onOpen}
           />

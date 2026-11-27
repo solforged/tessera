@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { MonthGrid } from './MonthGrid';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
+import { isPhone, matchesCoarsePointer } from '../ui/viewport';
 import { createMonthPlanningMarks } from './create-planning-marks';
 import { parseTaskDate } from './date-input';
 import { partialDatePlaceholder } from '../fields/kinds';
@@ -164,7 +165,7 @@ export function DatePicker(props: DatePickerProps) {
   // The phone pane already stops above the bottom navigation and system safe area.
   // Reuse that box so an anchored calendar clips its body rather than covering the navigation.
   const bounds = () => {
-    if (!window.matchMedia('(pointer: coarse)').matches) return null;
+    if (!matchesCoarsePointer()) return null;
     const pane =
       (props.anchor instanceof HTMLElement ? props.anchor.closest('.pane') : null) ??
       document.querySelector('.pane.active');
@@ -172,8 +173,8 @@ export function DatePicker(props: DatePickerProps) {
   };
 
   // On a phone the calendar is a sheet, like the task fields sheet, and a touch screen never opens its keyboard unasked.
-  const cover = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  const cover = isPhone();
+  const coarse = matchesCoarsePointer();
   return (
     <Popup
       anchor={props.anchor}

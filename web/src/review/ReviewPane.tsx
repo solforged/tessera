@@ -41,7 +41,7 @@ import { Popup } from '../ui/Popup';
 import { createSlowFlag } from '../ui/loading';
 import { ListGroup, ListRow } from '../ui/List';
 import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
-import { phoneQuery } from '../ui/phone';
+import { isPhone, matchesTouchOnly } from '../ui/viewport';
 import { civilDate, relativeDate } from '../tasks/relative-date';
 import { CardComposer } from './CardComposer';
 import type { CreateRequest } from '../create/request';
@@ -63,7 +63,6 @@ import {
   sessionQueue,
 } from './query';
 import { nextDueLine, rememberedLine, tallyGrades } from './session-end';
-import { createPhone } from './use-phone';
 import { ReviewSourcePassage, reviewSource } from './ReviewSource';
 import type { ReviewSource } from './ReviewSource';
 import './review.css';
@@ -92,9 +91,6 @@ type DeckChoice = { id: string | null; name: string; query: CardQuery };
 type DeckCounts = { id: string | null; name: string; due: number; new: number; all: number };
 
 const selections = Object.keys(selectionLabels) as CardSelection[];
-/** A touch screen has no Enter key to aim, so the landing leaves focus alone instead of ringing its button. */
-const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
-const coverLayout = window.matchMedia(phoneQuery);
 /** Holds a control shut without `disabled`, which would dim it and drop its focus for a write that takes milliseconds. */
 const dis = (value: boolean) => (value ? ('true' as const) : undefined);
 
@@ -126,7 +122,7 @@ export function ReviewPane(props: ReviewPaneProps) {
 }
 
 function CardReviewPane(props: ReviewPaneProps) {
-  const phone = createPhone();
+  const phone = isPhone;
   const [deckId, setDeckId] = createSignal(props.view.deckId);
   const [sessionId, setSessionId] = createSignal(props.view.sessionId);
   const [decks, setDecks] = createSignal<Deck[]>([]);
@@ -484,7 +480,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     on(
       () => ready() && !openSession() && rows().length > 0,
       offer => {
-        if (!offer || touchOnly.matches) return;
+        if (!offer || matchesTouchOnly()) return;
         queueMicrotask(() => {
           const focused = document.activeElement;
           if (
@@ -592,7 +588,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       if (!requestedSession && recover) {
         recover = false;
         // A phone tab opens the overview; saved sessions stay available through Open reviews.
-        currentSession = coverLayout.matches ? null : (openReviewSession(savedSessions, requestedDeck) ?? null);
+        currentSession = isPhone() ? null : (openReviewSession(savedSessions, requestedDeck) ?? null);
         if (currentSession) {
           setSessionId(currentSession.id);
           publish();
@@ -2084,7 +2080,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         {anchor => (
           <Popup
             anchor={anchor}
-            placement={coverLayout.matches ? 'sheet' : 'anchor'}
+            placement={isPhone() ? 'sheet' : 'anchor'}
             bounds={paneBounds}
             label="End review"
             class="review-confirm"
@@ -2114,7 +2110,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         {state => (
           <Popup
             anchor={state.anchor}
-            placement={coverLayout.matches ? 'sheet' : 'anchor'}
+            placement={isPhone() ? 'sheet' : 'anchor'}
             bounds={paneBounds}
             label="Delete deck"
             class="review-confirm"
@@ -2143,7 +2139,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         {state => (
           <Popup
             anchor={state.anchor}
-            placement={coverLayout.matches ? 'sheet' : 'anchor'}
+            placement={isPhone() ? 'sheet' : 'anchor'}
             bounds={paneBounds}
             label="End review"
             class="review-confirm"

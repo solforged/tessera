@@ -3,14 +3,9 @@ import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
 import { setSystemBarsHidden } from '../ui/system-bars';
 import { setThemeOverride } from '../ui/theme';
+import { isPhone, matchesCoarsePointer } from '../ui/viewport';
 import { readerSettings } from './ReaderSettings';
 
-/** Touch screens write a new highlight's note beside the passage, not in the source page. */
-export const coarsePointer = window.matchMedia('(pointer: coarse)');
-/** No hover and a coarse pointer: a phone or tablet without a keyboard and trackpad, as `kbd` hints assume in CSS. */
-export const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
-/** The cover screen always reads in the reading layout; its chrome toggles with a centre tap, as in full screen. */
-export const coverScreen = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
 /** In full screen the reading chrome fades after this long without the mouse moving. */
 const CHROME_IDLE = 2500;
 
@@ -49,9 +44,9 @@ export interface ReaderChromeOptions {
  * theme override, contents sheet scroll-to-current and Android Back history interception.
  */
 export function createReaderChrome(options: ReaderChromeOptions) {
-  const [coverReading, setCoverReading] = createSignal(coverScreen.matches);
+  const coverReading = isPhone;
   const chromeHides = () => options.immersive() || coverReading();
-  const chromeOverlays = () => coverReading() || (options.immersive() && coarsePointer.matches);
+  const chromeOverlays = () => coverReading() || (options.immersive() && matchesCoarsePointer());
   const [chromeHidden, setChromeHidden] = createSignal(false);
   let chromeTimer = 0;
   let keyboardFocus = false;
@@ -100,7 +95,7 @@ export function createReaderChrome(options: ReaderChromeOptions) {
     if (!chromeHides() || options.popupKind()) showChrome(false);
   });
   createEffect(() => {
-    if (options.immersive() && !coarsePointer.matches) showChrome(true);
+    if (options.immersive() && !matchesCoarsePointer()) showChrome(true);
   });
   // Android's status and navigation bars leave with the chrome and return with it.
   createEffect(() => {
@@ -163,10 +158,7 @@ export function createReaderChrome(options: ReaderChromeOptions) {
     ),
   );
   onMount(() => {
-    const coverChanged = () => setCoverReading(coverScreen.matches);
-    coverScreen.addEventListener('change', coverChanged);
     onCleanup(() => {
-      coverScreen.removeEventListener('change', coverChanged);
       clearTimeout(chromeTimer);
     });
   });

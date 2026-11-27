@@ -1,17 +1,3 @@
-import { createSignal, onCleanup } from 'solid-js';
-import type { Accessor } from 'solid-js';
-import { phoneQuery } from '../ui/phone';
-
-/** Whether the phone layout applies, following the window as it changes. */
-export function createPhone(): Accessor<boolean> {
-  const query = window.matchMedia(phoneQuery);
-  const [phone, setPhone] = createSignal(query.matches);
-  const change = () => setPhone(query.matches);
-  query.addEventListener('change', change);
-  onCleanup(() => query.removeEventListener('change', change));
-  return phone;
-}
-
 /** A sideways drag must travel this far, and mostly sideways, to change the day. */
 export const swipeDistance = 56;
 /** The strip at the screen's left edge belongs to the shell's back gesture. */

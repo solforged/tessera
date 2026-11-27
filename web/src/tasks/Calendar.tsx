@@ -1,7 +1,7 @@
 import { Show } from 'solid-js';
 import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { Seg } from '../ui/Seg';

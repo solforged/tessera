@@ -2,6 +2,7 @@ import { Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
+import { isPhone } from '../ui/viewport';
 import { forwardCardText, parseCardText } from '../core/card-text';
 import './card-composer.css';
 
@@ -243,7 +244,7 @@ const composerDrafts = new Map<string, { front: string; back: string }>();
 
 /** Highlights keep the standalone composer, with the same keys and save contract. */
 export function CardComposer(props: CardComposerProps) {
-  const sheet = window.matchMedia('(pointer: coarse)').matches;
+  const sheet = isPhone();
   const [busy, setBusy] = createSignal(false);
   const [dirty, setDirty] = createSignal(false);
   const key = props.initialBack ?? '';

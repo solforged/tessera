@@ -10,7 +10,7 @@ import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { TemplateEditor } from './TemplateEditor';
 import { autoPlural } from './presentation';
 import './fields.css';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import '../notes/notes.css';
 
 interface TypeFieldsPaneProps {

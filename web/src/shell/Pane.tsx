@@ -22,6 +22,7 @@ import { OutlinePane } from '../outline/OutlinePane';
 import { PageMergePicker, builtInTagReason, pageMergeDisabledReason } from '../outline/PageMerge';
 import { isReadingSubject, localPositionCount } from '../outline/read-register';
 import { journalBarTitle } from '../tasks/journal-date';
+import { isPhone } from '../ui/viewport';
 import { civilDate, relativeDate } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -121,13 +122,7 @@ export function Pane(props: {
 }) {
   const workshop = useWorkshop();
   const current = () => props.session().entries[props.session().index]!;
-  const coverQuery = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
-  const [cover, setCover] = createSignal(coverQuery.matches);
-  onMount(() => {
-    const changed = () => setCover(coverQuery.matches);
-    coverQuery.addEventListener('change', changed);
-    onCleanup(() => coverQuery.removeEventListener('change', changed));
-  });
+  const cover = isPhone;
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () =>
     current().target.kind === 'reader' ? (current().target as Extract<OpenTarget, { kind: 'reader' }>) : undefined;

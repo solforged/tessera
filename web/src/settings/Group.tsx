@@ -1,7 +1,7 @@
 import { Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ListGroup } from '../ui/List';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 
 /**
  * One group of Settings rows. On a phone it is a ListGroup: the heading is the label above the leaf and the note is the

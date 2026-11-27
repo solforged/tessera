@@ -6,6 +6,7 @@ import { DEMO, MOBILE } from '../core/mode';
 import type { WorkshopClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { matchesCoarsePointer } from '../ui/viewport';
 import { Popup } from '../ui/Popup';
 import { RELEASES, capital, downloadPage, syncHealth, type SyncHealth } from './health';
 import { SETUP_SEEN_KEY, SyncSetup } from './SyncSetup';
@@ -18,7 +19,7 @@ export const currentHealth = () =>
 export function SyncMark(props: { onOpen(anchor: HTMLElement): void; open: boolean }) {
   const [slip, setSlip] = createSignal<HTMLElement | null>(null);
   let pending = 0;
-  const pointer = () => !window.matchMedia('(pointer: coarse)').matches;
+  const pointer = () => !matchesCoarsePointer();
   const close = () => {
     window.clearTimeout(pending);
     setSlip(null);
@@ -399,7 +400,7 @@ function SyncSummary(props: {
   onPairAgain(): void;
 }) {
   const [error, setError] = createSignal('');
-  const touch = window.matchMedia('(pointer: coarse)').matches;
+  const touch = matchesCoarsePointer();
   const devices = () => {
     const all = hubDevices.state()?.devices ?? [];
     return [...all.filter(needsPerson), ...all.filter(device => !needsPerson(device))];

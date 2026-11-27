@@ -19,7 +19,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { NavButton, NavEnd } from '../ui/NavBar';
 import { openContextMenu } from '../ui/context-menu';
-import { isPhone, phoneQuery } from '../ui/phone';
+import { coarseQuery, isPhone, matchesCoarsePointer } from '../ui/viewport';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { checkboxValue, fieldLabel } from '../fields/kinds';
 import { PlainValueInput, ValueEditor, writeFieldValue } from '../fields/value-editor';
@@ -129,7 +129,7 @@ function TableContent(props: TablePaneProps) {
   const [error, setError] = createSignal('');
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [narrow, setNarrow] = createSignal(false);
-  const [phone, setPhone] = createSignal(isPhone());
+  const phone = isPhone;
   const [querySheet, setQuerySheet] = createSignal<HTMLElement | null>(null);
   const [dockBounds, setDockBounds] = createSignal({ left: 0, width: 0 });
   const [focused, setFocused] = createSignal<TableCell>({ rowId: null, fieldId: null });
@@ -1461,7 +1461,7 @@ function TableContent(props: TablePaneProps) {
   );
   onMount(() => {
     if (props.active) region.focus({ preventScroll: true });
-    const coarse = window.matchMedia('(pointer: coarse)');
+    const coarse = window.matchMedia(coarseQuery);
     const measurePane = () => {
       const bounds = register.getBoundingClientRect();
       const style = getComputedStyle(region);
@@ -1478,10 +1478,6 @@ function TableContent(props: TablePaneProps) {
       paneResize.disconnect();
       coarse.removeEventListener('change', measurePane);
     });
-    const phoneMedia = window.matchMedia(phoneQuery);
-    const phoneChange = () => setPhone(phoneMedia.matches);
-    phoneMedia.addEventListener('change', phoneChange);
-    onCleanup(() => phoneMedia.removeEventListener('change', phoneChange));
     const resize = new ResizeObserver(measureEdge);
     resize.observe(scroll);
     if (grid) resize.observe(grid);
@@ -1539,7 +1535,7 @@ function TableContent(props: TablePaneProps) {
               anchor={state.anchor}
               workshop={props.workshop}
               onDismiss={() => setPopup(null)}
-              defaultBeside={window.matchMedia('(pointer: coarse)').matches && !!props.neighbour}
+              defaultBeside={matchesCoarsePointer() && !!props.neighbour}
               onCreated={pageId => {
                 history.push({ kind: 'created-row', pageId });
                 undone.length = 0;

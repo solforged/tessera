@@ -1,4 +1,5 @@
 import { listOpensBeside } from '../core/beside';
+import { matchesWideTouch } from '../ui/viewport';
 import { For, Show, createEffect, createMemo, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { FieldDefinition, QueryRow, TaskState, TaskStatus } from '../api/types';
@@ -226,7 +227,7 @@ export function TableGrid(props: TableGridProps) {
                     classList={{ selected: props.selected === row.block.block.id }}
                     onClick={event => {
                       if (
-                        window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches &&
+                        matchesWideTouch() &&
                         !(event.target as HTMLElement).closest('button, input, textarea, a, .cm-editor')
                       )
                         props.onOpen(row, true);

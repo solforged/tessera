@@ -1,6 +1,7 @@
 import { createEffect, onCleanup, onMount } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { OpenTarget } from '../core/contract';
+import { matchesReducedMotion, reducedMotionQuery } from './viewport';
 
 /** Navigation identity excludes presentation, scroll and caret state. */
 export function paneTargetIdentity(target: OpenTarget): string {
@@ -103,8 +104,7 @@ const entryLimit = 600;
 /** How long after a click on a tab strip its selection is watched for a change that lands late, such as one waiting on a read. */
 const modeWatchLimit = 500;
 
-const motionless = () =>
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible';
+const motionless = () => matchesReducedMotion() || document.visibilityState !== 'visible';
 const canTransit = () => typeof document.startViewTransition === 'function' && !motionless();
 const paneContent = (pane: string) =>
   document.querySelector<HTMLElement>(`section.pane[data-pane="${CSS.escape(pane)}"] > .pane-content`);
@@ -474,7 +474,7 @@ export function glide(parts: () => readonly HTMLElement[], apply: () => void) {
 
 /** Content enters on navigation; explicit mode panels fade in without remounting or delaying focus. */
 export function createPaneMotion(content: Accessor<HTMLElement>, identity: Accessor<string>) {
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const reduced = window.matchMedia(reducedMotionQuery);
   const animations = new Set<Animation>();
   // Counts entries and cancellations, so an entry waiting for its surface knows when something else took over.
   let entry = 0;

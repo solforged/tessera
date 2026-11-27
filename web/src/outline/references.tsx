@@ -6,7 +6,7 @@ import type { OpenTarget } from '../core/contract';
 import type { NoteIndex } from '../api/types';
 import { noteKindIcon } from '../notes/kinds';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { typeHue } from './pill-hue';
 
 // Rows in one change frame share the registry read, including the editor's widgets.

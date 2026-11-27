@@ -12,7 +12,7 @@ import { Popup } from '../ui/Popup';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { longPress, openContextMenu } from '../ui/context-menu';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { SectionSubhead } from '../ui/SectionHead';
 import { DatePicker } from './DatePicker';
 import { MoveToSheet } from './MoveToSheet';
@@ -704,9 +704,7 @@ function TaskSourceRow(props: {
       {
         kind: 'page',
         pageId: props.row.source.page.id,
-        ...(window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches
-          ? { revealId: props.row.source.block.id }
-          : { blockId: props.row.source.block.id }),
+        ...(isPhone() ? { revealId: props.row.source.block.id } : { blockId: props.row.source.block.id }),
       },
       opensBeside(event),
     );

@@ -31,6 +31,7 @@ import { DEMO } from '../core/mode';
 import type { LibraryGroup, LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../core/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/viewport';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
@@ -188,12 +189,11 @@ export function LibraryPane(props: LibraryPaneProps) {
   const cache: LibraryCache = libraryReads.get(props.workshop) ?? { queries: new Map<string, LibraryRead>() };
   libraryReads.set(props.workshop, cache);
   const preferences = libraryPreferences(cache.workshopId);
-  const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
   const initialView = { ...props.view };
   if (cache.workshopId && !initialView.view && initialView.tab === 'inbox') {
     const remembered = preferences.remembered;
     const counts = cache.library?.counts;
-    const initialTab = coverMedia.matches
+    const initialTab = isPhone()
       ? 'reading'
       : tabs.some(tab => tab.id === remembered)
         ? (remembered as LibraryTab)
@@ -388,7 +388,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   let tabChosen = false;
   // List or Shelf is a device preference per workshop, like the last tab.
   const [layout, setLayout] = createSignal<'list' | 'shelf'>(preferences.layout);
-  const [coverLayout, setCoverLayout] = createSignal(coverMedia.matches);
+  const coverLayout = isPhone;
   const [searchOpen, setSearchOpen] = createSignal(false);
   const finishedDate = createMemo(
     () =>
@@ -399,9 +399,6 @@ export function LibraryPane(props: LibraryPaneProps) {
         timeZone: props.workshop.settings()?.time_zone,
       }),
   );
-  const coverChanged = () => setCoverLayout(coverMedia.matches);
-  coverMedia.addEventListener('change', coverChanged);
-  onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
   let addButton: HTMLButtonElement | undefined;
   const primaryTabs = tabs.slice(0, 3);
   const overflowTabs = tabs.slice(3);

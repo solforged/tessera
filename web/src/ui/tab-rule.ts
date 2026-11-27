@@ -1,4 +1,5 @@
 import { onCleanup, onMount } from 'solid-js';
+import { reducedMotionQuery } from './viewport';
 
 const selectedTab = ':scope > .button:is([aria-pressed="true"], [aria-selected="true"])';
 
@@ -17,7 +18,7 @@ export function installTabRule() {
     const strips = new Map<HTMLElement, StripRule>();
     const owners = new WeakMap<Element, HTMLElement>();
     const dirty = new Set<HTMLElement>();
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const reduced = window.matchMedia(reducedMotionQuery);
     let frame = 0;
     const update = (strip: HTMLElement) => {
       const state = strips.get(strip);

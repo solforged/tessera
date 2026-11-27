@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { showMovedNotice } from './moved-notice';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { movableTo, rescheduleTasks } from './reschedule';
 import type { Rescheduled } from './reschedule';
 import { relativeDate } from './relative-date';

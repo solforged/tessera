@@ -10,6 +10,7 @@ import type { OutlinePaneProps } from './contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { isPhone } from '../ui/viewport';
 import type { MenuItem } from '../ui/Menu';
 import { downloadBlob } from '../ui/download';
 import { ResourceImage } from '../library/ResourceImage';
@@ -113,13 +114,9 @@ export function SourceHeader(props: {
   const [collectionPicker, setCollectionPicker] = createSignal<HTMLElement>();
   const [result, setResult] = createSignal('');
   const [busy, setBusy] = createSignal(false);
-  const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
-  const [coverLayout, setCoverLayout] = createSignal(coverMedia.matches);
+  const coverLayout = isPhone;
   const [actionsHost, setActionsHost] = createSignal<HTMLElement>();
   let header!: HTMLDivElement;
-  const coverChanged = () => setCoverLayout(coverMedia.matches);
-  coverMedia.addEventListener('change', coverChanged);
-  onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
   // Escape the outline's query-container containment, but keep the owning pane's visibility and nav tokens.
   onMount(() => setActionsHost(header.closest<HTMLElement>('.pane') ?? undefined));
   createEffect(() =>

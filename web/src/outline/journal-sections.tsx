@@ -2,7 +2,7 @@ import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { CaptureField } from '../capture/CaptureField';
 import type { WorkshopClient, PageDocument } from '../document/contract';
-import { createPhone } from '../tasks/journal-phone';
+import { isPhone } from '../ui/viewport';
 import { isFinished } from '../tasks/task-labels';
 import { captureSection, isWritten, readingRowSource, sectionTarget, writtenSections } from '../tasks/today-template';
 import type { TodaySection } from '../tasks/today-template';
@@ -235,7 +235,7 @@ export function SectionCapture(props: {
  * Reading": a capsule for each section, which opens that section's capture line and writes its heading with the first entry.
  */
 export function MissingSections(props: { workshop: WorkshopClient; sections: readonly TodaySection[] }) {
-  const phone = createPhone();
+  const phone = isPhone;
   const [adding, setAdding] = createSignal<string | null>(null);
   return (
     <Show

@@ -19,7 +19,7 @@ import { TaskStatusButton } from '../tasks/TaskControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { MenuItem } from '../ui/Menu';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Apparatus } from './Apparatus';
 import type { HolderRelation } from './Apparatus';
 import { BlockText } from './BlockText';

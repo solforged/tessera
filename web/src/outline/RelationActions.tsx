@@ -5,6 +5,7 @@ import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/viewport';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import type { OutlineContext } from './context';
 import { completeNames, plainText, resolveName } from './names';
@@ -271,7 +272,7 @@ export function createRelationActions(
           return (
             <Picker<Choice>
               anchor={current.anchor}
-              placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'}
+              placement={isPhone() ? 'sheet' : 'anchor'}
               label={walking ? `File to, ${(current.done ?? 0) + 1} of ${total}` : labels[current.kind]}
               status={
                 walking ? (

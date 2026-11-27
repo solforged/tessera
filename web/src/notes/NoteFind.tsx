@@ -6,7 +6,7 @@ import { displayTitle, foldName } from '../outline/names';
 import { BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Popup } from '../ui/Popup';
 import { notePredicates, parseNoteFind } from './finding-aid';
 import type { NotePredicate } from './finding-aid';

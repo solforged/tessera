@@ -1,7 +1,7 @@
 import { Show } from 'solid-js';
 import type { ApiClient } from '../api/client';
 import type { LibraryRow } from '../api/types';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { ResourceImage } from './ResourceImage';
 import { displayTitle } from '../outline/names';
 import { sourceByline } from './query';

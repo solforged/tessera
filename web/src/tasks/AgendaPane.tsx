@@ -41,7 +41,7 @@ import { withSearchText } from './task-chips';
 import { weekLedgerCounts, weekLedgerOverdue } from './week-ledger';
 import { NavTitle } from '../ui/NavBar';
 import { SearchWell } from '../ui/SearchWell';
-import { isPhone } from '../ui/phone';
+import { isPhone, matchesReducedMotion } from '../ui/viewport';
 import './agenda.css';
 import '../ui/chips.css';
 
@@ -232,7 +232,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       const nextHourHeight = column.getBoundingClientRect().height / (nextEnd - nextStart);
       calendar.scrollTop = (topHour - nextStart) * nextHourHeight;
       // The visible hour stays anchored (scrollTop moves by exactly the height added above it); the new hours settle in around it.
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      if (!matchesReducedMotion())
         calendar
           .querySelector('.week-calendar-timeline')
           ?.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: 180, easing: 'cubic-bezier(.2, .8, .2, 1)' });

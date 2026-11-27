@@ -6,6 +6,7 @@ import type { Edit } from '../document/contract';
 import { depthStops } from '../core/contract';
 import type { Command } from '../core/contract';
 import { parseCardText } from '../core/card-text';
+import { isPhone } from '../ui/viewport';
 import { statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
 import type { MenuItem, MenuPaletteButton } from '../ui/Menu';
@@ -1529,9 +1530,7 @@ export function createOutlineCommands(
           ...(doc.root()?.kind === 'journal' ? [item('integrate')] : []),
         ]),
         { ...item('copy-reference', 'Copy reference'), divider: true },
-        ...(!window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches
-          ? [item('open-beside', 'Open beside')]
-          : []),
+        ...(!isPhone() ? [item('open-beside', 'Open beside')] : []),
         ...managers.map((item, index) => ({ ...item, divider: index === 0 })),
         { label: 'Add field…', divider: !managers.length, action: () => pickField(id, anchor) },
         {

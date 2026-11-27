@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { ListRow } from '../ui/List';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { cancelConfirm, escapeConfirm, focusCancel } from '../settings/confirm-focus';
 import { Group } from '../settings/Group';
 import './agent.css';

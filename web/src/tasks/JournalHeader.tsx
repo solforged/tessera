@@ -18,7 +18,7 @@ import { ListGroup, ListRow } from '../ui/List';
 import { spokenJournalDate } from './journal-date';
 import { JournalTrail } from './JournalTrail';
 import { Figures } from './Figures';
-import { createPhone } from './journal-phone';
+import { isPhone, matchesWideTouch } from '../ui/viewport';
 import { agendaTaskTime, groupDayAgenda } from './task-labels';
 import { createClock } from './clock';
 import { movableTo } from './reschedule';
@@ -141,13 +141,13 @@ export function JournalHeader(props: {
       <span />
     </span>
   );
-  const phone = createPhone();
+  const phone = isPhone;
   const openReading = (event: MouseEvent) => {
     const book = reading();
     if (book)
       props.onOpen(
         { kind: 'reader', sourceId: book.row.page.id, snapshotId: book.source.source.current_snapshot_id ?? undefined },
-        opensBeside(event) || matchMedia('(pointer: coarse) and (min-width: 900px)').matches,
+        opensBeside(event) || matchesWideTouch(),
       );
     else props.onOpen({ kind: 'library', tab: 'reading' }, false);
   };
@@ -429,7 +429,7 @@ function JournalPlan(props: {
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const id = createUniqueId();
-  const phone = createPhone();
+  const phone = isPhone;
   const [open, setOpenSignal] = createSignal(
     (() => {
       try {

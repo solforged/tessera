@@ -5,6 +5,7 @@ import type { ViewState } from '../core/contract';
 import type { PageDocument, WorkshopClient } from '../document/contract';
 import type { PaneEditor } from './editor';
 import { plainText } from './names';
+import { reducedMotionQuery } from '../ui/viewport';
 
 export interface FoldMotionState {
   id: string;
@@ -57,7 +58,7 @@ export function createOutlineViewport(options: OutlineViewportOptions) {
   const [longPage, setLongPage] = createSignal(false);
   const [scrolledAway, setScrolledAway] = createSignal(false);
 
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const reducedMotion = window.matchMedia(reducedMotionQuery);
   let navigator: HTMLDivElement | undefined;
   let foldChildren: HTMLDivElement | undefined;
   let foldFollowing: HTMLDivElement | undefined;

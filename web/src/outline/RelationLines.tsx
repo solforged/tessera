@@ -9,7 +9,7 @@ import { Icon } from '../ui/Icon';
 import { plainText, targetLabel } from './names';
 import { incomingRelationLabels, relationLabels } from './relations';
 import { createWorkTest } from './source';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { ListGroup, ListRow } from '../ui/List';
 import './relations.css';
 

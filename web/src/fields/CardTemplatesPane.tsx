@@ -11,7 +11,7 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { NavButton, NavEnd } from '../ui/NavBar';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { censusNoun, kindLabel, noteIndex, noteKindIcon } from '../notes/kinds';
 import { autoPlural } from './presentation';
 import { fieldLabel } from './kinds';

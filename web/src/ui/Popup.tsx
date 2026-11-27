@@ -12,11 +12,12 @@ import {
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { visualViewportBounds } from './visual-viewport';
+import { matchesNoHover, matchesReducedMotion, reducedMotionQuery } from './viewport';
 import { anchorInBounds, anchoredPopupPosition, popupBounds } from './popup-position';
 import type { PopupSide } from './popup-position';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import { isPhone } from './phone';
+import { isPhone } from './viewport';
 import './overlays.css';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
@@ -324,7 +325,7 @@ function retirePanel(
   host: HTMLElement | null,
   shielded: boolean,
 ) {
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const motion = window.matchMedia(reducedMotionQuery);
   if (motion.matches) {
     panel.remove();
     scrim?.remove();
@@ -748,7 +749,7 @@ export function Popup(props: PopupProps) {
     skipRestore = false;
   };
   const nudge = () => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (matchesReducedMotion()) return;
     panel.animate([{ scale: '1' }, { scale: '1.012' }, { scale: '1' }], {
       duration: 180,
       easing: 'cubic-bezier(.2, .8, .2, 1)',
@@ -787,7 +788,7 @@ export function Popup(props: PopupProps) {
       // Touch screens start a titled menu with no row lit, so only a pointer or keyboard menu is retried, at its roving item
       // (a header's own controls are no tab stop to start on).
       const row =
-        props.role === 'menu' && !window.matchMedia('(hover: none)').matches
+        props.role === 'menu' && !matchesNoHover()
           ? panel.querySelector<HTMLElement>('[role="menuitem"][tabindex="0"], [role="menuitemradio"][tabindex="0"]')
           : null;
       if (row) {

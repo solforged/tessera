@@ -7,7 +7,7 @@ import type { OutlineIndex } from '../document/outline-index';
 import { linkMentionEdit } from '../document/link-mention';
 import { isStableReference, textTokens } from '../model/text-tokens';
 import { journalLabel, relativeDate } from '../tasks/relative-date';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { createWorkTest } from './source';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import { displayTitle, plainText } from './names';

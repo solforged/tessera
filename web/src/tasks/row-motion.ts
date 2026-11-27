@@ -1,11 +1,12 @@
 import { createSignal } from 'solid-js';
+import { matchesReducedMotion } from '../ui/viewport';
 
 const EASE = 'cubic-bezier(.2, .8, .2, 1)';
 /** A row that leaves or arrives takes about this long; the tokens cannot reach Web Animations. */
 const DURATION = 180;
 /** How long a collapsed row waits for the refetch that removes it before it is brought back. */
 const EXIT_HOLD = 1500;
-const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduced = matchesReducedMotion;
 
 /** The done glyph's pop, shared by the task status button and Agenda rows. */
 export function popStatusGlyph(icon: Element | null | undefined): void {

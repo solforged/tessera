@@ -3,7 +3,7 @@ import type { TaskRow } from '../api/types';
 import type { WorkshopClient } from '../document/contract';
 import type { OpenTarget } from '../core/contract';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { TaskSourceRows } from './JournalAgenda';
 import { createClock } from './clock';
 import { spokenJournalDate } from './journal-date';

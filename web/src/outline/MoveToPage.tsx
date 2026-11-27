@@ -2,7 +2,7 @@ import { Show, createResource, createSignal } from 'solid-js';
 import { Picker } from '../ui/Picker';
 import { Icon } from '../ui/Icon';
 import type { PopupAnchor } from '../ui/Popup';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import type { OutlineContext } from './context';
 import { completeNames } from './names';
 

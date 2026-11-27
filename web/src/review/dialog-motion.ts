@@ -4,8 +4,13 @@
  * pointer, so focus restoration and input are never held back by the exit.
  * `classes` are the dialog's own classes, so the copy is styled like the dialog.
  */
+import { matchesReducedMotion } from '../ui/viewport';
+
+/**
+ * Keeps a closed dialog's frame visible long enough for its exit transition to finish.
+ */
 export function retireDialog(root: HTMLElement, classes: string) {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (matchesReducedMotion()) return;
   const ghost = document.createElement('div');
   ghost.className = `${classes} dialog-exit`;
   ghost.inert = true;

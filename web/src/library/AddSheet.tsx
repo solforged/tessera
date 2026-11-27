@@ -7,6 +7,7 @@ import { formatSourceValue } from '../outline/source';
 import { displayTitle } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Popup, type PopupPlacement } from '../ui/Popup';
+import { isCoarsePointer } from '../ui/viewport';
 import { DetailsForm } from './DetailsForm';
 import { emptyMetadata } from './details';
 
@@ -100,11 +101,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
           row.creators.some(creator => creators.includes(catalogKey(creator)))),
     );
   });
-  const coarseMedia = window.matchMedia('(pointer: coarse)');
-  const [coarse, setCoarse] = createSignal(coarseMedia.matches);
-  const coarseChanged = () => setCoarse(coarseMedia.matches);
-  coarseMedia.addEventListener('change', coarseChanged);
-  onCleanup(() => coarseMedia.removeEventListener('change', coarseChanged));
+  const coarse = isCoarsePointer;
   const canPaste = typeof navigator.clipboard?.readText === 'function';
   const canScan = 'BarcodeDetector' in window;
   let photoInput!: HTMLInputElement;

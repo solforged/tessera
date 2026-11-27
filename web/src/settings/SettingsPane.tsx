@@ -8,7 +8,7 @@ import { besideHint, opensBeside } from '../core/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
-import { isPhone } from '../ui/phone';
+import { isPhone, matchesReducedMotion } from '../ui/viewport';
 import { setThemePreference, themePreference } from '../ui/theme';
 import { size, sync } from '../sync/state';
 import { backupLabel, backupStale } from './backup';
@@ -269,7 +269,7 @@ export function SettingsPane(props: {
     setChosen(key);
     setCurrent(key);
     const header = stickyHeaderHeight();
-    const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const smooth = !matchesReducedMotion();
     const top = element.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop - header;
     region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   };

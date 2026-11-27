@@ -1,6 +1,7 @@
 import { createMemo, For, Show } from 'solid-js';
 import type { Command, CommandRegistry } from '../core/contract';
 import { Popup } from '../ui/Popup';
+import { isPhone } from '../ui/viewport';
 import { cardOperators } from '../core/card-text';
 import './shortcuts.css';
 
@@ -45,7 +46,7 @@ export function Shortcuts(props: { commands: CommandRegistry; onDismiss(): void 
       .map(section => ({ section, commands: bound.filter(command => command.section === section) }))
       .filter(group => group.commands.length);
   });
-  const sheet = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
+  const sheet = isPhone();
   return (
     <Popup
       anchor={document.body}

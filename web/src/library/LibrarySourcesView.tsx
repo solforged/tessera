@@ -8,7 +8,7 @@ import type { WorkshopClient } from '../document/contract';
 import { displayTitle } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { clearedFilters } from './LibraryBrowseRail';
 import { formatProgress, importJobName, jobLabel, retryTime, sourceByline } from './query';
 import type { SourceGroup } from './query';

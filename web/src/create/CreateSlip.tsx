@@ -22,6 +22,7 @@ import { createClock } from '../tasks/clock';
 import { relativeDate } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/viewport';
 import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Seg } from '../ui/Seg';
@@ -57,7 +58,7 @@ export interface CreateSlipProps {
   /** Whether the slip holds typed text, so the shell can keep it over a blank capture request. */
   onDraft?(dirty: boolean): void;
 }
-const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
+const cover = isPhone;
 /** The line's kinds, each with its Inbox glyph; More offers Project and the workshop's page kinds. */
 const lineKinds: { kind: CreateKind; label: string; icon: IconName }[] = [
   { kind: 'note', label: 'Note', icon: 'bullet' },

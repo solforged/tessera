@@ -1,6 +1,6 @@
 import { For, Show, createRoot, createSignal } from 'solid-js';
 import { Button } from '../ui/Button';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Popup } from '../ui/Popup';
 import { Seg } from '../ui/Seg';
 

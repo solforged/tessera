@@ -3,7 +3,7 @@ import { ApiError } from '../api/client';
 import type { ApiClient } from '../api/client';
 import { MOBILE } from '../core/mode';
 import { Button } from '../ui/Button';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { Popup } from '../ui/Popup';
 import { deviceName, macName, normalizeHubUrl, scanPairing } from './device';
 import type { PairingTarget } from './device';

@@ -24,10 +24,9 @@ import { cardKindLabel, clozeSegments, parseCardText } from '../core/card-text';
 import { CardBack, CardFront, ClozeText } from './CardSides';
 import { gradeIntervals, gradeLabels } from './query';
 import { settleHeight } from './settle';
-import { phoneQuery } from '../ui/phone';
+import { isPhone, matchesReducedMotion } from '../ui/viewport';
 import { attachSwipe } from './swipe';
 import type { SwipeGrade } from './swipe';
-import { createPhone } from './use-phone';
 import type { ReviewSource } from './ReviewSource';
 import './review-card.css';
 
@@ -58,8 +57,6 @@ const grades = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) =
 }));
 /** A word or short phrase, such as a vocabulary card, is set large; sentences keep reading size. */
 const terse = (text: string) => text.length <= 40 && !text.includes('\n');
-/** On the cover screen a confirmation is a bottom sheet, as the shell's delete confirmation is. */
-const coverLayout = window.matchMedia(phoneQuery);
 /** Set once a card has been graded by swiping: the hint at the foot of the card has done its job. */
 const swipeUsedKey = 'tessera.review-swipe-used';
 
@@ -73,7 +70,7 @@ export function ReviewCard(props: ReviewCardProps) {
   const [error, setError] = createSignal('');
   const [resetAnchor, setResetAnchor] = createSignal<HTMLElement | null>(null);
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
-  const phone = createPhone();
+  const phone = isPhone;
   const [swipeHint, setSwipeHint] = createSignal(localStorage.getItem(swipeUsedKey) === null);
   const answerId = createUniqueId();
   const locked = () => !!props.busy || pending();
@@ -160,7 +157,7 @@ export function ReviewCard(props: ReviewCardProps) {
     if (over > 0)
       scroller.scrollBy({
         top: over,
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        behavior: matchesReducedMotion() ? 'auto' : 'smooth',
       });
   }
   function reveal() {
@@ -240,7 +237,7 @@ export function ReviewCard(props: ReviewCardProps) {
   onMount(() => {
     onCleanup(
       attachSwipe(leaf, {
-        enabled: () => coverLayout.matches && revealed() && !locked() && !resetAnchor(),
+        enabled: () => isPhone() && revealed() && !locked() && !resetAnchor(),
         onDrag(dx, armed) {
           leaf.dataset.dragging = '';
           leaf.dataset.swipe = armed ?? '';
@@ -644,7 +641,7 @@ export function ReviewCard(props: ReviewCardProps) {
         {anchor => (
           <Popup
             anchor={anchor()}
-            placement={coverLayout.matches ? 'sheet' : 'anchor'}
+            placement={isPhone() ? 'sheet' : 'anchor'}
             label="Reset progress"
             class="review-card-reset"
             onDismiss={() => setResetAnchor(null)}

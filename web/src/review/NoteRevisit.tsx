@@ -6,7 +6,7 @@ import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import { changeRevisit, workingNote } from './revisits';
 import { calendarDate } from '../tasks/relative-date';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import './revisits.css';
 
 export function NoteRevisit(props: { id: string; workshop: WorkshopClient }) {

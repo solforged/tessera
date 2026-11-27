@@ -2,7 +2,7 @@ import { batch, createMemo, createSignal, createUniqueId, Index, onCleanup, onMo
 import type { JSX } from 'solid-js';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
-import { isPhone } from './phone';
+import { isPhone, matchesNoHover, matchesReducedMotion } from './viewport';
 import { Popup } from './Popup';
 import type { PopupAnchor, PopupPlacement } from './Popup';
 
@@ -52,7 +52,7 @@ const milliseconds = (value: string) => {
 };
 /** A drill-in glides for the UI motion token; reduced motion (0ms) swaps pages at once. */
 function glideTiming(element: HTMLElement) {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return { duration: 0, easing: 'linear' };
+  if (matchesReducedMotion()) return { duration: 0, easing: 'linear' };
   const style = getComputedStyle(element);
   return {
     duration: milliseconds(style.getPropertyValue('--motion-ui')),
@@ -233,7 +233,7 @@ export function Menu(props: {
   // focus back to its opener.
   onMount(() => {
     if (phone) viewport.focus({ preventScroll: true });
-    else if (props.title === undefined || !window.matchMedia('(hover: none)').matches) focusRow(initialIndex());
+    else if (props.title === undefined || !matchesNoHover()) focusRow(initialIndex());
     // Escape in a drilled-in page steps back one level and leaves the menu open; Popup, which closes the whole menu on
     // Escape from its document capture, never sees it. At the first page Escape is Popup's.
     const escape = (event: KeyboardEvent) => {

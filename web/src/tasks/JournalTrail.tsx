@@ -13,7 +13,8 @@ import {
   journalYearMonths,
   spokenJournalDate,
 } from './journal-date';
-import { createPhone, installDaySwipe } from './journal-phone';
+import { coarseQuery, isPhone } from '../ui/viewport';
+import { installDaySwipe } from './journal-phone';
 
 type Period = 'year' | 'quarter' | 'month' | 'week';
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -37,7 +38,7 @@ export function JournalTrail(props: {
   const [ledger, setLedger] = createSignal<{ kind: Period; date: string } | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const coarse = matchMedia('(pointer: coarse)');
+  const coarse = window.matchMedia(coarseQuery);
   const [touch, setTouch] = createSignal(coarse.matches);
   const changePointer = () => setTouch(coarse.matches);
   coarse.addEventListener('change', changePointer);
@@ -84,7 +85,7 @@ export function JournalTrail(props: {
   const week = createMemo(() => journalISOWeek(focus()));
   // The trail runs from the nearest period outward: week, month, then year; the quarter shows only while its ledger is open.
   // A phone leaves the month to the title and the day picker, so it joins the trail only while its ledger is open.
-  const phone = createPhone();
+  const phone = isPhone;
   const segments = createMemo(() => [
     { kind: 'week' as const, label: `Week ${week().week}`, name: `Week ${week().week}, ${week().year}` },
     ...(!phone() || ledger()?.kind === 'month'

@@ -11,7 +11,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { SearchWell } from '../ui/SearchWell';
-import { isPhone } from '../ui/phone';
+import { isPhone } from '../ui/viewport';
 import { TypeFieldsPane } from './TypeFieldsPane';
 import { FieldDetails } from './FieldDetails';
 import './fields.css';

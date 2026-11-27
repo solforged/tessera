@@ -24,7 +24,7 @@ import { ResourceImage } from '../library/ResourceImage';
 import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
 import { Seg } from '../ui/Seg';
-import { isPhone } from '../ui/phone';
+import { hasSplitPreview, isPhone } from '../ui/viewport';
 import './find.css';
 import { createVisualViewport } from '../ui/visual-viewport';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from '../core/contract';
@@ -178,11 +178,7 @@ export function Palette(props: {
       if (kind && kind.key !== 'unfiled') return kind;
     }
   };
-  const previewMedia = window.matchMedia('(min-width: 840px)');
-  const [wide, setWide] = createSignal(previewMedia.matches);
-  const updateWidth = () => setWide(previewMedia.matches);
-  previewMedia.addEventListener('change', updateWidth);
-  onCleanup(() => previewMedia.removeEventListener('change', updateWidth));
+  const wide = hasSplitPreview;
   const viewportSize = createVisualViewport();
   const [passageHits, setPassageHits] = createSignal<PassageHit[]>([]);
   const [passagesLoading, setPassagesLoading] = createSignal(false);

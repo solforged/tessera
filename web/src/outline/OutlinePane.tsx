@@ -40,6 +40,7 @@ import { Menu } from '../ui/Menu';
 import { NoticeView, type NoticeAction } from '../ui/Notice';
 import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
+import { isPhone, isVirtualKeyboardOpen, matchesCoarsePointer } from '../ui/viewport';
 import { BlockText } from './BlockText';
 import { displayTitle, plainText, tagLabel } from './names';
 import { titleKey } from '../document/title-key';
@@ -257,11 +258,7 @@ function Pane(props: OutlinePaneProps) {
     composing,
   } = selection;
   const editingBarVisible = () =>
-    props.active &&
-    editorFocused() &&
-    !!editing() &&
-    window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches &&
-    viewport().height < screen.height * 0.7;
+    props.active && editorFocused() && !!editing() && isPhone() && isVirtualKeyboardOpen(viewport().height);
   const [message, setMessage] = createSignal('');
   /** A change with its Undo, or an offer whose action stands in for Undo. */
   const [notice, setNotice] = createSignal<{
@@ -2129,7 +2126,7 @@ function Pane(props: OutlinePaneProps) {
     on(
       () => props.active,
       active => {
-        if (active || !window.matchMedia('(pointer: coarse)').matches) return;
+        if (active || !matchesCoarsePointer()) return;
         focusEpoch++;
         focusRequest = null;
         if (editor?.view.hasFocus) editor.view.contentDOM.blur();
@@ -2204,7 +2201,7 @@ function Pane(props: OutlinePaneProps) {
       }
       // A touch visit selects its remembered or empty row without opening the keyboard.
       // Explicit creation/edit requests still begin editing; the shell strips them from touch history.
-      if (first && !initial.edit && (saved || window.matchMedia('(pointer: coarse)').matches)) {
+      if (first && !initial.edit && (saved || matchesCoarsePointer())) {
         setEditing(null);
         setSelected(first.id);
         setCaret(first);
