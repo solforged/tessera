@@ -1158,6 +1158,7 @@ export function Pane(props: {
                     workshop={workshop.workshop}
                     active={props.active}
                     onActivate={props.onActivate}
+                    onCreate={workshop.onCreate}
                     onOpen={(target, beside) => {
                       if (generation === props.session().generation) props.onOpen(target, beside);
                     }}
@@ -1328,6 +1329,7 @@ export function Pane(props: {
                       view={snapshotView(current().view) as IndexViewState}
                       workshop={workshop.workshop}
                       onActivate={props.onActivate}
+                      onCreate={workshop.onCreate}
                       onNewAction={action => {
                         if (generation === props.session().generation) setKindCreate(action);
                       }}

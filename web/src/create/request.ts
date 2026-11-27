@@ -1,4 +1,5 @@
 import { parseCardText } from '../core/card-text';
+import type { OpenTarget } from '../core/contract';
 
 /**
  * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and
@@ -27,6 +28,13 @@ export interface CreateRequest {
   scheduledDate?: string;
   /** Find's “as…” action starts at the kind chooser instead of the draft. */
   focus?: 'kind';
+}
+
+/** Optional shell overrides when a pane opens the shared creation slip. */
+export interface CreateOptions {
+  defaultBeside?: boolean;
+  onCreated?(pageId: string): void;
+  onOpen?(target: OpenTarget, beside: boolean): void;
 }
 
 const builtIn: Record<string, true> = {

@@ -86,7 +86,7 @@ import { PaneDivider } from './PaneDivider';
 import { ViewLinks } from './ViewLinks';
 import { blankCapture, createEvent } from '../create/request';
 import { resumeLinkImports } from '../create/link-import';
-import type { CreateRequest } from '../create/request';
+import type { CreateOptions, CreateRequest } from '../create/request';
 import type { CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
@@ -1075,15 +1075,20 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       reportError(reason);
     }
   };
-  const [creation, setCreation] = createSignal<{ request: CreateRequest; anchor?: PopupAnchor; pane: PaneId }>();
+  const [creation, setCreation] = createSignal<{
+    request: CreateRequest;
+    anchor?: PopupAnchor;
+    pane: PaneId;
+    options?: CreateOptions;
+  }>();
   const [createDirty, setCreateDirty] = createSignal(false);
   // Opening cancels a pane refocus still pending from a slip that just closed, which would take the new slip's focus.
-  const openCreate = (request: CreateRequest, anchor?: PopupAnchor) => {
+  const openCreate = (request: CreateRequest, anchor?: PopupAnchor, options?: CreateOptions) => {
     focusEpoch++;
     setPopup(null);
     setTypesMenu(null);
     setCreateDirty(false);
-    setCreation({ request, anchor, pane: active() });
+    setCreation({ request, anchor, pane: active(), options });
   };
   /** A shortcut or widget tap while a draft is open returns to that draft; only a request carrying text replaces it. */
   const quickCreate = (request: CreateRequest) => {
@@ -3233,8 +3238,12 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
                 workshop={workshop}
                 request={state.request}
                 anchor={state.anchor}
+                defaultBeside={state.options?.defaultBeside}
                 onDismiss={closeCreate}
-                onOpen={(target, beside) => open(target, beside, state.pane)}
+                onCreated={state.options?.onCreated}
+                onOpen={(target, beside) =>
+                  state.options?.onOpen ? state.options.onOpen(target, beside) : open(target, beside, state.pane)
+                }
                 onNotice={showNotice}
                 onDraft={setCreateDirty}
               />

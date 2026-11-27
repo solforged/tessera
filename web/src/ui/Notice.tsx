@@ -74,8 +74,14 @@ export interface NoticeOptions {
   action?: NoticeAction | NoticeAction[];
   /** How long the notice waits, in milliseconds, with nothing resting on it. Default 8000. */
   duration?: number;
+  /** Accessible name of the close cross, or `null` to omit it when an action offers dismissal. */
+  dismissLabel?: string | null;
+  /** Extra class on the notice element. */
+  class?: string;
   /** Where a failed action's error goes; without it the error is reported as an uncaught one. */
   onError?(reason: unknown): void;
+  /** Called once when this notice leaves (action completed, dismissed, replaced, or expired). */
+  onClose?(): void;
 }
 
 interface Live {
@@ -88,12 +94,19 @@ const [held, setHeld] = createSignal(false);
 const [busy, setBusy] = createSignal(false);
 let mounted = false;
 
+function replaceCurrent(next: Live | undefined) {
+  const previous = current();
+  if (previous === next) return;
+  setCurrent(next);
+  previous?.options.onClose?.();
+}
+
 async function run(live: Live, action: NoticeAction) {
   if (busy()) return;
   setBusy(true);
   try {
     await action.run();
-    if (current() === live) setCurrent(undefined);
+    if (current() === live) replaceCurrent(undefined);
   } catch (reason) {
     if (live.options.onError) live.options.onError(reason);
     else reportError(reason);
@@ -107,11 +120,10 @@ function NoticeHost() {
   const shown = createRetained(current);
   createEffect(() => {
     const live = current();
-    if (!live || held()) return;
-    const timer = setTimeout(
-      () => setCurrent(value => (value === live ? undefined : value)),
-      live.options.duration ?? DURATION,
-    );
+    if (!live || held() || busy()) return;
+    const timer = setTimeout(() => {
+      if (current() === live) replaceCurrent(undefined);
+    }, live.options.duration ?? DURATION);
     onCleanup(() => clearTimeout(timer));
   });
   return (
@@ -122,9 +134,14 @@ function NoticeHost() {
           actions={item().value.actions}
           busy={busy()}
           leaving={item().leaving}
-          dismissLabel="Dismiss notification"
+          dismissLabel={
+            item().value.options.dismissLabel === null
+              ? undefined
+              : (item().value.options.dismissLabel ?? 'Dismiss notification')
+          }
+          class={item().value.options.class}
           onAction={action => void run(item().value, action)}
-          onDismiss={() => setCurrent(undefined)}
+          onDismiss={() => replaceCurrent(undefined)}
           onHold={value => setHeld(value)}
         />
       )}
@@ -149,11 +166,13 @@ export function showNotice(options: NoticeOptions): () => void {
     actions: options.action === undefined ? [] : Array.isArray(options.action) ? options.action : [options.action],
   };
   setHeld(false);
-  setCurrent(live);
-  return () => setCurrent(value => (value === live ? undefined : value));
+  replaceCurrent(live);
+  return () => {
+    if (current() === live) replaceCurrent(undefined);
+  };
 }
 
 /** Closes whichever notice is showing. */
 export function dismissNotice(): void {
-  setCurrent(undefined);
+  replaceCurrent(undefined);
 }

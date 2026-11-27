@@ -53,7 +53,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
-import { InlinePopups, Popup } from '../ui/Popup';
+import { InlinePopups, Popup, type PopupAnchor } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import {
@@ -69,15 +69,14 @@ import {
 } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
-import { lazy as solidLazy } from 'solid-js';
 import { kindNoun } from '../create/kinds';
+import type { CreateOptions, CreateRequest } from '../create/request';
 import { createTopicQuery } from '../ui/loading';
 import { SavedViewNamePopup } from '../workflows/saved-views';
 import '../ui/chips.css';
 import './notes.css';
 import '../fields/fields.css';
 
-const CreateSlip = solidLazy(() => import('../create/CreateSlip').then(module => ({ default: module.CreateSlip })));
 import { QuestionLedger } from './QuestionLedger';
 import { sourceKindLabel } from '../library/query';
 
@@ -88,6 +87,7 @@ interface IndexPaneProps {
   workshop: WorkshopClient;
   neighbour?: boolean;
   onActivate(): void;
+  onCreate(request: CreateRequest, anchor?: PopupAnchor, options?: CreateOptions): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: IndexViewState): void;
   onDeletePages?(pages: { id: string; title: string }[]): Promise<void>;
@@ -872,7 +872,7 @@ function KindIndexPane(props: IndexPaneProps) {
           <NewKindAction
             kindKey={props.kindKey}
             kind={props.kind}
-            workshop={props.workshop}
+            onCreate={props.onCreate}
             onOpen={props.onOpen}
             onNewAction={props.onNewAction}
             members={index.latest?.notes}
@@ -1362,7 +1362,7 @@ function KindIndexPane(props: IndexPaneProps) {
                         <EmptyKind
                           kindKey={props.kindKey}
                           kind={props.kind}
-                          workshop={props.workshop}
+                          onCreate={props.onCreate}
                           onOpen={props.onOpen}
                         />
                       }
@@ -1695,7 +1695,7 @@ function KindIndexPane(props: IndexPaneProps) {
 }
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
-function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'workshop' | 'onOpen'>) {
+function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'onCreate' | 'onOpen'>) {
   const mode = () => (props.kind ? startableKinds[props.kindKey] : undefined);
   // A type that only tags blocks has members, just none of them notes; its table lists them.
   const tagged = () =>
@@ -1751,56 +1751,51 @@ function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'workshop' |
 }
 
 function NewKindAction(
-  props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'workshop' | 'onOpen' | 'onNewAction'> & {
+  props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'onCreate' | 'onOpen' | 'onNewAction'> & {
     members?: { id: string }[];
     visible?: boolean;
   },
 ) {
-  const [anchor, setAnchor] = createSignal<HTMLElement>();
   const mode = () =>
     props.kind ? (startableKinds[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined)) : undefined;
+  const openSlip = (anchor: HTMLElement) => {
+    const kind = mode();
+    if (!kind) return;
+    props.onCreate(
+      {
+        kind:
+          kind === 'task'
+            ? 'task'
+            : kind === 'question'
+              ? 'question'
+              : kind === 'project'
+                ? 'project'
+                : `type:${props.kindKey}`,
+        text: '',
+        lockKind: true,
+      },
+      anchor,
+      {
+        defaultBeside: matchesCoarsePointer() && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1,
+        onOpen: props.onOpen,
+      },
+    );
+  };
   createEffect(() =>
-    props.onNewAction?.(mode() ? { label: `New ${kindNoun(props.kind!)}`, run: setAnchor } : undefined),
+    props.onNewAction?.(mode() ? { label: `New ${kindNoun(props.kind!)}`, run: openSlip } : undefined),
   );
   onCleanup(() => props.onNewAction?.(undefined));
   return (
-    <>
-      <Show when={mode() && props.visible !== false}>
-        <Button
-          class="bordered index-new-kind"
-          icon="plus"
-          aria-haspopup="dialog"
-          onClick={event => setAnchor(event.currentTarget)}
-        >
-          New {kindNoun(props.kind!)}…
-        </Button>
-      </Show>
-      <Show when={anchor()}>
-        {target => (
-          <CreateSlip
-            request={{
-              kind:
-                mode() === 'task'
-                  ? 'task'
-                  : mode() === 'question'
-                    ? 'question'
-                    : mode() === 'project'
-                      ? 'project'
-                      : `type:${props.kindKey}`,
-              text: '',
-              lockKind: true,
-            }}
-            anchor={target()}
-            workshop={props.workshop}
-            onDismiss={() => setAnchor(undefined)}
-            defaultBeside={
-              matchesCoarsePointer() && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1
-            }
-            onOpen={props.onOpen}
-          />
-        )}
-      </Show>
-    </>
+    <Show when={mode() && props.visible !== false}>
+      <Button
+        class="bordered index-new-kind"
+        icon="plus"
+        aria-haspopup="dialog"
+        onClick={event => openSlip(event.currentTarget)}
+      >
+        New {kindNoun(props.kind!)}…
+      </Button>
+    </Show>
   );
 }
 

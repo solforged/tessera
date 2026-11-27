@@ -30,6 +30,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
+import { showNotice } from '../ui/Notice';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { HighlightComposer } from './HighlightComposer';
@@ -137,13 +138,15 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [editError, setEditError] = createSignal('');
   const [editing, setEditing] = createSignal(false);
   const [mergeMessage, setMergeMessage] = createSignal('');
-  const [removedNotice, setRemovedNotice] = createSignal(false);
-  const [noticeHeld, setNoticeHeld] = createSignal(false);
+  let dismissRemovedNotice: (() => void) | undefined;
+  const clearRemovedNotice = () => {
+    dismissRemovedNotice?.();
+    dismissRemovedNotice = undefined;
+  };
   createEffect(() => {
-    if (!removedNotice() || noticeHeld()) return;
-    const timer = setTimeout(() => setRemovedNotice(false), 8000);
-    onCleanup(() => clearTimeout(timer));
+    if (!props.active) clearRemovedNotice();
   });
+  onCleanup(clearRemovedNotice);
   const readerDocument = props.workshop.open(props.target.sourceId);
   // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
   // what the file said at import, and stands in only until the page has loaded.
@@ -191,8 +194,17 @@ export function ReaderPane(props: ReaderPaneProps) {
     setError,
     undefined,
     () => {
-      setNoticeHeld(false);
-      setRemovedNotice(true);
+      if (!props.active) return;
+      const dismiss = showNotice({
+        text: 'Highlight removed',
+        action: { label: 'Undo', icon: 'undo', run: undoHighlight },
+        dismissLabel: 'Dismiss highlight removal notice',
+        class: 'reader-highlight-undo',
+        onClose: () => {
+          if (dismissRemovedNotice === dismiss) dismissRemovedNotice = undefined;
+        },
+      });
+      dismissRemovedNotice = dismiss;
     },
     composeNote,
   );
@@ -1347,7 +1359,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (!value || value.blockedReason || editing()) return;
     setEditing(true);
     setEditError('');
-    setRemovedNotice(false);
+    clearRemovedNotice();
     const sourceId = props.target.sourceId,
       doc = readerDocument;
     try {
@@ -1549,7 +1561,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (range !== value) await writeSelection(range);
   }
   async function undoHighlight() {
-    setRemovedNotice(false);
+    clearRemovedNotice();
     try {
       if (actions.canUndo()) await actions.undo();
       else {
@@ -1750,12 +1762,12 @@ export function ReaderPane(props: ReaderPaneProps) {
   const pointerDown = (event: PointerEvent) => {
     besidePressed = opensBeside(event);
     dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false;
-    if (!(event.target instanceof Element && event.target.closest('.reader-highlight-undo'))) setRemovedNotice(false);
+    if (!(event.target instanceof Element && event.target.closest('.reader-highlight-undo'))) clearRemovedNotice();
   };
 
   const readerKey = (event: KeyboardEvent) => {
     if (props.active && !(event.target instanceof Element && event.target.closest('.reader-highlight-undo')))
-      setRemovedNotice(false);
+      clearRemovedNotice();
     if (
       props.active &&
       !composing() &&
@@ -2835,30 +2847,6 @@ export function ReaderPane(props: ReaderPaneProps) {
             }}
           />
         )}
-      </Show>
-      <Show when={props.active && removedNotice()}>
-        <div
-          class="undo-toast reader-highlight-undo"
-          role="status"
-          onPointerEnter={() => setNoticeHeld(true)}
-          onPointerLeave={() => setNoticeHeld(false)}
-          onFocusIn={() => setNoticeHeld(true)}
-          onFocusOut={event => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false);
-          }}
-        >
-          <span>Highlight removed</span>
-          <Button
-            icon="undo"
-            disabled={!actions.canUndo()}
-            onClick={() => {
-              void undoHighlight();
-            }}
-          >
-            Undo
-          </Button>
-          <Button icon="close" label="Dismiss highlight removal notice" onClick={() => setRemovedNotice(false)} />
-        </div>
       </Show>
       <actions.Popups />
     </div>

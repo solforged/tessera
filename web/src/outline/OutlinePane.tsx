@@ -37,7 +37,7 @@ import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
-import { NoticeView, type NoticeAction } from '../ui/Notice';
+import { showNotice as presentNotice, type NoticeAction } from '../ui/Notice';
 import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { isPhone, isVirtualKeyboardOpen, matchesCoarsePointer } from '../ui/viewport';
@@ -260,62 +260,81 @@ function Pane(props: OutlinePaneProps) {
   const editingBarVisible = () =>
     props.active && editorFocused() && !!editing() && isPhone() && isVirtualKeyboardOpen(viewport().height);
   const [message, setMessage] = createSignal('');
-  /** A change with its Undo, or an offer whose action stands in for Undo. */
-  const [notice, setNotice] = createSignal<{
-    label: string;
-    undo?: () => Promise<void>;
-    action?: { label: string; run: () => Promise<void> };
-  } | null>(null);
-  const [noticeBusy, setNoticeBusy] = createSignal(false);
-  const [noticeHeld, setNoticeHeld] = createSignal(false);
+  /** A change with its Undo, or an offer whose action stands in for Undo, routed through the shared shell notice. */
+  let pendingUndo: { run(): Promise<void>; dismiss(): void } | null = null;
+  let undoBusy = false;
+  let dismissOutlineNotice: (() => void) | undefined;
+  onCleanup(() => dismissOutlineNotice?.());
   function showNotice(label: string, undo?: () => Promise<void>, action?: { label: string; run: () => Promise<void> }) {
     setMessage('');
-    setNoticeHeld(false);
-    setNotice({ label, undo, action });
+    const actions: NoticeAction[] = [];
+    let entry: { run(): Promise<void>; dismiss(): void } | null = null;
+    const runUndo = async () => {
+      if (!undo || undoBusy) return;
+      undoBusy = true;
+      try {
+        await undo();
+      } finally {
+        undoBusy = false;
+        restoreFocus();
+      }
+    };
+    if (undo) actions.push({ label: 'Undo', icon: 'undo', run: runUndo });
+    if (action) {
+      actions.push(
+        {
+          label: action.label,
+          run: async () => {
+            try {
+              await action.run();
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : String(error));
+              dismiss();
+            } finally {
+              restoreFocus();
+            }
+          },
+        },
+        { label: 'Not now', run: () => {} },
+      );
+    }
+    const dismiss = presentNotice({
+      text: label,
+      action: actions,
+      duration: 10000,
+      dismissLabel: action ? null : 'Dismiss change notice',
+      onError: error => setMessage(error instanceof Error ? error.message : String(error)),
+      onClose: () => {
+        if (pendingUndo === entry) pendingUndo = null;
+        if (dismissOutlineNotice === dismiss) dismissOutlineNotice = undefined;
+      },
+    });
+    dismissOutlineNotice = dismiss;
+    if (undo) {
+      entry = {
+        run: async () => {
+          try {
+            await runUndo();
+            dismiss();
+          } catch (error) {
+            setMessage(error instanceof Error ? error.message : String(error));
+          }
+        },
+        dismiss,
+      };
+      pendingUndo = entry;
+    }
   }
-  createEffect(() => {
-    if (!notice() || noticeHeld() || noticeBusy()) return;
-    const timer = setTimeout(() => setNotice(null), 10000);
-    onCleanup(() => clearTimeout(timer));
-  });
   // A newer outline edit returns keyboard history to this document. Until then the notice owns Undo.
   createEffect(
     on(
       () => doc.saveState(),
       state => {
-        if (state !== 'saved' && notice()?.undo) setNotice(null);
+        if (state !== 'saved' && pendingUndo) pendingUndo.dismiss();
       },
       { defer: true },
     ),
   );
-  async function runNoticeAction() {
-    const current = notice();
-    if (!current?.action || noticeBusy()) return;
-    setNoticeBusy(true);
-    try {
-      await current.action.run();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-      if (notice() === current) setNotice(null);
-    } finally {
-      setNoticeBusy(false);
-      restoreFocus();
-    }
-  }
-  async function undoNotice() {
-    const current = notice();
-    if (!current?.undo || noticeBusy()) return;
-    setNoticeBusy(true);
-    try {
-      await current.undo();
-      if (notice() === current) setNotice(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setNoticeBusy(false);
-      restoreFocus();
-    }
-  }
   const [menu, setMenu] = createSignal<MenuState | null>(null);
   const [tagRegistry] = createResource(
     () => [props.workshop.changed('pages'), props.workshop.connection()] as const,
@@ -1372,8 +1391,8 @@ function Pane(props: OutlinePaneProps) {
   }
   function undo(redo = false) {
     if (disposed || composition()) return;
-    if (!redo && notice()?.undo) {
-      void undoNotice();
+    if (!redo && pendingUndo) {
+      void pendingUndo.run();
       return;
     }
     const before = ids();
@@ -2805,36 +2824,6 @@ function Pane(props: OutlinePaneProps) {
           rowFocus={rowFocus}
         />
       </Show>
-      <div class="outline-notices">
-        <Show when={notice()}>
-          {value => (
-            <NoticeView
-              text={value().label}
-              busy={noticeBusy()}
-              dismissLabel={value().action ? undefined : 'Dismiss change notice'}
-              actions={
-                [
-                  ...(value().undo ? [{ label: 'Undo', icon: 'undo' as const, run: undoNotice }] : []),
-                  ...(value().action
-                    ? [
-                        { label: value().action!.label, run: runNoticeAction },
-                        {
-                          label: 'Not now',
-                          run: () => {
-                            setNotice(null);
-                          },
-                        },
-                      ]
-                    : []),
-                ] satisfies NoticeAction[]
-              }
-              onAction={action => void action.run()}
-              onDismiss={() => setNotice(null)}
-              onHold={held => setNoticeHeld(held)}
-            />
-          )}
-        </Show>
-      </div>
     </>
   );
 }

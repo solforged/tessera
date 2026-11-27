@@ -16,7 +16,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
-import { Popup } from '../ui/Popup';
+import { Popup, type PopupAnchor } from '../ui/Popup';
 import { NavButton, NavEnd } from '../ui/NavBar';
 import { openContextMenu } from '../ui/context-menu';
 import { coarseQuery, isPhone, matchesCoarsePointer } from '../ui/viewport';
@@ -28,8 +28,8 @@ import { createOptionValue } from '../fields/commands';
 import { requiredReason } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import { noteKindIcon } from '../notes/kinds';
-import { lazy as solidLazy } from 'solid-js';
 import { kindNoun } from '../create/kinds';
+import type { CreateOptions, CreateRequest } from '../create/request';
 import { FilterPopup } from './FilterPopup';
 import { fieldEntryId } from '../core/field-entry';
 import {
@@ -75,8 +75,6 @@ import '../fields/fields.css';
 import { TaskFieldEditor } from '../tasks/TaskFieldEditor';
 import { taskFieldName } from '../tasks/task-fields';
 
-const CreateSlip = solidLazy(() => import('../create/CreateSlip').then(module => ({ default: module.CreateSlip })));
-
 type TableTarget = Extract<OpenTarget, { kind: 'table' }>;
 export interface TablePaneProps {
   pane: PaneId;
@@ -86,6 +84,7 @@ export interface TablePaneProps {
   active: boolean;
   neighbour?: boolean;
   onActivate(): void;
+  onCreate(request: CreateRequest, anchor?: PopupAnchor, options?: CreateOptions): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onTargetChange(target: TableTarget): void;
   onViewChange(view: TableViewState): void;
@@ -107,7 +106,6 @@ type PopupState =
   | { kind: 'purpose'; anchor: HTMLElement }
   | { kind: 'sources'; anchor: HTMLElement; label: string; sources: TableSource[] }
   | { kind: 'delete'; anchor: HTMLElement; view: View }
-  | { kind: 'new-row'; anchor: HTMLElement }
   | { kind: 'delete-row'; anchor: HTMLElement; row: QueryRow }
   | { kind: 'embed-page'; anchor: HTMLElement; view: View }
   | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
@@ -1525,28 +1523,6 @@ function TableContent(props: TablePaneProps) {
               }}
             />
           )}
-          {state.kind === 'new-row' && rowKind() && (
-            <CreateSlip
-              request={{
-                kind: rowKind()!.key === 'question' ? 'question' : `type:${rowKind()!.key}`,
-                text: '',
-                lockKind: true,
-              }}
-              anchor={state.anchor}
-              workshop={props.workshop}
-              onDismiss={() => setPopup(null)}
-              defaultBeside={matchesCoarsePointer() && !!props.neighbour}
-              onCreated={pageId => {
-                history.push({ kind: 'created-row', pageId });
-                undone.length = 0;
-                setViewUndo(false);
-                setRowUndo(false);
-              }}
-              onOpen={(target, beside) => {
-                if (target.kind === 'page') void revealNewRow(target, beside).catch(message);
-              }}
-            />
-          )}
           {state.kind === 'delete-row' && (
             <Popup
               anchor={state.anchor}
@@ -1713,6 +1689,30 @@ function TableContent(props: TablePaneProps) {
       )}
     </Show>
   );
+  const openNewRow = (anchor: HTMLElement) => {
+    const kind = rowKind();
+    if (!kind) return;
+    props.onCreate(
+      {
+        kind: kind.key === 'question' ? 'question' : `type:${kind.key}`,
+        text: '',
+        lockKind: true,
+      },
+      anchor,
+      {
+        defaultBeside: matchesCoarsePointer() && !!props.neighbour,
+        onCreated: pageId => {
+          history.push({ kind: 'created-row', pageId });
+          undone.length = 0;
+          setViewUndo(false);
+          setRowUndo(false);
+        },
+        onOpen: (target, beside) => {
+          if (target.kind === 'page') void revealNewRow(target, beside).catch(message);
+        },
+      },
+    );
+  };
   return (
     <div
       ref={region}
@@ -1736,7 +1736,7 @@ function TableContent(props: TablePaneProps) {
               icon="plus"
               label={`New ${kindNoun(kind())}`}
               aria-haspopup="dialog"
-              onClick={event => setPopup({ kind: 'new-row', anchor: event.currentTarget })}
+              onClick={event => openNewRow(event.currentTarget)}
             />
           </NavEnd>
         )}
@@ -1846,7 +1846,7 @@ function TableContent(props: TablePaneProps) {
                   class="bordered"
                   icon="plus"
                   aria-haspopup="dialog"
-                  onClick={event => setPopup({ kind: 'new-row', anchor: event.currentTarget })}
+                  onClick={event => openNewRow(event.currentTarget)}
                 >
                   New {kindNoun(kind())}…
                 </Button>

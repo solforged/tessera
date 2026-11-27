@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'solid-js';
 import type { NoteKind } from '../api/types';
-import type { CreateRequest } from '../create/request';
+import type { CreateOptions, CreateRequest } from '../create/request';
 import type { WorkshopClient } from '../document/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import type { CommandRegistry, PagePresentation } from '../core/contract';
@@ -19,7 +19,7 @@ export interface WorkshopShell {
   readonly noteKinds: NoteKind[] | undefined;
   readonly atomCount: number | undefined;
   readonly directoryReady: boolean;
-  onCreate(request: CreateRequest, anchor?: PopupAnchor): void;
+  onCreate(request: CreateRequest, anchor?: PopupAnchor, options?: CreateOptions): void;
   onPagePresentation(id: string, value: PagePresentation): void;
   onDeleteSources(sources: { id: string; title: string }[]): Promise<void>;
 }
