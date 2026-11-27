@@ -383,7 +383,10 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     insertAt?: number,
     turn: 'forward' | 'back' = 'forward',
   ) => {
-    beside = beside && canOpenBeside(owner);
+    if (beside && !canOpenBeside(owner)) {
+      beside = false;
+      showNotice({ message: 'Needs a wider window to open beside.' });
+    }
     const slot =
       insertAt !== undefined
         ? { index: insertAt, existing: null }
@@ -648,7 +651,10 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     beside = false,
     journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod'],
   ) => {
-    beside = beside && canOpenBeside(owner);
+    if (beside && !canOpenBeside(owner)) {
+      beside = false;
+      showNotice({ message: 'Needs a wider window to open beside.' });
+    }
     const pane: PaneId = beside ? (besideSlot(order(), owner).existing ?? `${owner}:beside`) : owner;
     // An earlier day than the one showing turns back, as Back does.
     const showing = workshop.roots().find(root => root.id === pageIdOf(entry(owner)));

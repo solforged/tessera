@@ -48,6 +48,7 @@ export function PageDraft(props: {
   const [fields, setFields] = createSignal(blankDraftFields());
   const id = createUniqueId();
   let title!: HTMLTextAreaElement;
+  let gistInput: HTMLTextAreaElement | undefined;
   const mode = () => (props.kind.startsWith('type:') ? 'type' : props.kind);
   const noun = () => (props.noteKind ? kindNoun(props.noteKind) : props.kind === 'note' ? 'note' : props.kind);
   const query = () => props.text.trim();
@@ -101,6 +102,10 @@ export function PageDraft(props: {
   const fit = () => {
     title.style.height = 'auto';
     title.style.height = `${title.scrollHeight}px`;
+    if (gistInput) {
+      gistInput.style.height = 'auto';
+      gistInput.style.height = `${gistInput.scrollHeight}px`;
+    }
   };
   onMount(() => {
     fit();
@@ -204,14 +209,19 @@ export function PageDraft(props: {
             <label class="visually-hidden" for={`${id}-gist`}>
               Gist
             </label>
-            <input
+            <textarea
+              ref={gistInput}
               id={`${id}-gist`}
               class="new-kind-gist"
+              rows={1}
               value={props.gist}
               disabled={busy()}
               autocomplete="off"
               placeholder={gistPrompt[mode()]?.(noun())}
-              onInput={event => props.onGistChange(event.currentTarget.value)}
+              onInput={event => {
+                props.onGistChange(event.currentTarget.value.replace(/[\r\n]+/g, ' '));
+                fit();
+              }}
             />
           </Show>
         }
@@ -281,7 +291,7 @@ export function PageDraft(props: {
         </Button>
         <Show when={!props.sheet}>
           <Button class="create-cancel" disabled={busy()} onClick={props.onDismiss}>
-            Cancel
+            {props.status && !query() ? 'Done' : 'Cancel'}
           </Button>
         </Show>
       </footer>

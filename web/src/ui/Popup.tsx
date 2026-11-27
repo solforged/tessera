@@ -799,11 +799,11 @@ export function Popup(props: PopupProps) {
       focusDone = true;
       return;
     }
+    if (!placed || focusDone || disposed || !position().visible || !panel.isConnected || !topmost()) return;
     if (performance.now() - placedAt > 2000) {
       focusDone = true;
       return;
     }
-    if (focusDone || disposed || !position().visible || !panel.isConnected || !topmost()) return;
     const current = document.activeElement;
     if (current instanceof HTMLElement && current !== panel && panel.contains(current)) {
       focusDone = true;

@@ -360,6 +360,8 @@
     background: transparent;
     color: var(--muted);
     font: var(--weight-body) var(--text-gloss) / var(--line-gloss) var(--font-display);
+    resize: none;
+    overflow: hidden;
     transition: border-color var(--motion-fast) var(--motion-ease);
   }
   .create-page .new-kind-gist:focus {

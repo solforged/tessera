@@ -1230,7 +1230,7 @@ export function createOutlineCompletions(
         id: 'perspective',
         title: 'Make perspective',
         aliases: ['position', 'view'],
-        section: 'Note',
+        section: 'Perspective',
         icon: 'link',
         keys: 'Space v',
         when: block => block?.kind === 'block' && !block.position,
@@ -1241,7 +1241,7 @@ export function createOutlineCompletions(
         id: 'remove-perspective',
         title: 'Remove perspective',
         aliases: ['remove position', 'remove view'],
-        section: 'Note',
+        section: 'Perspective',
         icon: 'close',
         keys: 'Space v',
         when: block => block?.kind === 'block' && !!block.position,
@@ -1251,7 +1251,7 @@ export function createOutlineCompletions(
         id: 'change-holder',
         title: 'Change holder…',
         aliases: ['holder', 'attribution'],
-        section: 'Note',
+        section: 'Perspective',
         icon: 'link',
         when: block => !!block?.position,
         run: id => context.openRelation(id, 'holder'),
@@ -1260,7 +1260,7 @@ export function createOutlineCompletions(
         id: 'file-under',
         title: 'File under…',
         aliases: ['subject', 'file'],
-        section: 'Note',
+        section: 'Perspective',
         icon: 'link',
         when: block => !!block?.position,
         disabledReason: id =>
@@ -1271,7 +1271,7 @@ export function createOutlineCompletions(
         id: 'use-place',
         title: 'Use place',
         aliases: ['implicit subject'],
-        section: 'Note',
+        section: 'Perspective',
         icon: 'close',
         when: block => !!block?.position,
         disabledReason: context.placeReason,
@@ -1407,6 +1407,12 @@ export function createOutlineCompletions(
    * Returns the text and caret left after the prefix, false when the change failed, or null when no prefix was typed.
    */
   function taskPrefix(text: string, at: Caret): { text: string; caret: Caret } | false | null {
+    const known = definitionsById();
+    if (
+      known.has(fieldEntryId(doc.block(at.id)?.text ?? '') ?? '') ||
+      known.has(fieldEntryId(doc.block(doc.outline.parentOf(at.id))?.text ?? '') ?? '')
+    )
+      return null;
     const input = composition() ? null : taskPrefixInput(doc.block(at.id)?.text ?? '', text, at.offset);
     if (!input) return null;
     const rest = input.text,

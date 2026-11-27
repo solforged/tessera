@@ -513,7 +513,12 @@ export function OutlineHeader(props: {
             </div>
           )}
         </Show>
-        <Show when={!props.positionZoom && (!props.zoom || !props.doc.root()?.source || props.renaming)}>
+        <Show
+          when={
+            !props.positionZoom &&
+            (!props.zoom || (props.doc.root()?.kind !== 'journal' && !props.doc.root()?.source) || props.renaming)
+          }
+        >
           <div class="outline-title-row">
             <Show
               when={props.renaming}
