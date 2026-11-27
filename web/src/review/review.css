@@ -227,6 +227,10 @@
   .review-session-actions .review-end {
     margin-left: auto;
   }
+  .review-session-actions .button:is(:disabled, [aria-disabled="true"]) {
+    opacity: 0.4;
+    cursor: default;
+  }
   .review-history {
     color: var(--muted);
     font-size: var(--text-control);
@@ -412,6 +416,9 @@
     margin-left: var(--space-4);
     color: var(--muted);
     font: var(--apparatus);
+  }
+  .review-stats small.review-pct {
+    margin-left: 0;
   }
   .review-forecast header,
   .review-decks header {

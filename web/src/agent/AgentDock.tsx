@@ -348,6 +348,7 @@ export function AgentDock(props: {
       </div>
       <form
         class="agent-composer"
+        classList={{ 'agent-composer-disabled': !provider() }}
         onSubmit={event => {
           event.preventDefault();
           send();

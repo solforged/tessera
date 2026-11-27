@@ -226,12 +226,15 @@
     padding: var(--space-8) var(--space-12) var(--space-12);
     border-top: var(--rule-width) solid var(--line);
   }
+  .agent-composer.agent-composer-disabled {
+    opacity: 0.55;
+  }
   .agent-composer textarea {
     display: block;
     width: 100%;
     min-height: calc(3 * var(--line-body));
     max-height: 40vh;
-    resize: vertical;
+    resize: none;
     font: var(--weight-body) var(--text-control) / var(--line-body) var(--font-body);
   }
   .agent-composer-foot {
@@ -440,9 +443,9 @@
     }
   }
 
-  /* Narrower windows lay the dock over the panes, as the sidebar does, and it slides in from the right; a phone gives it the whole screen.
+  /* Below wide desktop widths the dock overlays the panes instead of squeezing tables; a phone gives it the whole screen.
    The animation names stay the same across the breakpoint, so crossing it never replays the entry; only the keyframes differ. */
-  @media (max-width: 1047px) {
+  @media (max-width: 1160px) {
     .agent-dock {
       position: fixed;
       top: calc(var(--rail-height) + var(--top-inset));
@@ -472,7 +475,7 @@
       opacity: 0;
     }
   }
-  @media (max-width: 1047px) {
+  @media (max-width: 1160px) {
     @keyframes dock-in {
       from {
         translate: 100% 0;

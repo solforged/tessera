@@ -427,11 +427,13 @@ export function SettingsPane(props: {
                 }}
               />
               <Button
+                class="bordered settings-history"
                 icon="clock"
-                label="History"
                 title={`Every change to this workshop, with Undo · ${besideHint}`}
                 onClick={event => props.onOpen({ kind: 'history' }, opensBeside(event))}
-              />
+              >
+                History
+              </Button>
               <nav class="settings-index" aria-label="Settings sections">
                 <For each={sections()}>
                   {section => (

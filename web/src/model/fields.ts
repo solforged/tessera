@@ -1,6 +1,5 @@
 import type { CountsAs, FieldDefinition, FieldKind, FieldRole, Operation } from '../api/types';
 import { parseCardText } from '../core/card-text';
-import { taskFieldNames } from './tasks';
 
 export const fieldKinds = [
   'text',
@@ -52,12 +51,11 @@ export function kindNoun(kind: FieldKind): string {
 const initialisms: Record<string, true> = { url: true, isbn: true, issn: true, doi: true };
 
 /**
- * The display name of a field. Built-ins are stored lowercase and read in sentence case (`Gist`, `Page range`) with
- * initialisms in capitals (`URL`), except Task's built-in fields, which the spec keeps lowercase (`status`, `deadline`);
- * user fields keep the casing they were given.
+ * The display name of a field. Built-ins are stored lowercase and read in sentence case (`Gist`, `Page range`,
+ * `Scheduled`, `Deadline`) with initialisms in capitals (`URL`); user fields keep the casing they were given.
  */
 export function fieldLabel(field: { name: string; built_in?: boolean }): string {
-  if (!field.built_in || (taskFieldNames as readonly string[]).includes(field.name)) return field.name;
+  if (!field.built_in) return field.name;
   return field.name
     .split(' ')
     .map((word, at) =>

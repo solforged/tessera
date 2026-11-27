@@ -1489,13 +1489,15 @@ details[open]::details-content {
     display: none;
   }
 }
+@media (max-width: 1160px) {
+  /* Below wide desktop widths the dock overlays the panes, so it takes no grid track. */
+  .app.has-dock {
+    --dock-track: 0px;
+  }
+}
 @media (max-width: 1047px) {
   .app {
     grid-template-columns: 0 minmax(0, 1fr) var(--dock-track);
-  }
-  /* The dock lies over the panes here, as the sidebar does, so it takes no track. */
-  .app.has-dock {
-    --dock-track: 0px;
   }
   .sidebar {
     position: fixed;
