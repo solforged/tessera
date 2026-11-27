@@ -852,6 +852,9 @@ export function createOutlineRows(
           type="button"
           class="row-menu icon-button"
           aria-label="Atom actions"
+          onMouseDown={event => {
+            if (selectedSet().has(id())) event.preventDefault();
+          }}
           onPointerDown={event => drag.start(event, id())}
           onClick={event => blockMenu(id(), event.currentTarget)}
         >

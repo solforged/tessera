@@ -388,7 +388,7 @@ export function createOutlineKeyboard(
       return true;
     }
     if (event.key === 'Tab') {
-      apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: [editing()!] });
+      apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: roots() });
       return true;
     }
     if (event.key === 'Backspace') return backspace(view, false, !event.altKey && !event.metaKey && !event.ctrlKey);
@@ -423,7 +423,6 @@ export function createOutlineKeyboard(
     }
     if (
       id &&
-      !rowRange() &&
       !textRange() &&
       event.metaKey &&
       event.shiftKey &&
@@ -436,7 +435,6 @@ export function createOutlineKeyboard(
     }
     if (
       id &&
-      !rowRange() &&
       !textRange() &&
       (event.altKey || event.metaKey) &&
       event.key === 'Enter' &&
@@ -444,7 +442,10 @@ export function createOutlineKeyboard(
       !event.ctrlKey &&
       !event.shiftKey
     ) {
-      if (!event.repeat) capabilities.invoke(capabilities.toggle(id));
+      if (!event.repeat) {
+        const targets = roots();
+        capabilities.invoke(targets.length > 1 ? capabilities.bulkToggle(targets) : capabilities.toggle(id));
+      }
       return true;
     }
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
@@ -621,7 +622,6 @@ export function createOutlineKeyboard(
       !handled &&
       event.key === ' ' &&
       selected() &&
-      !rowRange() &&
       !textRange() &&
       !event.metaKey &&
       !event.ctrlKey &&

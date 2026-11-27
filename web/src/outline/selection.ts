@@ -5,7 +5,7 @@ import type { PageDocument, TextRange } from '../document/contract';
 import { mapTextOffset } from '../document/text-patch';
 import type { RowRange } from './context';
 import type { PaneEditor } from './editor';
-import { selectionRoots } from './visibility';
+import { selectionIds, selectionRoots } from './visibility';
 
 export interface OutlineSelectionOptions {
   initialCaret: Caret | null;
@@ -97,6 +97,10 @@ export function createOutlineSelection(options: OutlineSelectionOptions) {
   });
 
   function roots() {
+    const range = textRange();
+    if (!rowRange() && range && range.anchor.id !== range.head.id) {
+      return selectionRoots(options.doc, selectionIds(options.ids(), range));
+    }
     return selectionRoots(options.doc, selectedIds());
   }
 

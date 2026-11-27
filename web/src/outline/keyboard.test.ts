@@ -286,3 +286,87 @@ describe('selected-row syntax sheet shortcut', () => {
     expect(await harness.press('?', { shiftKey: true })).toBe(false);
   });
 });
+
+describe('multibullet keyboard shortcuts', () => {
+  test('Cmd+Enter, Cmd+Shift+Enter, and Space work while rowRange is active', () => {
+    const scroll = {} as HTMLDivElement;
+    const bulkToggled: string[][] = [];
+    const statusOpened: string[] = [];
+    const leaderOpened: string[] = [];
+    const keyboard = createOutlineKeyboard({
+      scroll,
+      props: { active: true, vim: false, commands: { list: () => [] } },
+      editing: () => null,
+      selected: () => 'a',
+      composition: () => false,
+      textRange: () => null,
+      rowRange: () => ({ anchor: 'a', head: 'c' }),
+      roots: () => ['a', 'b', 'c'],
+      forgetReferenceSpace: () => false,
+      capabilities: {
+        invoke: (promise: Promise<void>) => void promise,
+        toggle: async () => {},
+        bulkToggle: async (ids: readonly string[]) => {
+          bulkToggled.push([...ids]);
+        },
+      },
+      statusMenu: (id: string) => statusOpened.push(id),
+      leaderMenu: (id: string) => leaderOpened.push(id),
+    } as unknown as Parameters<typeof createOutlineKeyboard>[0]);
+    const fire = (init: Partial<KeyboardEvent>) =>
+      keyboard.structuralKey({
+        target: scroll,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey: false,
+        repeat: false,
+        preventDefault() {},
+        ...init,
+      } as unknown as KeyboardEvent);
+    fire({ key: 'Enter', metaKey: true });
+    fire({ key: 'Enter', metaKey: true, shiftKey: true });
+    fire({ key: ' ' });
+    expect(bulkToggled).toEqual([['a', 'b', 'c']]);
+    expect(statusOpened).toEqual(['a']);
+    expect(leaderOpened).toEqual(['a']);
+  });
+
+  test('Tab during cross-block textRange indents all spanned roots', () => {
+    const edits: { kind: string; ids: string[] }[] = [];
+    const harness = navigationHarness(['first', 'second', 'third']);
+    const view = harness.view;
+    const keyboard = createOutlineKeyboard({
+      editor: { id: '0', view, mode: () => 'insert' },
+      props: { vim: false },
+      editing: () => '0',
+      selected: () => '0',
+      ids: () => ['0', '1', '2'],
+      indices: () =>
+        new Map([
+          ['0', 0],
+          ['1', 1],
+          ['2', 2],
+        ]),
+      doc: { block: (id: string) => ({ text: ['first', 'second', 'third'][Number(id)] }) },
+      textRange: () => ({ anchor: { id: '0', offset: 1 }, head: { id: '2', offset: 2 } }),
+      rowRange: () => null,
+      roots: () => ['0', '1', '2'],
+      apply: (intent: { kind: string; ids: string[] }) => edits.push(intent),
+      forgetReferenceSpace: () => false,
+      slashKey: () => false,
+      dateKey: () => false,
+      popupKey: () => false,
+      commitFieldEntry: () => false,
+      setRowRange: () => {},
+      setTextRange: () => {},
+    } as unknown as Parameters<typeof createOutlineKeyboard>[0]);
+    expect(
+      keyboard.editorKey(
+        { key: 'Tab', shiftKey: false, metaKey: false, ctrlKey: false, altKey: false } as unknown as KeyboardEvent,
+        view,
+      ),
+    ).toBe(true);
+    expect(edits).toEqual([{ kind: 'indent', ids: ['0', '1', '2'] }]);
+  });
+});

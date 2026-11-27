@@ -64,7 +64,7 @@ export interface Completion {
   blocks?: boolean;
   quote?: boolean;
   fields?: boolean;
-  manual?: { blockId: string; anchor: HTMLElement };
+  manual?: { blockId: string; blockIds?: string[]; anchor: HTMLElement };
   relationTarget?: { parentId: string; kind: RelationKind; anchor: HTMLElement; sourceText?: string };
 }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
@@ -915,8 +915,10 @@ export function createOutlineCompletions(
       if (matches.loading || matches.error) return;
       const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
       if (title) {
-        const result = doc.addType(state.manual.blockId, title);
-        if (!result.ok) setMessage(result.reason);
+        const result = state.manual.blockIds?.length
+          ? apply({ kind: 'addType', ids: state.manual.blockIds, title }, false)
+          : doc.addType(state.manual.blockId, title);
+        if (result && !result.ok) setMessage(result.reason);
         setCompletion(null);
         restoreFocus();
       }

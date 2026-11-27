@@ -96,6 +96,7 @@ export function createFieldSheet(
     | 'definitions'
     | 'indices'
     | 'selected'
+    | 'selectedIds'
     | 'editing'
     | 'zoom'
     | 'folds'
@@ -126,6 +127,7 @@ export function createFieldSheet(
     definitions,
     indices,
     selected,
+    selectedIds,
     editing,
     zoom,
     folds,
@@ -525,11 +527,13 @@ export function createFieldSheet(
   }
   function Area(area: { state: PlacedSheet }) {
     if (doc.block(area.state.owner)?.task) {
+      const multiSelected = () => selectedIds().length > 1;
       const focused = () =>
         dismissedTask() !== area.state.owner &&
         (taskRequest()?.owner === area.state.owner ||
           (!isPhone() &&
-            (area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner)));
+            (area.state.owner === props.pageId ||
+              (!multiSelected() && (selected() === area.state.owner || editing() === area.state.owner)))));
       return (
         <Show when={focused()}>
           <div
@@ -563,12 +567,14 @@ export function createFieldSheet(
       );
     }
     const root = () => area.state.owner === props.pageId;
-    // A page owner is never selected or edited itself, so its slots stay at rest; nested owners show them only while focused.
+    const multiSelected = () => selectedIds().length > 1;
+    // A page owner is never selected or edited itself, so its slots stay at rest; nested owners show them only while focused on a single row.
     const focused = () =>
       root() ||
-      filling() === area.state.owner ||
-      belongs(selected(), area.state.owner) ||
-      belongs(editing(), area.state.owner);
+      (!multiSelected() &&
+        (filling() === area.state.owner ||
+          belongs(selected(), area.state.owner) ||
+          belongs(editing(), area.state.owner)));
     const shown = (id: string) => area.state.required.has(id) || fieldHide(definitionsById().get(id)) === 'never';
     const missing = createMemo(() =>
       focused()

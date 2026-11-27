@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import { ApiError } from '../api/client';
-import type { TaskStatus, WorkSession } from '../api/types';
-import type { Edit, WorkshopClient, PageDocument } from '../document/contract';
+import type { TaskState, TaskStatus, WorkSession } from '../api/types';
+import type { BlockState, Edit, HistoryCaret, WorkshopClient, PageDocument } from '../document/contract';
 import type { Caret, OpenTarget } from '../core/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
@@ -33,6 +33,7 @@ export function createOutlineCapabilities(options: {
   workshop: WorkshopClient;
   contextDate(): string;
   caret(): Caret | null;
+  historyCaret?(): HistoryCaret | null;
   anchor(id: string): PopupAnchor | null;
   onOpen(target: OpenTarget, beside: boolean): void;
   onTaskFields?(id: string, field?: TaskFieldName, opener?: HTMLElement): void;
@@ -66,8 +67,35 @@ export function createOutlineCapabilities(options: {
       });
     }
   }
+  async function runMany(ids: readonly string[], operation: () => Promise<void>) {
+    const unique = [...new Set(ids)];
+    if (!unique.length) return;
+    if (unique.some(id => busy(id))) throw new Error('A command is pending for a selected atom.');
+    setPending(previous => {
+      const next = new Set(previous);
+      for (const id of unique) next.add(id);
+      return next;
+    });
+    setErrors(previous => {
+      const next = new Map(previous);
+      for (const id of unique) next.delete(id);
+      return next;
+    });
+    try {
+      await operation();
+    } catch (reason) {
+      failure(unique[0]!, reason);
+      throw reason;
+    } finally {
+      setPending(previous => {
+        const next = new Set(previous);
+        for (const id of unique) next.delete(id);
+        return next;
+      });
+    }
+  }
   async function save(intent: Edit) {
-    const result = doc.edit(intent, options.caret());
+    const result = doc.edit(intent, options.historyCaret?.() ?? options.caret());
     if (!result.ok) throw new Error(result.reason);
     await doc.flush();
   }
@@ -132,6 +160,48 @@ export function createOutlineCapabilities(options: {
     const task = doc.block(id)?.task;
     return status(id, task?.status && !isFinished(task) ? 'done' : 'todo');
   };
+  async function bulkStatus(ids: readonly string[], nextStatus: TaskStatus | null) {
+    const unique = [...new Set(ids)].filter(id => !!doc.block(id));
+    if (!unique.length) return;
+    if (unique.length === 1) return status(unique[0]!, nextStatus);
+    const completedOn = options.contextDate();
+    await runMany(unique, async () => {
+      if (nextStatus === 'done' && workshop.connection() !== 'offline') {
+        let active: WorkSession | null | undefined;
+        try {
+          active = await workshop.api.activeWorkSession();
+        } catch (reason) {
+          if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
+        }
+        if (active && unique.includes(active.block_id) && !active.reversed && active.ended_at === null) {
+          throw new Error('Stop the running work session before completing selected tasks.');
+        }
+      }
+      await save({
+        kind: 'bulkTask',
+        ids: unique,
+        status: nextStatus,
+        ...(nextStatus === 'done' ? { completedOn } : {}),
+      });
+    });
+  }
+  async function bulkToggle(ids: readonly string[]) {
+    const unique = [...new Set(ids)].filter(id => !!doc.block(id));
+    if (!unique.length) return;
+    if (unique.length === 1) return toggle(unique[0]!);
+    const blocks = unique.map(id => doc.block(id)).filter((block): block is BlockState => !!block);
+    if (blocks.some(block => !block.task?.status)) return bulkStatus(unique, 'todo');
+    if (blocks.some(block => block.task && !isFinished(block.task))) return bulkStatus(unique, 'done');
+    return bulkStatus(unique, 'todo');
+  }
+  async function bulkPatch(
+    ids: readonly string[],
+    patch: Partial<Pick<TaskState, 'scheduled' | 'deadline' | 'priority' | 'repeater'>>,
+  ) {
+    const unique = [...new Set(ids)].filter(id => !!doc.block(id));
+    if (!unique.length) return;
+    await runMany(unique, () => save({ kind: 'bulkTask', ids: unique, patch }));
+  }
   async function complete(state: Extract<CapabilityPopup, { kind: 'complete' }>) {
     await edit(state.id, {
       kind: 'completeTask',
@@ -199,6 +269,9 @@ export function createOutlineCapabilities(options: {
     dismiss,
     status,
     toggle,
+    bulkStatus,
+    bulkToggle,
+    bulkPatch,
     complete,
     showActions,
     source,

@@ -31,6 +31,8 @@ import { hasValueEditor } from '../fields/value-options';
 import { PersonWorks } from '../library/PersonWorks';
 import type { OutlineIndex } from '../document/outline-index';
 import { spokenJournalDate } from '../tasks/journal-date';
+import { DatePicker } from '../tasks/DatePicker';
+import { isFinished } from '../tasks/task-labels';
 import { JournalResurface } from '../tasks/JournalResurface';
 import { ResearchToRevisit } from '../review/ResearchToRevisit';
 import { createProjectSummary } from '../projects/ProjectSummary';
@@ -517,10 +519,22 @@ function Pane(props: OutlinePaneProps) {
     workshop: props.workshop,
     contextDate,
     caret,
+    historyCaret: () => {
+      const current = caret();
+      if (!current) return null;
+      const selection =
+        rowRange() ?? (selected() && !editing() ? { anchor: selected()!, head: selected()! } : undefined);
+      return selection ? { ...current, selection } : current;
+    },
     anchor: rowAnchor,
     onOpen: props.onOpen,
     onTaskFields: (id, field, opener) => fieldSheet.openTask(id, field, opener),
   });
+  const [bulkDate, setBulkDate] = createSignal<{
+    ids: string[];
+    field: 'scheduled' | 'deadline';
+    anchor: HTMLElement;
+  } | null>(null);
 
   const fieldConversion = createFieldEntryConversion({
     doc,
@@ -1338,6 +1352,12 @@ function Pane(props: OutlinePaneProps) {
       hints.typed();
     const rearrange =
       intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move' || intent.kind === 'moveTo';
+    const keepSelection =
+      rearrange ||
+      intent.kind === 'bulkTask' ||
+      intent.kind === 'heading' ||
+      intent.kind === 'addType' ||
+      intent.kind === 'removeType';
     if (intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move')
       intent = { ...intent, zoomRoot: zoom() };
     const before = ids();
@@ -1367,7 +1387,7 @@ function Pane(props: OutlinePaneProps) {
     )
       props.onProjection?.('outline');
     setTextRange(null);
-    if (!rearrange) setRowRange(null);
+    if (!keepSelection) setRowRange(null);
     const next = result.caret;
     if (next && keepEditing) revealRow(next.id);
     if (next)
@@ -1604,6 +1624,9 @@ function Pane(props: OutlinePaneProps) {
     setMessage,
     showNotice,
     openMoveToPage: () => openMoveToPage(),
+    openBulkDate: (targets, field, anchor) => {
+      if (targets.length) setBulkDate({ ids: [...targets], field, anchor });
+    },
     openRelation: (id, kind, anchor) => openRelation(id, kind, anchor),
     fileAll: (ids, anchor) => fileAll(ids, anchor),
     positionReason: id => positionReason(id),
@@ -1792,6 +1815,7 @@ function Pane(props: OutlinePaneProps) {
     commandDefinitions,
     unregister,
     blockMenu,
+    bulkMenu,
     rowContext,
     holderMenu,
     fieldMenu,
@@ -2336,6 +2360,7 @@ function Pane(props: OutlinePaneProps) {
         data-pane-pending={pageReady() ? undefined : ''}
         data-pane={props.pane}
         data-projection={reading() ? 'read' : 'outline'}
+        data-multi-select={selectedIds().length > 1 ? '' : undefined}
         tabIndex={0}
         role="tree"
         aria-label={reading() ? 'Atom reading register' : 'Atom outline'}
@@ -2793,8 +2818,100 @@ function Pane(props: OutlinePaneProps) {
         <RelationPopups />
         <ViewEmbedPopups />
         <MoveToPagePopup />
+        <Show keyed when={bulkDate()}>
+          {state => (
+            <DatePicker
+              workshop={props.workshop}
+              anchor={state.anchor}
+              label={
+                state.field === 'deadline' ? `Set deadline (${state.ids.length})` : `Schedule (${state.ids.length})`
+              }
+              value={doc.block(state.ids[0] ?? '')?.task?.[state.field] ?? null}
+              time={state.field === 'scheduled' ? null : undefined}
+              contextDate={contextDate()}
+              onDismiss={() => {
+                setBulkDate(null);
+                restoreFocus();
+              }}
+              onSelect={value => {
+                const patch =
+                  state.field === 'scheduled'
+                    ? { scheduled: value.date ? (value.time ? `${value.date} ${value.time}` : value.date) : null }
+                    : { deadline: value.date };
+                capabilities.invoke(capabilities.bulkPatch(state.ids, patch));
+                setBulkDate(null);
+                restoreFocus();
+              }}
+            />
+          )}
+        </Show>
         <images.ImagePopups />
       </div>
+      <Show when={selectedIds().length > 1 && !editing() && !editingBarVisible()}>
+        {(() => {
+          const targets = () => roots();
+          const allTasks = () => targets().length > 0 && targets().every(id => !!doc.block(id)?.task?.status);
+          const anyUnfinished = () =>
+            targets().some(id => {
+              const task = doc.block(id)?.task;
+              return task?.status && !isFinished(task);
+            });
+          const allArchived = () => targets().length > 0 && targets().every(id => doc.block(id)?.archived);
+          return (
+            <div
+              class="outline-bulk-bar"
+              role="toolbar"
+              aria-label="Selected atoms actions"
+              onMouseDown={event => event.preventDefault()}
+            >
+              <span class="outline-bulk-count">{targets().length} selected</span>
+              <Button
+                icon={allTasks() && anyUnfinished() ? 'check' : 'select'}
+                shortcut="⌘Enter"
+                onClick={() => capabilities.invoke(capabilities.bulkToggle(targets()))}
+              >
+                {!allTasks() ? 'Make tasks' : anyUnfinished() ? 'Done' : 'Reopen'}
+              </Button>
+              <Button
+                icon="calendar"
+                onClick={event => setBulkDate({ ids: [...targets()], field: 'scheduled', anchor: event.currentTarget })}
+              >
+                Schedule
+              </Button>
+              <Button icon="moveto" onClick={() => context.openMoveToPage()}>
+                Move…
+              </Button>
+              <Button
+                icon="archive"
+                onClick={() => apply({ kind: 'archive', ids: [...targets()], archived: !allArchived() }, false)}
+              >
+                {allArchived() ? 'Unarchive' : 'Archive'}
+              </Button>
+              <Button
+                class="outline-bulk-danger"
+                icon="trash"
+                shortcut="Backspace"
+                onClick={() => apply({ kind: 'delete', ids: [...targets()] }, false)}
+              >
+                Delete
+              </Button>
+              <Button
+                icon="more"
+                label="More actions"
+                aria-haspopup="menu"
+                onClick={event => bulkMenu(event.currentTarget, targets())}
+              />
+              <Button
+                class="outline-bulk-clear"
+                icon="close"
+                label="Clear selection"
+                shortcut="Esc"
+                onClick={clearSelection}
+              />
+            </div>
+          );
+        })()}
+      </Show>
       <Show when={props.projection === 'compare'}>
         <div class="embedded-comparison">
           <ComparePane

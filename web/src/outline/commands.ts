@@ -7,7 +7,7 @@ import { depthStops } from '../core/contract';
 import type { Command } from '../core/contract';
 import { parseCardText } from '../core/card-text';
 import { isPhone } from '../ui/viewport';
-import { statusMenuItems } from '../tasks/TaskControls';
+import { priorities, priorityLabel, statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
 import type { MenuItem, MenuPaletteButton } from '../ui/Menu';
 import type { IconName } from '../ui/Icon';
@@ -85,6 +85,7 @@ export function createOutlineCommands(
     | 'showNotice'
     | 'openRelation'
     | 'openMoveToPage'
+    | 'openBulkDate'
     | 'positionReason'
     | 'placeReason'
     | 'usePlace'
@@ -902,22 +903,40 @@ export function createOutlineCommands(
       id: 'make-task',
       title: 'Make task',
       section: 'Outline',
-      disabledReason: () => (selected() && doc.block(selected()!)?.task?.status ? 'Already a task.' : undefined),
-      run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')),
+      disabledReason: () => {
+        const targets = roots();
+        return targets.length && targets.every(id => doc.block(id)?.task?.status) ? 'Already a task.' : undefined;
+      },
+      run: () => {
+        const targets = roots();
+        if (targets.length > 1) capabilities.invoke(capabilities.bulkStatus(targets, 'todo'));
+        else if (selected()) capabilities.invoke(capabilities.status(selected()!, 'todo'));
+      },
     },
     {
       id: 'remove-task',
       title: 'Remove task',
       section: 'Outline',
-      disabledReason: () => (selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.'),
-      run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)),
+      disabledReason: () => {
+        const targets = roots();
+        return targets.some(id => doc.block(id)?.task) ? undefined : 'Select a task.';
+      },
+      run: () => {
+        const targets = roots();
+        if (targets.length > 1) capabilities.invoke(capabilities.bulkStatus(targets, null));
+        else if (selected()) capabilities.invoke(capabilities.status(selected()!, null));
+      },
     },
     {
       id: 'toggle-task',
       title: 'Complete or reopen task',
       section: 'Outline',
       keys: ['⌘Enter'],
-      run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)),
+      run: () => {
+        const targets = roots();
+        if (targets.length > 1) capabilities.invoke(capabilities.bulkToggle(targets));
+        else if (selected()) capabilities.invoke(capabilities.toggle(selected()!));
+      },
     },
     ...(doc.block(selected() ?? '')?.task?.status === null
       ? []
@@ -1166,8 +1185,17 @@ export function createOutlineCommands(
       id: 'archive',
       title: 'Archive / unarchive atom',
       section: 'Outline',
-      run: () =>
-        selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false),
+      run: () => {
+        const targets = roots();
+        if (!targets.length) return;
+        const allArchived = targets.every(id => doc.block(id)?.archived);
+        apply(
+          targets.length > 1
+            ? { kind: 'archive', ids: targets, archived: !allArchived }
+            : { kind: 'archive', id: targets[0]!, archived: !allArchived },
+          false,
+        );
+      },
     },
     {
       id: 'show-archived',
@@ -1283,7 +1311,13 @@ export function createOutlineCommands(
       id: `heading-${level ?? 'normal'}`,
       title: level ? `Heading ${level}` : 'Normal text',
       section: 'Editing' as const,
-      run: () => selected() && apply({ kind: 'heading', id: selected()!, level }),
+      run: () => {
+        const targets = roots();
+        if (!targets.length) return;
+        apply(
+          targets.length > 1 ? { kind: 'heading', ids: targets, level } : { kind: 'heading', id: targets[0]!, level },
+        );
+      },
     })),
   ];
   const commandDefinitions = commandsFor();
@@ -1508,8 +1542,120 @@ export function createOutlineCommands(
     ];
     return { entry, item, group, managers, makeItems, hasCards };
   }
+  function bulkTaskToggleLabel(targets: readonly string[]) {
+    const blocks = targets.map(id => doc.block(id)).filter(block => !!block);
+    const count = targets.length;
+    if (blocks.some(block => !block!.task?.status)) return `Make ${count} tasks`;
+    if (blocks.some(block => block!.task && !isFinished(block!.task))) return `Complete ${count} tasks`;
+    return `Reopen ${count} tasks`;
+  }
+  function bulkStatusItems(targets: readonly string[]): MenuItem[] {
+    const anyTask = targets.some(id => !!doc.block(id)?.task);
+    const sharedStatus = (() => {
+      const first = doc.block(targets[0] ?? '')?.task?.status ?? undefined;
+      return first && targets.every(id => doc.block(id)?.task?.status === first) ? first : undefined;
+    })();
+    const taskSample = anyTask
+      ? { ...doc.block(targets.find(id => doc.block(id)?.task)!)!.task!, status: sharedStatus ?? 'todo' }
+      : null;
+    const items = statusMenuItems(taskSample, status => capabilities.invoke(capabilities.bulkStatus(targets, status)));
+    // Only show checked when every selected atom shares that exact status.
+    return items.map(item => ({ ...item, checked: sharedStatus ? item.checked : false }));
+  }
+  function bulkPriorityItems(targets: readonly string[]): MenuItem[] {
+    const first = doc.block(targets[0] ?? '')?.task?.priority ?? null;
+    const shared = targets.every(id => (doc.block(id)?.task?.priority ?? null) === first);
+    return priorities.map(priority => ({
+      label: priorityLabel(priority),
+      checked: shared && first === priority,
+      action: () => capabilities.invoke(capabilities.bulkPatch(targets, { priority })),
+    }));
+  }
+  function bulkHeadingItems(targets: readonly string[]): MenuItem[] {
+    const first = doc.block(targets[0] ?? '')?.heading ?? null;
+    const shared = targets.every(id => (doc.block(id)?.heading ?? null) === first);
+    return ([null, 1, 2, 3] as const).map(level => ({
+      label: level ? `Heading ${level}` : 'Normal text',
+      checked: shared && first === level,
+      action: () => apply({ kind: 'heading', ids: [...targets], level }, false),
+    }));
+  }
+  function bulkMenu(anchor: HTMLElement, targets = roots()) {
+    if (targets.length <= 1) return;
+    const count = targets.length;
+    const allArchived = targets.every(id => doc.block(id)?.archived);
+    const rowCommands = commandsFor();
+    const cmdItem = (commandId: string, label?: string): MenuItem => {
+      const command = rowCommands.find(candidate => candidate.id === commandId)!;
+      return {
+        label: label ?? command.title,
+        shortcut: command.keys?.[0],
+        disabledReason: command.disabledReason?.(),
+        action: () => command.run(),
+      };
+    };
+    const group = (label: string, title: string, items: () => MenuItem[]): MenuItem => ({
+      label,
+      submenu: () => ({ title, items: items() }),
+    });
+    setMenu({
+      anchor,
+      label: `${count} atoms selected`,
+      title: `${count} atoms selected`,
+      items: [
+        {
+          label: bulkTaskToggleLabel(targets),
+          shortcut: '⌘Enter',
+          action: () => capabilities.invoke(capabilities.bulkToggle(targets)),
+        },
+        group('Task status…', 'Task status', () => bulkStatusItems(targets)),
+        {
+          label: 'Schedule…',
+          action: () => context.openBulkDate(targets, 'scheduled', anchor),
+        },
+        {
+          label: 'Deadline…',
+          action: () => context.openBulkDate(targets, 'deadline', anchor),
+        },
+        group('Priority…', 'Priority', () => bulkPriorityItems(targets)),
+        { ...group('Heading…', 'Heading', () => bulkHeadingItems(targets)), divider: true },
+        {
+          label: 'Add tag…',
+          action: () => {
+            setCompletionIndex(0);
+            setCompletion({
+              from: 0,
+              to: 0,
+              query: '',
+              manual: { blockId: targets[0]!, blockIds: [...targets], anchor },
+            });
+          },
+        },
+        {
+          ...group('Move…', 'Move', () => [
+            cmdItem('indent', 'Indent'),
+            cmdItem('outdent', 'Outdent'),
+            cmdItem('move-up', 'Move up'),
+            cmdItem('move-down', 'Move down'),
+            cmdItem('move-to-page'),
+          ]),
+          divider: true,
+        },
+        {
+          label: allArchived ? `Unarchive ${count} atoms` : `Archive ${count} atoms`,
+          divider: true,
+          action: () => apply({ kind: 'archive', ids: [...targets], archived: !allArchived }, false),
+        },
+        { ...cmdItem('delete', `Delete ${count} atoms…`), danger: true },
+      ],
+    });
+  }
   /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
   function blockMenu(id: string, anchor: HTMLElement) {
+    if (selectedSet().has(id) && roots().length > 1) {
+      bulkMenu(anchor);
+      return;
+    }
     const model = blockMenuModel(id, anchor);
     if (!model) return;
     const { entry, item, group, managers, makeItems } = model;
@@ -1632,6 +1778,11 @@ export function createOutlineCommands(
     });
   }
   function statusMenu(id: string) {
+    const targets = roots();
+    if (targets.length > 1) {
+      keyboardMenu(id, `Task status (${targets.length})`, bulkStatusItems(targets));
+      return;
+    }
     const task = doc.block(id)?.task;
     if (task?.status === null) return;
     capabilities.ensureTask(id);
@@ -1740,8 +1891,60 @@ export function createOutlineCommands(
   function cardMenu(id: string) {
     keyboardMenu(id, 'Cards', cardItems(id));
   }
-  /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
+  /** Space on a selected row (or in Vim normal mode): one more letter acts on the block (or selected roots). */
   function leaderMenu(id: string) {
+    const targets = roots();
+    if (targets.length > 1) {
+      const anchor = rowAnchor(id);
+      const count = targets.length;
+      const allArchived = targets.every(target => doc.block(target)?.archived);
+      keyboardMenu(id, `${count} atoms selected`, [
+        {
+          key: 't',
+          shortcut: 't',
+          label: 'Task status…',
+          section: `${count} atoms`,
+          action: () => statusMenu(id),
+        },
+        {
+          key: 's',
+          shortcut: 's',
+          label: 'Schedule…',
+          action: () => anchor && context.openBulkDate(targets, 'scheduled', anchor),
+        },
+        {
+          key: 'd',
+          shortcut: 'd',
+          label: 'Deadline…',
+          action: () => anchor && context.openBulkDate(targets, 'deadline', anchor),
+        },
+        {
+          key: 'p',
+          shortcut: 'p',
+          label: 'Priority…',
+          action: () => keyboardMenu(id, 'Priority', bulkPriorityItems(targets)),
+        },
+        {
+          key: 'h',
+          shortcut: 'h',
+          label: 'Heading…',
+          action: () => keyboardMenu(id, 'Heading', bulkHeadingItems(targets)),
+        },
+        {
+          key: 'm',
+          shortcut: 'm',
+          label: 'Move to atom…',
+          action: () => context.openMoveToPage(),
+        },
+        {
+          key: 'a',
+          shortcut: 'a',
+          label: allArchived ? `Unarchive ${count} atoms` : `Archive ${count} atoms`,
+          action: () => apply({ kind: 'archive', ids: [...targets], archived: !allArchived }, false),
+        },
+      ]);
+      return;
+    }
     const rowCommands = commandsFor(() => id);
     const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({
       key,
@@ -1803,6 +2006,7 @@ export function createOutlineCommands(
     commandDefinitions,
     unregister,
     blockMenu,
+    bulkMenu,
     rowContext,
     holderMenu,
     fieldMenu,

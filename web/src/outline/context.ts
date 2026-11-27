@@ -1,7 +1,7 @@
 import type { Accessor, JSX, Resource, Setter } from 'solid-js';
 import type { Virtualizer } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
-import type { FieldDefinition, Fields, RelationKind, TaskStatus } from '../api/types';
+import type { FieldDefinition, Fields, RelationKind, TaskState, TaskStatus } from '../api/types';
 import type { Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import type { Caret, Command, Depth } from '../core/contract';
 import type { OutlinePaneProps } from './contract';
@@ -42,6 +42,12 @@ export interface OutlineCapabilityActions {
   dismiss(state: CapabilityPopup): void;
   status(id: string, status: TaskStatus | null): Promise<void>;
   toggle(id: string): Promise<void>;
+  bulkStatus(ids: readonly string[], status: TaskStatus | null): Promise<void>;
+  bulkToggle(ids: readonly string[]): Promise<void>;
+  bulkPatch(
+    ids: readonly string[],
+    patch: Partial<Pick<TaskState, 'scheduled' | 'deadline' | 'priority' | 'repeater'>>,
+  ): Promise<void>;
   complete(state: Extract<CapabilityPopup, { kind: 'complete' }>): Promise<void>;
   showActions(id: string, beside?: boolean): void;
   source(id: string, beside?: boolean): void;
@@ -154,6 +160,7 @@ export interface OutlineActionsSlice {
   addAlias: () => void;
   openTable: (beside: boolean) => void;
   openMoveToPage: () => void;
+  openBulkDate: (ids: readonly string[], field: 'scheduled' | 'deadline', anchor: HTMLElement) => void;
   openViewEmbed: (id?: string | null) => void;
   openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate' | 'reading', anchor?: HTMLElement | null) => void;
   /** File all…: Integrate each row in turn; Skip leaves a row and Escape stops. */
