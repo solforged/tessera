@@ -198,6 +198,7 @@
   .table-more-right {
     position: absolute;
     top: 0;
+    bottom: 0;
     right: calc(-1 * var(--space-2));
     z-index: 4;
     display: flex;

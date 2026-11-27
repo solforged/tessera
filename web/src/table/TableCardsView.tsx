@@ -384,72 +384,81 @@ export function TableQueryToolbar(props: {
   onLayoutMenu(anchor: HTMLElement): void;
   onToggleColumns(anchor: HTMLElement): void;
   onOpenCardFields(anchor: HTMLElement): void;
+  onSaveView?(anchor: HTMLElement): void;
 }) {
+  const controls = () => (
+    <>
+      <Button
+        class="bordered table-filter-button"
+        aria-haspopup="dialog"
+        onClick={event => props.onShowFilter(event.currentTarget)}
+      >
+        Filters
+        <Show when={props.query.filters.length}>
+          <span class="table-control-count">{props.query.filters.length}</span>
+        </Show>
+      </Button>
+      <Button class="bordered" aria-haspopup="menu" onClick={event => props.onSortMenu(event.currentTarget)}>
+        Sort <Icon name="down" />
+      </Button>
+      <Button class="bordered" aria-haspopup="menu" onClick={event => props.onGroupMenu(event.currentTarget)}>
+        Group
+        <Show when={props.definitionsLoaded && props.query.group}>: {props.fieldName(props.query.group!.key)}</Show>{' '}
+        <Icon name="down" />
+      </Button>
+      <Show when={props.showLayout}>
+        <Button class="bordered" aria-haspopup="menu" onClick={event => props.onLayoutMenu(event.currentTarget)}>
+          Layout: {props.layoutName} <Icon name="down" />
+        </Button>
+      </Show>
+      <Button
+        class="bordered table-columns-button"
+        aria-haspopup="dialog"
+        aria-expanded={props.columnsOpen}
+        onClick={event => props.onToggleColumns(event.currentTarget)}
+      >
+        Columns <Icon name="down" />
+      </Button>
+      <Show when={props.query.note_kind && props.onSaveView}>
+        <Button class="bordered" onClick={event => props.onSaveView!(event.currentTarget)}>
+          Save as view…
+        </Button>
+      </Show>
+      <Show when={props.narrow}>
+        <Button class="bordered" aria-haspopup="dialog" onClick={event => props.onOpenCardFields(event.currentTarget)}>
+          Card fields <Icon name="down" />
+        </Button>
+      </Show>
+    </>
+  );
   return (
     <>
-      <Show when={props.query.note_kind}>
-        <NoteFind query={props.query} plural={props.title} workshop={props.workshop} onChange={props.onUpdateQuery} />
-      </Show>
-      <div class="table-toolbar">
-        <Button
-          class="bordered table-chip"
-          aria-haspopup="menu"
-          onClick={event => props.onSourceMenu(event.currentTarget)}
-        >
-          From {sourceName(props.query.source)} <Icon name="down" />
-        </Button>
-        <Show when={!props.query.note_kind}>
-          <input
-            class="input table-search"
-            placeholder="Search rows…"
-            aria-label="Search rows"
-            value={props.search}
-            onInput={event => props.onSearch(event.currentTarget.value)}
-          />
-        </Show>
-        <div class="table-query-controls">
-          <Button
-            class="bordered table-filter-button"
-            aria-haspopup="dialog"
-            onClick={event => props.onShowFilter(event.currentTarget)}
-          >
-            Filters
-            <Show when={props.query.filters.length}>
-              <span class="table-control-count">{props.query.filters.length}</span>
-            </Show>
-          </Button>
-          <Button class="bordered" aria-haspopup="menu" onClick={event => props.onSortMenu(event.currentTarget)}>
-            Sort <Icon name="down" />
-          </Button>
-          <Button class="bordered" aria-haspopup="menu" onClick={event => props.onGroupMenu(event.currentTarget)}>
-            Group
-            <Show when={props.definitionsLoaded && props.query.group}>: {props.fieldName(props.query.group!.key)}</Show>{' '}
-            <Icon name="down" />
-          </Button>
-          <Show when={props.showLayout}>
-            <Button class="bordered" aria-haspopup="menu" onClick={event => props.onLayoutMenu(event.currentTarget)}>
-              Layout: {props.layoutName} <Icon name="down" />
-            </Button>
-          </Show>
-          <Button
-            class="bordered table-columns-button"
-            aria-haspopup="dialog"
-            aria-expanded={props.columnsOpen}
-            onClick={event => props.onToggleColumns(event.currentTarget)}
-          >
-            Columns <Icon name="down" />
-          </Button>
-          <Show when={props.narrow}>
+      <Show
+        when={props.query.note_kind}
+        fallback={
+          <div class="table-toolbar">
             <Button
-              class="bordered"
-              aria-haspopup="dialog"
-              onClick={event => props.onOpenCardFields(event.currentTarget)}
+              class="bordered table-chip"
+              aria-haspopup="menu"
+              onClick={event => props.onSourceMenu(event.currentTarget)}
             >
-              Card fields <Icon name="down" />
+              From {sourceName(props.query.source)} <Icon name="down" />
             </Button>
-          </Show>
-        </div>
-      </div>
+            <input
+              class="input table-search"
+              placeholder="Search rows…"
+              aria-label="Search rows"
+              value={props.search}
+              onInput={event => props.onSearch(event.currentTarget.value)}
+            />
+            <div class="table-query-controls">{controls()}</div>
+          </div>
+        }
+      >
+        <NoteFind query={props.query} plural={props.title} workshop={props.workshop} onChange={props.onUpdateQuery}>
+          {controls()}
+        </NoteFind>
+      </Show>
       {props.chips}
     </>
   );

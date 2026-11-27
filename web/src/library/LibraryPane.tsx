@@ -198,12 +198,12 @@ export function LibraryPane(props: LibraryPaneProps) {
       : tabs.some(tab => tab.id === remembered)
         ? (remembered as LibraryTab)
         : counts
-          ? counts.inbox
-            ? 'inbox'
-            : counts.reading
-              ? 'reading'
+          ? counts.reading
+            ? 'reading'
+            : counts.inbox
+              ? 'inbox'
               : 'all'
-          : 'inbox';
+          : 'reading';
     if (initialTab !== initialView.tab) {
       initialView.tab = initialTab;
       initialView.scroll = 0;
@@ -533,7 +533,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             else {
               const result = await props.workshop.api.library({ limit: 0 }, controller.signal);
               if (!controller.signal.aborted && !tabChosen)
-                update({ tab: result.counts.inbox ? 'inbox' : result.counts.reading ? 'reading' : 'all', scroll: 0 });
+                update({ tab: result.counts.reading ? 'reading' : result.counts.inbox ? 'inbox' : 'all', scroll: 0 });
             }
           }
         }
@@ -1430,7 +1430,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                   }}
                 />
               </Show>
-              <Show when={!coverLayout() && tab() !== 'highlights'}>
+              <Show when={!coverLayout()}>
                 <Button
                   ref={addButton}
                   class="bordered"

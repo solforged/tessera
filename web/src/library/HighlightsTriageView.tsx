@@ -173,7 +173,8 @@ export function createHighlightsTriage(options: HighlightsTriageOptions) {
                 next = (
                   await options.workshop.api.passages(citation.snapshot_id, passage.ordinal + 1, 1, controller.signal)
                 ).passages[0];
-              return [passage.text.slice(citation.end.offset), next?.text ?? ''].filter(text => text.trim());
+              const remainder = passage.text.slice(citation.end.offset).replace(/^[.,;:!?)\]}»”’]+\s*/, '');
+              return [remainder, next?.text ?? ''].filter(text => text.trim());
             }
             const last = page.passages.at(-1);
             if (!last || last.ordinal + 1 >= page.total) throw new Error('The highlighted passage could not be found.');

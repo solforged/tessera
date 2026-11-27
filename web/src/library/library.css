@@ -782,6 +782,7 @@
     margin-top: var(--space-16);
   }
   .library-highlight-dock {
+    container: highlight-dock / inline-size;
     display: flex;
     flex: none;
     flex-direction: column;
@@ -797,18 +798,27 @@
     gap: var(--space-8);
   }
   .library-highlight-primary {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)) var(--target-size);
+    display: flex;
+    align-items: center;
     gap: var(--space-8);
   }
   .library-highlight-primary .button {
+    flex: 0 1 auto;
     min-width: 0;
-    height: auto;
     padding-inline: var(--space-8);
-    white-space: normal;
+    white-space: nowrap;
+  }
+  .library-highlight-primary .button:last-child {
+    flex: none;
+    margin-left: auto;
   }
   .library-highlight-primary .button kbd {
-    margin-left: auto;
+    margin-left: var(--space-4);
+  }
+  @container highlight-dock (max-width: 560px) {
+    .library-highlight-primary .button kbd {
+      display: none;
+    }
   }
   .library-mark-processed.button {
     border-color: var(--accent);

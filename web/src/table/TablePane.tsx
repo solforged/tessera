@@ -1455,6 +1455,7 @@ function TableContent(props: TablePaneProps) {
       onLayoutMenu={layoutMenu}
       onToggleColumns={anchor => setPopup(popup()?.kind === 'columns' ? null : { kind: 'columns', anchor })}
       onOpenCardFields={anchor => setPopup({ kind: 'columns', anchor, cards: true })}
+      onSaveView={anchor => setPopup({ kind: 'name', anchor, action: 'save' })}
     />
   );
   onMount(() => {
@@ -1751,8 +1752,8 @@ function TableContent(props: TablePaneProps) {
           }
         }}
       >
-        {/* Outside the header, so the tally stays on the title baseline. A phone hides the Register label, so a typed table still takes the crumb. */}
-        <Show when={!!query().type && (phone() || kindTable())}>
+        {/* Show the parent type crumb for saved views or phones; a root kind table already displays its kind in H1. */}
+        <Show when={!!query().type && (phone() || (kindTable() && !!props.target.viewId))}>
           <div class="fields-register">
             <Button
               class="type-fields-crumb"

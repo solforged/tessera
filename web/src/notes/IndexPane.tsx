@@ -841,8 +841,13 @@ function KindIndexPane(props: IndexPaneProps) {
             {props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}
           </p>
         </Show>
-        {/* The Fields eyebrow. Its margin collapses with the head's, so the strip drops by one apparatus line. Sources and Unfiled already spend this line on their own eyebrow; on a phone that eyebrow steps aside. */}
-        <Show when={!!typeId() && (cover() || (props.kindKey !== 'source' && props.kindKey !== 'unfiled'))}>
+        {/* Show the parent type eyebrow only for saved views or phone layout; a root kind index already carries its name in H1. */}
+        <Show
+          when={
+            !!typeId() &&
+            (cover() || (!!props.view.viewId && props.kindKey !== 'source' && props.kindKey !== 'unfiled'))
+          }
+        >
           <div class="fields-register">
             <Button class="type-fields-crumb" onClick={openTypeIndex}>
               {title()}
