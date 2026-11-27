@@ -42,6 +42,18 @@ describe('today journal', () => {
   test('captured today lists the newest lines in sections, never headings, Reading source rows, empty or loose rows', () => {
     expect(recentCaptures(day, defaultTodayTemplate).map(value => value.id)).toEqual(['n', 'l', 'c']);
   });
+  test('captured today excludes internal field entries and their value children', () => {
+    const fieldId = '01JB0000000000000000000001';
+    const withField = page([
+      block('i', 'day', 'Inbox', 1, 2),
+      block('t', 'i', 'Review paradigm tables', 10),
+      block('fe', 't', `[[${fieldId}]]`, 20),
+      block('fv', 'fe', `[[${source}]]`, 21),
+    ]);
+    expect(recentCaptures(withField, defaultTodayTemplate, 3, new Set([fieldId])).map(value => value.id)).toEqual([
+      't',
+    ]);
+  });
   test('reading sources come from today’s Reading rows', () => {
     expect(readingSources(day, defaultTodayTemplate)).toEqual([source]);
   });

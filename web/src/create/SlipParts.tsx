@@ -217,8 +217,14 @@ export function CapturedToday(props: {
   const [lines] = createResource(
     () => [props.workshop.todayDate(), props.workshop.changeSequence(), props.refresh] as const,
     async () => {
-      const page = await todayJournal(props.workshop);
-      return page ? { pageId: page.root.id, blocks: recentCaptures(page, props.workshop.todayTemplate()) } : null;
+      const [page, fields] = await Promise.all([
+        todayJournal(props.workshop),
+        props.workshop.api.fields().catch(() => null),
+      ]);
+      const fieldIds = fields ? new Set(fields.fields.map(field => field.id)) : undefined;
+      return page
+        ? { pageId: page.root.id, blocks: recentCaptures(page, props.workshop.todayTemplate(), 3, fieldIds) }
+        : null;
     },
   );
   trackSlipLoading(() => lines.loading);

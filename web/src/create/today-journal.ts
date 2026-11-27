@@ -1,5 +1,6 @@
 import { ApiError } from '../api/client';
 import type { Block, PageView } from '../api/types';
+import { fieldEntryId } from '../core/field-entry';
 import type { WorkshopClient } from '../document/contract';
 import { foldName } from '../outline/names';
 import { readingRowSource, writtenSections } from '../tasks/today-template';
@@ -42,13 +43,30 @@ export function readingSources(page: PageView, template: TodayTemplate): string[
   });
 }
 
-/** The newest lines written into today's sections, newest first; section headings and Reading's source rows are not lines. */
-export function recentCaptures(page: PageView, template: TodayTemplate, limit = 3): Block[] {
+/** The newest lines written into today's sections, newest first; section headings, field subtrees and Reading's source rows are not lines. */
+export function recentCaptures(
+  page: PageView,
+  template: TodayTemplate,
+  limit = 3,
+  fieldIds?: ReadonlySet<string>,
+): Block[] {
   const headings = sectionHeadings(page, template);
   const blocks = new Map(page.rows.map(({ block }) => [block.id, block]));
   const inSection = (block: Block) => {
     for (let parent = block.parent_id; parent; parent = blocks.get(parent)?.parent_id ?? null)
       if (headings.has(parent)) return true;
+    return false;
+  };
+  const inField = (block: Block) => {
+    if (!fieldIds?.size) return false;
+    for (
+      let current: Block | undefined = block;
+      current;
+      current = current.parent_id ? blocks.get(current.parent_id) : undefined
+    ) {
+      const id = fieldEntryId(current.text);
+      if (id && fieldIds.has(id)) return true;
+    }
     return false;
   };
   return page.rows
@@ -59,6 +77,7 @@ export function recentCaptures(page: PageView, template: TodayTemplate, limit = 
         block.text.trim() &&
         !headings.has(block.id) &&
         !(readingRowSource(block.text) && headings.get(block.parent_id ?? '') === 'reading') &&
+        !inField(block) &&
         inSection(block),
     )
     .sort((a, b) => b.created_at - a.created_at)

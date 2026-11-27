@@ -68,48 +68,58 @@ export function createOutlineRelated(
   const [relatedResource] = createResource(
     () => {
       const current = version();
-      return current ? `${current}:${limit()}:${!!doc.root()?.source}:${isCollection()}:${subjects()}` : false;
+      return current
+        ? `${current}:${limit()}:${!!doc.root()?.source}:${!!doc.root()?.project}:${isCollection()}:${subjects()}`
+        : false;
     },
     async () => {
       relatedRequests?.abort();
       const requests = (relatedRequests = new AbortController());
       const sourcePage = !!doc.root()?.source;
       const collectionPage = isCollection();
-      const [references, tagged, held, aboutSubjects, passages, branches, collection, collectionValues] =
-        await Promise.all([
-          readJournalRelated(
-            props.workshop.api.pageReferences(
-              props.pageId,
-              sourcePage || collectionPage ? Number.MAX_SAFE_INTEGER : limit(),
+      const projectPage = !!doc.root()?.project;
+      const [
+        references,
+        tagged,
+        held,
+        aboutSubjects,
+        passages,
+        branches,
+        collection,
+        collectionValues,
+        incomingProjectFields,
+      ] = await Promise.all([
+        readJournalRelated(
+          props.workshop.api.pageReferences(
+            props.pageId,
+            sourcePage || collectionPage ? Number.MAX_SAFE_INTEGER : limit(),
+            requests.signal,
+          ),
+          doc.root(),
+          { total: 0, groups: [] },
+        ),
+        props.workshop.api.members(props.pageId, undefined, requests.signal),
+        props.workshop.api.positions({ holder: props.pageId }, requests.signal),
+        Promise.all(
+          subjects()
+            .split(',')
+            .map(subject => props.workshop.api.positions({ subject }, requests.signal)),
+        ),
+        sourcePage
+          ? props.workshop.api.highlights({ source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER }, requests.signal)
+          : undefined,
+        doc.root()?.question
+          ? props.workshop.api.questions({ parent: props.pageId }, requests.signal)
+          : Promise.resolve([]),
+        collectionPage
+          ? props.workshop.api.library(
+              { collection_id: props.pageId, sort: 'title', direction: 'asc', limit: null },
               requests.signal,
-            ),
-            doc.root(),
-            { total: 0, groups: [] },
-          ),
-          props.workshop.api.members(props.pageId, undefined, requests.signal),
-          props.workshop.api.positions({ holder: props.pageId }, requests.signal),
-          Promise.all(
-            subjects()
-              .split(',')
-              .map(subject => props.workshop.api.positions({ subject }, requests.signal)),
-          ),
-          sourcePage
-            ? props.workshop.api.highlights(
-                { source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER },
-                requests.signal,
-              )
-            : undefined,
-          doc.root()?.question
-            ? props.workshop.api.questions({ parent: props.pageId }, requests.signal)
-            : Promise.resolve([]),
-          collectionPage
-            ? props.workshop.api.library(
-                { collection_id: props.pageId, sort: 'title', direction: 'asc', limit: null },
-                requests.signal,
-              )
-            : undefined,
-          collectionPage ? props.workshop.api.collectionValues(props.pageId, requests.signal) : [],
-        ]);
+            )
+          : undefined,
+        collectionPage ? props.workshop.api.collectionValues(props.pageId, requests.signal) : [],
+        projectPage ? props.workshop.api.incomingFields(props.pageId, requests.signal) : [],
+      ]);
       const about = [
         ...new Map(aboutSubjects.flatMap(result => result.rows).map(row => [row.block.block.id, row])).values(),
       ];
@@ -117,6 +127,10 @@ export function createOutlineRelated(
       const positions = new Set([...held.rows, ...about].map(row => row.block.block.id));
       const branchIds = new Set(branches.map(row => row.block.block.id));
       const membership = new Set(collectionValues.map(block => block.id));
+      // Tasks assigned to this project via the built-in project field appear in Linked tasks rather than raw value backlinks.
+      const projectValues = new Set(
+        incomingProjectFields.filter(row => row.field_name.trim().toLowerCase() === 'project').map(row => row.value_id),
+      );
       const rootLinks = references.groups.flatMap(group =>
         group.sources
           .filter(row => row.targets.includes(props.pageId))
@@ -128,7 +142,7 @@ export function createOutlineRelated(
         .map(group => ({
           ...group,
           sources: group.sources.filter(row => {
-            if (membership.has(row.source.id)) {
+            if (membership.has(row.source.id) || projectValues.has(row.source.id)) {
               filtered++;
               return false;
             }

@@ -68,10 +68,11 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
   );
 }
 
-/** Built-in relations their targets already list: creators as Works, collections as their members. */
-// A person's Works lists the works its creator fields, editors and translators name, and a collection lists its members.
+/** Built-in relations their targets already list: creators as Works, collections as their members, projects as Linked tasks. */
+// A person's Works lists the works its creator fields, editors and translators name, a collection lists its members,
+// and a project page lists its linked tasks directly.
 const listedElsewhere = (row: IncomingFieldValue) =>
-  row.counts_as === 'creator' || ['translator', 'collections'].includes(row.field_name.trim().toLowerCase());
+  row.counts_as === 'creator' || ['translator', 'collections', 'project'].includes(row.field_name.trim().toLowerCase());
 const ownersShown = 3;
 
 /** Relation fields read from the target as `← name`, one group per field, each owner opening where it is written. */

@@ -98,7 +98,7 @@ export async function addFieldOption(workshop: WorkshopClient, field: FieldDefin
 
 export interface FieldEntryConversion {
   /** Converts a `Name:: value` block if its text matches; true when a conversion started. */
-  shorthand(id: string, focus?: boolean): boolean;
+  shorthand(id: string, focus?: boolean, afterEnter?: boolean): boolean;
   /** Turns block `id` into an entry for `field`, an existing definition or a name to find or create, keeping the text after `from` as its value. */
   entry(id: string, field: FieldDefinition | string, from: number, focus?: boolean): void;
 }
@@ -116,7 +116,14 @@ export function createFieldEntryConversion(options: {
   known(name: string): FieldDefinition | undefined;
   onStart(): void;
   onField(field: FieldDefinition): void;
-  onCommitted(id: string, caret: Caret | null, epoch: number, focus: boolean, field: FieldDefinition): void;
+  onCommitted(
+    id: string,
+    caret: Caret | null,
+    epoch: number,
+    focus: boolean,
+    field: FieldDefinition,
+    afterEnter?: boolean,
+  ): void;
   onError(message: string): void;
 }) {
   const pending = new Set<string>();
@@ -131,13 +138,14 @@ export function createFieldEntryConversion(options: {
     valueStart: number,
     epoch: number,
     focus: boolean,
+    afterEnter: boolean,
   ) {
     const text = doc.block(id)!.text;
     const at = options.caret();
     const before = at?.id === id ? { ...at } : { id, offset: text.length };
     const result = doc.edit({ kind: 'fieldEntry', id, fieldId: field.id, from: valueStart }, before);
     if (!result.ok) throw new Error(result.reason);
-    options.onCommitted(id, result.caret, at?.id === id ? options.focusEpoch() : epoch, focus, field);
+    options.onCommitted(id, result.caret, at?.id === id ? options.focusEpoch() : epoch, focus, field, afterEnter);
   }
   /** A new name's kind comes from `guess`, its first value when typed inline; with no value yet, the field stays fresh until one is. */
   function start(
@@ -147,6 +155,7 @@ export function createFieldEntryConversion(options: {
     focus: boolean,
     still: (text: string) => number | null,
     guess?: { kind: FieldKind | null },
+    afterEnter = false,
   ) {
     pending.add(id);
     const epoch = options.focusEpoch();
@@ -159,7 +168,7 @@ export function createFieldEntryConversion(options: {
     };
     if (known) {
       try {
-        write(heldDoc, id, known, valueStart, epoch, focus);
+        write(heldDoc, id, known, valueStart, epoch, focus, afterEnter);
       } catch (error) {
         options.onError(error instanceof Error ? error.message : String(error));
       } finally {
@@ -180,7 +189,7 @@ export function createFieldEntryConversion(options: {
         options.onField(field);
         const text = heldDoc.block(id)?.text;
         const from = text === undefined ? null : still(text);
-        if (from !== null) write(heldDoc, id, field, from, epoch, focus);
+        if (from !== null) write(heldDoc, id, field, from, epoch, focus, afterEnter);
       } catch (error) {
         if (!options.disposed()) options.onError(error instanceof Error ? error.message : String(error));
       } finally {
@@ -190,7 +199,7 @@ export function createFieldEntryConversion(options: {
   }
   const valueOffset = (text: string, value: string) => text.length - value.length;
   return {
-    shorthand(id, focus = true) {
+    shorthand(id, focus = true, afterEnter = false) {
       if (options.disposed() || options.composing()) return false;
       if (pending.has(id)) return true;
       const original = options.doc.block(id)?.text;
@@ -208,6 +217,7 @@ export function createFieldEntryConversion(options: {
           return now && now.name.toLowerCase() === name ? valueOffset(text, now.value) : null;
         },
         { kind: match.value.trim() ? (guessFieldKind(match.value, options.targetKind) ?? 'text') : null },
+        afterEnter,
       );
       return true;
     },

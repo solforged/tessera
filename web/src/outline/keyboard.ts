@@ -163,7 +163,7 @@ export function createOutlineKeyboard(
     if (id) rowFocus(id, extend);
   }
   function split(view: EditorView) {
-    if (editing() && commitFieldEntry(editing()!)) return;
+    if (editing() && commitFieldEntry(editing()!, true, true)) return;
     if (!textRange()) {
       const selection = view.state.selection.main;
       const text = view.state.doc.toString();

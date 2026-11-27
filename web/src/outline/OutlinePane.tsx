@@ -549,7 +549,7 @@ function Pane(props: OutlinePaneProps) {
       setCreatedFields(previous =>
         previous.some(existing => existing.id === field.id) ? previous : [...previous, field],
       ),
-    onCommitted: (id, next, epoch, focus, field) => {
+    onCommitted: (id, next, epoch, focus, field, afterEnter) => {
       setMessage('');
       offerTemplateField(id);
       hints.fieldEntry(id);
@@ -558,6 +558,13 @@ function Pane(props: OutlinePaneProps) {
         next.delete(id);
         return next;
       });
+      // Pressing Enter after a filled `Name:: value` finishes the entry and continues on a regular line below.
+      if (afterEnter && focus && next && focusEpoch === epoch && doc.block(next.id)?.text.trim()) {
+        const parentId = doc.outline.parentOf(id);
+        apply({ kind: 'insert', parentId, after: id }, true);
+        scheduleReport();
+        return;
+      }
       if (next && focusEpoch === epoch) {
         setSelected(next.id);
         setCaret(next);
@@ -575,11 +582,19 @@ function Pane(props: OutlinePaneProps) {
     onError: setMessage,
   });
   /** Leaving a block converts `Name::` shorthand and links hand-typed `[[Title]]`; true when a field conversion started. */
-  function commitFieldEntry(id: string, focus = true) {
+  function commitFieldEntry(id: string, focus = true, afterEnter = false) {
     linkTitles(id);
     settleFreshField(id);
     offerTemplateField(doc.outline.parentOf(id));
-    return fieldConversion.shorthand(id, focus);
+    const block = doc.block(id);
+    if (
+      !block ||
+      block.task?.status ||
+      definitionsById().has(fieldEntryId(block.text) ?? '') ||
+      definitionsById().has(fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '') ?? '')
+    )
+      return false;
+    return fieldConversion.shorthand(id, focus, afterEnter);
   }
   /**
    * After a field entry on a typed block gets a value, offers to add the field to the type's template when another

@@ -282,6 +282,9 @@ describe('field entry input rule', () => {
       `${'A'.repeat(61)}::value`,
       'Author: value',
       'Author::value\nnext',
+      'Expose phrasebook::render',
+      'Expose phrasebook::render as interactive composer',
+      'phrasebook::render as interactive composer',
     ])
       expect(matchFieldEntry(text)).toBeNull();
   });

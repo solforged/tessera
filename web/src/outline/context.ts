@@ -153,7 +153,7 @@ export interface OutlineActionsSlice {
   capabilities: OutlineCapabilityActions;
   apply: (intent: Edit, keepEditing?: boolean) => EditResult | undefined;
   undo: (redo?: boolean) => void;
-  commitFieldEntry: (id: string, focus?: boolean) => boolean;
+  commitFieldEntry: (id: string, focus?: boolean, afterEnter?: boolean) => boolean;
   copy: (text: string) => void;
   rename: () => void;
   addGloss: () => void;

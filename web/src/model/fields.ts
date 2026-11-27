@@ -132,12 +132,17 @@ export const roleDescriptions: Record<FieldRole, string> = {
 export const fieldRole = (field: { role?: FieldRole } | undefined): FieldRole => field?.role ?? 'attribute';
 
 export function matchFieldEntry(text: string): { name: string; value: string } | null {
-  const match = /^([^\\`[\]#:]{1,60}?)::\s?(.*)$/.exec(text);
+  const match = /^([^\\`[\]#:]{1,60}?)::(\s?)(.*)$/.exec(text);
   if (!match || !match[1]!.trim()) return null;
-  const name = match[1]!.trim();
+  const rawName = match[1]!;
+  const spaceAfter = match[2]!;
+  const value = match[3]!;
+  const name = rawName.trim();
+  // Avoid firing field shorthand on mid-prose scope paths such as `Expose phrasebook::render`.
+  if (!spaceAfter && value && !/\s$/.test(rawName) && (/\s/.test(name) || /\s/.test(value))) return null;
   const prefix = parseCardText(name);
   if (prefix.cards.length || prefix.problems.length) return null;
-  return { name, value: match[2]! };
+  return { name, value };
 }
 
 export function fieldEntryText(fieldId: string): string {
