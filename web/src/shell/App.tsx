@@ -5,7 +5,6 @@ import {
   createResource,
   createSignal,
   For,
-  Index,
   lazy,
   on,
   onCleanup,
@@ -27,9 +26,7 @@ import { querySources } from '../table/attributes';
 import { deskTarget } from '../desk/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { PhoneIndex } from './PhoneIndex';
 import { Menu } from '../ui/Menu';
-import type { MenuItem } from '../ui/Menu';
 import { installInputModality } from '../ui/input-modality';
 import { dismissNotice, showNotice as showToast } from '../ui/Notice';
 import { Popup, type PopupAnchor } from '../ui/Popup';
@@ -41,7 +38,7 @@ import { pendingCaretInput } from '../ui/pending-caret';
 import { Calendar } from '../tasks/Calendar';
 import { localDate } from '../tasks/MonthGrid';
 import { createCommandRegistry } from './commands';
-import { deskCounts, shortDay } from '../workflows/desk-counts';
+import { deskCounts } from '../workflows/desk-counts';
 import type {
   Command,
   HistoryEntry,
@@ -73,17 +70,16 @@ import { createRetained } from '../core/retained';
 import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
 import { installHomeShortcuts } from './home-shortcuts';
-import { opensBeside } from '../core/beside';
 import { besideSlot, insertPane, journalTurn, MAX_PANES, paneCapacity, revealedStart, windowStart } from './pane-row';
 import { paneModules } from './pane-modules';
 import { copyView, pageIdOf, paneLabel, snapshotView } from './pane-state';
 import type { VimMode } from './pane-state';
 import { GlobalBanner } from './GlobalBanner';
-import { PageLinks } from './PageLinks';
 import { WorkshopContext, type WorkshopShell } from './context';
 import { Pane } from './Pane';
 import { PaneDivider } from './PaneDivider';
-import { ViewLinks } from './ViewLinks';
+import { createPaneDragGuide } from './pane-drag';
+import { SidebarNav } from './SidebarNav';
 import { blankCapture, createEvent } from '../create/request';
 import { resumeLinkImports } from '../create/link-import';
 import type { CreateOptions, CreateRequest } from '../create/request';
@@ -92,8 +88,7 @@ import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { WorkshopOpening, registerWorkshopCommands } from '../settings/notebooks';
-import { WorkshopSwitcher } from '../settings/NotebookSwitcher';
-import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, shelves, tagOnly } from '../notes/kinds';
+import { kindLabel, noteIndex } from '../notes/kinds';
 import { DEMO } from '../core/mode';
 import type { ContextChip } from '../agent/AgentDock';
 import { AgentMarks } from '../agent/marks';
@@ -147,8 +142,6 @@ type SavedNavigation = {
   widths?: Record<PaneId, number>;
   active?: PaneId;
 };
-/** A drop replaces a pane, or inserts a new one at a position in the row. */
-type DropZone = { replace: PaneId } | { insert: number };
 type PopupState = {
   kind: 'search' | 'commands' | 'calendar' | 'new-view' | 'delete' | 'restore-pages' | 'layout' | 'shortcuts';
   anchor: HTMLElement;
@@ -161,11 +154,6 @@ let paneSequence = 0;
 const newPaneId = (): PaneId => `pane-${Date.now().toString(36)}-${++paneSequence}`;
 /** Kinds that list things: a list fills the pane at its right and keeps focus, so the next row is one key away. */
 const listKinds: Partial<Record<OpenTarget['kind'], true>> = { library: true, index: true, table: true };
-/** What a modifier-click or a drag can open: links, buttons and rows. */
-const OPENABLE =
-  'a[href], button, [role="button"], [role="link"], [role="option"], [role="tab"], [data-reference], [data-open-page]';
-/** Index rows take ⌘ and Shift for selection, so holding the modifier there previews nothing. */
-const SELECTING = '.index-selectable, .index-queue-row, .index-source-row, .library-checkbox';
 /** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
 const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -2006,11 +1994,7 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
         : page.text
       : (paneTitle(pane) ?? paneLabel(entry(pane)?.target));
   };
-  // Where a click or a drop will open shows before it happens: a gilt frame over the pane it replaces, or a hatched
-  // ghost where a new pane will stand. Holding the beside modifier over something openable shows it for a click.
   let paneRow!: HTMLDivElement;
-  const [guide, setGuide] = createSignal<{ left: number; width: number; label: string; fresh: boolean } | null>(null);
-  const [dragChip, setDragChip] = createSignal<{ x: number; y: number; label: string } | null>(null);
   onMount(() => {
     // The width drives how many panes fit, which re-lays out the observed row: write it on the next frame, not inside the observer's delivery.
     let frame = 0;
@@ -2025,233 +2009,17 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       observer.disconnect();
     });
   });
-  const rowChild = (selector: string) => paneRow.querySelector<HTMLElement>(`:scope > ${selector}`);
-  /** A new pane at `index` would add a pane, fold one into a spine, or close the one farthest from it. */
-  const newPaneLabel = (index: number) => {
-    const placed = insertPane(order(), index, '');
-    const closed = placed.closed
-      ? ` · pane ${order().indexOf(placed.closed) + 1} closes`
-      : paneCapacity(rowWidth(), placed.order.length) < placed.order.length
-        ? ' · one folds aside'
-        : '';
-    return `New pane ${index + 1}${closed}`;
-  };
-  /** The guide over `existing` (its spine when folded), or a ghost of a new pane at `index`. */
-  const guideAt = (index: number, existing: PaneId | null, label: string) => {
-    const row = paneRow.getBoundingClientRect();
-    const element =
-      existing &&
-      (rowChild(`.pane[data-pane="${CSS.escape(existing)}"]:not(.folded)`) ??
-        rowChild(`.pane-spine[data-spine="${CSS.escape(existing)}"]`));
-    if (element) {
-      const rect = element.getBoundingClientRect();
-      return { left: rect.left - row.left, width: rect.width, label, fresh: false };
-    }
-    const width = row.width / (Math.min(fit(), order().length) + 1);
-    const next = order()[index];
-    const edge = next
-      ? (
-          rowChild(`.pane[data-pane="${CSS.escape(next)}"]:not(.folded)`) ??
-          rowChild(`.pane-spine[data-spine="${CSS.escape(next)}"]`)
-        )?.getBoundingClientRect().left
-      : undefined;
-    const left =
-      edge === undefined ? row.width - width : Math.max(0, Math.min(row.width - width, edge - row.left - width / 2));
-    return { left, width, label, fresh: true };
-  };
-  /** The pane a drop at (x, y) replaces, or the position a new pane takes when it lands on a pane's edge. */
-  const dropAt = (x: number, y: number): DropZone | null => {
-    if (tabbed()) return null;
-    const element = document.elementFromPoint(x, y)?.closest<HTMLElement>('.panes > .pane, .panes > .pane-spine');
-    if (!element || element.parentElement !== paneRow) return null;
-    const pane = element.dataset.pane ?? element.dataset.spine!;
-    if (element.classList.contains('pane-spine')) return { replace: pane };
-    const rect = element.getBoundingClientRect(),
-      at = order().indexOf(pane),
-      edge = Math.min(64, rect.width / 6);
-    if (x < rect.left + edge) return { insert: at };
-    if (x > rect.right - edge) return { insert: at + 1 };
-    return { replace: pane };
-  };
-  const guideForDrop = (zone: DropZone) =>
-    'replace' in zone
-      ? guideAt(order().indexOf(zone.replace), zone.replace, `Open in pane ${order().indexOf(zone.replace) + 1}`)
-      : guideAt(zone.insert, null, newPaneLabel(zone.insert));
-  /** What a dragged row or reference opens: `data-open-page` (with `data-open-block`) or a rendered reference. */
-  const dragTarget = (element: Element): { target: OpenTarget; label: string } | null => {
-    const row = element.closest<HTMLElement>('[data-open-page]');
-    if (row)
-      return {
-        target: {
-          kind: 'page',
-          pageId: row.dataset.openPage!,
-          ...(row.dataset.openBlock ? { blockId: row.dataset.openBlock } : {}),
-        },
-        label: row.dataset.openLabel ?? row.textContent?.trim() ?? '',
-      };
-    const reference = element.closest<HTMLElement>('.outline-reference[data-reference]');
-    const block = reference && workshop.lookup(reference.dataset.reference!)();
-    if (!reference || !block) return null;
-    return {
-      target:
-        block.id === block.page_id
-          ? { kind: 'page', pageId: block.id }
-          : { kind: 'page', pageId: block.page_id, blockId: block.id },
-      label: reference.textContent?.trim() ?? '',
-    };
-  };
-  onMount(() => {
-    const modifier = mac ? 'Meta' : 'Control';
-    let pointer: { x: number; y: number } | null = null,
-      held = false,
-      holdTimer = 0;
-    let drag: { x: number; y: number; target: OpenTarget; label: string; moving: boolean } | null = null;
-    const previewBeside = () => {
-      if (!held || !pointer || drag?.moving || tabbed()) {
-        if (!drag?.moving) setGuide(null);
-        return;
-      }
-      const hit = document.elementFromPoint(pointer.x, pointer.y);
-      // A pane's view transition covers the page and answers every hit test; look again once it has passed.
-      if (hit === document.documentElement) {
-        requestAnimationFrame(previewBeside);
-        return;
-      }
-      const openable = hit?.closest(OPENABLE);
-      const owner =
-        openable && !openable.closest(`${SELECTING}, .global-rail, .pane-tabs, .panes > .pane-spine`)
-          ? (openable.closest<HTMLElement>('.panes > .pane')?.dataset.pane ??
-            (openable.closest('.sidebar') ? active() : undefined))
-          : undefined;
-      if (!owner || !canOpenBeside(owner)) {
-        setGuide(null);
-        return;
-      }
-      const slot = besideSlot(order(), owner);
-      setGuide(
-        guideAt(
-          slot.index,
-          slot.existing,
-          slot.existing ? `Opens in pane ${slot.index + 1}` : newPaneLabel(slot.index),
-        ),
-      );
-    };
-    const release = () => {
-      clearTimeout(holdTimer);
-      held = false;
-      if (!drag?.moving) setGuide(null);
-    };
-    const keydown = (event: KeyboardEvent) => {
-      if (drag?.moving && event.key === 'Escape') {
-        event.preventDefault();
-        endDrag();
-        return;
-      }
-      if (event.key !== modifier || event.repeat) {
-        release();
-        return;
-      }
-      if (event.shiftKey || event.altKey) return;
-      clearTimeout(holdTimer);
-      // A shortcut presses its letter within a moment; only a held modifier previews.
-      holdTimer = window.setTimeout(() => {
-        held = true;
-        previewBeside();
-      }, 180);
-    };
-    const keyup = (event: KeyboardEvent) => {
-      if (event.key === modifier) release();
-    };
-    const endDrag = () => {
-      drag = null;
-      document.documentElement.classList.remove('pane-dragging');
-      document.querySelector('.agent-dock')?.classList.remove('drop-target');
-      batch(() => {
-        setGuide(null);
-        setDragChip(null);
-      });
-    };
-    const pointerdown = (event: PointerEvent) => {
-      if (
-        event.button !== 0 ||
-        event.pointerType === 'touch' ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      )
-        return;
-      const element = event.target instanceof Element ? event.target : null;
-      if (!element || element.closest('.cm-editor, input, textarea, [contenteditable="true"], .popup')) return;
-      const found = dragTarget(element);
-      drag = found ? { x: event.clientX, y: event.clientY, ...found, moving: false } : null;
-    };
-    const pointermove = (event: PointerEvent) => {
-      pointer = { x: event.clientX, y: event.clientY };
-      if (!drag) {
-        if (held) previewBeside();
-        return;
-      }
-      if (!drag.moving) {
-        if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
-        drag.moving = true;
-        document.documentElement.classList.add('pane-dragging');
-        getSelection()?.removeAllRanges();
-      }
-      // Over the agent dock a drop adds the page to what the agent reads.
-      const overDock = !!document.elementFromPoint(event.clientX, event.clientY)?.closest('.agent-dock');
-      document.querySelector('.agent-dock')?.classList.toggle('drop-target', overDock);
-      const zone = overDock ? null : dropAt(event.clientX, event.clientY);
-      batch(() => {
-        setDragChip({ x: event.clientX, y: event.clientY, label: drag!.label });
-        setGuide(zone ? guideForDrop(zone) : null);
-      });
-    };
-    const pointerup = (event: PointerEvent) => {
-      if (!drag) return;
-      const moved = drag.moving,
-        target = drag.target,
-        label = drag.label,
-        zone = moved ? dropAt(event.clientX, event.clientY) : null;
-      const toDock = moved && !!document.elementFromPoint(event.clientX, event.clientY)?.closest('.agent-dock');
-      endDrag();
-      if (!moved) return;
-      // The press that ends a drag is not also a click on whatever lies under it.
-      const swallow = (click: MouseEvent) => {
-        click.preventDefault();
-        click.stopPropagation();
-      };
-      window.addEventListener('click', swallow, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener('click', swallow, { capture: true }));
-      if (toDock && target.kind === 'page')
-        addDockContext({ page_id: target.pageId, ...(target.blockId ? { block_id: target.blockId } : {}) }, label);
-      if (!zone) return;
-      if ('replace' in zone) open(target, false, zone.replace);
-      else open(target, false, active(), undefined, zone.insert);
-    };
-    // After a modifier-click the row may have changed under a still-held modifier.
-    const click = () => {
-      if (held) requestAnimationFrame(previewBeside);
-    };
-    window.addEventListener('keydown', keydown, true);
-    window.addEventListener('keyup', keyup, true);
-    window.addEventListener('blur', release);
-    window.addEventListener('pointerdown', pointerdown, true);
-    window.addEventListener('pointermove', pointermove, { passive: true });
-    window.addEventListener('pointerup', pointerup, true);
-    window.addEventListener('pointercancel', endDrag);
-    window.addEventListener('click', click);
-    onCleanup(() => {
-      clearTimeout(holdTimer);
-      window.removeEventListener('keydown', keydown, true);
-      window.removeEventListener('keyup', keyup, true);
-      window.removeEventListener('blur', release);
-      window.removeEventListener('pointerdown', pointerdown, true);
-      window.removeEventListener('pointermove', pointermove);
-      window.removeEventListener('pointerup', pointerup, true);
-      window.removeEventListener('pointercancel', endDrag);
-      window.removeEventListener('click', click);
-    });
+  const { guide, dragChip } = createPaneDragGuide({
+    paneRow: () => paneRow,
+    workshop,
+    order,
+    active,
+    tabbed,
+    fit,
+    rowWidth,
+    canOpenBeside,
+    open,
+    addDockContext: (ref, title) => addDockContext(ref, title),
   });
   // The agent dock: its thread, the pages it reads (the panes in view, less any left out, plus dropped links) and
   // the rows it changed, which outline rows mark through AgentMarks.
@@ -2364,307 +2132,41 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     requestAnimationFrame(flash);
   }
   // The sidebar and the phone's Index share rows, with opens owned by the pane showing them.
-  const renderNavigation = (owner: Accessor<PaneId>, directory = false) => {
-    const phoneDirectory = () => directory && cover();
-    const onOpen = (target: OpenTarget, beside = false) => open(target, beside, owner());
-    const onOpenView = (view: View, beside: boolean) => openView(view, beside, owner());
-    const viewMenuItems = (view: View): MenuItem[] => [
-      {
-        label: pinnedViews().includes(view.id) ? 'Unpin view' : 'Pin view',
-        icon: 'pin',
-        action: () => pinView(view.id),
-      },
-    ];
-    const revisits = () => (
-      <Button
-        icon="history"
-        class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''}
-        aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`}
-        onClick={event => onOpen({ kind: 'revisits' }, opensBeside(event))}
-      >
-        <span>Revisits</span>
-        <Show when={counts()?.revisits}>
-          {due => (
-            <span class="desk-count" title={`${due()} to revisit`}>
-              {due()}
-            </span>
-          )}
-        </Show>
-      </Button>
-    );
-    const fields = () => (
-      <Button
-        class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }> | undefined)?.typeId ? 'selected' : ''}`}
-        icon="field"
-        title="Fields"
-        aria-current={
-          entry(active())?.target.kind === 'fields' &&
-          !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }> | undefined)?.typeId
-            ? 'page'
-            : undefined
-        }
-        onClick={event => onOpen({ kind: 'fields' }, opensBeside(event))}
-      >
-        <span>Fields</span>
-        <span class="desk-count">{index()?.fields.toLocaleString()}</span>
-      </Button>
-    );
-    const kindRow = (kind: Accessor<IndexKind>) => (
-      <>
-        <div class="index-kind-row">
-          <Button
-            class={`index-kind ${activeKindKey() === kind().key || (tagOnly(kind()) && activeTypeId() === kind().type_id) ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`}
-            icon={noteKindIcon(kind())}
-            title={kindLabel(kind())}
-            onClick={event => onOpen(indexKindTarget(kind()), opensBeside(event))}
-          >
-            <span>{kindLabel(kind())}</span>
-            <Show when={kind().count || kind().tagged_block_count}>
-              {count => <span class="desk-count">{count().toLocaleString()}</span>}
-            </Show>
-          </Button>
-          <Show
-            when={
-              kind().key === 'question' &&
-              (kind().count || kind().tagged_block_count || otherViews().some(view => viewInKind(view, kind())))
-            }
-          >
-            <Button
-              icon="more"
-              label="Questions menu"
-              aria-haspopup="menu"
-              onClick={event => setQuestionsMenu(event.currentTarget)}
-            />
-          </Show>
-        </div>
-        <Show when={otherViews().some(view => viewInKind(view, kind()))}>
-          <div class="index-views">
-            <ViewLinks
-              views={otherViews().filter(view => viewInKind(view, kind()))}
-              pinned={false}
-              activeId={activeViewId()}
-              onOpen={onOpenView}
-              onPin={pinView}
-            />
-          </div>
-        </Show>
-      </>
-    );
-    return (
-      <Show
-        when={phoneDirectory()}
-        fallback={
-          <>
-            <nav class="primary-navigation" aria-label="Workshop">
-              <Button
-                data-phone-tab
-                icon="today"
-                title="Today (⌃⇧J)"
-                class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''}
-                onClick={event => {
-                  void today(owner(), opensBeside(event));
-                }}
-              >
-                <span>Today</span>
-                <span class="desk-count">{shortDay(todayDate())}</span>
-              </Button>
-              <Button
-                data-phone-tab
-                icon="agenda"
-                class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''}
-                onClick={event => onOpen({ kind: 'agenda', date: journalDate(owner()) }, opensBeside(event))}
-              >
-                <span>Agenda</span>
-                <Show when={(counts()?.planned ?? 0) + (counts()?.overdue ?? 0)}>
-                  {total => (
-                    <span
-                      class={`desk-count ${counts()!.overdue ? 'late' : ''}`}
-                      title={`${total()} to do: ${counts()!.planned} today · ${counts()!.overdue} overdue`}
-                    >
-                      {total()}
-                    </span>
-                  )}
-                </Show>
-              </Button>
-              {revisits()}
-              <Button
-                data-phone-tab
-                icon="review"
-                class={entry(active())?.target.kind === 'review' ? 'selected' : ''}
-                aria-label={`Review · ${counts()?.cards ?? 0} cards`}
-                onClick={event => onOpen({ kind: 'review' }, opensBeside(event))}
-              >
-                <span>Review</span>
-                <Show when={counts()?.cards}>
-                  {due => (
-                    <span class="desk-count" title={`${due()} cards`}>
-                      {due()}
-                    </span>
-                  )}
-                </Show>
-              </Button>
-              <Button
-                data-phone-tab
-                icon="library"
-                class={entry(active())?.target.kind === 'library' ? 'selected' : ''}
-                onClick={event => onOpen({ kind: 'library' }, opensBeside(event))}
-              >
-                <span>Library</span>
-                <Show when={counts()?.highlights}>
-                  {highlights => (
-                    <span
-                      class="desk-count"
-                      title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}
-                    >
-                      {highlights()}
-                    </span>
-                  )}
-                </Show>
-              </Button>
-            </nav>
-            <div class="sidebar-scroll">
-              <Show when={pinnedRoots().length || pinnedViewList().length}>
-                <section class="page-list" aria-label="Pinned">
-                  <h2>
-                    <span class="section-number">{sectionNumber('pinned')}</span>Pinned
-                    <span class="section-rule" />
-                    <span class="section-count">{pinnedRoots().length + pinnedViewList().length}</span>
-                  </h2>
-                  <PageLinks
-                    roots={pinnedRoots()}
-                    workshop={workshop}
-                    activeId={pageIdOf(entry(active()))}
-                    onOpen={onOpen}
-                  />
-                  <ViewLinks
-                    views={pinnedViewList()}
-                    pinned
-                    activeId={activeViewId()}
-                    onOpen={onOpenView}
-                    onPin={pinView}
-                  />
-                </section>
-              </Show>
-              <Show when={index()?.kinds.length}>
-                <section class="page-list index-list" aria-label="Index">
-                  <h2>
-                    <span class="section-number">{sectionNumber('index')}</span>
-                    <button
-                      type="button"
-                      class="index-directory-link"
-                      aria-current={activeKindKey() === 'all' ? 'page' : undefined}
-                      title="Open Index"
-                      onClick={event => onOpen({ kind: 'index', key: 'all' }, opensBeside(event))}
-                    >
-                      Index
-                    </button>
-                    <span class="section-rule" />
-                    <Show when={index()!.notes}>
-                      {notes => (
-                        <span
-                          class="section-count"
-                          title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed under ${index()!.kinds.length.toLocaleString()} ${index()!.kinds.length === 1 ? 'type' : 'types'}`}
-                        >
-                          {notes().toLocaleString()}
-                        </span>
-                      )}
-                    </Show>
-                  </h2>
-                  {/* Kinds re-arrive as fresh objects after each change; keep rows mounted by position. */}
-                  <For each={shelves}>
-                    {([shelf, label]) => (
-                      <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
-                        <h3 class="index-shelf">{label}</h3>
-                        <Index each={shelfKinds()[shelf] ?? []}>{kindRow}</Index>
-                        <Show when={shelf === 'notes'}>{fields()}</Show>
-                      </Show>
-                    )}
-                  </For>
-                  <Show when={index()?.spreads.length}>
-                    <h3 class="index-shelf">Spreads</h3>
-                    <For each={index()?.spreads}>
-                      {spread => (
-                        <Button
-                          class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`}
-                          icon="panes"
-                          title={spread.title}
-                          onClick={event => onOpen({ kind: 'page', pageId: spread.id }, opensBeside(event))}
-                        >
-                          <span>{spread.title}</span>
-                        </Button>
-                      )}
-                    </For>
-                  </Show>
-                </section>
-              </Show>
-              <section class="page-list" aria-label="Saved views">
-                <h2>
-                  <span class="section-number">{sectionNumber('views')}</span>Views
-                  <span class="section-rule" />
-                  <span class="section-count">{looseViews().length || ''}</span>
-                </h2>
-                <ViewLinks
-                  views={looseViews()}
-                  pinned={false}
-                  activeId={activeViewId()}
-                  onOpen={onOpenView}
-                  onPin={pinView}
-                />
-                <Button
-                  icon="plus"
-                  onClick={event => setPopup({ kind: 'new-view', anchor: event.currentTarget, pane: owner() })}
-                >
-                  New view…
-                </Button>
-              </section>
-              <details class="page-list" open>
-                <summary>
-                  <span class="section-number">{sectionNumber('recent')}</span>Recent
-                  <span class="section-rule" />
-                  <Icon name="down" />
-                </summary>
-                <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Atoms you open appear here</p>}>
-                  <PageLinks
-                    roots={recentRoots()}
-                    sourceIcons
-                    workshop={workshop}
-                    activeId={pageIdOf(entry(active()))}
-                    onOpen={onOpen}
-                  />
-                </Show>
-              </details>
-            </div>
-            <div class="sidebar-foot">
-              <WorkshopSwitcher workshop={workshop} onOpen={onOpen} onError={reportError} />
-              <Button
-                icon="settings"
-                label="Settings"
-                class={`sidebar-settings ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`}
-                onClick={event => onOpen({ kind: 'settings' }, opensBeside(event))}
-              >
-                <span>Settings</span>
-              </Button>
-            </div>
-          </>
-        }
-      >
-        <PhoneIndex
-          workshop={workshop}
-          index={index()}
-          revisits={counts()?.revisits ?? 0}
-          views={views() ?? []}
-          pinned={pinnedRoots()}
-          recent={recentRoots()}
-          onOpen={onOpen}
-          onOpenView={view => onOpenView(view, false)}
-          onNewView={anchor => setPopup({ kind: 'new-view', anchor, pane: owner() })}
-          viewMenu={viewMenuItems}
-          questionMenu={() => [{ label: 'Open research desk', icon: 'panes', action: () => onOpen(deskTarget()) }]}
-          onError={reportError}
-        />
-      </Show>
-    );
-  };
+  const renderNavigation = (owner: Accessor<PaneId>, directory = false) => (
+    <SidebarNav
+      owner={owner}
+      directory={directory}
+      workshop={workshop}
+      todayDate={todayDate}
+      counts={counts}
+      activeEntry={() => entry(active())}
+      activeRoot={activeRoot}
+      activeKindKey={activeKindKey}
+      activeTypeId={activeTypeId}
+      activeViewId={activeViewId}
+      journalDate={journalDate}
+      index={index}
+      views={views}
+      pinnedRoots={pinnedRoots}
+      pinnedViews={pinnedViews}
+      pinnedViewList={pinnedViewList}
+      otherViews={otherViews}
+      looseViews={looseViews}
+      recentRoots={recentRoots}
+      shelfKinds={shelfKinds}
+      viewInKind={viewInKind}
+      sectionNumber={sectionNumber}
+      onToday={(pane, beside) => {
+        void today(pane, beside);
+      }}
+      onOpen={(target, beside, pane) => open(target, beside, pane)}
+      onOpenView={(view, beside, pane) => openView(view, beside, pane)}
+      onPinView={pinView}
+      onNewView={(anchor, pane) => setPopup({ kind: 'new-view', anchor, pane })}
+      onQuestionsMenu={anchor => setQuestionsMenu(anchor)}
+      onError={reportError}
+    />
+  );
   // Getters, not a snapshot: each pane reads these the way it read Solid props.
   const shell: WorkshopShell = {
     get workshop() {
