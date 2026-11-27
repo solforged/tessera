@@ -497,6 +497,7 @@
     display: flex;
     align-items: baseline;
     gap: var(--space-16);
+    margin-top: var(--page-eyebrow-gap);
   }
   .type-fields-title h1 {
     display: flex;

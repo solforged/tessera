@@ -10,7 +10,7 @@ import { censusNoun, kindLabel, kindPlural, kindTally } from '../notes/kinds';
 import { plainText } from '../outline/names';
 import { taskFieldName } from '../tasks/task-fields';
 import type { MenuItem } from '../ui/Menu';
-import { attributeDefinitions, sourceName } from './attributes';
+import { attributeDefinitions, projectAttributeDefinitions, sourceName } from './attributes';
 import {
   copyQuery,
   filterLabel,
@@ -76,30 +76,39 @@ export function createTableQueryState(options: TableQueryStateOptions) {
     for (const field of result()?.fields ?? []) if (!combined.has(field.id)) combined.set(field.id, field);
     return [...combined.values()];
   });
-  const attributes = createMemo(() =>
-    attributeDefinitions(query().source).map(field =>
+  const typeKind = () =>
+    query().note_kind || query().type
+      ? noteIndex()?.kinds.find(kind =>
+          query().note_kind ? kind.key === query().note_kind : kind.type_id === query().type,
+        )
+      : undefined;
+  const isProjectTable = () => query().note_kind === 'project' || typeKind()?.key === 'project';
+  const isTaskTable = () => query().source === 'tasks' || query().note_kind === 'task' || typeKind()?.key === 'task';
+  const attributes = createMemo(() => [
+    ...attributeDefinitions(query().source).map(field =>
       field.id === '@kind'
         ? { ...field, options: (noteIndex()?.kinds ?? []).map(kind => ({ id: kind.key, text: kind.name })) }
         : field,
     ),
-  );
+    ...(isProjectTable() && (!query().source || query().source === 'notes') ? projectAttributeDefinitions() : []),
+  ]);
+  const showFieldInPicker = (field: FieldDefinition) =>
+    query().source === 'tasks' ? !taskFieldName(field) : isTaskTable() || !taskFieldName(field);
   const pickerFields = createMemo(() => [
     ...attributes().filter(field => field.id !== '@due'),
-    ...fields().filter(field => query().source !== 'tasks' || !taskFieldName(field)),
+    ...fields().filter(showFieldInPicker),
   ]);
   const fieldGroups = createMemo(() => {
     const template = new Set(query().type ? (type()?.fields ?? []) : []);
     const own = fields()
-      .filter(field => template.has(field.id) && (query().source !== 'tasks' || !taskFieldName(field)))
+      .filter(field => template.has(field.id) && showFieldInPicker(field))
       .sort((a, b) => [...template].indexOf(a.id) - [...template].indexOf(b.id));
     return [
       { section: 'Tag template', fields: own },
       { section: 'Built in', fields: attributes().filter(field => field.id !== '@due') },
       {
         section: own.length ? 'Other fields' : 'Fields',
-        fields: fields().filter(
-          field => !template.has(field.id) && (query().source !== 'tasks' || !taskFieldName(field)),
-        ),
+        fields: fields().filter(field => !template.has(field.id) && showFieldInPicker(field)),
       },
     ].filter(group => group.fields.length);
   });
@@ -169,12 +178,6 @@ export function createTableQueryState(options: TableQueryStateOptions) {
   const sourcesByRow = createMemo(
     () => new Map((result()?.rows ?? []).map(row => [row.block.block.id, rowSources(row, sourceField())])),
   );
-  const typeKind = () =>
-    query().note_kind || query().type
-      ? noteIndex()?.kinds.find(kind =>
-          query().note_kind ? kind.key === query().note_kind : kind.type_id === query().type,
-        )
-      : undefined;
   const rowKind = () => {
     if (query().source === 'questions' && !query().type)
       return { key: 'question', name: 'Question', plural: 'Questions', icon: null, type_id: null };

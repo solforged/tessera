@@ -125,7 +125,7 @@
   .index-entry {
     display: block;
     width: 100%;
-    padding: var(--space-4) 0 var(--space-12);
+    padding: var(--space-4) 0 var(--space-8);
     border: 0;
     border-radius: var(--radius-control);
     background: none;
@@ -140,7 +140,7 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
     overflow: hidden;
-    font: var(--weight-display-heading) var(--text-h2) / var(--line-h3) var(--font-display);
+    font: var(--weight-display-heading) var(--text-library-title) / var(--line-source-title) var(--font-display);
   }
   .index-preview {
     display: -webkit-box;

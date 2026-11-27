@@ -89,24 +89,19 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
           when={isPhone()}
           fallback={
             <header class="type-fields-heading">
-              <div class="fields-register">
-                <Button
-                  class="type-fields-crumb"
-                  onClick={event =>
-                    props.onOpen(
-                      { kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` },
-                      opensBeside(event),
-                    )
-                  }
-                >
-                  {registerName()}
-                </Button>
-              </div>
               <div class="type-fields-title">
                 <h1>
                   <Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>
                   {registerName()}
                 </h1>
+                <Show when={data.latest?.kind}>
+                  {kind => (
+                    <span class="index-census">
+                      <span class="fig">{kind().count.toLocaleString()}</span>{' '}
+                      {censusNoun(kind().count, kind().key, kind())}
+                    </span>
+                  )}
+                </Show>
               </div>
             </header>
           }

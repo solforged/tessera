@@ -4,7 +4,7 @@ import type { FieldDefinition, Query, QueryResult } from '../api/types';
 import { scrollBehavior } from '../core/motion';
 import { columnEdge } from './edge';
 
-export const titleWidthLimits = { min: 170, max: 340, default: 340 };
+export const titleWidthLimits = { min: 170, max: 340, default: 200 };
 export const clampTitleWidth = (width: number | undefined) =>
   Number.isFinite(width)
     ? Math.max(titleWidthLimits.min, Math.min(titleWidthLimits.max, width!))
@@ -58,9 +58,11 @@ export function createColumnResize(options: ColumnResizeOptions) {
     const kind = options.fieldById(id)?.kind;
     return id === options.sourceField()?.id
       ? 'var(--table-source-width)'
-      : kind === 'number' || kind === 'checkbox' || kind === 'date'
-        ? 'var(--table-compact-width)'
-        : 'var(--table-field-width)';
+      : kind === 'number' || kind === 'checkbox' || kind === 'choice' || id === '@project_progress'
+        ? 'var(--table-narrow-width)'
+        : kind === 'date'
+          ? 'var(--table-compact-width)'
+          : 'var(--table-field-width)';
   };
 
   const measureEdge = () => {

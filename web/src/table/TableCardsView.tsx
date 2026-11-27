@@ -568,27 +568,29 @@ export function TableColumnsPopup(props: {
           />
         </label>
       </Show>
-      <div class="table-popup-heading">Card fields</div>
-      <p class="table-popup-note">Sort fields are always shown.</p>
-      <Index each={props.columnChoices}>
-        {field => (
-          <label class="table-column-choice">
-            <input
-              type="checkbox"
-              checked={props.query.card?.includes(field().id) ?? false}
-              onChange={event =>
-                props.onUpdateQuery({
-                  ...props.query,
-                  card: event.currentTarget.checked
-                    ? [...(props.query.card ?? []), field().id]
-                    : (props.query.card ?? []).filter(id => id !== field().id),
-                })
-              }
-            />
-            {fieldLabel(field())}
-          </label>
-        )}
-      </Index>
+      <Show when={props.cards}>
+        <div class="table-popup-heading">Card fields</div>
+        <p class="table-popup-note">Sort fields are always shown.</p>
+        <Index each={props.columnChoices}>
+          {field => (
+            <label class="table-column-choice">
+              <input
+                type="checkbox"
+                checked={props.query.card?.includes(field().id) ?? false}
+                onChange={event =>
+                  props.onUpdateQuery({
+                    ...props.query,
+                    card: event.currentTarget.checked
+                      ? [...(props.query.card ?? []), field().id]
+                      : (props.query.card ?? []).filter(id => id !== field().id),
+                  })
+                }
+              />
+              {fieldLabel(field())}
+            </label>
+          )}
+        </Index>
+      </Show>
       <Show when={props.query.type}>
         <div class="table-template-actions">
           <Button onClick={() => props.onAddColumnMenu(props.anchor)}>Add field to tag template…</Button>

@@ -179,6 +179,42 @@ pub(crate) fn project_memberships(conn: &Connection) -> Result<HashMap<String, V
     Ok(result)
 }
 
+/// Counts `(done, total)` non-cancelled tasks per project, combining explicit `project` links and outlines.
+pub(crate) fn project_task_counts(conn: &Connection) -> Result<HashMap<String, (usize, usize)>> {
+    let mut statement = conn.prepare_cached(concat!(
+        hidden_blocks!(),
+        task_memberships!(),
+        " SELECT coalesce(m.explicit_project, a.ancestor_id) AS project_id,
+                 json_extract(m.state, '$.status') AS status,
+                 m.block_id
+          FROM memberships m
+          LEFT JOIN ancestors a ON a.task_id = m.block_id AND m.explicit_project IS NULL
+          JOIN live_projects pr ON pr.block_id = coalesce(m.explicit_project, a.ancestor_id)
+          WHERE json_extract(m.state, '$.status') IS NOT NULL
+            AND json_extract(m.state, '$.status') != 'cancelled'"
+    ))?;
+    let mut seen = HashSet::<(String, String)>::new();
+    let mut counts = HashMap::<String, (usize, usize)>::new();
+    for row in statement.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })? {
+        let (project, status, task_id) = row?;
+        if !seen.insert((project.clone(), task_id)) {
+            continue;
+        }
+        let entry = counts.entry(project).or_default();
+        entry.1 += 1;
+        if status == "done" {
+            entry.0 += 1;
+        }
+    }
+    Ok(counts)
+}
+
 fn unfinished(status: Option<TaskStatus>) -> bool {
     matches!(
         status,

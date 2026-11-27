@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 use tessera_core::library::*;
 use tessera_core::{
-    Actor, AssessmentState, Batch, FieldKind, Operation, Query, QuestionState, RelationKind,
-    RevisitAction, TaskState, TaskStatus, Workshop,
+    Actor, AssessmentState, Batch, FieldKind, Operation, ProjectState, ProjectStatus, Query,
+    QuestionState, RelationKind, RevisitAction, TaskState, TaskStatus, Workshop,
 };
 
 fn id(n: u128) -> String {
@@ -609,4 +609,105 @@ fn saved_desk_keeps_linked_queries_after_reopen() {
     drop(nb);
     let nb = Workshop::open(dir.path()).unwrap();
     assert_eq!(nb.view(&id(901)).unwrap().query, query);
+}
+
+#[test]
+fn project_table_hydrates_project_attributes_and_list_preview_falls_back_to_outcome() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            Operation::CreatePage {
+                id: id(80),
+                title: "Clio".into(),
+            },
+            insert(81, id(80), "Ship hub service".into()),
+            insert(82, id(80), "Verify backup".into()),
+            insert(83, id(80), "Drop old cache".into()),
+        ],
+    );
+    let mut ops = vec![Operation::SetProject {
+        id: id(80),
+        base_revision: nb.block(&id(80)).unwrap().revision,
+        project: Some(ProjectState {
+            outcome: "Model-first music hub".into(),
+            deadline: Some("2026-12-04".into()),
+            status: ProjectStatus::Active,
+        }),
+    }];
+    for (n, status) in [
+        (81, TaskStatus::Todo),
+        (82, TaskStatus::Todo),
+        (83, TaskStatus::Cancelled),
+    ] {
+        ops.push(Operation::SetTask {
+            id: id(n),
+            base_revision: nb.block(&id(n)).unwrap().revision,
+            task: Some(TaskState {
+                status: Some(status),
+                ..Default::default()
+            }),
+        });
+    }
+    apply(&mut nb, ops);
+    let today = nb.today(tessera_core::now_ms()).unwrap();
+    let rev81 = nb.block(&id(81)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::CompleteTask {
+            id: id(81),
+            base_revision: rev81,
+            occurrence_id: id(84),
+            completed_on: today,
+        }],
+    );
+
+    let project_type = nb
+        .note_index()
+        .unwrap()
+        .kinds
+        .into_iter()
+        .find(|kind| kind.kind.key == "project")
+        .unwrap()
+        .kind
+        .type_id
+        .unwrap();
+    let table = run(&nb, json!({ "source": "notes", "type": project_type }));
+    assert_eq!(
+        table.columns[..4],
+        [
+            "@project_status",
+            "@project_progress",
+            "@project_deadline",
+            "@project_outcome"
+        ]
+    );
+    let row = table
+        .rows
+        .iter()
+        .find(|row| row.block.block.id == id(80))
+        .unwrap();
+    assert_eq!(row.attributes["@project_status"][0].text, "Active");
+    assert_eq!(row.attributes["@project_progress"][0].text, "1 / 2");
+    assert_eq!(row.attributes["@project_deadline"][0].text, "2026-12-04");
+    assert_eq!(
+        row.attributes["@project_outcome"][0].text,
+        "Model-first music hub"
+    );
+
+    let filtered = ids(
+        &nb,
+        json!({
+            "source": "notes",
+            "note_kind": "project",
+            "filters": [{"field": "@project_status", "op": "is", "value": "Active"}]
+        }),
+    );
+    assert_eq!(filtered, vec![id(80)]);
+
+    let list = nb.kind_notes("project").unwrap();
+    assert_eq!(
+        list.summaries[&id(80)].preview.as_deref(),
+        Some("Model-first music hub")
+    );
 }

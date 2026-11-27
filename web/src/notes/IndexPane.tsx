@@ -111,7 +111,7 @@ const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? 
 const apparatus = (summary: NoteSummary | undefined) =>
   summary
     ? [
-        summary.block_count ? tally(summary.block_count, 'prose note') : '',
+        summary.block_count ? tally(summary.block_count, 'note') : '',
         summary.backlinks ? tally(summary.backlinks, 'backlink') : '',
       ]
         .filter(Boolean)
@@ -124,8 +124,9 @@ const figured = (count: number, noun: string) => (
     {count === 1 ? '' : 's'}
   </>
 );
-/** Past this many rows a phone's list takes letter heads and the jump rail. */
+/** Past this many rows a list takes letter heads and the jump rail. */
 const phoneLetterRows = 30;
+const desktopLetterRows = 12;
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
 const directoryReads = new WeakMap<WorkshopClient, NoteIndex>();
 const kindReads = new WeakMap<WorkshopClient, Map<string, KindIndex>>();
@@ -501,12 +502,12 @@ function KindIndexPane(props: IndexPaneProps) {
   // A phone sets letter heads only when letters share a row or the list is long, and the jump rail only for a long one:
   // nine people under nine different letters need neither.
   const entryCount = () => groups().reduce((total, group) => total + group.entries.length, 0);
+  const letterThreshold = () => (cover() ? phoneLetterRows : desktopLetterRows);
   const headed = () =>
     displayedGrouping() !== 'letter' ||
-    !cover() ||
-    entryCount() > phoneLetterRows ||
-    groups().some(group => group.entries.length > 1);
-  const railed = () => displayedGrouping() === 'letter' && (!cover() || entryCount() > phoneLetterRows);
+    entryCount() > letterThreshold() ||
+    (cover() && groups().some(group => group.entries.length > 1));
+  const railed = () => displayedGrouping() === 'letter' && entryCount() > letterThreshold();
   const pending = () => !display() && !index.error && !definitions.error && !matches.error && !missingFields().length;
   const slow = createSlowFlag(pending);
   const toggleSelection = (id: string, extend: boolean) => {
@@ -525,8 +526,7 @@ function KindIndexPane(props: IndexPaneProps) {
     }
   };
   const selectOrOpen = (note: NoteEntry, event: MouseEvent) => {
-    if ((cover() && selecting()) || event.metaKey || event.ctrlKey || event.shiftKey)
-      toggleSelection(note.id, event.shiftKey);
+    if ((cover() && selecting()) || event.shiftKey) toggleSelection(note.id, event.shiftKey);
     else openNote(note, event);
   };
   const openTable = (event: MouseEvent) =>
@@ -571,7 +571,7 @@ function KindIndexPane(props: IndexPaneProps) {
   const entryApparatus = (value: NoteSummary) => {
     const field = value.field ? plainText(value.field.value, lookup) : '';
     const counted = value.block_count
-      ? figured(value.block_count, 'prose note')
+      ? figured(value.block_count, 'note')
       : value.backlinks
         ? figured(value.backlinks, 'backlink')
         : undefined;

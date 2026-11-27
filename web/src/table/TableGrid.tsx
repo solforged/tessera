@@ -10,7 +10,7 @@ import { BlockText } from '../outline/BlockText';
 import { displayTitle, plainText } from '../outline/names';
 import { statusIcons, statusLabels, statuses } from '../tasks/TaskControls';
 import { isFinished, taskFacts } from '../tasks/task-labels';
-import { taskFieldName } from '../tasks/task-fields';
+import { taskFieldLabel, taskFieldName } from '../tasks/task-fields';
 import { newTask } from '../tasks/quick-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -86,7 +86,8 @@ export function TableGrid(props: TableGridProps) {
   const rows = createMemo(() => reconcileRows(props.rows));
   const fieldName = (id: string) => {
     const field = props.field(id);
-    return (field && taskFieldName(field)) || props.fieldName(id);
+    const taskField = field && taskFieldName(field);
+    return (taskField && taskFieldLabel(taskField)) || props.fieldName(id);
   };
   const lookup = (id: string) => props.workshop.lookup(id);
   /** A row's name as a reader sees it: links resolved, a page's identity tag dropped. */

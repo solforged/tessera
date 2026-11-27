@@ -3,7 +3,8 @@
   .table-pane {
     --table-field-width: calc(var(--apparatus-width) - var(--space-48));
     --table-source-width: calc(var(--apparatus-width) + var(--space-48));
-    --table-compact-width: calc(3 * var(--space-48));
+    --table-compact-width: calc(2 * var(--space-48) + var(--space-32));
+    --table-narrow-width: calc(2 * var(--space-48) + var(--space-8));
     --table-refs-width: calc(var(--space-48) + var(--space-16));
     display: flex;
     flex: 1;
@@ -320,6 +321,9 @@
     -webkit-line-clamp: 3;
     overflow: hidden;
   }
+  .type-table .table-cell-clamp {
+    -webkit-line-clamp: 2;
+  }
   .table-cell-open {
     display: block;
     -webkit-line-clamp: unset;
@@ -330,6 +334,11 @@
     margin-inline-start: calc(-1 * (var(--space-8) + var(--rule-width)));
     color: var(--muted);
     font-weight: var(--weight-body);
+  }
+  .type-table .table-cell-more.button {
+    min-height: 0;
+    padding-block: 0;
+    font: var(--apparatus);
   }
   .type-table .table-cell:focus {
     outline: var(--focus-ring);

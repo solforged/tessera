@@ -759,6 +759,18 @@ impl Workshop {
             rows = keyed.into_iter().map(|(row, _)| row).collect();
         }
         let mut columns = crate::entity_query::default_columns(source, &definitions);
+        if source == crate::QuerySource::Notes
+            && (query.note_kind.as_deref() == Some("project") || capability_type == Some("project"))
+        {
+            for key in [
+                "@project_status",
+                "@project_progress",
+                "@project_deadline",
+                "@project_outcome",
+            ] {
+                columns.push(key.into());
+            }
+        }
         if let Some(id) = query.r#type.as_deref() {
             columns.extend(template(&self.conn, id)?);
         }

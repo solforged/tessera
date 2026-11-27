@@ -76,11 +76,24 @@ export function censusNoun(count: number, key: string, kind?: Pick<NoteKind, 'ke
   return count === 1 ? (kind.key in startableKinds ? kind.name.toLocaleLowerCase() : kind.name) : kindPlural(kind);
 }
 
-/** A tag-only kind opens its useful member table rather than an empty note index. */
+/** Editorial/directory kinds that default to List or QuestionLedger; structured and work kinds default to Table. */
+const listDefaultKinds = new Set(['person', 'source', 'question', 'unfiled', 'all']);
+
+/** Structured and work kinds open directly into their Table; people, sources, questions and loose notes open List. */
 export function indexKindTarget(kind: IndexKind): OpenTarget {
-  return tagOnly(kind)
-    ? { kind: 'table', typeId: kind.type_id, viewId: null, query: typeQuery(kind.type_id) }
-    : { kind: 'index', key: kind.key };
+  if (tagOnly(kind) || (kind.type_id !== null && !listDefaultKinds.has(kind.key))) {
+    return {
+      kind: 'table',
+      typeId: kind.type_id,
+      viewId: null,
+      query: {
+        ...typeQuery(kind.type_id),
+        note_kind: kind.key,
+        note_view: { layout: 'table', grouping: 'letter' },
+      },
+    };
+  }
+  return { kind: 'index', key: kind.key };
 }
 
 /** The Index's finding-aid heads, in order; spreads follow under their own head. */

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { IndexKind } from '../api/types';
-import { eyebrowNamesTag, kindLabel, noteKindIcon } from './kinds';
+import { eyebrowNamesTag, indexKindTarget, kindLabel, noteKindIcon } from './kinds';
 
 const kind = (over: Partial<IndexKind> = {}): IndexKind => ({
   key: 'type:1',
@@ -47,4 +47,25 @@ test('a title tag for a kind the eyebrow names is not repeated, by page for a ca
   expect(eyebrowNamesTag(eyebrow, { id: 'missing-page', value: 'Concept' })).toBe(false);
   expect(eyebrowNamesTag(eyebrow, { value: 'stoic' })).toBe(false);
   expect(eyebrowNamesTag(undefined, { id: 'concept-page', value: 'concept' })).toBe(false);
+});
+
+test('structured and work kinds default to Table while editorial directories default to List', () => {
+  expect(
+    indexKindTarget(kind({ key: 'project', name: 'Project', plural: 'Projects', type_id: 'proj', count: 3 })).kind,
+  ).toBe('table');
+  expect(indexKindTarget(kind({ key: 'task', name: 'Task', plural: 'Tasks', type_id: 'task', count: 5 })).kind).toBe(
+    'table',
+  );
+  expect(
+    indexKindTarget(kind({ key: 'concept', name: 'Concept', plural: 'Concepts', type_id: 'c', count: 2 })).kind,
+  ).toBe('table');
+  expect(indexKindTarget(kind({ key: 'person', name: 'Person', plural: 'People', type_id: 'p', count: 4 })).kind).toBe(
+    'index',
+  );
+  expect(
+    indexKindTarget(kind({ key: 'source', name: 'Source', plural: 'Sources', type_id: null, count: 4 })).kind,
+  ).toBe('index');
+  expect(
+    indexKindTarget(kind({ key: 'question', name: 'Question', plural: 'Questions', type_id: null, count: 2 })).kind,
+  ).toBe('index');
 });

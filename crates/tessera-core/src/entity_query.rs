@@ -21,6 +21,10 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
             ("@kind", "Tag", Choice),
             ("@resolved", "Resolved", Checkbox),
             ("@revisit", "Revisit", Date),
+            ("@project_status", "Status", Choice),
+            ("@project_progress", "Progress", Text),
+            ("@project_deadline", "Deadline", Date),
+            ("@project_outcome", "Outcome", Text),
         ],
         QuerySource::Questions => &[
             ("@state", "State", Choice),
@@ -716,6 +720,12 @@ impl Workshop {
                 .collect();
             self.visible_titles_for(&needed)?
         };
+        let project_counts =
+            if source == QuerySource::Notes && notes.values().any(|caps| caps.project.is_some()) {
+                crate::task_query::project_task_counts(&self.conn)?
+            } else {
+                HashMap::new()
+            };
         let mut labels = crate::fields::ReadingContext::new(&self.conn);
         for row in rows {
             let attrs = &mut row.attributes;
@@ -777,6 +787,24 @@ impl Workshop {
                     None => note.and_then(|note| note.revisit_on.clone()),
                 };
                 optional(attrs, "@revisit", revisit);
+                if let Some(project) = caps.and_then(|caps| caps.project.as_ref()) {
+                    let status = match project.status {
+                        crate::ProjectStatus::Active => "Active",
+                        crate::ProjectStatus::Done => "Done",
+                        crate::ProjectStatus::Cancelled => "Canceled",
+                    };
+                    text(attrs, "@project_status", status);
+                    let (done, total) = project_counts
+                        .get(&row.block.block.id)
+                        .copied()
+                        .unwrap_or((0, 0));
+                    text(attrs, "@project_progress", format!("{done} / {total}"));
+                    optional(attrs, "@project_deadline", project.deadline.clone());
+                    let outcome = project.outcome.trim();
+                    if !outcome.is_empty() {
+                        text(attrs, "@project_outcome", outcome);
+                    }
+                }
             }
         }
         Ok(())
