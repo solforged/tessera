@@ -2372,7 +2372,9 @@ function Pane(props: OutlinePaneProps) {
           .join(' ')}
         onFocusIn={event => {
           props.onActivate();
-          if ((event.target as Element).closest('.cm-editor')) setEditorFocused(true);
+          const target = event.target as Element;
+          if (target.closest('.cm-editor')) setEditorFocused(true);
+          if (rowRange() && target.closest('.capture-field')) setRowRange(null);
         }}
         onFocusOut={report}
         onKeyDown={event => {
@@ -2762,6 +2764,7 @@ function Pane(props: OutlinePaneProps) {
               caption={state.caption}
               header={state.header}
               items={state.items}
+              returnFocus={() => (editing() ? (editor?.view.contentDOM ?? scroll) : scroll)}
               onDismiss={() => {
                 setMenu(null);
                 restoreFocus();
@@ -2866,6 +2869,13 @@ function Pane(props: OutlinePaneProps) {
               role="toolbar"
               aria-label="Selected atoms actions"
               onMouseDown={event => event.preventDefault()}
+              onKeyDown={event => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  clearSelection();
+                  restoreFocus();
+                }
+              }}
             >
               <span class="outline-bulk-count">{targets().length} selected</span>
               <Button
