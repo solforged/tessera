@@ -2072,6 +2072,8 @@ function Pane(props: OutlinePaneProps) {
       },
       text: (text, at, group) =>
         measure('typing', () => {
+          suppressCaretScroll = false;
+          holdOpeningScroll = false;
           resetVerticalGoal();
           if (selection.hasCompositionSelection) return;
           hints.typed();
@@ -2107,6 +2109,7 @@ function Pane(props: OutlinePaneProps) {
           doc.holdTag(at.id, pendingType(at.id) || !!typeTokenAt(text, at.offset));
           updateCompletion(text, at, true);
           updateTriggers(text, at);
+          viewportController.requestReveal(at.id, focusEpoch, true);
         }),
       selection: at => {
         if (selection.hasCompositionSelection || (textRange() && textRange()!.head.id !== at.id)) return;

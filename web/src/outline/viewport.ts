@@ -261,7 +261,8 @@ export function createOutlineViewport(options: OutlineViewportOptions) {
       const shift = offset - before;
       const editingBar = options.editingBar();
       const barTop = editingBar?.isConnected ? editingBar.getBoundingClientRect().top : options.viewport().bottom;
-      const lineClearance = options.editingBarVisible() ? parseFloat(getComputedStyle(scroll).lineHeight) : 0;
+      const lineHeight = parseFloat(getComputedStyle(scroll).lineHeight) || 24;
+      const lineClearance = options.editingBarVisible() || request?.caret ? lineHeight : 0;
       const bottom = Math.min(bounds.bottom, options.viewport().bottom, barTop) - lineClearance;
       if (target.top - shift < bounds.top) offset += target.top - shift - bounds.top;
       else if (target.bottom - shift > bottom)

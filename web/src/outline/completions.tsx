@@ -759,10 +759,21 @@ export function createOutlineCompletions(
   let drafted = false;
   createEffect(() => {
     const state = completion();
+    const slash = slashCompletion();
+    const date = dateCompletion();
     if (!context.editor) return;
-    if (state && !state.manual && !state.relationTarget) {
+    const text = context.editor.view.state.doc.toString();
+    const range =
+      state && !state.manual && !state.relationTarget
+        ? completionRange(state, text)
+        : slash && editing() === slash.id
+          ? { from: slash.from, to: slash.to }
+          : date && editing() === date.id
+            ? { from: date.from, to: date.to }
+            : null;
+    if (range) {
       drafted = true;
-      context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString()));
+      context.editor.markDraft(range);
     } else if (drafted) {
       drafted = false;
       context.editor.markDraft(null);
@@ -1006,19 +1017,7 @@ export function createOutlineCompletions(
       run: id => capabilities.invoke(capabilities.status(id, value)),
     });
     return [
-      {
-        id: 'make-image',
-        title: 'Image',
-        aliases: ['picture', 'photo', 'figure', 'screenshot'],
-        section: 'Editing',
-        icon: 'article',
-        run: context.chooseImage,
-      },
       status('todo', ['task', 'checkbox']),
-      status('doing', ['start', 'in progress']),
-      status('waiting', ['blocked', 'hold']),
-      status('done', ['complete', 'finish']),
-      status('cancelled', ['cancel', 'cancelled']),
       {
         id: 'schedule',
         title: 'Schedule',
@@ -1055,6 +1054,10 @@ export function createOutlineCompletions(
         keys: keys('repeat-task'),
         run: id => openPlanning(id, 'repeat'),
       },
+      status('doing', ['start', 'in progress']),
+      status('waiting', ['blocked', 'hold']),
+      status('done', ['complete', 'finish']),
+      status('cancelled', ['cancel', 'cancelled']),
       {
         id: 'clock',
         title: 'Clock in / out',
@@ -1072,6 +1075,147 @@ export function createOutlineCompletions(
         icon: 'close',
         when: block => !!block?.task,
         run: id => capabilities.invoke(capabilities.status(id, null)),
+      },
+      ...([1, 2, 3] as const).map(
+        (level): SlashItem => ({
+          id: `heading-${level}`,
+          title: `Heading ${level}`,
+          aliases: [`h${level}`],
+          section: 'Text',
+          icon: 'heading',
+          keys: '#'.repeat(level),
+          run: id => apply({ kind: 'heading', id, level }),
+        }),
+      ),
+      {
+        id: 'heading-normal',
+        title: 'Normal text',
+        aliases: ['paragraph'],
+        section: 'Text',
+        icon: 'edit',
+        when: block => !!block?.heading,
+        run: id => apply({ kind: 'heading', id, level: null }),
+      },
+      {
+        id: 'reference',
+        title: 'Reference',
+        aliases: ['link', 'page', 'mention'],
+        section: 'Text',
+        icon: 'link',
+        keys: '[[',
+        insert: () => ({ text: '[[]]', caret: 2 }),
+      },
+      {
+        id: 'tag',
+        title: 'Tag',
+        aliases: ['type', 'supertag', 'label'],
+        section: 'Text',
+        icon: 'tag',
+        keys: '#',
+        secondary: 'What this atom is; a new name makes a new tag',
+        insert: () => ({ text: '#', caret: 1 }),
+      },
+      {
+        id: 'field',
+        title: 'Field…',
+        aliases: ['property', 'attribute', 'value'],
+        section: 'Text',
+        icon: 'field',
+        keys: '::',
+        secondary: 'A named value on this atom',
+        run: id => context.pickField(id, context.rowAnchor(id) ?? document.body),
+      },
+      {
+        id: 'quote',
+        title: 'Quote',
+        aliases: ['quote', 'frozen'],
+        section: 'Text',
+        icon: 'link',
+        keys: '((',
+        when: block => {
+          const state = slashCompletion();
+          return !!state && !removeToken(block?.text ?? '', state).text.trim();
+        },
+        insert: () => ({ text: '(())', caret: 2 }),
+      },
+      {
+        id: 'embed-view',
+        title: 'Embed view',
+        aliases: ['saved view', 'live table'],
+        section: 'Text',
+        icon: 'table',
+        run: id => context.openViewEmbed(id),
+      },
+      {
+        id: 'make-image',
+        title: 'Image',
+        aliases: ['picture', 'photo', 'figure', 'screenshot'],
+        section: 'Text',
+        icon: 'article',
+        run: context.chooseImage,
+      },
+      {
+        id: 'card',
+        title: 'Card',
+        aliases: ['flashcard'],
+        section: 'Cards',
+        icon: 'right',
+        keys: '>>',
+        cardKind: 'forward',
+      },
+      {
+        id: 'cloze',
+        title: 'Cloze',
+        aliases: ['blank', 'fill in', 'flashcard'],
+        section: 'Cards',
+        icon: 'select',
+        keys: '⌘⇧C',
+        cardKind: 'cloze',
+      },
+      {
+        id: 'reverse-card',
+        title: 'Reverse card',
+        aliases: ['reverse', 'flashcard'],
+        section: 'Cards',
+        icon: 'left',
+        keys: '<<',
+        cardKind: 'reverse',
+      },
+      {
+        id: 'reversible-card',
+        title: 'Reversible card',
+        aliases: ['both ways', 'flashcard'],
+        section: 'Cards',
+        icon: 'panes',
+        keys: '<>',
+        cardKind: 'both',
+      },
+      {
+        id: 'multiline-card',
+        title: 'Multi-line card',
+        aliases: ['multi', 'multiline', 'flashcard'],
+        section: 'Cards',
+        icon: 'down',
+        keys: '>>>',
+        cardKind: 'multiline',
+      },
+      {
+        id: 'list-card',
+        title: 'List card',
+        aliases: ['list', 'flashcard'],
+        section: 'Cards',
+        icon: 'down',
+        keys: '>>1.',
+        cardKind: 'list',
+      },
+      {
+        id: 'descriptor-card',
+        title: 'Descriptor card',
+        aliases: ['descriptor', 'attribute', 'flashcard'],
+        section: 'Cards',
+        icon: 'concept',
+        keys: ';;',
+        cardKind: 'descriptor',
       },
       {
         id: 'project',
@@ -1246,139 +1390,6 @@ export function createOutlineCompletions(
           },
         }),
       ),
-      ...([1, 2, 3] as const).map(
-        (level): SlashItem => ({
-          id: `heading-${level}`,
-          title: `Heading ${level}`,
-          aliases: [`h${level}`],
-          section: 'Text',
-          icon: 'heading',
-          keys: '#'.repeat(level),
-          run: id => apply({ kind: 'heading', id, level }),
-        }),
-      ),
-      {
-        id: 'heading-normal',
-        title: 'Normal text',
-        aliases: ['paragraph'],
-        section: 'Text',
-        icon: 'edit',
-        when: block => !!block?.heading,
-        run: id => apply({ kind: 'heading', id, level: null }),
-      },
-      {
-        id: 'reference',
-        title: 'Reference',
-        aliases: ['link', 'page', 'mention'],
-        section: 'Text',
-        icon: 'link',
-        keys: '[[',
-        insert: () => ({ text: '[[]]', caret: 2 }),
-      },
-      {
-        id: 'embed-view',
-        title: 'Embed view',
-        aliases: ['saved view', 'live table'],
-        section: 'Text',
-        icon: 'table',
-        run: id => context.openViewEmbed(id),
-      },
-      {
-        id: 'quote',
-        title: 'Quote',
-        aliases: ['quote', 'frozen'],
-        section: 'Text',
-        icon: 'link',
-        keys: '((',
-        when: block => {
-          const state = slashCompletion();
-          return !!state && !removeToken(block?.text ?? '', state).text.trim();
-        },
-        insert: () => ({ text: '(())', caret: 2 }),
-      },
-      {
-        id: 'tag',
-        title: 'Tag',
-        aliases: ['type', 'supertag', 'label'],
-        section: 'Text',
-        icon: 'tag',
-        keys: '#',
-        secondary: 'What this atom is; a new name makes a new tag',
-        insert: () => ({ text: '#', caret: 1 }),
-      },
-      {
-        id: 'field',
-        title: 'Field…',
-        aliases: ['property', 'attribute', 'value'],
-        section: 'Text',
-        icon: 'field',
-        keys: '::',
-        secondary: 'A named value on this atom',
-        run: id => context.pickField(id, context.rowAnchor(id) ?? document.body),
-      },
-      {
-        id: 'card',
-        title: 'Card',
-        aliases: ['flashcard'],
-        section: 'Cards',
-        icon: 'right',
-        keys: '>>',
-        cardKind: 'forward',
-      },
-      {
-        id: 'reverse-card',
-        title: 'Reverse card',
-        aliases: ['reverse', 'flashcard'],
-        section: 'Cards',
-        icon: 'left',
-        keys: '<<',
-        cardKind: 'reverse',
-      },
-      {
-        id: 'reversible-card',
-        title: 'Reversible card',
-        aliases: ['both ways', 'flashcard'],
-        section: 'Cards',
-        icon: 'panes',
-        keys: '<>',
-        cardKind: 'both',
-      },
-      {
-        id: 'multiline-card',
-        title: 'Multi-line card',
-        aliases: ['multi', 'multiline', 'flashcard'],
-        section: 'Cards',
-        icon: 'down',
-        keys: '>>>',
-        cardKind: 'multiline',
-      },
-      {
-        id: 'list-card',
-        title: 'List card',
-        aliases: ['list', 'flashcard'],
-        section: 'Cards',
-        icon: 'down',
-        keys: '>>1.',
-        cardKind: 'list',
-      },
-      {
-        id: 'descriptor-card',
-        title: 'Descriptor card',
-        aliases: ['descriptor', 'attribute', 'flashcard'],
-        section: 'Cards',
-        icon: 'concept',
-        keys: ';;',
-        cardKind: 'descriptor',
-      },
-      {
-        id: 'cloze',
-        title: 'Cloze',
-        aliases: ['blank', 'fill in', 'flashcard'],
-        section: 'Cards',
-        icon: 'select',
-        keys: '⌘⇧C',
-        cardKind: 'cloze',
-      },
       {
         id: 'zoom',
         title: 'Zoom in',
@@ -1717,6 +1728,7 @@ export function createOutlineCompletions(
             anchor={() => caretRect(slashCompletion()?.from ?? 0)}
             bounds={paneBounds}
             width={320}
+            maxHeight={340}
             class="picker"
             label="Commands"
             role="listbox"
