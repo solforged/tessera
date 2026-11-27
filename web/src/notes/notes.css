@@ -779,13 +779,13 @@
       line-height: var(--line-h2);
     }
     .index-note-popup {
-      top: auto !important;
-      left: var(--space-4) !important;
+      top: auto;
+      left: var(--space-4);
       right: var(--space-4);
       bottom: calc(var(--bottom-nav-height) + var(--bottom-inset));
-      width: auto !important;
+      width: auto;
       max-width: none;
-      max-height: calc(85dvh - var(--bottom-nav-height) - var(--bottom-inset)) !important;
+      max-height: calc(85dvh - var(--bottom-nav-height) - var(--bottom-inset));
       padding: var(--space-16);
     }
     .index-note-popup .input {

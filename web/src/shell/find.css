@@ -10,12 +10,12 @@
       background: var(--canvas);
     }
     .palette.palette {
-      top: var(--visual-viewport-top, 0px) !important;
-      left: 0 !important;
-      width: 100% !important;
+      top: var(--visual-viewport-top, 0px);
+      left: 0;
+      width: 100%;
       max-width: none;
       height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset));
-      max-height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset)) !important;
+      max-height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset));
       display: flex;
       flex-direction: column;
       padding: var(--phone-bar-top) 0 0;

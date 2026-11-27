@@ -1299,7 +1299,7 @@ details[open]::details-content {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-rows: auto auto auto minmax(0, 1fr);
   height: min(720px, calc(100dvh - 96px));
-  max-height: min(720px, calc(100dvh - 96px)) !important;
+  max-height: min(720px, calc(100dvh - 96px));
   overflow: hidden;
 }
 .palette-search > .picker-query,

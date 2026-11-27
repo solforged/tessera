@@ -32,6 +32,8 @@ export interface PopupProps {
   role?: 'dialog' | 'menu' | 'listbox' | 'tooltip';
   label: string;
   width?: number;
+  /** Maximum height in pixels for a centered (`top`) or anchored popup. Defaults to 560 (menus are uncapped). */
+  maxHeight?: number;
   placement?: PopupPlacement;
   /** Measure an internally scrolling form at its natural height before placing it. */
   fitContent?: boolean;
@@ -63,9 +65,9 @@ export interface PopupProps {
    * `top`, anchored to the page body, or as a sheet, and for every sheet; menus, listboxes, pickers and previews are not
    * modal and close when Tab leaves them. */
   modal?: boolean;
-  /** A sheet dims the page behind it; the scrim fades in and out with the sheet and a press on it dismisses. Default on.
-   * `scrim={false}` is the no-dim variant: the page stays visible (and inert) behind the sheet, and a press on it still
-   * dismisses, for a sheet that edits what lies behind it (reader settings). */
+  /** A modal popup or sheet dims the page behind it; the scrim fades in and out with the panel and a press on it dismisses.
+   * Default on. `scrim={false}` is the no-dim variant: the page stays visible (and inert) behind the popup, and a press on it
+   * still dismisses, for a sheet that edits what lies behind it (reader settings) or a view that paints its own backdrop. */
   scrim?: boolean;
   /** The sheet's name in its head, centred between the grabber and the close circle. Phone sheets only: without it the
    * head carries just the grabber and the close circle, and the content names itself. */
@@ -463,8 +465,9 @@ export function Popup(props: PopupProps) {
   };
   // A sheet on a phone floats inset from the screen's edges (styles in overlays.css); elsewhere it docks to the bottom edge.
   const sheetInset = props.placement === 'sheet' && isPhone() ? PHONE_SHEET_INSET : 0;
-  // One opened over another reads as the higher leaf (styles.css, `data-stacked`).
+  // One opened over another reads as the higher leaf (primitives.css, `data-stacked`).
   const stacked = stack.some(other => other.panel?.isConnected);
+  const hasScrimBeneath = stack.some(other => other.scrim?.isConnected);
   const [position, setPosition] = createSignal<Position>({ left: 8, top: 8, height: 0, visible: false });
   // Placed and shown (focusable) from the first measure; revealed once the content has stopped changing, so a popup
   // whose rows land a frame later enters at its final size instead of growing mid-fade.
@@ -570,17 +573,32 @@ export function Popup(props: PopupProps) {
   const measure = () => `${panel.scrollHeight},${panel.scrollWidth},${panel.offsetWidth}`;
   const commit = (next: Position) => {
     const previous = position();
-    batch(() => {
-      if (next.height < previous.height - 0.5) shrunkAt = performance.now();
-      // Growth glides away from the trigger; a shrinking list snaps so typing never lags, and a list that collapsed a
-      // moment ago to reload regrows at once rather than replaying the glide on every key.
-      if (revealed() && !props.fixedSize && next.height > previous.height + 0.5 && performance.now() - shrunkAt > 500) {
-        setGrowing(true);
-        window.clearTimeout(growTimer);
-        growTimer = window.setTimeout(() => setGrowing(false), 200);
-      }
-      setPosition(next);
-    });
+    const same =
+      previous.left === next.left &&
+      previous.top === next.top &&
+      previous.height === next.height &&
+      previous.visible === next.visible &&
+      previous.clipped === next.clipped &&
+      previous.side === next.side &&
+      previous.originX === next.originX;
+    if (!same) {
+      batch(() => {
+        if (next.height < previous.height - 0.5) shrunkAt = performance.now();
+        // Growth glides away from the trigger; a shrinking list snaps so typing never lags, and a list that collapsed a
+        // moment ago to reload regrows at once rather than replaying the glide on every key.
+        if (
+          revealed() &&
+          !props.fixedSize &&
+          next.height > previous.height + 0.5 &&
+          performance.now() - shrunkAt > 500
+        ) {
+          setGrowing(true);
+          window.clearTimeout(growTimer);
+          growTimer = window.setTimeout(() => setGrowing(false), 200);
+        }
+        setPosition(next);
+      });
+    }
     if (next.side) lastSide = next.side;
     if (!placed) {
       placed = true;
@@ -615,17 +633,18 @@ export function Popup(props: PopupProps) {
     }
     // A panel wider than the room it may take (a 760 px editor in a 600 px pane) is held inside it; the stylesheet's own limit
     // stands otherwise, so a full-bleed phone palette stays full-bleed.
-    panel.style.maxWidth = String(props.style?.['max-width'] ?? '');
-    if (panel.offsetWidth > viewport.width) panel.style.maxWidth = `${Math.max(0, viewport.width - 16)}px`;
+    panel.style.removeProperty('--popup-max-width');
+    if (panel.offsetWidth > viewport.width)
+      panel.style.setProperty('--popup-max-width', `${Math.max(0, viewport.width - 16)}px`);
     const width = Math.max(0, Math.min(props.width ?? panel.offsetWidth, viewport.width - 16));
     // Set the pane-limited measure before asking for its wrapped content height.
-    if (props.width) panel.style.width = `${width}px`;
+    if (props.width) panel.style.setProperty('--popup-width', `${width}px`);
     if (props.placement === 'top') {
       const top = viewport.top + Math.min(64, Math.round(viewport.height * 0.08));
       const height = Math.min(
         panel.scrollHeight + panel.offsetHeight - panel.clientHeight,
         viewport.bottom - top - 16,
-        560,
+        props.maxHeight ?? 560,
       );
       commit({
         left: Math.max(viewport.left + 8, Math.round(viewport.left + (viewport.width - width) / 2)),
@@ -645,7 +664,7 @@ export function Popup(props: PopupProps) {
       viewport,
       width,
       height,
-      props.role === 'menu' ? Infinity : 560,
+      props.maxHeight ?? (props.role === 'menu' ? Infinity : 560),
       locked,
       props.placement === 'below',
       props.cover ?? (props.role !== 'menu' && props.role !== 'listbox'),
@@ -684,9 +703,13 @@ export function Popup(props: PopupProps) {
     // Only an anchor that was in view and has left it: one opened already off screen still gets its popup.
     return anchorSeen && !inside;
   };
-  const tick = () => {
+  const schedule = () => {
+    if (disposed || frame) return;
+    frame = requestAnimationFrame(sync);
+  };
+  const sync = () => {
+    frame = 0;
     if (disposed) return;
-    frame = requestAnimationFrame(tick);
     // A popup never placed with its trigger already gone has nothing to show yet still answers Escape: it closes. One that was
     // placed keeps its last place when the trigger is re-rendered or removed, and a form holding typed input is never closed
     // for that (its caller clears its own state when the subject really changes).
@@ -696,13 +719,18 @@ export function Popup(props: PopupProps) {
         dismiss(true);
         return;
       }
+      if (!placed) {
+        schedule();
+        return;
+      }
     } else detached = 0;
     if (!placed) {
       if (props.ready !== false) place();
+      if (props.ready !== false) schedule();
       return;
     }
-    // Every frame, before paint: content that changed, or an anchor that moved with any layout shift (a sidebar glide, a
-    // pane resize, a scroller), is placed in the same frame instead of one behind.
+    // Before paint: content that changed, or an anchor that moved with any layout shift (a sidebar glide, a pane resize, a
+    // scroller), is placed in the same frame instead of one behind. Once settled and focused, no idle frames run.
     const changed = dirty || measure() !== stamp;
     if (changed || (following() && placedRect && moved(anchorRect(), placedRect))) place();
     if (!revealed()) {
@@ -714,16 +742,21 @@ export function Popup(props: PopupProps) {
       }
     }
     // A browser can refuse focus() for a moment (WebKit while a burst of stylesheets is pending), and a static menu never
-    // mutates to prompt another try: ask again each frame, within the attempt window, until a control takes it. Focus the
-    // user has already moved elsewhere is left alone.
+    // mutates to prompt another try: ask again within the attempt window until a control takes it. Focus the user has already
+    // moved elsewhere is left alone.
     if (!focusDone) {
-      const current = document.activeElement;
-      if (!current || current === document.body || current === focused || panel.contains(current)) attemptFocus();
+      if (performance.now() - placedAt > 2000) focusDone = true;
+      else {
+        const current = document.activeElement;
+        if (!current || current === document.body || current === focused || panel.contains(current)) attemptFocus();
+      }
     }
     if (!closingAnchor && anchorGone()) {
       closingAnchor = true;
       dismiss(true);
+      return;
     }
+    if (!revealed() || (!focusDone && performance.now() - placedAt <= 2000)) schedule();
   };
   // A hidden trigger reports an empty box at the origin; that says nothing about where it went, so the popup stays put.
   const moved = (rect: DOMRect | null, from: DOMRect) =>
@@ -735,9 +768,11 @@ export function Popup(props: PopupProps) {
       Math.abs(rect.bottom - from.bottom) > 0.5);
   const reposition = () => {
     dirty = true;
+    schedule();
   };
   createEffect(() => {
-    if (props.ready === true) reposition();
+    void [props.ready, props.width, props.maxHeight, props.placement];
+    if (props.ready !== false) reposition();
   });
 
   const topmost = () => !disposed && stack.at(-1) === layer;
@@ -761,16 +796,15 @@ export function Popup(props: PopupProps) {
    * editor keeps typing. A menu focuses its own row once on mount; here its one tab stop is retried if that was refused. */
   let focusDone = false;
   const attemptFocus = () => {
-    if (
-      focusDone ||
-      disposed ||
-      props.role === 'tooltip' ||
-      !position().visible ||
-      !panel.isConnected ||
-      !topmost() ||
-      performance.now() - placedAt > 2000
-    )
+    if (props.role === 'tooltip') {
+      focusDone = true;
       return;
+    }
+    if (performance.now() - placedAt > 2000) {
+      focusDone = true;
+      return;
+    }
+    if (focusDone || disposed || !position().visible || !panel.isConnected || !topmost()) return;
     const current = document.activeElement;
     if (current instanceof HTMLElement && current !== panel && panel.contains(current)) {
       focusDone = true;
@@ -779,18 +813,22 @@ export function Popup(props: PopupProps) {
     }
     if (props.autofocus === false) {
       if (layer.modal) {
-        if (current !== panel) {
-          panel.focus({ preventScroll: true });
+        if (current !== panel) panel.focus({ preventScroll: true });
+        if (document.activeElement === panel) {
+          focusDone = true;
           tookFocus = true;
         }
         return;
       }
+      if (props.role !== 'menu' || matchesNoHover()) {
+        focusDone = true;
+        return;
+      }
       // Touch screens start a titled menu with no row lit, so only a pointer or keyboard menu is retried, at its roving item
       // (a header's own controls are no tab stop to start on).
-      const row =
-        props.role === 'menu' && !matchesNoHover()
-          ? panel.querySelector<HTMLElement>('[role="menuitem"][tabindex="0"], [role="menuitemradio"][tabindex="0"]')
-          : null;
+      const row = panel.querySelector<HTMLElement>(
+        '[role="menuitem"][tabindex="0"], [role="menuitemradio"][tabindex="0"]',
+      );
       if (row) {
         row.focus({ preventScroll: true });
         if (document.activeElement === row) {
@@ -952,6 +990,13 @@ export function Popup(props: PopupProps) {
     window.addEventListener('resize', reposition);
     window.visualViewport?.addEventListener('resize', reposition);
     window.visualViewport?.addEventListener('scroll', reposition);
+    if (following()) {
+      document.addEventListener('scroll', schedule, { capture: true, passive: true });
+      if (typeof props.anchor === 'function') {
+        document.addEventListener('selectionchange', schedule);
+        document.addEventListener('input', schedule, true);
+      }
+    }
     panel.addEventListener('focusin', () => {
       tookFocus = true;
     });
@@ -960,13 +1005,31 @@ export function Popup(props: PopupProps) {
       reposition();
       attemptFocus();
     });
-    observer.observe(panel, { childList: true, subtree: true });
-    frame = requestAnimationFrame(tick);
-    onCleanup(() => observer.disconnect());
+    observer.observe(panel, { childList: true, subtree: true, characterData: true });
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      const anchorPane = anchorElement?.closest('.pane') ?? pane;
+      resizeObserver = new ResizeObserver(entries => {
+        if (entries.some(entry => entry.target !== panel)) reposition();
+        else schedule();
+      });
+      resizeObserver.observe(panel);
+      if (following()) {
+        if (anchorElement) resizeObserver.observe(anchorElement);
+        if (anchorPane) resizeObserver.observe(anchorPane);
+        resizeObserver.observe(document.documentElement);
+      }
+    }
+    schedule();
+    onCleanup(() => {
+      observer.disconnect();
+      resizeObserver?.disconnect();
+    });
   });
   onCleanup(() => {
     disposed = true;
     cancelAnimationFrame(frame);
+    frame = 0;
     window.clearTimeout(growTimer);
     document.removeEventListener('keydown', keydown, true);
     document.removeEventListener('keydown', tab);
@@ -975,6 +1038,9 @@ export function Popup(props: PopupProps) {
     window.removeEventListener('resize', reposition);
     window.visualViewport?.removeEventListener('resize', reposition);
     window.visualViewport?.removeEventListener('scroll', reposition);
+    document.removeEventListener('scroll', schedule, true);
+    document.removeEventListener('selectionchange', schedule);
+    document.removeEventListener('input', schedule, true);
     const index = stack.indexOf(layer);
     if (index >= 0) stack.splice(index, 1);
     syncInert();
@@ -1047,9 +1113,10 @@ export function Popup(props: PopupProps) {
         ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), boundsRect()).width - 16))}px`
         : undefined;
   const sheet = () => props.placement === 'sheet';
+  const showScrim = () => (sheet() || (layer.modal && !hasScrimBeneath)) && props.scrim !== false;
   return (
     <Portal mount={mount ?? undefined}>
-      <Show when={sheet() && props.scrim !== false}>
+      <Show when={showScrim()}>
         <div
           ref={element => {
             scrim = element;
@@ -1071,11 +1138,11 @@ export function Popup(props: PopupProps) {
         data-stacked={stacked ? '' : undefined}
         style={{
           ...props.style,
-          left: `${position().left}px`,
-          top: `${position().top}px`,
-          width: width(),
-          height: props.fixedSize && position().visible ? `${position().height}px` : undefined,
-          'max-height': `${position().height}px`,
+          '--popup-left': `${position().left}px`,
+          '--popup-top': `${position().top}px`,
+          '--popup-width': width(),
+          '--popup-height': props.fixedSize && position().visible ? `${position().height}px` : undefined,
+          '--popup-max-height': `${position().height}px`,
           overflow: position().clipped ? 'auto' : undefined,
           visibility: position().visible ? 'visible' : 'hidden',
           opacity: revealed() ? undefined : 0,

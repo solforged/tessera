@@ -24,6 +24,8 @@ export interface PickerProps<T> {
   /** The phone sheet's name in its head, centred between the grabber and the close circle (see Popup). */
   title?: string;
   width?: number;
+  maxHeight?: number;
+  scrim?: boolean;
   class?: string;
   style?: JSX.CSSProperties;
   onDismiss(): void;
@@ -342,6 +344,8 @@ export function Picker<T>(props: PickerProps<T>) {
       label={props.label}
       title={props.title}
       width={props.width ?? 560}
+      maxHeight={props.maxHeight}
+      scrim={props.scrim}
       class={`picker ${column ? 'picker-column ' : ''}${props.class ?? ''}`}
       style={props.style}
     >

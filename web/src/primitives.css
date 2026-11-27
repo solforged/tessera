@@ -177,8 +177,13 @@
 }
 :is(.popup, .popup-exit) {
   position: fixed;
+  left: var(--popup-left);
+  top: var(--popup-top);
+  width: var(--popup-width, auto);
+  height: var(--popup-height, auto);
+  max-width: var(--popup-max-width, calc(100vw - var(--space-16)));
+  max-height: var(--popup-max-height);
   z-index: var(--z-popup);
-  max-width: calc(100vw - var(--space-16));
   overflow: auto;
   background: var(--paper-grain), var(--raised);
   border: 1px solid var(--line);
@@ -345,12 +350,12 @@
     transform: translateY(100%);
   }
 }
-/* The scrim behind a sheet dims the page and fades with the sheet; it sits just under it, and leaves with it. */
+/* The scrim behind a modal popup or sheet dims the page and fades with it; it sits just under it, and leaves with it. */
 .popup-scrim {
   position: fixed;
   inset: 0;
   z-index: var(--z-scrim);
-  background: color-mix(in srgb, var(--shell) 72%, transparent);
+  background: color-mix(in srgb, var(--shell) 56%, transparent);
 }
 .popup-scrim-enter {
   animation: scrim-in var(--motion-ui) var(--motion-ease) both;

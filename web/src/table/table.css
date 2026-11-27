@@ -1263,9 +1263,9 @@
       letter-spacing: normal;
     }
     .table-filter-sheet {
-      top: auto !important;
+      top: auto;
       bottom: calc(var(--bottom-nav-height) + var(--bottom-inset));
-      max-height: calc(85dvh - var(--bottom-nav-height) - var(--bottom-inset)) !important;
+      max-height: calc(85dvh - var(--bottom-nav-height) - var(--bottom-inset));
       padding-bottom: var(--space-16);
     }
     .table-filter-sheet .button,
