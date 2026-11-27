@@ -12,6 +12,13 @@ import type { TaskFieldName } from '../tasks/task-fields';
 export const isCapabilityTag = (title: string) =>
   ['task', 'question', 'project', 'source'].includes(title.trim().toLocaleLowerCase());
 
+/** Next bulk task toggle action for a selection of outline blocks. */
+export function bulkTaskMode(blocks: readonly BlockState[]): 'make' | 'complete' | 'reopen' {
+  if (blocks.some(block => !block.task?.status)) return 'make';
+  if (blocks.some(block => block.task && !isFinished(block.task))) return 'complete';
+  return 'reopen';
+}
+
 export type CapabilityKind =
   | 'task'
   | 'status'
@@ -46,31 +53,13 @@ export function createOutlineCapabilities(options: {
   const error = (id: string) => errors().get(id) ?? '';
   const failure = (id: string, reason: unknown) =>
     setErrors(previous => new Map(previous).set(id, reason instanceof Error ? reason.message : String(reason)));
-  async function run(id: string, operation: () => Promise<void>) {
-    if (busy(id)) throw new Error('A command is pending for this note.');
-    setPending(previous => new Set(previous).add(id));
-    setErrors(previous => {
-      const next = new Map(previous);
-      next.delete(id);
-      return next;
-    });
-    try {
-      await operation();
-    } catch (reason) {
-      failure(id, reason);
-      throw reason;
-    } finally {
-      setPending(previous => {
-        const next = new Set(previous);
-        next.delete(id);
-        return next;
-      });
-    }
-  }
   async function runMany(ids: readonly string[], operation: () => Promise<void>) {
     const unique = [...new Set(ids)];
     if (!unique.length) return;
-    if (unique.some(id => busy(id))) throw new Error('A command is pending for a selected note.');
+    if (unique.some(id => busy(id)))
+      throw new Error(
+        unique.length === 1 ? 'A command is pending for this note.' : 'A command is pending for a selected note.',
+      );
     setPending(previous => {
       const next = new Set(previous);
       for (const id of unique) next.add(id);
@@ -92,6 +81,16 @@ export function createOutlineCapabilities(options: {
         for (const id of unique) next.delete(id);
         return next;
       });
+    }
+  }
+  const run = (id: string, operation: () => Promise<void>) => runMany([id], operation);
+  async function fetchActiveWork(): Promise<WorkSession | null | undefined> {
+    if (workshop.connection() === 'offline') return undefined;
+    try {
+      return await workshop.api.activeWorkSession();
+    } catch (reason) {
+      if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
+      return undefined;
     }
   }
   async function save(intent: Edit) {
@@ -130,14 +129,7 @@ export function createOutlineCapabilities(options: {
         if (status === 'todo') return;
       }
       if (status === 'done') {
-        let active: WorkSession | null | undefined;
-        if (workshop.connection() !== 'offline') {
-          try {
-            active = await workshop.api.activeWorkSession();
-          } catch (reason) {
-            if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
-          }
-        }
+        const active = await fetchActiveWork();
         if (active?.block_id === id && !active.reversed && active.ended_at === null) {
           const anchor = options.anchor(id);
           if (!anchor) throw new Error('Open the task to stop work and complete it.');
@@ -166,13 +158,8 @@ export function createOutlineCapabilities(options: {
     if (unique.length === 1) return status(unique[0]!, nextStatus);
     const completedOn = options.contextDate();
     await runMany(unique, async () => {
-      if (nextStatus === 'done' && workshop.connection() !== 'offline') {
-        let active: WorkSession | null | undefined;
-        try {
-          active = await workshop.api.activeWorkSession();
-        } catch (reason) {
-          if (!(reason instanceof ApiError) || !reason.uncertain) throw reason;
-        }
+      if (nextStatus === 'done') {
+        const active = await fetchActiveWork();
         if (active && unique.includes(active.block_id) && !active.reversed && active.ended_at === null) {
           throw new Error('Stop the running work session before completing selected tasks.');
         }
@@ -190,9 +177,7 @@ export function createOutlineCapabilities(options: {
     if (!unique.length) return;
     if (unique.length === 1) return toggle(unique[0]!);
     const blocks = unique.map(id => doc.block(id)).filter((block): block is BlockState => !!block);
-    if (blocks.some(block => !block.task?.status)) return bulkStatus(unique, 'todo');
-    if (blocks.some(block => block.task && !isFinished(block.task))) return bulkStatus(unique, 'done');
-    return bulkStatus(unique, 'todo');
+    return bulkStatus(unique, bulkTaskMode(blocks) === 'complete' ? 'done' : 'todo');
   }
   async function bulkPatch(
     ids: readonly string[],

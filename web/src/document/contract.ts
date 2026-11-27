@@ -185,14 +185,12 @@ export type Edit =
   | {
       kind: 'bulkTask';
       ids: string[];
-      /** Set status (`null` removes task capability), or omit to keep each atom's status (creating an appointment if absent). */
+      /** Set status (`null` removes task capability), or omit when applying a planning `patch`. */
       status?: TaskStatus | null;
-      /** Optional planning fields merged onto each selected task. */
+      /** Planning fields merged onto each selected task when `status` is omitted. */
       patch?: Partial<Pick<TaskState, 'scheduled' | 'deadline' | 'priority' | 'repeater'>>;
       /** Required when `status === 'done'`. */
       completedOn?: string;
-      /** Stop an active work session if one of the completed tasks owns it. */
-      stopWork?: WorkSession;
     }
   | { kind: 'planTask'; id: string; text: string; value: TaskState }
   | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }

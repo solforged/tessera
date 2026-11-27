@@ -78,11 +78,8 @@ export interface CaptureFieldProps {
   onSaved?(again: boolean, receipt: CaptureReceipt): void;
   /** Escape with no completion open. */
   onCancel?(): void;
+  /** Called when the task toggle changes, or when `[] ` / empty Backspace toggles task mode inside a `fixedKind` host. */
   onTaskChange?(task: boolean): void;
-  /** Called when a leading `[] ` or `[ ] ` shorthand is stripped inside a `fixedKind` host such as CreateSlip. */
-  onTaskPrefix?(): void;
-  /** Called on Backspace at offset 0 of an empty field inside a `fixedKind` host. */
-  onBackspaceEmpty?(): void;
   inputRef?(input: HTMLInputElement | HTMLTextAreaElement): void;
   /** Rendered after the field, before the preview, such as the sheet's footer. */
   children?: (state: { task: () => boolean; busy: () => boolean; submit(again: boolean): void }) => JSX.Element;
@@ -308,11 +305,11 @@ export function CaptureField(props: CaptureFieldProps) {
       !draft() &&
       input.selectionStart === 0 &&
       input.selectionEnd === 0 &&
-      ((!props.taskOnly && task()) || (props.fixedKind && props.onBackspaceEmpty))
+      ((!props.fixedKind && !props.taskOnly && task()) || (props.fixedKind && props.onTaskChange))
     ) {
       event.preventDefault();
       if (!props.fixedKind) setTask(false);
-      else props.onBackspaceEmpty?.();
+      else props.onTaskChange?.(false);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -332,9 +329,9 @@ export function CaptureField(props: CaptureFieldProps) {
     const prefix = matchTaskPrefix(text);
     const start = Math.max(0, (input.selectionStart ?? text.length) - prefix.length);
     const end = Math.max(0, (input.selectionEnd ?? text.length) - prefix.length);
-    if (prefix && (!props.fixedKind || props.taskOnly || props.onTaskPrefix)) {
+    if (prefix && (!props.fixedKind || props.taskOnly || props.onTaskChange)) {
       if (!props.fixedKind) setTask(true);
-      else props.onTaskPrefix?.();
+      else props.onTaskChange?.(true);
       input.value = text.slice(prefix.length);
       input.setSelectionRange(start, end);
     }

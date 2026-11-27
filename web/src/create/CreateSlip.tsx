@@ -679,19 +679,14 @@ export function CreateSlipBody(
               placeholder={kind() === 'link' ? 'Paste a link' : 'Write a line'}
               onSaved={saved}
               onCancel={cancel}
-              onTaskPrefix={
+              onTaskChange={
                 props.request.lockKind
                   ? undefined
-                  : () => {
-                      taskFromPrefix = true;
-                      changeKind('task', false);
-                    }
-              }
-              onBackspaceEmpty={
-                props.request.lockKind
-                  ? undefined
-                  : () => {
-                      if (taskFromPrefix && !chosen) {
+                  : isTask => {
+                      if (isTask) {
+                        taskFromPrefix = true;
+                        changeKind('task', false);
+                      } else if (taskFromPrefix && !chosen) {
                         taskFromPrefix = false;
                         changeKind(props.request.kind, false);
                       }

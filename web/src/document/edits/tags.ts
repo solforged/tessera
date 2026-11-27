@@ -30,8 +30,7 @@ export function editManualType(
   const { actions } = session;
   if (!edit.title || edit.title.trim() !== edit.title || /[[\]\r\n]/.test(edit.title))
     throw new Error('Invalid tag title.');
-  const multi = 'ids' in edit;
-  const targets = multi ? [...new Set(edit.ids)] : [edit.id];
+  const targets = 'ids' in edit ? [...new Set(edit.ids)] : [edit.id];
   let matched = 0;
   for (const id of targets) {
     const block = doc.block(id);
@@ -42,14 +41,11 @@ export function editManualType(
       actions.push({ kind: 'addType', id, title: edit.title });
       matched++;
     } else {
-      if (!exists) {
-        if (!multi) throw new Error('From the text. Edit the #tag there to remove it.');
-        continue;
-      }
+      if (!exists) continue;
       actions.push({ kind: 'removeType', id, title: edit.title });
       matched++;
     }
   }
-  if (multi && edit.kind === 'removeType' && matched === 0 && targets.length > 0)
+  if (edit.kind === 'removeType' && matched === 0 && targets.length > 0)
     throw new Error('From the text. Edit the #tag there to remove it.');
 }

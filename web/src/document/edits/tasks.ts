@@ -15,6 +15,28 @@ function hasPendingRecurringCompletion(doc: DocumentInternals, id: string): bool
     );
 }
 
+function ensureTodo(
+  actions: EditSession['actions'],
+  id: string,
+  current: TaskState | null,
+  baseRevision: number,
+): TaskState {
+  if (current?.status) return current;
+  const started: TaskState = { ...(current ?? newTask()), status: 'todo', completed_on: null };
+  actions.push({ kind: 'task', id, value: started, previous: current, baseRevision });
+  return started;
+}
+
+function pushCompleteTask(
+  actions: EditSession['actions'],
+  id: string,
+  completedOn: string,
+  previous: TaskState,
+  baseRevision: number,
+): void {
+  actions.push({ kind: 'completeTask', id, occurrenceId: ulid(), completedOn, previous, baseRevision });
+}
+
 export function editBulkTask(
   doc: DocumentInternals,
   session: EditSession,
@@ -41,55 +63,13 @@ export function editBulkTask(
     if (edit.status === 'done') {
       if (!edit.completedOn) throw new Error('A completion date is required.');
       if (currentTask?.status === 'done' && !currentTask.repeater) continue;
-      if (!currentTask?.status) {
-        const started: TaskState = { ...(currentTask ?? newTask()), status: 'todo', completed_on: null };
-        actions.push({ kind: 'task', id, value: started, previous: currentTask, baseRevision });
-        currentTask = started;
-      }
-      if (edit.patch) {
-        const patched: TaskState = { ...currentTask, ...edit.patch };
-        if (!sameState(currentTask, patched)) {
-          actions.push({ kind: 'task', id, value: patched, previous: currentTask, baseRevision });
-          currentTask = patched;
-        }
-      }
-      if (edit.stopWork && edit.stopWork.block_id === id) {
-        if (edit.stopWork.ended_at !== null || edit.stopWork.reversed)
-          throw new Error('Refresh the running work session before completing.');
-        const known = doc.work.get(edit.stopWork.id);
-        if (known && known.revision >= edit.stopWork.revision && !sameState(known, edit.stopWork))
-          throw new Error('The work session changed. Refresh before completing.');
-        actions.push({
-          kind: 'stopWork',
-          id,
-          session: { ...edit.stopWork },
-          endedAt: Date.now(),
-          note: edit.stopWork.note,
-          baseRevision,
-        });
-      }
-      actions.push({
-        kind: 'completeTask',
-        id,
-        occurrenceId: ulid(),
-        completedOn: edit.completedOn,
-        previous: currentTask,
-        baseRevision,
-      });
+      currentTask = ensureTodo(actions, id, currentTask, baseRevision);
+      pushCompleteTask(actions, id, edit.completedOn, currentTask, baseRevision);
       continue;
     }
     if (edit.status !== undefined) {
-      if (!currentTask?.status && edit.status !== 'todo') {
-        const started: TaskState = { ...(currentTask ?? newTask()), status: 'todo', completed_on: null };
-        actions.push({ kind: 'task', id, value: started, previous: currentTask, baseRevision });
-        currentTask = started;
-      }
-      const next: TaskState = {
-        ...(currentTask ?? newTask()),
-        ...(edit.patch ?? {}),
-        status: edit.status,
-        completed_on: null,
-      };
+      if (edit.status !== 'todo') currentTask = ensureTodo(actions, id, currentTask, baseRevision);
+      const next: TaskState = { ...(currentTask ?? newTask()), status: edit.status, completed_on: null };
       if (!sameState(currentTask, next))
         actions.push({ kind: 'task', id, value: next, previous: currentTask, baseRevision });
       continue;
@@ -153,14 +133,7 @@ export function editTaskWork(
         baseRevision,
       });
     }
-    actions.push({
-      kind: 'completeTask',
-      id: edit.id,
-      occurrenceId: ulid(),
-      completedOn: edit.completedOn,
-      previous: task,
-      baseRevision,
-    });
+    pushCompleteTask(actions, edit.id, edit.completedOn, task, baseRevision);
   } else if (edit.kind === 'startWork') {
     const active = doc.host.runningWork();
     if (active) throw new Error('Stop the running work session before starting another.');

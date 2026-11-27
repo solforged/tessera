@@ -9,6 +9,7 @@ import { parseCardText } from '../core/card-text';
 import { isPhone } from '../ui/viewport';
 import { priorities, priorityLabel, statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
+import { bulkTaskMode } from './capabilities';
 import type { MenuItem, MenuPaletteButton } from '../ui/Menu';
 import type { IconName } from '../ui/Icon';
 import { openContextMenu } from '../ui/context-menu';
@@ -1189,12 +1190,7 @@ export function createOutlineCommands(
         const targets = roots();
         if (!targets.length) return;
         const allArchived = targets.every(id => doc.block(id)?.archived);
-        apply(
-          targets.length > 1
-            ? { kind: 'archive', ids: targets, archived: !allArchived }
-            : { kind: 'archive', id: targets[0]!, archived: !allArchived },
-          false,
-        );
+        apply({ kind: 'archive', ids: targets, archived: !allArchived }, false);
       },
     },
     {
@@ -1314,9 +1310,7 @@ export function createOutlineCommands(
       run: () => {
         const targets = roots();
         if (!targets.length) return;
-        apply(
-          targets.length > 1 ? { kind: 'heading', ids: targets, level } : { kind: 'heading', id: targets[0]!, level },
-        );
+        apply({ kind: 'heading', ids: targets, level });
       },
     })),
   ];
@@ -1543,11 +1537,10 @@ export function createOutlineCommands(
     return { entry, item, group, managers, makeItems, hasCards };
   }
   function bulkTaskToggleLabel(targets: readonly string[]) {
-    const blocks = targets.map(id => doc.block(id)).filter(block => !!block);
-    const count = targets.length;
-    if (blocks.some(block => !block!.task?.status)) return `Make ${count} tasks`;
-    if (blocks.some(block => block!.task && !isFinished(block!.task))) return `Complete ${count} tasks`;
-    return `Reopen ${count} tasks`;
+    const blocks = targets.map(id => doc.block(id)).filter((block): block is NonNullable<typeof block> => !!block);
+    const mode = bulkTaskMode(blocks);
+    const verb = mode === 'make' ? 'Make' : mode === 'complete' ? 'Complete' : 'Reopen';
+    return `${verb} ${targets.length} tasks`;
   }
   function bulkStatusItems(targets: readonly string[]): MenuItem[] {
     const anyTask = targets.some(id => !!doc.block(id)?.task);
@@ -1603,11 +1596,7 @@ export function createOutlineCommands(
       label: `${count} notes selected`,
       title: `${count} notes selected`,
       items: [
-        {
-          label: bulkTaskToggleLabel(targets),
-          shortcut: '⌘Enter',
-          action: () => capabilities.invoke(capabilities.bulkToggle(targets)),
-        },
+        cmdItem('toggle-task', bulkTaskToggleLabel(targets)),
         group('Task status…', 'Task status', () => bulkStatusItems(targets)),
         {
           label: 'Schedule…',
@@ -1642,9 +1631,8 @@ export function createOutlineCommands(
           divider: true,
         },
         {
-          label: allArchived ? `Unarchive ${count} notes` : `Archive ${count} notes`,
+          ...cmdItem('archive', allArchived ? `Unarchive ${count} notes` : `Archive ${count} notes`),
           divider: true,
-          action: () => apply({ kind: 'archive', ids: [...targets], archived: !allArchived }, false),
         },
         { ...cmdItem('delete', `Delete ${count} notes…`), danger: true },
       ],
@@ -1893,58 +1881,6 @@ export function createOutlineCommands(
   }
   /** Space on a selected row (or in Vim normal mode): one more letter acts on the block (or selected roots). */
   function leaderMenu(id: string) {
-    const targets = roots();
-    if (targets.length > 1) {
-      const anchor = rowAnchor(id);
-      const count = targets.length;
-      const allArchived = targets.every(target => doc.block(target)?.archived);
-      keyboardMenu(id, `${count} notes selected`, [
-        {
-          key: 't',
-          shortcut: 't',
-          label: 'Task status…',
-          section: `${count} notes`,
-          action: () => statusMenu(id),
-        },
-        {
-          key: 's',
-          shortcut: 's',
-          label: 'Schedule…',
-          action: () => anchor && context.openBulkDate(targets, 'scheduled', anchor),
-        },
-        {
-          key: 'd',
-          shortcut: 'd',
-          label: 'Deadline…',
-          action: () => anchor && context.openBulkDate(targets, 'deadline', anchor),
-        },
-        {
-          key: 'p',
-          shortcut: 'p',
-          label: 'Priority…',
-          action: () => keyboardMenu(id, 'Priority', bulkPriorityItems(targets)),
-        },
-        {
-          key: 'h',
-          shortcut: 'h',
-          label: 'Heading…',
-          action: () => keyboardMenu(id, 'Heading', bulkHeadingItems(targets)),
-        },
-        {
-          key: 'm',
-          shortcut: 'm',
-          label: 'Move to note…',
-          action: () => context.openMoveToPage(),
-        },
-        {
-          key: 'a',
-          shortcut: 'a',
-          label: allArchived ? `Unarchive ${count} notes` : `Archive ${count} notes`,
-          action: () => apply({ kind: 'archive', ids: [...targets], archived: !allArchived }, false),
-        },
-      ]);
-      return;
-    }
     const rowCommands = commandsFor(() => id);
     const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({
       key,
@@ -1953,17 +1889,33 @@ export function createOutlineCommands(
       section,
       action: run,
     });
-    const commandItem = (key: string, commandId: string, section?: string): MenuItem => {
+    const commandItem = (key: string, commandId: string, section?: string, label?: string): MenuItem => {
       const command = rowCommands.find(command => command.id === commandId)!;
       return {
         key,
         shortcut: key,
-        label: command.title,
+        label: label ?? command.title,
         section,
         disabledReason: command.disabledReason?.(),
         action: () => command.run(),
       };
     };
+    const targets = roots();
+    if (targets.length > 1) {
+      const anchor = rowAnchor(id);
+      const count = targets.length;
+      const allArchived = targets.every(target => doc.block(target)?.archived);
+      keyboardMenu(id, `${count} notes selected`, [
+        leader('t', 'Task status…', () => statusMenu(id), `${count} notes`),
+        leader('s', 'Schedule…', () => anchor && context.openBulkDate(targets, 'scheduled', anchor)),
+        leader('d', 'Deadline…', () => anchor && context.openBulkDate(targets, 'deadline', anchor)),
+        leader('p', 'Priority…', () => keyboardMenu(id, 'Priority', bulkPriorityItems(targets))),
+        leader('h', 'Heading…', () => keyboardMenu(id, 'Heading', bulkHeadingItems(targets))),
+        commandItem('m', 'move-to-page'),
+        commandItem('a', 'archive', undefined, allArchived ? `Unarchive ${count} notes` : `Archive ${count} notes`),
+      ]);
+      return;
+    }
     const block = doc.block(id);
     let ancestor = block?.parentId ?? null;
     while (ancestor && !doc.block(ancestor)?.question) ancestor = doc.block(ancestor)?.parentId ?? null;

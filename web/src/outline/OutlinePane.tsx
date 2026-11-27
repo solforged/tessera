@@ -32,7 +32,6 @@ import { PersonWorks } from '../library/PersonWorks';
 import type { OutlineIndex } from '../document/outline-index';
 import { spokenJournalDate } from '../tasks/journal-date';
 import { DatePicker } from '../tasks/DatePicker';
-import { isFinished } from '../tasks/task-labels';
 import { JournalResurface } from '../tasks/JournalResurface';
 import { ResearchToRevisit } from '../review/ResearchToRevisit';
 import { createProjectSummary } from '../projects/ProjectSummary';
@@ -49,7 +48,7 @@ import { titleKey } from '../document/title-key';
 import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
 import { PaneEditor } from './editor';
-import { createOutlineCapabilities, isCapabilityTag } from './capabilities';
+import { bulkTaskMode, createOutlineCapabilities, isCapabilityTag } from './capabilities';
 import {
   editingDepth,
   hiddenFieldEntries,
@@ -2856,12 +2855,12 @@ function Pane(props: OutlinePaneProps) {
       <Show when={selectedIds().length > 1 && !editing() && !editingBarVisible()}>
         {(() => {
           const targets = () => roots();
-          const allTasks = () => targets().length > 0 && targets().every(id => !!doc.block(id)?.task?.status);
-          const anyUnfinished = () =>
-            targets().some(id => {
-              const task = doc.block(id)?.task;
-              return task?.status && !isFinished(task);
-            });
+          const taskMode = () =>
+            bulkTaskMode(
+              targets()
+                .map(id => doc.block(id))
+                .filter((block): block is NonNullable<typeof block> => !!block),
+            );
           const allArchived = () => targets().length > 0 && targets().every(id => doc.block(id)?.archived);
           return (
             <div
@@ -2879,11 +2878,11 @@ function Pane(props: OutlinePaneProps) {
             >
               <span class="outline-bulk-count">{targets().length} selected</span>
               <Button
-                icon={allTasks() && anyUnfinished() ? 'check' : 'select'}
+                icon={taskMode() === 'complete' ? 'check' : 'select'}
                 shortcut="⌘Enter"
                 onClick={() => capabilities.invoke(capabilities.bulkToggle(targets()))}
               >
-                {!allTasks() ? 'Make tasks' : anyUnfinished() ? 'Done' : 'Reopen'}
+                {taskMode() === 'make' ? 'Make tasks' : taskMode() === 'complete' ? 'Done' : 'Reopen'}
               </Button>
               <Button
                 icon="calendar"
