@@ -13,9 +13,9 @@ export interface NoticeAction {
   run(): void | Promise<void>;
 }
 
-/** The notice's markup, shared by `showNotice` and by a surface that keeps its own notice state (the outline's per-pane notice).
- * On a phone the stylesheet draws it as one glass capsule above the tab bar; elsewhere it is the toast at the window's foot. */
-export function NoticeView(props: {
+/** The notice's markup, rendered by `NoticeHost`. On a phone the stylesheet draws it as one glass capsule above the tab
+ * bar; elsewhere it is the toast at the window's foot. */
+function NoticeView(props: {
   text: JSX.Element;
   actions?: NoticeAction[];
   /** An action is running: its buttons are held shut. */

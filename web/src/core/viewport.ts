@@ -17,7 +17,6 @@ export function matchesMedia(query: string): boolean {
   return window.matchMedia(query).matches;
 }
 
-export const matchesPhone = () => matchesMedia(phoneQuery);
 export const matchesCoarsePointer = () => matchesMedia(coarseQuery);
 export const matchesTouchOnly = () => matchesMedia(touchOnlyQuery);
 export const matchesNoHover = () => matchesMedia(noHoverQuery);

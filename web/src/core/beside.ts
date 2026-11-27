@@ -4,7 +4,7 @@ import { matchesWideTouch } from './viewport';
  * Opening beside has one modifier everywhere: ⌘ on Apple keyboards, Ctrl elsewhere (on a Mac, Ctrl-click is the
  * context menu). Shift stays free for selecting text and ranges.
  */
-const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+export const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 export const besideKey = mac ? '⌘' : 'Ctrl';
 /** Tooltip suffix for controls that open something. */

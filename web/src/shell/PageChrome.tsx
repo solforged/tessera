@@ -474,19 +474,7 @@ export function createPageChrome(options: PageChromeOptions) {
           ? [{ label: 'View', icon: 'rows', submenu: () => ({ title: 'View', items: viewItems() }) } satisfies MenuItem]
           : []),
         copyItem(),
-        ...(titled() && !root()?.source
-          ? [
-              {
-                label: `Show in ${options.pageKinds()?.find(kind => kind.type_id)?.plural ?? ''} table`.replace(
-                  '  ',
-                  ' ',
-                ),
-                icon: 'table',
-                disabledReason: outlineCommand('open-table')?.disabledReason?.(),
-                action: () => outlineCommand('open-table')?.run(),
-              } satisfies MenuItem,
-            ]
-          : []),
+        ...tableItem(),
         pinItem(),
       ],
       [...renameItems(), ...descriptionItems()],

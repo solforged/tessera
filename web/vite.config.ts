@@ -59,21 +59,10 @@ function themeBoot(): Plugin {
  * Declares the cascade layer order before every bundled or lazy stylesheet so chunk load order never decides precedence.
  */
 function cssLayers(): Plugin {
-  const source = readFileSync(new URL('./src/layers.css', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('./src/layers.css', import.meta.url), 'utf8').trim();
   return {
     name: 'tessera-css-layers',
-    configureServer(server) {
-      server.middlewares.use('/layers.css', (_request, response) => {
-        response.setHeader('content-type', 'text/css; charset=utf-8');
-        response.end(source);
-      });
-    },
-    generateBundle() {
-      this.emitFile({ type: 'asset', fileName: 'layers.css', source });
-    },
-    transformIndexHtml: () => [
-      { tag: 'link', attrs: { rel: 'stylesheet', href: '/layers.css' }, injectTo: 'head-prepend' },
-    ],
+    transformIndexHtml: () => [{ tag: 'style', children: source, injectTo: 'head-prepend' }],
   };
 }
 

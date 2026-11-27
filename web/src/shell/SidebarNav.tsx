@@ -1,4 +1,4 @@
-import { For, Index, Show } from 'solid-js';
+import { createMemo, For, Index, Show } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { Block, IndexKind, NoteIndex, NoteKind, Shelf, View } from '../api/types';
 import { opensBeside } from '../core/beside';
@@ -35,21 +35,12 @@ export interface SidebarNavProps {
   counts: Accessor<DeskCounts | undefined>;
   activeEntry: Accessor<HistoryEntry | undefined>;
   activeRoot: Accessor<Block | undefined>;
-  activeKindKey: Accessor<string | undefined>;
-  activeTypeId: Accessor<string | null>;
-  activeViewId: Accessor<string | undefined>;
   journalDate(pane: PaneId): string;
   index: Accessor<NoteIndex | undefined>;
   views: Accessor<View[] | undefined>;
   pinnedRoots: Accessor<Block[]>;
   pinnedViews: Accessor<string[]>;
-  pinnedViewList: Accessor<View[]>;
-  otherViews: Accessor<View[]>;
-  looseViews: Accessor<View[]>;
   recentRoots: Accessor<Block[]>;
-  shelfKinds: Accessor<Partial<Record<Shelf, IndexKind[]>>>;
-  viewInKind(view: View, kind: NoteKind): boolean;
-  sectionNumber(section: 'pinned' | 'index' | 'views' | 'recent'): string;
   onToday(owner: PaneId, beside: boolean): void;
   onOpen(target: OpenTarget, beside: boolean, owner: PaneId): void;
   onOpenView(view: View, beside: boolean, owner: PaneId): void;
@@ -65,6 +56,49 @@ export function SidebarNav(props: SidebarNavProps) {
   const phoneDirectory = () => !!props.directory && cover();
   const onOpen = (target: OpenTarget, beside = false) => props.onOpen(target, beside, props.owner());
   const onOpenView = (view: View, beside: boolean) => props.onOpenView(view, beside, props.owner());
+  const pinnedViewList = createMemo(() => (props.views() ?? []).filter(view => props.pinnedViews().includes(view.id)));
+  const otherViews = createMemo(() => (props.views() ?? []).filter(view => !props.pinnedViews().includes(view.id)));
+  // Saved views sit under the kind whose type they list; views of any other type keep their own section.
+  const viewInKind = (view: View, kind: NoteKind) =>
+    view.query.note_kind
+      ? view.query.note_kind === kind.key
+      : kind.type_id !== null && kind.type_id === view.query.type;
+  const looseViews = createMemo(() =>
+    otherViews().filter(view => !props.index()?.kinds.some(kind => viewInKind(view, kind))),
+  );
+  const shelfKinds = createMemo(() => {
+    const shelved: Partial<Record<Shelf, IndexKind[]>> = {};
+    for (const kind of props.index()?.kinds ?? []) (shelved[kind.shelf] ??= []).push(kind);
+    return shelved;
+  });
+  const activeViewId = () => {
+    const target = props.activeEntry()?.target;
+    return target?.kind === 'table' || target?.kind === 'index' ? (target.viewId ?? undefined) : undefined;
+  };
+  const activeTypeId = () => {
+    const target = props.activeEntry()?.target;
+    return target?.kind === 'table' && !target.viewId ? target.typeId : null;
+  };
+  const activeKindKey = () => {
+    const target = props.activeEntry()?.target;
+    return target?.kind === 'index'
+      ? target.key
+      : target?.kind === 'table' && !target.viewId && target.query.note_kind
+        ? target.query.note_kind
+        : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId
+          ? props.index()?.kinds.find(kind => kind.type_id === target.typeId)?.key
+          : undefined;
+  };
+  // Sidebar sections carry rubric numerals counted over the sections actually shown.
+  const sectionNumber = (section: 'pinned' | 'index' | 'views' | 'recent') => {
+    const shown = [
+      ...(props.pinnedRoots().length || pinnedViewList().length ? ['pinned'] : []),
+      ...(props.index()?.kinds.length ? ['index'] : []),
+      'views',
+      'recent',
+    ];
+    return String(shown.indexOf(section) + 1).padStart(2, '0');
+  };
   const viewMenuItems = (view: View): MenuItem[] => [
     {
       label: props.pinnedViews().includes(view.id) ? 'Unpin view' : 'Pin view',
@@ -107,12 +141,12 @@ export function SidebarNav(props: SidebarNavProps) {
     </Button>
   );
   const kindViews = (kind: IndexKind) =>
-    props.otherViews().filter(view => props.viewInKind(view, kind) && !redundantKindView(view, kind));
+    otherViews().filter(view => viewInKind(view, kind) && !redundantKindView(view, kind));
   const kindRow = (kind: Accessor<IndexKind>) => (
     <>
       <div class="index-kind-row">
         <Button
-          class={`index-kind ${props.activeKindKey() === kind().key || (tagOnly(kind()) && props.activeTypeId() === kind().type_id) ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`}
+          class={`index-kind ${activeKindKey() === kind().key || (tagOnly(kind()) && activeTypeId() === kind().type_id) ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`}
           icon={noteKindIcon(kind())}
           title={kindLabel(kind())}
           onClick={event => onOpen(indexKindTarget(kind()), opensBeside(event))}
@@ -140,7 +174,7 @@ export function SidebarNav(props: SidebarNavProps) {
           <ViewLinks
             views={kindViews(kind())}
             pinned={false}
-            activeId={props.activeViewId()}
+            activeId={activeViewId()}
             onOpen={onOpenView}
             onPin={props.onPinView}
           />
@@ -224,12 +258,12 @@ export function SidebarNav(props: SidebarNavProps) {
             </Button>
           </nav>
           <div class="sidebar-scroll">
-            <Show when={props.pinnedRoots().length || props.pinnedViewList().length}>
+            <Show when={props.pinnedRoots().length || pinnedViewList().length}>
               <section class="page-list" aria-label="Pinned">
                 <h2>
-                  <span class="section-number">{props.sectionNumber('pinned')}</span>Pinned
+                  <span class="section-number">{sectionNumber('pinned')}</span>Pinned
                   <span class="section-rule" />
-                  <span class="section-count">{props.pinnedRoots().length + props.pinnedViewList().length}</span>
+                  <span class="section-count">{props.pinnedRoots().length + pinnedViewList().length}</span>
                 </h2>
                 <PageLinks
                   roots={props.pinnedRoots()}
@@ -238,9 +272,9 @@ export function SidebarNav(props: SidebarNavProps) {
                   onOpen={onOpen}
                 />
                 <ViewLinks
-                  views={props.pinnedViewList()}
+                  views={pinnedViewList()}
                   pinned
-                  activeId={props.activeViewId()}
+                  activeId={activeViewId()}
                   onOpen={onOpenView}
                   onPin={props.onPinView}
                 />
@@ -249,11 +283,11 @@ export function SidebarNav(props: SidebarNavProps) {
             <Show when={props.index()?.kinds.length}>
               <section class="page-list index-list" aria-label="Index">
                 <h2>
-                  <span class="section-number">{props.sectionNumber('index')}</span>
+                  <span class="section-number">{sectionNumber('index')}</span>
                   <button
                     type="button"
                     class="index-directory-link"
-                    aria-current={props.activeKindKey() === 'all' ? 'page' : undefined}
+                    aria-current={activeKindKey() === 'all' ? 'page' : undefined}
                     title="Open Index"
                     onClick={event => onOpen({ kind: 'index', key: 'all' }, opensBeside(event))}
                   >
@@ -274,9 +308,9 @@ export function SidebarNav(props: SidebarNavProps) {
                 {/* Kinds re-arrive as fresh objects after each change; keep rows mounted by position. */}
                 <For each={shelves}>
                   {([shelf, label]) => (
-                    <Show when={shelf === 'notes' || props.shelfKinds()[shelf]?.length}>
+                    <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
                       <h3 class="index-shelf">{label}</h3>
-                      <Index each={props.shelfKinds()[shelf] ?? []}>{kindRow}</Index>
+                      <Index each={shelfKinds()[shelf] ?? []}>{kindRow}</Index>
                       <Show when={shelf === 'notes'}>{fields()}</Show>
                     </Show>
                   )}
@@ -300,14 +334,14 @@ export function SidebarNav(props: SidebarNavProps) {
             </Show>
             <section class="page-list" aria-label="Saved views">
               <h2>
-                <span class="section-number">{props.sectionNumber('views')}</span>Views
+                <span class="section-number">{sectionNumber('views')}</span>Views
                 <span class="section-rule" />
-                <span class="section-count">{props.looseViews().length || ''}</span>
+                <span class="section-count">{looseViews().length || ''}</span>
               </h2>
               <ViewLinks
-                views={props.looseViews()}
+                views={looseViews()}
                 pinned={false}
-                activeId={props.activeViewId()}
+                activeId={activeViewId()}
                 onOpen={onOpenView}
                 onPin={props.onPinView}
               />
@@ -317,7 +351,7 @@ export function SidebarNav(props: SidebarNavProps) {
             </section>
             <details class="page-list" open>
               <summary>
-                <span class="section-number">{props.sectionNumber('recent')}</span>Recent
+                <span class="section-number">{sectionNumber('recent')}</span>Recent
                 <span class="section-rule" />
                 <Icon name="down" />
               </summary>

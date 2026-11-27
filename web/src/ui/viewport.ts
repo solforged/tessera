@@ -1,35 +1,15 @@
 import type { Accessor } from 'solid-js';
 import { createSignal } from 'solid-js';
-import {
-  coarseQuery,
-  matchesMedia,
-  narrowQuery,
-  noHoverQuery,
-  phoneQuery,
-  previewQuery,
-  reducedMotionQuery,
-  tabbedQuery,
-  touchOnlyQuery,
-  wideTouchQuery,
-} from '../core/viewport';
+import { coarseQuery, matchesMedia, narrowQuery, phoneQuery, previewQuery, tabbedQuery } from '../core/viewport';
 
 export {
   coarseQuery,
   matchesCoarsePointer,
-  matchesMedia,
   matchesNoHover,
-  matchesPhone,
   matchesReducedMotion,
   matchesTouchOnly,
   matchesWideTouch,
-  narrowQuery,
-  noHoverQuery,
-  phoneQuery,
-  previewQuery,
   reducedMotionQuery,
-  tabbedQuery,
-  touchOnlyQuery,
-  wideTouchQuery,
 } from '../core/viewport';
 
 /**
@@ -58,20 +38,12 @@ function sharedMedia(query: string): Accessor<boolean> {
 export const isPhone = sharedMedia(phoneQuery);
 /** Whether the primary input is a coarse pointer (touch screen). */
 export const isCoarsePointer = sharedMedia(coarseQuery);
-/** Whether the device is touch-only (no hover, coarse pointer). */
-export const isTouchOnly = sharedMedia(touchOnlyQuery);
-/** Whether hover is unavailable. */
-export const isNoHover = sharedMedia(noHoverQuery);
-/** Whether the device is a wide touch screen (tablet / unfolded foldable >= 900px). */
-export const isWideTouch = sharedMedia(wideTouchQuery);
 /** Whether the narrow-sidebar drawer breakpoint applies (`max-width: 1047px`). */
 export const isNarrow = sharedMedia(narrowQuery);
 /** Whether the single-pane tabbed workspace breakpoint applies (`max-width: 839px`). */
 export const isTabbed = sharedMedia(tabbedQuery);
 /** Whether Find has room for its side-by-side preview (`min-width: 840px`). */
 export const hasSplitPreview = sharedMedia(previewQuery);
-/** Whether the user requested reduced motion. */
-export const prefersReducedMotion = sharedMedia(reducedMotionQuery);
 
 /**
  * Whether an on-screen touch keyboard is open. Gated on coarse pointer so short

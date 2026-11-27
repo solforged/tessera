@@ -12,7 +12,8 @@ import {
   Show,
 } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import type { Block, IndexKind, NoteKind, Shelf, Type, View, WorkshopInfo } from '../api/types';
+import type { Block, Type, View, WorkshopInfo } from '../api/types';
+import { mac } from '../core/beside';
 import type { WorkshopClient } from '../document/contract';
 import { createWorkshopClient, type Workshop } from '../workflows/workshop';
 import { bindSyncApi } from '../sync/state';
@@ -154,8 +155,6 @@ let paneSequence = 0;
 const newPaneId = (): PaneId => `pane-${Date.now().toString(36)}-${++paneSequence}`;
 /** Kinds that list things: a list fills the pane at its right and keeps focus, so the next row is one key away. */
 const listKinds: Partial<Record<OpenTarget['kind'], true>> = { library: true, index: true, table: true };
-/** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
-const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 function targetFromView(entry: HistoryEntry): OpenTarget {
   const { target, view } = entry;
@@ -1846,8 +1845,6 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       .map(id => rootById().get(id))
       .filter((root): root is Block => !!root && !(root.kind === 'journal' && root.text === todayDate()))
       .slice(0, 10);
-  const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
-  const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
   const index = noteIndex(workshop);
   const [destinationTypes] = createResource(
     () => workshop.changed('types'),
@@ -1895,37 +1892,9 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
     }
     onCleanup(commands.register(destinations));
   });
-  // Saved views sit under the kind whose type they list; views of any other type keep their own section.
-  const viewInKind = (view: View, kind: NoteKind) =>
-    view.query.note_kind
-      ? view.query.note_kind === kind.key
-      : kind.type_id !== null && kind.type_id === view.query.type;
-  const looseViews = createMemo(() =>
-    otherViews().filter(view => !index()?.kinds.some(kind => viewInKind(view, kind))),
-  );
-  // The index already omits an empty type you made, and Unfiled, until something is filed. Built-in kinds stay on their shelf while empty.
-  const shelfKinds = createMemo(() => {
-    const shelved: Partial<Record<Shelf, IndexKind[]>> = {};
-    for (const kind of index()?.kinds ?? []) (shelved[kind.shelf] ??= []).push(kind);
-    return shelved;
-  });
-  const activeViewId = () => {
-    const target = entry(active())?.target;
-    return target?.kind === 'table' || target?.kind === 'index' ? (target.viewId ?? undefined) : undefined;
-  };
   const activeTypeId = () => {
     const target = entry(active())?.target;
     return target?.kind === 'table' && !target.viewId ? target.typeId : null;
-  };
-  const activeKindKey = () => {
-    const target = entry(active())?.target;
-    return target?.kind === 'index'
-      ? target.key
-      : target?.kind === 'table' && !target.viewId && target.query.note_kind
-        ? target.query.note_kind
-        : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId
-          ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key
-          : undefined;
   };
   /** The note kind a pane shows: its index, its Table mode, or the type behind its table, fields or cards. */
   const indexKind = (pane: PaneId) => {
@@ -1975,16 +1944,6 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       (views() ?? []).find(view => view.id === target.viewId)?.name ??
       (kind ? kindLabel(kind) : rootById().get(target.typeId ?? '')?.text)
     );
-  };
-  // Sidebar sections carry rubric numerals counted over the sections actually shown.
-  const sectionNumber = (section: 'pinned' | 'index' | 'views' | 'recent') => {
-    const shown = [
-      ...(pinnedRoots().length || pinnedViewList().length ? ['pinned'] : []),
-      ...(index()?.kinds.length ? ['index'] : []),
-      'views',
-      'recent',
-    ];
-    return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
   const paneName = (pane: PaneId) => {
     const page = rootById().get(pageIdOf(entry(pane)) ?? '');
@@ -2141,21 +2100,12 @@ export function App(props: { onWorkshop?(workshop: Workshop): void } = {}) {
       counts={counts}
       activeEntry={() => entry(active())}
       activeRoot={activeRoot}
-      activeKindKey={activeKindKey}
-      activeTypeId={activeTypeId}
-      activeViewId={activeViewId}
       journalDate={journalDate}
       index={index}
       views={views}
       pinnedRoots={pinnedRoots}
       pinnedViews={pinnedViews}
-      pinnedViewList={pinnedViewList}
-      otherViews={otherViews}
-      looseViews={looseViews}
       recentRoots={recentRoots}
-      shelfKinds={shelfKinds}
-      viewInKind={viewInKind}
-      sectionNumber={sectionNumber}
       onToday={(pane, beside) => {
         void today(pane, beside);
       }}

@@ -12,12 +12,11 @@ import {
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { visualViewportBounds } from './visual-viewport';
-import { matchesNoHover, matchesReducedMotion, reducedMotionQuery } from './viewport';
+import { isPhone, matchesNoHover, matchesReducedMotion, reducedMotionQuery } from './viewport';
 import { anchorInBounds, anchoredPopupPosition, popupBounds } from './popup-position';
 import type { PopupSide } from './popup-position';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import { isPhone } from './viewport';
 import './overlays.css';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);

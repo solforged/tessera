@@ -1,6 +1,7 @@
 import { batch, createSignal, onCleanup, onMount } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { ContextRef } from '../api/types';
+import { mac } from '../core/beside';
 import type { OpenTarget, PaneId } from '../core/contract';
 import type { WorkshopClient } from '../document/contract';
 import { besideSlot, insertPane, paneCapacity } from './pane-row';
@@ -13,8 +14,6 @@ const OPENABLE =
   'a[href], button, [role="button"], [role="link"], [role="option"], [role="tab"], [data-reference], [data-open-page]';
 /** Index rows take ⌘ and Shift for selection, so holding the modifier there previews nothing. */
 const SELECTING = '.index-selectable, .index-queue-row, .index-source-row, .library-checkbox';
-/** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
-const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 export interface PaneGuide {
   left: number;
