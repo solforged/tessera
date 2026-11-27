@@ -1,16 +1,4 @@
-import {
-  For,
-  Match,
-  Show,
-  Switch,
-  batch,
-  createEffect,
-  createMemo,
-  createSignal,
-  lazy,
-  onCleanup,
-  onMount,
-} from 'solid-js';
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, lazy, onCleanup, onMount } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 import type { IndexKind, NoteKind } from '../api/types';
 import { blankCapture } from '../create/request';
@@ -19,33 +7,24 @@ import { titleKey } from '../document/title-key';
 import { noteKindIcon } from '../notes/kinds';
 import { displayTitle, readableText } from '../outline/names';
 import { OutlinePane } from '../outline/OutlinePane';
-import { PageMergePicker, builtInTagReason, pageMergeDisabledReason } from '../outline/PageMerge';
-import { isReadingSubject, localPositionCount } from '../outline/read-register';
 import { journalBarTitle } from '../tasks/journal-date';
 import { isPhone } from '../ui/viewport';
-import { civilDate, relativeDate } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
-import { ListGroup, ListRow, PropertyRow } from '../ui/List';
-import { Menu } from '../ui/Menu';
-import type { MenuItem } from '../ui/Menu';
 import { PaneChromeContext } from '../ui/NavBar';
 import type { BarTitle, PaneChrome } from '../ui/NavBar';
-import { Popup } from '../ui/Popup';
 import { createPaneMotion, paneMotionIdentity, paneTargetIdentity } from '../ui/pane-motion';
 import { opensBeside } from '../core/beside';
 import type {
   AgendaViewState,
   CompareViewState,
-  Depth,
   DirectoryViewState,
   FieldViewState,
   FieldsViewState,
   IndexViewState,
   LibraryViewState,
   OpenTarget,
-  PageProjection,
   PaneId,
   PaneSession,
   PaneView,
@@ -57,8 +36,8 @@ import type {
   ViewState,
 } from '../core/contract';
 import { useWorkshop } from './context';
-import { depthLabels, depthStops } from '../core/contract';
 import { DirectoryPane } from './DirectoryPane';
+import { createPageChrome } from './PageChrome';
 import { paneModules } from './pane-modules';
 import { copyView, pageIdOf, paneLabel, snapshotView } from './pane-state';
 import type { VimMode } from './pane-state';
@@ -145,25 +124,7 @@ export function Pane(props: {
     paneGeneration();
     setKindCreate(undefined);
   });
-  const [menu, setMenu] = createSignal<HTMLElement | null>(null);
-  const [copyMessage, setCopyMessage] = createSignal('');
-  createEffect(() => {
-    pageId();
-    setCopyMessage('');
-  });
-  async function copyPage(reference: boolean) {
-    const id = pageId();
-    if (!id) return;
-    try {
-      await navigator.clipboard.writeText(reference ? `[[${id}]]` : id);
-      setCopyMessage(reference ? 'Copied reference' : 'Copied ID');
-    } catch (error) {
-      setCopyMessage(`Couldn't copy: ${String(error)}`);
-    }
-  }
-  const [depthMenu, setDepthMenu] = createSignal<HTMLElement | null>(null);
-  const [mergeFrom, setMergeFrom] = createSignal<{ id: string; text: string }>();
-  let menuButton!: HTMLButtonElement;
+  let menuButton: HTMLButtonElement | undefined;
   let content!: HTMLDivElement;
   const motionIdentity = createMemo(() => paneTargetIdentity(current().target));
   createPaneMotion(
@@ -217,137 +178,29 @@ export function Pane(props: {
     onCleanup(() => document.release());
   });
   const root = () => doc()?.root();
-  const presentation = () => workshop.pagePresentations[pageId() ?? ''] ?? {};
-  // A source with a snapshot reads as its book: Read opens the reader, so its page itself always shows the outline.
-  const readableSource = () => !!root()?.source?.current_snapshot_id;
-  const defaultProjection = createMemo<PageProjection>(() => {
-    const page = doc();
-    return page && isReadingSubject(page) ? 'read' : 'outline';
+  const pageChrome = createPageChrome({
+    pane: () => props.pane,
+    workshop,
+    session: props.session,
+    doc,
+    pageId,
+    readerTarget,
+    outlineView,
+    pageKinds,
+    pinned: () => props.pinned,
+    besideReason: () => props.besideReason,
+    menuButton: () => menuButton,
+    onOpen: (target, beside) => props.onOpen(target, beside),
+    onPageBeside: () => props.onPageBeside(),
+    onViewChange: view => props.onViewChange(view),
+    onTravel: delta => props.onTravel(delta),
+    onPin: () => props.onPin(),
+    onRename: () => props.onRename(),
+    onDelete: (anchor, source) => props.onDelete(anchor, source),
+    onArchived: () => props.onArchived(),
+    onRestoreView: view => props.onRestoreView(view),
   });
-  const projection = createMemo<PageProjection>(() => {
-    if (readerTarget()) return 'read';
-    if (outlineView().zoom) return 'outline';
-    const value = outlineView().projection ?? presentation().projection ?? defaultProjection();
-    return value === 'read' && readableSource() ? 'outline' : value;
-  });
-  createEffect(() => {
-    if (current().target.kind !== 'page' || doc()?.status() !== 'ready' || outlineView().projection !== undefined)
-      return;
-    props.onViewChange({ ...outlineView(), projection: presentation().projection ?? defaultProjection() });
-  });
-  const readSubject = () => {
-    const zoom = outlineView().zoom;
-    const subject = zoom && doc()?.block(zoom)?.position?.subject_id;
-    return subject ? workshop.workshop.lookup(subject)() : undefined;
-  };
-  const projectionReason = (value: PageProjection) => {
-    if (value !== 'read' || readerTarget()) return undefined;
-    if (doc()?.status() !== 'ready')
-      return doc()?.status() === 'missing' || doc()?.status() === 'error'
-        ? 'The atom is unavailable.'
-        : 'Read is unavailable while the atom is loading.';
-    const zoom = outlineView().zoom;
-    if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.';
-    const block = doc()?.block(zoom);
-    if (!block?.position) return 'Read is unavailable for this atom.';
-    if (doc()?.isArchived(zoom)) return 'This perspective is archived. Restore it to use Read.';
-    const subject = readSubject();
-    if (subject === undefined) return 'The perspective’s subject is loading.';
-    if (!subject || subject.archived) return 'The perspective’s subject is unavailable.';
-    const page = subject.id === subject.page_id ? subject : workshop.workshop.lookup(subject.page_id)();
-    if (page === undefined) return 'The perspective’s subject atom is loading.';
-    if (!page || page.archived) return 'The perspective’s subject atom is unavailable.';
-    if (page.kind !== 'page') return 'Read needs a titled subject. File this perspective under a concept or question.';
-    return undefined;
-  };
-  const setProjection = (value: PageProjection, beside = false) => {
-    const reader = readerTarget();
-    if (reader) {
-      if (value === 'read') return;
-      const id = reader.sourceId,
-        previous = props.session().entries[props.session().index - 1];
-      workshop.onPagePresentation(id, { ...workshop.pagePresentations[id], projection: value });
-      // The page the book was opened from is the way back to its outline.
-      if (
-        !beside &&
-        pageIdOf(previous) === id &&
-        !(previous!.view as ViewState).zoom &&
-        (previous!.view as ViewState).projection === value
-      )
-        props.onTravel(-1);
-      else props.onOpen({ kind: 'page', pageId: id }, beside);
-      return;
-    }
-    if (projectionReason(value)) return;
-    const zoom = outlineView().zoom;
-    if (value === 'read' && !zoom && readableSource()) {
-      props.onViewChange({ ...outlineView(), projection: 'outline' });
-      props.onOpen({ kind: 'reader', sourceId: pageId()! }, beside);
-      return;
-    }
-    if (value === 'read' && zoom) {
-      const subject = readSubject()!;
-      if (subject.page_id !== pageId()) {
-        props.onOpen({ kind: 'page', pageId: subject.page_id, readAt: zoom }, false);
-        return;
-      }
-      batch(() => {
-        workshop.onPagePresentation(pageId()!, { ...presentation(), projection: 'read' });
-        props.onRestoreView({
-          ...outlineView(),
-          projection: 'read',
-          zoom: null,
-          caret: { id: zoom, offset: 0 },
-          scroll: { id: zoom, offset: 0 },
-          reveal: zoom,
-          edit: undefined,
-        });
-      });
-      return;
-    }
-    batch(() => {
-      props.onViewChange({ ...outlineView(), projection: value });
-      workshop.onPagePresentation(pageId()!, { ...presentation(), projection: value });
-    });
-  };
-  const pageStyle = () => ((presentation().bullets ?? root()?.kind === 'journal') ? 'bullets' : 'prose');
-  const compareReason = () => {
-    const page = doc();
-    if (!readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
-    return page?.status() !== 'ready'
-      ? 'Atom is unavailable'
-      : localPositionCount(page) < 2
-        ? 'Compare needs two perspectives on this atom'
-        : undefined;
-  };
-  // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
-  const projectionTabsShown = () =>
-    root()?.kind === 'page' || (!!outlineView().zoom && !!doc()?.block(outlineView().zoom!)?.position);
-  const ProjectionTabs = () => (
-    <div
-      class="mode-tabs tab-strip page-projection-tabs"
-      data-mode-panel=".outline-pane"
-      role="tablist"
-      aria-label="Atom projection"
-    >
-      <For each={['read', 'outline', 'compare'] as const}>
-        {value => (
-          <Button
-            role="tab"
-            aria-selected={projection() === value}
-            disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()}
-            title={value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined}
-            aria-description={
-              value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined
-            }
-            onClick={event => setProjection(value, opensBeside(event))}
-          >
-            {value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}
-          </Button>
-        )}
-      </For>
-    </div>
-  );
+  const { ProjectionTabs, DepthDial } = pageChrome;
   const breadcrumbs = createMemo(() => {
     const page = doc();
     const zoom = 'zoom' in current().view ? outlineView().zoom : null;
@@ -418,293 +271,6 @@ export function Pane(props: {
           ? 'Offline'
           : 'Saving…';
   };
-  const rootCapability = (kind: 'task' | 'project') => outlineCommand(`${kind}-root`)?.run();
-  const outlineCommand = (id: string) =>
-    workshop.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
-  const depth = (): Depth => outlineView().depth ?? 'full';
-  // The dial shows on titled pages at their top level; a zoomed page always shows in full.
-  const showDial = () => root()?.kind === 'page' && !outlineView().zoom && projection() === 'outline';
-  // Read and Compare keep the dial's place, unseen, so switching projection never slides the tabs under the pointer.
-  const dialPlace = () => root()?.kind === 'page' && !outlineView().zoom;
-  // Journal days leave out description and the titled-page-only choices.
-  const titled = () => root()?.kind !== 'journal';
-  const stream = createMemo(() => root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'));
-  const makeItems = (): MenuItem[] => [
-    ...(!root()?.task
-      ? [
-          {
-            label: 'Task',
-            icon: 'select',
-            disabledReason: outlineCommand('task-root')?.disabledReason?.(),
-            action: () => rootCapability('task'),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(!root()?.project
-      ? [
-          {
-            label: 'Project',
-            icon: 'flag',
-            disabledReason: outlineCommand('project-root')?.disabledReason?.(),
-            action: () => rootCapability('project'),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(titled() && !stream()
-      ? [
-          {
-            label: 'Stream',
-            icon: 'link',
-            disabledReason: outlineCommand('stream-root')?.disabledReason?.(),
-            action: () => outlineCommand('stream-root')?.run(),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(titled() && !root()?.question
-      ? [
-          {
-            label: 'Question',
-            icon: 'question-open',
-            disabledReason: root() ? undefined : 'Atom is still loading',
-            action: () => {
-              const result = doc()?.edit({
-                kind: 'question',
-                id: pageId()!,
-                value: { unsettled: false, parked: false, accepted: null, review_on: null },
-              });
-              if (result && !result.ok) setCopyMessage(result.reason);
-            },
-          } satisfies MenuItem,
-        ]
-      : []),
-  ];
-  const pageInfo = () => workshop.workshop.roots().find(page => page.id === pageId());
-  // The Info sheet names the created day the same way the page header does.
-  const createdDate = () => {
-    const page = pageInfo();
-    if (!page) return '';
-    return relativeDate(
-      civilDate(page.created_at, workshop.workshop.settings()?.time_zone),
-      workshop.workshop.todayDate(),
-    );
-  };
-  const [info, setInfo] = createSignal(false);
-  // A phone keeps the title in its bar; projection and depth remain explicit, checked choices here.
-  const viewItems = (): MenuItem[] => [
-    ...(['read', 'outline', 'compare'] as const).map(value => ({
-      label: value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare',
-      section: 'Projection',
-      checked: projection() === value,
-      disabledReason: value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined,
-      action: () => setProjection(value),
-    })),
-    ...(dialPlace()
-      ? depthStops.map(stop => ({
-          label: depthLabels[stop],
-          section: 'Depth',
-          icon: `depth-${stop}` as const,
-          checked: depth() === stop,
-          disabledReason: projection() === 'outline' ? undefined : 'Depth applies to Outline',
-          action: () => outlineCommand(`depth-${stop}`)?.run(),
-        }))
-      : []),
-  ];
-  const copyItem = (): MenuItem => ({
-    label: 'Copy reference',
-    icon: 'link',
-    action: () => {
-      void copyPage(true);
-    },
-  });
-  const renameItems = (): MenuItem[] =>
-    titled()
-      ? [
-          { label: 'Rename', icon: 'edit', action: props.onRename },
-          {
-            label: 'Merge into…',
-            icon: 'merge',
-            disabledReason: pageMergeDisabledReason(root(), doc()?.capabilities(pageId()!)),
-            action: () => {
-              const page = root();
-              if (page) setMergeFrom({ id: page.id, text: page.text });
-            },
-          },
-        ]
-      : [];
-  const pinItem = (): MenuItem => ({ label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin });
-  const descriptionItems = (): MenuItem[] =>
-    titled()
-      ? [
-          {
-            label: 'Description…',
-            icon: 'note',
-            submenu: () => ({
-              title: 'Description',
-              items: [
-                {
-                  label: 'Gloss',
-                  icon: 'edit',
-                  disabledReason: outlineCommand('gloss')?.disabledReason?.(),
-                  action: () => outlineCommand('gloss')?.run(),
-                },
-                {
-                  label: 'Add alias',
-                  icon: 'edit',
-                  disabledReason: outlineCommand('alias')?.disabledReason?.(),
-                  action: () => outlineCommand('alias')?.run(),
-                },
-              ],
-            }),
-          },
-        ]
-      : [];
-  const fieldItems = (): MenuItem[] => [
-    {
-      label: 'Add field…',
-      icon: 'field',
-      disabledReason: outlineCommand('add-field-root')?.disabledReason?.(),
-      action: () => outlineCommand('add-field-root')?.run(),
-    },
-    {
-      label: 'Tags…',
-      icon: 'tag',
-      disabledReason: outlineCommand('types-root')?.disabledReason?.(),
-      action: () => outlineCommand('types-root')?.run(),
-    },
-  ];
-  const capabilityItems = (): MenuItem[] => [
-    ...(makeItems().length
-      ? [
-          {
-            label: 'Make…',
-            icon: 'plus',
-            submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this atom and keeps its text.' }),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(root()?.task
-      ? [
-          {
-            label: 'Task…',
-            icon: 'select',
-            disabledReason: outlineCommand('task-root')?.disabledReason?.(),
-            action: () => rootCapability('task'),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(root()?.project
-      ? [
-          {
-            label: 'Project…',
-            icon: 'flag',
-            disabledReason: outlineCommand('project-root')?.disabledReason?.(),
-            action: () => rootCapability('project'),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(root()?.question
-      ? [
-          {
-            label: 'Question…',
-            icon: 'question-open',
-            disabledReason: outlineCommand('question-root')?.disabledReason?.(),
-            action: () => outlineCommand('question-root')?.run(),
-          } satisfies MenuItem,
-        ]
-      : []),
-    ...(stream()
-      ? [
-          {
-            label: 'Stream…',
-            icon: 'link',
-            submenu: () => ({
-              title: 'Stream',
-              items: [
-                {
-                  label: 'Remove stream',
-                  icon: 'trash',
-                  danger: true,
-                  disabledReason: outlineCommand('stream-root')?.disabledReason?.(),
-                  action: () => outlineCommand('stream-root')?.run(),
-                },
-              ],
-            }),
-          } satisfies MenuItem,
-        ]
-      : []),
-  ];
-  const appearanceItem = (): MenuItem => ({
-    label: 'Appearance…',
-    icon: 'rows',
-    submenu: () => ({
-      title: 'Appearance',
-      items: [
-        ...(projection() === 'outline'
-          ? [
-              {
-                label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets',
-                icon: 'bullet',
-                disabledReason: root() ? undefined : 'Atom is still loading',
-                action: () =>
-                  workshop.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }),
-              } satisfies MenuItem,
-            ]
-          : []),
-        {
-          label: outlineView().showArchived ? 'Hide archived' : 'Show archived',
-          icon: 'archive',
-          action: props.onArchived,
-        },
-      ],
-    }),
-  });
-  const deleteItem = (): MenuItem => ({
-    label: 'Delete atom…',
-    icon: 'trash',
-    danger: true,
-    disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'),
-    action: () => props.onDelete(menuButton),
-  });
-  const items = (): MenuItem[] => [
-    copyItem(),
-    ...renameItems().map((item, at) => (at ? item : { ...item, divider: true })),
-    { ...pinItem(), divider: !titled() },
-    { label: 'Open beside', icon: 'panes', disabledReason: props.besideReason, action: props.onPageBeside },
-    ...descriptionItems().map(item => ({ ...item, divider: true })),
-    ...fieldItems().map((item, at) => (at ? item : { ...item, divider: !titled() })),
-    ...capabilityItems(),
-    { ...appearanceItem(), divider: true },
-    { ...deleteItem(), divider: true },
-  ];
-  // A phone's pull-down is groups of rows: the page's own acts, what it holds, what it can be, then Info and Delete. A day belongs
-  // to the calendar, so a journal day offers no Delete.
-  const phoneItems = (): MenuItem[] =>
-    [
-      [
-        ...(projectionTabsShown()
-          ? [{ label: 'View', icon: 'rows', submenu: () => ({ title: 'View', items: viewItems() }) } satisfies MenuItem]
-          : []),
-        copyItem(),
-        ...(titled() && !root()?.source
-          ? [
-              {
-                label: `Show in ${pageKinds()?.find(kind => kind.type_id)?.plural ?? ''} table`.replace('  ', ' '),
-                icon: 'table',
-                disabledReason: outlineCommand('open-table')?.disabledReason?.(),
-                action: () => outlineCommand('open-table')?.run(),
-              } satisfies MenuItem,
-            ]
-          : []),
-        pinItem(),
-      ],
-      [...renameItems(), ...descriptionItems()],
-      fieldItems(),
-      [...capabilityItems(), appearanceItem()],
-      pageInfo() ? [{ label: 'Info', icon: 'info', action: () => setInfo(true) } satisfies MenuItem] : [],
-      titled() ? [deleteItem()] : [],
-    ]
-      .filter(group => group.length)
-      .flatMap(group => group.map((item, at) => (at ? item : { ...item, divider: true })));
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
     if (pageId()) {
@@ -786,7 +352,7 @@ export function Pane(props: {
         classList={{ active: props.active, immersive: props.immersive, folded: props.folded }}
         style={{ 'flex-grow': props.grow }}
         data-pane={props.pane}
-        data-page-style={pageStyle()}
+        data-page-style={pageChrome.pageStyle()}
         aria-label={`Pane ${props.number}`}
         onPointerDown={props.onActivate}
         onFocusIn={props.onActivate}
@@ -919,38 +485,10 @@ export function Pane(props: {
                 <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
               </nav>
             </Show>
-            <Show when={projectionTabsShown()}>
+            <Show when={pageChrome.projectionTabsShown()}>
               <ProjectionTabs />
             </Show>
-            <Show when={dialPlace()}>
-              <div class="depth-dial" role="group" aria-label="Depth" data-held={showDial() ? undefined : ''}>
-                <For each={depthStops}>
-                  {stop => (
-                    <button
-                      type="button"
-                      class="depth-stop"
-                      aria-pressed={depth() === stop}
-                      title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
-                      onClick={event => {
-                        if (
-                          depth() === stop &&
-                          getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!)
-                            .display === 'none'
-                        )
-                          setDepthMenu(event.currentTarget);
-                        else outlineCommand(`depth-${stop}`)?.run();
-                      }}
-                    >
-                      <Icon name={`depth-${stop}`} />
-                      <span class="visually-hidden">{depthLabels[stop]}</span>
-                    </button>
-                  )}
-                </For>
-                <span class="depth-label" aria-hidden="true">
-                  {depthLabels[depth()]}
-                </span>
-              </div>
-            </Show>
+            <DepthDial />
             <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}>
               <Show
                 when={saveState() !== 'saved' && saveState() !== 'queued' && (saveState() !== 'saving' || slowSave())}
@@ -1086,8 +624,8 @@ export function Pane(props: {
                   icon="more"
                   label="Atom menu"
                   aria-haspopup="menu"
-                  aria-expanded={!!menu()}
-                  onClick={event => setMenu(value => (value ? null : event.currentTarget))}
+                  aria-expanded={!!pageChrome.menu()}
+                  onClick={event => pageChrome.setMenu(value => (value ? null : event.currentTarget))}
                 />
               </Show>
             </div>
@@ -1101,9 +639,9 @@ export function Pane(props: {
             {doc()?.saveMessage()}
           </div>
         </Show>
-        <Show when={copyMessage() && !menu()}>
+        <Show when={pageChrome.copyMessage() && !pageChrome.menu()}>
           <p class="page-projection-reason" role="status">
-            {copyMessage()}
+            {pageChrome.copyMessage()}
           </p>
         </Show>
         <div ref={content} class="pane-content">
@@ -1114,9 +652,9 @@ export function Pane(props: {
                   <OutlinePane
                     pane={props.pane}
                     pageId={pageId()!}
-                    projection={projection()}
-                    onProjection={setProjection}
-                    projectionReason={projectionReason}
+                    projection={pageChrome.projection()}
+                    onProjection={pageChrome.setProjection}
+                    projectionReason={pageChrome.projectionReason}
                     journalPeriod={
                       current().target.kind === 'page'
                         ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod
@@ -1462,114 +1000,7 @@ export function Pane(props: {
             )}
           </Show>
         </div>
-        <Show when={menu()}>
-          {anchor => (
-            <Menu
-              anchor={anchor()}
-              label="Atom actions"
-              title="Atom actions"
-              context={
-                root()?.kind === 'page' ? displayTitle(root()!.text, id => workshop.workshop.lookup(id)) : root()?.text
-              }
-              items={cover() ? phoneItems() : items()}
-              onDismiss={() => setMenu(null)}
-              header={
-                <Show when={!cover() && pageInfo()}>
-                  {page => (
-                    <div class="page-menu-info">
-                      <b>{page().id}</b>
-                      <Button
-                        class="bordered"
-                        onClick={() => {
-                          void copyPage(false);
-                        }}
-                      >
-                        {copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}
-                      </Button>
-                      <span>
-                        Created{' '}
-                        {new Intl.DateTimeFormat('en-CA', {
-                          timeZone: workshop.workshop.settings()?.time_zone,
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                        }).format(page().created_at)}
-                      </span>
-                      <Show when={copyMessage()}>
-                        <span
-                          class={copyMessage().startsWith("Couldn't copy:") ? 'error' : 'visually-hidden'}
-                          role="status"
-                        >
-                          {copyMessage()}
-                        </span>
-                      </Show>
-                    </div>
-                  )}
-                </Show>
-              }
-            />
-          )}
-        </Show>
-        <Show when={info() && pageInfo()}>
-          {page => (
-            <Popup
-              anchor={menuButton}
-              placement="sheet"
-              label="Info"
-              title="Info"
-              fitContent
-              returnFocus={menuButton}
-              onDismiss={() => {
-                setInfo(false);
-                setCopyMessage('');
-              }}
-            >
-              <div class="page-info">
-                <ListGroup>
-                  <PropertyRow label="Created">{createdDate()}</PropertyRow>
-                  <ListRow
-                    icon="link"
-                    detail={<span class="page-info-id">{page().id}</span>}
-                    onClick={() => {
-                      void copyPage(false);
-                    }}
-                  >
-                    {copyMessage() === 'Copied ID' ? 'Copied ID' : 'Copy ID'}
-                  </ListRow>
-                </ListGroup>
-              </div>
-            </Popup>
-          )}
-        </Show>
-        <Show when={depthMenu()}>
-          {anchor => (
-            <Menu
-              anchor={anchor()}
-              label="Depth"
-              onDismiss={() => setDepthMenu(null)}
-              items={depthStops.map(stop => ({
-                label: depthLabels[stop],
-                icon: `depth-${stop}` as const,
-                checked: depth() === stop,
-                action: () => outlineCommand(`depth-${stop}`)?.run(),
-              }))}
-            />
-          )}
-        </Show>
-        <Show keyed when={mergeFrom()}>
-          {from => (
-            <PageMergePicker
-              anchor={menuButton}
-              workshop={workshop.workshop}
-              from={from}
-              onDismiss={() => setMergeFrom(undefined)}
-              onMerged={id => {
-                setMergeFrom(undefined);
-                props.onOpen({ kind: 'page', pageId: id }, false);
-              }}
-            />
-          )}
-        </Show>
+        <pageChrome.Popups />
       </section>
     </PaneChromeContext.Provider>
   );
