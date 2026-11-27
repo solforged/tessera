@@ -65,14 +65,21 @@ impl Workshop {
         let mut people = HashMap::new();
         let mut readings =
             crate::library_export::field_readings_with_people(&self.conn, &ids, &mut people)?;
-        let project_outcomes: HashMap<String, String> =
-            crate::capabilities::capabilities_for(&self.conn, &ids)?
-                .into_iter()
-                .filter_map(|caps| {
-                    let outcome = caps.project?.outcome;
-                    (!outcome.trim().is_empty()).then_some((caps.block_id, outcome))
-                })
-                .collect();
+        let mut project_outcomes = HashMap::new();
+        {
+            let mut statement = self.conn.prepare_cached(
+                "SELECT block_id, json_extract(state, '$.outcome') FROM projects
+                 WHERE active = 1 AND block_id IN (SELECT value FROM json_each(?1))",
+            )?;
+            for row in statement.query_map([&selected], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+            })? {
+                let (id, outcome) = row?;
+                if let Some(outcome) = outcome.filter(|text| !text.trim().is_empty()) {
+                    project_outcomes.insert(id, outcome);
+                }
+            }
+        }
         let template = type_id
             .map(|id| crate::query::template(&self.conn, id))
             .transpose()?

@@ -1,5 +1,6 @@
 import { opensBeside } from '../core/beside';
 import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import type { Accessor } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { FieldOwner, IncomingFieldValue, RelationRow } from '../api/types';
 import type { BlockState, WorkshopClient } from '../document/contract';
@@ -71,8 +72,11 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
 /** Built-in relations their targets already list: creators as Works, collections as their members, projects as Linked tasks. */
 // A person's Works lists the works its creator fields, editors and translators name, a collection lists its members,
 // and a project page lists its linked tasks directly.
+export const isProjectField = (row: IncomingFieldValue) => row.field_name.trim().toLowerCase() === 'project';
 const listedElsewhere = (row: IncomingFieldValue) =>
-  row.counts_as === 'creator' || ['translator', 'collections', 'project'].includes(row.field_name.trim().toLowerCase());
+  row.counts_as === 'creator' ||
+  ['translator', 'collections'].includes(row.field_name.trim().toLowerCase()) ||
+  isProjectField(row);
 const ownersShown = 3;
 
 /** Relation fields read from the target as `← name`, one group per field, each owner opening where it is written. */
@@ -234,6 +238,8 @@ export function IncomingRelations(
     version: number;
     enabled?: boolean /** The page's own header: a phone shows its incoming relations as Mentioned in. */;
     heading?: boolean;
+    /** Shared page-level incoming fields from `Related`, avoiding a duplicate fetch on the page header. */
+    incomingFields?: Accessor<readonly IncomingFieldValue[] | undefined>;
   },
 ) {
   let request: AbortController | undefined;
@@ -249,11 +255,14 @@ export function IncomingRelations(
       const [relations, fields] = await Promise.all([
         props.workshop.api.relations({ target: props.target }, request.signal),
         // Relation fields are secondary here; an older service without the route still shows arguments.
-        props.workshop.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
+        props.incomingFields
+          ? Promise.resolve([] as IncomingFieldValue[])
+          : props.workshop.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
       ]);
       return { relations, fields };
     },
   );
+  const incomingFields = () => (props.incomingFields ? (props.incomingFields() ?? []) : (rows()?.fields ?? []));
   return (
     <Show when={props.enabled !== false}>
       {/* A stopped service is already said once by the offline banner; any other failure names what could not load. */}
@@ -272,13 +281,13 @@ export function IncomingRelations(
           fallback={
             <>
               <IncomingRelationLine rows={rows()?.relations ?? []} workshop={props.workshop} onOpen={props.onOpen} />
-              <IncomingFieldLine rows={rows()?.fields ?? []} workshop={props.workshop} onOpen={props.onOpen} />
+              <IncomingFieldLine rows={incomingFields()} workshop={props.workshop} onOpen={props.onOpen} />
             </>
           }
         >
           <MentionedIn
             relations={rows()?.relations ?? []}
-            fields={rows()?.fields ?? []}
+            fields={incomingFields()}
             workshop={props.workshop}
             onOpen={props.onOpen}
           />

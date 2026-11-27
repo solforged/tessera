@@ -12,8 +12,8 @@ type DropZone = { replace: PaneId } | { insert: number };
 /** What a modifier-click or a drag can open: links, buttons and rows. */
 const OPENABLE =
   'a[href], button, [role="button"], [role="link"], [role="option"], [role="tab"], [data-reference], [data-open-page]';
-/** Index rows take ⌘ and Shift for selection, so holding the modifier there previews nothing. */
-const SELECTING = '.index-selectable, .index-queue-row, .index-source-row, .library-checkbox';
+/** Queue rows and library checkboxes take ⌘ and Shift for selection, so holding the modifier there previews nothing. */
+const SELECTING = '.index-queue-row, .library-checkbox';
 
 export interface PaneGuide {
   left: number;

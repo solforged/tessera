@@ -10,7 +10,7 @@ import { censusNoun, kindLabel, kindPlural, kindTally } from '../notes/kinds';
 import { plainText } from '../outline/names';
 import { taskFieldName } from '../tasks/task-fields';
 import type { MenuItem } from '../ui/Menu';
-import { attributeDefinitions, projectAttributeDefinitions, sourceName } from './attributes';
+import { attributeDefinitions, sourceName } from './attributes';
 import {
   copyQuery,
   filterLabel,
@@ -84,18 +84,19 @@ export function createTableQueryState(options: TableQueryStateOptions) {
       : undefined;
   const isProjectTable = () => query().note_kind === 'project' || typeKind()?.key === 'project';
   const isTaskTable = () => query().source === 'tasks' || query().note_kind === 'task' || typeKind()?.key === 'task';
-  const attributes = createMemo(() => [
-    ...attributeDefinitions(query().source).map(field =>
+  const attributes = createMemo(() =>
+    attributeDefinitions(query().source).map(field =>
       field.id === '@kind'
         ? { ...field, options: (noteIndex()?.kinds ?? []).map(kind => ({ id: kind.key, text: kind.name })) }
         : field,
     ),
-    ...(isProjectTable() && (!query().source || query().source === 'notes') ? projectAttributeDefinitions() : []),
-  ]);
+  );
+  const showAttributeInPicker = (field: FieldDefinition) =>
+    field.id !== '@due' && (isProjectTable() || !field.id.startsWith('@project_'));
   const showFieldInPicker = (field: FieldDefinition) =>
     query().source === 'tasks' ? !taskFieldName(field) : isTaskTable() || !taskFieldName(field);
   const pickerFields = createMemo(() => [
-    ...attributes().filter(field => field.id !== '@due'),
+    ...attributes().filter(showAttributeInPicker),
     ...fields().filter(showFieldInPicker),
   ]);
   const fieldGroups = createMemo(() => {
@@ -105,7 +106,7 @@ export function createTableQueryState(options: TableQueryStateOptions) {
       .sort((a, b) => [...template].indexOf(a.id) - [...template].indexOf(b.id));
     return [
       { section: 'Tag template', fields: own },
-      { section: 'Built in', fields: attributes().filter(field => field.id !== '@due') },
+      { section: 'Built in', fields: attributes().filter(showAttributeInPicker) },
       {
         section: own.length ? 'Other fields' : 'Fields',
         fields: fields().filter(field => !template.has(field.id) && showFieldInPicker(field)),

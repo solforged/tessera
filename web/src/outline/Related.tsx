@@ -1,6 +1,6 @@
 import { besideHint, opensBeside } from '../core/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
-import type { Block, Mention, ReferenceGroup } from '../api/types';
+import type { Block, IncomingFieldValue, Mention, ReferenceGroup } from '../api/types';
 import { loadWorks } from '../library/PersonWorks';
 import { sourceByline } from '../library/query';
 import type { OutlineIndex } from '../document/outline-index';
@@ -17,7 +17,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { createSettledChanges } from '../ui/loading';
 import { isVirtualJournal, readJournalRelated } from './related-reads';
-import { IncomingRelations } from './RelationLines';
+import { IncomingRelations, isProjectField } from './RelationLines';
 import type { HolderRelation } from './Apparatus';
 import { hasCitationDetail } from './source-reads';
 import { typeKeys } from '../fields/templates';
@@ -87,12 +87,12 @@ export function createOutlineRelated(
         branches,
         collection,
         collectionValues,
-        incomingProjectFields,
+        incomingFields,
       ] = await Promise.all([
         readJournalRelated(
           props.workshop.api.pageReferences(
             props.pageId,
-            sourcePage || collectionPage ? Number.MAX_SAFE_INTEGER : limit(),
+            sourcePage || collectionPage || projectPage ? Number.MAX_SAFE_INTEGER : limit(),
             requests.signal,
           ),
           doc.root(),
@@ -118,7 +118,9 @@ export function createOutlineRelated(
             )
           : undefined,
         collectionPage ? props.workshop.api.collectionValues(props.pageId, requests.signal) : [],
-        projectPage ? props.workshop.api.incomingFields(props.pageId, requests.signal) : [],
+        isVirtualJournal(doc.root())
+          ? ([] as IncomingFieldValue[])
+          : props.workshop.api.incomingFields(props.pageId, requests.signal).catch(() => [] as IncomingFieldValue[]),
       ]);
       const about = [
         ...new Map(aboutSubjects.flatMap(result => result.rows).map(row => [row.block.block.id, row])).values(),
@@ -128,9 +130,7 @@ export function createOutlineRelated(
       const branchIds = new Set(branches.map(row => row.block.block.id));
       const membership = new Set(collectionValues.map(block => block.id));
       // Tasks assigned to this project via the built-in project field appear in Linked tasks rather than raw value backlinks.
-      const projectValues = new Set(
-        incomingProjectFields.filter(row => row.field_name.trim().toLowerCase() === 'project').map(row => row.value_id),
-      );
+      const projectValues = new Set(projectPage ? incomingFields.filter(isProjectField).map(row => row.value_id) : []);
       const rootLinks = references.groups.flatMap(group =>
         group.sources
           .filter(row => row.targets.includes(props.pageId))
@@ -192,6 +192,7 @@ export function createOutlineRelated(
       return {
         works: works.rows,
         collection,
+        incomingFields,
         backlinks,
         cited,
         citationTotal,
@@ -296,6 +297,7 @@ export function createOutlineRelated(
         version={relatedVersion()}
         heading={row.heading}
         enabled={row.id === props.pageId || row.id === zoom() || (countById().get(row.id) ?? 0) > 0}
+        incomingFields={row.id === props.pageId ? () => related()?.incomingFields : undefined}
         workshop={props.workshop}
         onOpen={props.onOpen}
       />

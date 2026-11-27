@@ -21,6 +21,10 @@ const attributes: Record<QuerySource, Attribute[]> = {
     ['kind', 'Tag', 'choice'],
     ['resolved', 'Resolved', 'checkbox'],
     ['revisit', 'Revisit', 'date'],
+    ['project_status', 'Status', 'choice', ['Active', 'Done', 'Canceled']],
+    ['project_progress', 'Progress', 'text'],
+    ['project_deadline', 'Deadline', 'date'],
+    ['project_outcome', 'Outcome', 'text'],
   ],
   questions: [
     ['state', 'State', 'choice', ['active', 'recurrent', 'parked', 'answered']],
@@ -60,14 +64,9 @@ const attributes: Record<QuerySource, Attribute[]> = {
     ['color', 'Color', 'choice', ['yellow', 'green', 'blue', 'red', 'purple']],
   ],
 };
-const projectAttributesList: Attribute[] = [
-  ['project_status', 'Status', 'choice', ['Active', 'Done', 'Canceled']],
-  ['project_progress', 'Progress', 'text'],
-  ['project_deadline', 'Deadline', 'date'],
-  ['project_outcome', 'Outcome', 'text'],
-];
-const toDefinitions = (items: Attribute[]): FieldDefinition[] =>
-  items.map(([key, name, kind, options]) => ({
+/** Attributes reuse the shared field picker; task attributes also use its canonical field editor. */
+export function attributeDefinitions(source: QuerySource = 'notes'): FieldDefinition[] {
+  return [...common, ...attributes[source]].map(([key, name, kind, options]) => ({
     id: `@${key}`,
     name,
     kind,
@@ -75,10 +74,4 @@ const toDefinitions = (items: Attribute[]): FieldDefinition[] =>
     targets: [],
     options: (options ?? []).map(text => ({ id: text, text })),
   }));
-/** Attributes reuse the shared field picker; task attributes also use its canonical field editor. */
-export function attributeDefinitions(source: QuerySource = 'notes'): FieldDefinition[] {
-  return toDefinitions([...common, ...attributes[source]]);
-}
-export function projectAttributeDefinitions(): FieldDefinition[] {
-  return toDefinitions(projectAttributesList);
 }

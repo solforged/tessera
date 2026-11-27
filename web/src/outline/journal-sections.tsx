@@ -240,6 +240,14 @@ export function MissingSections(props: { workshop: WorkshopClient; sections: rea
   const primaryId = () => captureSection(props.workshop.todayTemplate()).id;
   const primary = () => props.sections.filter(section => section.id === primaryId());
   const secondary = () => props.sections.filter(section => section.id !== primaryId());
+  const closeIfEmpty = (event: FocusEvent & { currentTarget: HTMLElement }) => {
+    // Leaving an empty line puts the trigger back; a line with text keeps its place.
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
+  };
+  const inlineCapture = (section: TodaySection) => (
+    <SectionCapture workshop={props.workshop} section={section} inline autofocus onCaptured={() => setAdding(null)} />
+  );
   return (
     <Show
       when={phone()}
@@ -270,23 +278,9 @@ export function MissingSections(props: { workshop: WorkshopClient; sections: rea
                       </Button>
                     }
                   >
-                    <section
-                      class="journal-missing-section"
-                      aria-label={section.name}
-                      onFocusOut={event => {
-                        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))
-                          return;
-                        if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
-                      }}
-                    >
+                    <section class="journal-missing-section" aria-label={section.name} onFocusOut={closeIfEmpty}>
                       <SectionHead name={section.name} />
-                      <SectionCapture
-                        workshop={props.workshop}
-                        section={section}
-                        inline
-                        autofocus
-                        onCaptured={() => setAdding(null)}
-                      />
+                      {inlineCapture(section)}
                     </section>
                   </Show>
                 )}
@@ -313,21 +307,8 @@ export function MissingSections(props: { workshop: WorkshopClient; sections: rea
       </div>
       <Show when={props.sections.find(section => section.id === adding())}>
         {section => (
-          <div
-            class="journal-add-to-field"
-            onFocusOut={event => {
-              // Leaving an empty line puts the capsules back; a line with text keeps its place.
-              if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-              if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
-            }}
-          >
-            <SectionCapture
-              workshop={props.workshop}
-              section={section()}
-              inline
-              autofocus
-              onCaptured={() => setAdding(null)}
-            />
+          <div class="journal-add-to-field" onFocusOut={closeIfEmpty}>
+            {inlineCapture(section())}
           </div>
         )}
       </Show>

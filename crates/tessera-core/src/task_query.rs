@@ -185,32 +185,27 @@ pub(crate) fn project_task_counts(conn: &Connection) -> Result<HashMap<String, (
         hidden_blocks!(),
         task_memberships!(),
         " SELECT coalesce(m.explicit_project, a.ancestor_id) AS project_id,
-                 json_extract(m.state, '$.status') AS status,
-                 m.block_id
+                 COUNT(DISTINCT CASE WHEN json_extract(m.state, '$.status') = 'done' THEN m.block_id END),
+                 COUNT(DISTINCT m.block_id)
           FROM memberships m
           LEFT JOIN ancestors a ON a.task_id = m.block_id AND m.explicit_project IS NULL
           JOIN live_projects pr ON pr.block_id = coalesce(m.explicit_project, a.ancestor_id)
           WHERE json_extract(m.state, '$.status') IS NOT NULL
-            AND json_extract(m.state, '$.status') != 'cancelled'"
+            AND json_extract(m.state, '$.status') != 'cancelled'
+          GROUP BY 1"
     ))?;
-    let mut seen = HashSet::<(String, String)>::new();
-    let mut counts = HashMap::<String, (usize, usize)>::new();
+    let mut counts = HashMap::new();
     for row in statement.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
+            (
+                row.get::<_, i64>(1)? as usize,
+                row.get::<_, i64>(2)? as usize,
+            ),
         ))
     })? {
-        let (project, status, task_id) = row?;
-        if !seen.insert((project.clone(), task_id)) {
-            continue;
-        }
-        let entry = counts.entry(project).or_default();
-        entry.1 += 1;
-        if status == "done" {
-            entry.0 += 1;
-        }
+        let (project, pair) = row?;
+        counts.insert(project, pair);
     }
     Ok(counts)
 }
